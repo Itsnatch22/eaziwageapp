@@ -31,8 +31,8 @@ export async function proxy(req: NextRequest) {
   const publicPaths = ["/", "/register", "/reset-password", "/forgot-password"];
   const isPublic = publicPaths.includes(pathname);
 
-  const isEmployerDashboard = pathname.startsWith("/dashboard/employer-dashboard");
-  const isEmployeeDashboard = pathname.startsWith("/dashboard/employee-dashboard");
+  const isEmployerDashboard = pathname.startsWith("/dashboards/employer-dashboard");
+  const isEmployeeDashboard = pathname.startsWith("/dashboards/employee-dashboard");
   const isDashboard = isEmployerDashboard || isEmployeeDashboard;
 
   if (!user && isDashboard) {
@@ -53,8 +53,8 @@ export async function proxy(req: NextRequest) {
 
     const redirectTo =
       profile?.role === "employer"
-        ? "/dashboard/employer-dashboard"
-        : "/dashboard/employee-dashboard";
+        ? "/dashboards/employer-dashboard"
+        : "/dashboards/employee-dashboard";
 
     return NextResponse.redirect(new URL(redirectTo, req.url));
   }
