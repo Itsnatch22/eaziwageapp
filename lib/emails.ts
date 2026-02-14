@@ -1,7 +1,7 @@
-import { render } from "@react-email/render";
 import VerificationEmail from "./emails/templates/VerificationEmail";
 import ResetPasswordEmail from "./emails/templates/ResetPasswordEmail";
 import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const RESEND_API = "https://api.resend.com/emails";
 
@@ -37,16 +37,20 @@ async function sendRawEmail({ to, subject, html }: SendOpts) {
     return res.json();
 }
 
+function renderEmail(element: React.ReactElement) {
+  return `<!doctype html>${renderToStaticMarkup(element)}`;
+}
+
 export async function sendVerificationEmail(to: string, token: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? "http://localhost:3000";
   const link = `${base}/verify-email?token=${encodeURIComponent(token)}`;
-  const html = await render(React.createElement(VerificationEmail, { link }));
+  const html = renderEmail(React.createElement(VerificationEmail, { link }));
   return sendRawEmail({ to, subject: "Verify your EaziWage email", html });
 }
 
 export async function sendResetEmail(to: string, token: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? "http://localhost:3000";
   const link = `${base}/reset-password?token=${encodeURIComponent(token)}`;
-  const html = await render(React.createElement(ResetPasswordEmail, { link }));
+  const html = renderEmail(React.createElement(ResetPasswordEmail, { link }));
   return sendRawEmail({ to, subject: "Reset your EaziWage password", html });
 }

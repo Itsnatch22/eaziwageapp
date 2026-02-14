@@ -1,7 +1,7 @@
 "use client"
 import { useState } from 'react';
-import  Link  from 'next/link';
-import { Icons, MOCK_EMPLOYEES } from '@/constants';
+import Link from 'next/link';
+import { Icons } from '@/constants';
 
 //page imports
 import OverviewTab from './pages/Overview';
@@ -15,20 +15,11 @@ import SettingsTab from './pages/SettingsTab';
 
 export default function EmployerDashboard() {
   const [activeTab, setActiveTab] = useState('Overview');
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const chartData = [
-    { name: 'Jan', amount: 45000 },
-    { name: 'Feb', amount: 52000 },
-    { name: 'Mar', amount: 48000 },
-    { name: 'Apr', amount: 61000 },
-    { name: 'May', amount: 55000 },
-  ];
 
   const renderContent = () => {
     switch (activeTab) {
       case 'Employees':
-        return <EmployeesTab employees={MOCK_EMPLOYEES} searchTerm={searchTerm} setSearchTerm={setSearchTerm} />;
+        return <EmployeesTab />;
       case 'Payroll':
         return <PayrollTab />;
       case 'Insights':
@@ -39,7 +30,7 @@ export default function EmployerDashboard() {
         return <SettingsTab />;
       case 'Overview':
       default:
-        return <OverviewTab chartData={chartData} />;
+        return <OverviewTab />;
     }
   };
 
@@ -156,4 +147,3 @@ const NavItem = ({ icon, label, active = false, onClick }: any) => (
     <span className="text-sm font-bold tracking-tight">{label}</span>
   </button>
 );
-

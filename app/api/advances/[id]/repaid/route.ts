@@ -2,9 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-export async function PATCH(request: Request) {
-  const body = await request.json().catch(() => ({}));
-  const id = typeof body?.id === "string" ? body.id : null;
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
 
   if (!id) {
     return NextResponse.json({ error: "Missing advance id" }, { status: 400 });
@@ -25,8 +27,7 @@ export async function PATCH(request: Request) {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing user sessions.
+            // Ignore cookie set errors in unsupported contexts.
           }
         },
       },

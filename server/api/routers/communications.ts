@@ -37,7 +37,7 @@ export const communicationsRouter = createTRPCRouter({
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Only admins can list announcements' });
       }
 
-      let query = supabaseAdmin.from('announcements').select('*').order('published_at', { ascending: false, nullsLast: true });
+      let query = supabaseAdmin.from('announcements').select('*').order('published_at', { ascending: false });
 
       if (!input.includeDrafts) {
         query = query.eq('is_draft', false);

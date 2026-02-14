@@ -7,7 +7,7 @@ export const createEmployeeSchema = z.object({
   employee_number: z.string().max(50).optional(),
   department: z.string().min(1, 'Department is required').max(100),
   salary: z.number().positive('Salary must be positive'),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const updateEmployeeSchema = z.object({
@@ -17,7 +17,7 @@ export const updateEmployeeSchema = z.object({
   department: z.string().min(1).max(100).optional(),
   salary: z.number().positive().optional(),
   status: z.enum(['Active', 'Inactive']).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const employeeQuerySchema = z.object({

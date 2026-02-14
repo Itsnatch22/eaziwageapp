@@ -1,8 +1,10 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { db } from '@/lib/db';
-import { eq, and } from 'drizzle-orm';
-import { employees } from '@/lib/db/schema';
+
+interface Organization {
+  id: string;
+  country: string;
+}
 
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
@@ -12,8 +14,17 @@ export async function createSupabaseServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Ignored in contexts where setting cookies is not supported.
+          }
         },
       },
     }
@@ -22,7 +33,7 @@ export async function createSupabaseServerClient() {
 
 export async function getCurrentUser() {
   const supabase = await createSupabaseServerClient();
-  
+
   const {
     data: { user },
     error,
@@ -35,27 +46,41 @@ export async function getCurrentUser() {
   return user;
 }
 
-export async function getCurrentOrganization() {
+export async function getCurrentOrganization(): Promise<Organization | null> {
   const user = await getCurrentUser();
-  
+
   if (!user) {
     return null;
   }
 
-  // Query user_organizations to get the user's organization
-  const result = await db.query.userOrganizations.findFirst({
-    where: (userOrgs, { eq }) => eq(userOrgs.user_id, user.id),
-    with: {
-      organization: true,
-    },
-  });
+  const supabase = await createSupabaseServerClient();
 
-  return result?.organization ?? null;
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('organization_id')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile?.organization_id) {
+    return null;
+  }
+
+  const { data: organization, error: orgError } = await supabase
+    .from('organizations')
+    .select('id, country')
+    .eq('id', profile.organization_id)
+    .single();
+
+  if (orgError || !organization) {
+    return null;
+  }
+
+  return organization as Organization;
 }
 
 export async function requireAuth() {
   const user = await getCurrentUser();
-  
+
   if (!user) {
     throw new Error('Unauthorized');
   }
@@ -65,7 +90,7 @@ export async function requireAuth() {
 
 export async function requireOrganization() {
   const organization = await getCurrentOrganization();
-  
+
   if (!organization) {
     throw new Error('No organization found');
   }
@@ -82,18 +107,22 @@ export const COUNTRY_CAPS: Record<string, number> = {
 };
 
 export function getCountryCap(country: string): number {
-  return COUNTRY_CAPS[country] ?? 50; // Default to 50% if country not found
+  return COUNTRY_CAPS[country] ?? 50;
 }
 
 export async function enforceCountryCap(
   organizationId: string,
   requestedPercent: number
 ): Promise<{ allowed: boolean; maxCap: number }> {
-  const org = await db.query.organizations.findFirst({
-    where: (orgs, { eq }) => eq(orgs.id, organizationId),
-  });
+  const supabase = await createSupabaseServerClient();
 
-  if (!org) {
+  const { data: org, error } = await supabase
+    .from('organizations')
+    .select('country')
+    .eq('id', organizationId)
+    .single();
+
+  if (error || !org) {
     return { allowed: false, maxCap: 50 };
   }
 
