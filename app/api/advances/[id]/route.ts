@@ -3,7 +3,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,7 +45,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   if (action === 'approve') {
     // HEAVY LOGIC STARTS HERE
-    const { data: advance, error: advanceError } = await supabase.from('advances').select('*').eq('id', params.id).single();
+    const { data: advance, error: advanceError } = await supabase.from('advances').select('*').eq('id', id).single();
 
     if (advanceError || !advance) {
       return NextResponse.json({ error: 'Advance request not found' }, { status: 404 });
@@ -82,7 +83,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     ? { status: 'approved', approved_at: new Date().toISOString(), approved_by: user.id }
     : { status: 'denied' };
 
-  const { error } = await supabase.from('advances').update(update).eq('id', params.id);
+  const { error } = await supabase.from('advances').update(update).eq('id', id);
 
   return NextResponse.json({ success: true, message: `Advance ${action}d` });
 }

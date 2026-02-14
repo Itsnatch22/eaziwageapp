@@ -2,7 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,6 +30,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   await supabase.from('advances').update({ 
     status: 'repaid', 
     repaid_at: new Date().toISOString() 
-  }).eq('id', params.id);
+  }).eq('id', id);
   return NextResponse.json({ success: true });
 }
