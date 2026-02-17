@@ -1,418 +1,334 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { checkRateLimit, rateLimiter } from "@/lib/rate-limit";
-import { z } from "zod";
-import {
-  checkAccountLock,
-  recordFailedLogin,
-  recordSuccessfulLogin,
-  formatLockoutTime,
-} from "@/lib/failed-logins";
-import {
-  sendAccountLockedEmail,
-  sendLoginNotification,
-} from "@/lib/security-alerts";
-import { getEnv } from "@/env";
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient }              from '@supabase/supabase-js';
+import { createServerClient }        from '@supabase/ssr';
+import { z }                         from 'zod';
 
-// Validate environment on startup
+import { getEnv }                          from '@/env';
+import { rateLimiter, checkRateLimit }     from '@/lib/rate-limit';
+import { sendAccountLockedEmail,
+         sendLoginNotification }           from '@/lib/security-alerts';
+import type { LoginContext }               from '@/lib/security-alerts';
+
+// ─── Environment ──────────────────────────────────────────────────────────────
+
 const env = getEnv();
 
-/* ================================
-   Validation Schema
-================================ */
-const schema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+// Admin client — bypasses RLS for reading profile / lock state
+const supabaseAdmin = createClient(
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } },
+);
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const RECAPTCHA_URL       = 'https://www.google.com/recaptcha/api/siteverify';
+const RECAPTCHA_MIN_SCORE = 0.5;
+
+/** How many consecutive failures before the account is temporarily locked. */
+const MAX_FAILED_ATTEMPTS = 5;
+
+/** Lock duration in minutes — also passed to the alert email. */
+const LOCKOUT_MINUTES = 30;
+
+// ─── Zod Schema ───────────────────────────────────────────────────────────────
+
+const LoginSchema = z.object({
+  email: z
+    .string()
+    .email('Please enter a valid email address')
+    .max(254),
+
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number"),
-  rememberMe: z.boolean().default(false),
-  recaptchaToken: z.string().min(1, "Security verification required"),
+    .min(1, 'Password is required')
+    .max(72),
+
+  recaptcha_token: z
+    .string()
+    .min(1, 'reCAPTCHA token is required'),
 });
 
-/* ================================
-   Helper: Extract IP and User Agent
-================================ */
-function getClientInfo(req: Request): { ip: string; userAgent: string } {
-  const forwarded = req.headers.get("x-forwarded-for");
-  const realIp = req.headers.get("x-real-ip");
-  const cfConnectingIp = req.headers.get("cf-connecting-ip"); // Cloudflare
-  
-  const ip = cfConnectingIp || forwarded?.split(",")[0]?.trim() || realIp || "anonymous";
-  const userAgent = req.headers.get("user-agent") || "Unknown";
+type LoginInput = z.infer<typeof LoginSchema>;
 
-  return { ip, userAgent };
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-real-ip')                     ??
+    req.headers.get('x-forwarded-for')?.split(',')[0] ??
+    req.headers.get('cf-connecting-ip')              ??
+    '0.0.0.0'
+  ).trim();
 }
 
-/* ================================
-   Helper: Verify reCAPTCHA
-================================ */
-async function verifyRecaptcha(
-  token: string,
-  ip: string
-): Promise<{
-  success: boolean;
-  score?: number;
-  error?: string;
-}> {
+function getUserAgent(req: NextRequest): string {
+  return req.headers.get('user-agent') ?? 'Unknown';
+}
+
+async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const params = new URLSearchParams({
+      secret:   env.RECAPTCHA_SECRET_KEY,
+      response: token,
+      remoteip,
+    });
+    const res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+    const data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
 
-    const verifyRes = await fetch(
-      "https://www.google.com/recaptcha/api/siteverify",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          secret: env.RECAPTCHA_SECRET_KEY,
-          response: token,
-          remoteip: ip,
-        }).toString(),
-        signal: controller.signal,
-      }
-    );
-
-    clearTimeout(timeout);
-
-    const verifyData = await verifyRes.json();
-    const score = verifyData.score ?? 0;
-
-    if (!verifyData.success) {
-      return {
-        success: false,
-        error: "Security verification failed",
-      };
+    if (!data.success) {
+      console.warn('[reCAPTCHA] Login verification failed:', data['error-codes']);
+      return false;
     }
-
-    // Configurable threshold (0.6 is stricter, 0.5 is common)
-    const threshold = parseFloat(process.env.RECAPTCHA_THRESHOLD || "0.6");
-    
-    if (score < threshold) {
-      return {
-        success: false,
-        score,
-        error: `Security score too low (${score.toFixed(2)}). Please try again or contact support if you continue to have issues.`,
-      };
+    const score = data.score ?? 0;
+    if (score < RECAPTCHA_MIN_SCORE) {
+      console.warn(`[reCAPTCHA] Login score too low: ${score}`);
+      return false;
     }
-
-    return { success: true, score };
+    return true;
   } catch (err) {
-    console.error("reCAPTCHA verification error:", err);
-    return {
-      success: false,
-      error: "Security verification service unavailable. Please try again in a moment.",
-    };
+    console.error('[reCAPTCHA] Request error:', err);
+    return false;
   }
 }
 
-/* ================================
-   POST /api/auth/login
-================================ */
-export async function POST(req: Request) {
-  const { ip, userAgent } = getClientInfo(req);
+/**
+ * Increments the failed-login counter for a profile.
+ * If the counter reaches MAX_FAILED_ATTEMPTS, stamps locked_until and
+ * fires a security alert email.
+ */
+async function recordFailedAttempt(
+  profileId: string,
+  fullName:  string,
+  email:     string,
+  ctx:       LoginContext,
+): Promise<void> {
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('failed_login_attempts')
+    .eq('id', profileId)
+    .single<{ failed_login_attempts: number }>();
 
-  try {
-    /* ================================
-       1. Parse and validate input
-    ================================= */
-    const body = await req.json();
-    
-    let input;
-    try {
-      input = schema.parse(body);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        const firstError = err.issues[0];
-        return NextResponse.json(
-          {
-            error: firstError.message,
-            field: firstError.path.join("."),
-          },
-          { status: 400 }
-        );
-      }
-      throw err;
-    }
+  const attempts = (profile?.failed_login_attempts ?? 0) + 1;
+  const shouldLock = attempts >= MAX_FAILED_ATTEMPTS;
+  const lockedUntil = shouldLock
+    ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000).toISOString()
+    : null;
 
-    const { email, password, rememberMe, recaptchaToken } = input;
+  await supabaseAdmin
+    .from('profiles')
+    .update({
+      failed_login_attempts: attempts,
+      ...(shouldLock && { locked_until: lockedUntil }),
+    })
+    .eq('id', profileId);
 
-    /* ================================
-       2. Check account lockout
-    ================================= */
-    const lockStatus = await checkAccountLock(email);
-    
-    if (lockStatus.isLocked) {
-      const remainingTime = lockStatus.remainingTime || 0;
-      const timeString = formatLockoutTime(remainingTime);
+  if (shouldLock) {
+    await sendAccountLockedEmail(email, fullName, LOCKOUT_MINUTES, ctx);
+  }
+}
 
-      return NextResponse.json(
-        {
-          error: `Account temporarily locked due to multiple failed login attempts. Please try again in ${timeString}.`,
-          locked: true,
-          remainingTime,
-          suggestion: "Forgot your password? You can reset it instead.",
-        },
-        { status: 423 } // 423 Locked
-      );
-    }
+/**
+ * Resets the failed-login counter and clears any lock on successful auth.
+ */
+async function clearFailedAttempts(profileId: string): Promise<void> {
+  await supabaseAdmin
+    .from('profiles')
+    .update({ failed_login_attempts: 0, locked_until: null })
+    .eq('id', profileId);
+}
 
-    /* ================================
-       3. Rate limiting (IP based)
-    ================================= */
-    const rateLimit = await checkRateLimit(rateLimiter, ip);
+// ─── Route Handler ────────────────────────────────────────────────────────────
 
-    if (!rateLimit.success) {
-      return NextResponse.json(
-        {
-          error: `Too many login attempts from your network. Please try again after ${new Date(
-            rateLimit.reset
-          ).toLocaleTimeString()}.`,
-          rateLimit: {
-            limit: rateLimit.limit,
-            remaining: rateLimit.remaining,
-            reset: rateLimit.reset,
-          },
-        },
-        {
-          status: 429,
-          headers: rateLimit.headers,
-        }
-      );
-    }
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const ip        = getClientIp(req);
+  const userAgent = getUserAgent(req);
 
-    /* ================================
-       4. reCAPTCHA verification
-    ================================= */
-    const recaptchaResult = await verifyRecaptcha(recaptchaToken, ip);
-    
-    if (!recaptchaResult.success) {
-      await recordFailedLogin(email, ip, userAgent, "invalid_password");
-      return NextResponse.json(
-        {
-          error: recaptchaResult.error || "Security verification failed",
-        },
-        { 
-          status: 400,
-          headers: rateLimit.headers,
-        }
-      );
-    }
-
-    /* ================================
-       5. Create Supabase client
-    ================================= */
-    const cookieStore = await cookies();
-
-    const supabase = createServerClient(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          },
-        },
-      }
+  // ── 1. Rate limiting ────────────────────────────────────────────────────────
+  // Keyed per-IP; the per-account lock (below) provides a second layer.
+  const rateResult = await checkRateLimit(rateLimiter, `login:${ip}`);
+  if (!rateResult.success) {
+    return NextResponse.json(
+      { error: 'Too many login attempts from this location. Please try again later.' },
+      { status: 429, headers: rateResult.headers },
     );
+  }
 
-    /* ================================
-       6. Authenticate user
-    ================================= */
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.toLowerCase(),
-      password,
-    });
+  // ── 2. Parse & validate body ────────────────────────────────────────────────
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
 
-    if (authError || !data.user || !data.session) {
-      // Record failed login attempt
-      await recordFailedLogin(
-        email,
-        ip,
-        userAgent,
-        authError?.message.includes("not found") ? "user_not_found" : "invalid_password"
+  const parsed = LoginSchema.safeParse(body);
+  if (!parsed.success) {
+    const messages = parsed.error.issues.map((e) => e.message).join('; ');
+    return NextResponse.json(
+      { error: messages },
+      { status: 422, headers: rateResult.headers },
+    );
+  }
+
+  const input: LoginInput = parsed.data;
+
+  // ── 3. reCAPTCHA v3 ─────────────────────────────────────────────────────────
+  const captchaOk = await verifyRecaptcha(input.recaptcha_token, ip);
+  if (!captchaOk) {
+    return NextResponse.json(
+      { error: 'Security check failed. Please refresh and try again.' },
+      { status: 403, headers: rateResult.headers },
+    );
+  }
+
+  // ── 4. Look up profile (to check account lock before attempting auth) ────────
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, full_name, role, email_verified, locked_until, failed_login_attempts')
+    .eq('email', input.email)
+    .single<{
+      id:                    string;
+      full_name:             string;
+      role:                  string;
+      email_verified:        boolean;
+      locked_until:          string | null;
+      failed_login_attempts: number;
+    }>();
+
+  // ── 5. Account lockout check ─────────────────────────────────────────────────
+  // We intentionally run this even if the profile lookup "failed" to prevent
+  // timing-based user enumeration — the auth attempt below will fail regardless.
+  if (profile?.locked_until) {
+    const lockExpiry = new Date(profile.locked_until);
+    if (lockExpiry > new Date()) {
+      const minutesLeft = Math.ceil((lockExpiry.getTime() - Date.now()) / 60_000);
+      return NextResponse.json(
+        {
+          error: `Your account is temporarily locked due to too many failed attempts. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''} or check your email to unlock it.`,
+        },
+        { status: 423, headers: rateResult.headers },
       );
+    }
+  }
 
-      // Check if this failure caused a lockout
-      const newLockStatus = await checkAccountLock(email);
-      
-      if (newLockStatus.isLocked && !lockStatus.isLocked) {
-        // Account just got locked - send notification
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("email", email.toLowerCase())
-          .single();
-
-        if (profile) {
-          await sendAccountLockedEmail(
-            email,
-            profile.full_name,
-            15, // lockout duration in minutes
-            {
-              ip,
-              userAgent,
-              timestamp: new Date(),
-            }
+  // ── 6. Supabase sign-in ──────────────────────────────────────────────────────
+  // Use the anon client for sign-in so Supabase applies the correct RLS context.
+  // Session cookies are then set on the response via the SSR client.
+  const res = NextResponse.next();
+  const supabaseAuth = createServerClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    // We use the service key here only to call signInWithPassword — the
+    // resulting session is still scoped to the authenticated user.
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      cookies: {
+        getAll() { return req.cookies.getAll(); },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            res.cookies.set(name, value, options),
           );
-        }
-
-        const remainingTime = newLockStatus.remainingTime || 0;
-        const timeString = formatLockoutTime(remainingTime);
-
-        return NextResponse.json(
-          {
-            error: `Too many failed attempts. Your account has been locked for ${timeString}. Check your email for unlock instructions.`,
-            locked: true,
-            remainingTime,
-          },
-          { 
-            status: 423,
-            headers: rateLimit.headers,
-          }
-        );
-      }
-
-      // Return generic error (don't reveal if user exists)
-      const attemptsRemaining = 5 - (lockStatus.failedAttempts + 1);
-      const showWarning = attemptsRemaining <= 2 && attemptsRemaining > 0;
-
-      return NextResponse.json(
-        {
-          error: "Email or password is incorrect",
-          suggestion: "Forgot your password? Reset it here",
-          resetLink: "/forgot-password",
-          ...(showWarning && {
-            warning: `${attemptsRemaining} attempt${attemptsRemaining === 1 ? '' : 's'} remaining before account lockout`,
-          }),
-        },
-        { 
-          status: 401,
-          headers: rateLimit.headers,
-        }
-      );
-    }
-
-    /* ================================
-       7. Fetch user profile
-    ================================= */
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role, full_name, email_verified")
-      .eq("id", data.user.id)
-      .single();
-
-    if (profileError || !profile) {
-      await recordFailedLogin(email, ip, userAgent, "user_not_found");
-      return NextResponse.json(
-        {
-          error: "User profile not found. Please contact support.",
-        },
-        { 
-          status: 500,
-          headers: rateLimit.headers,
-        }
-      );
-    }
-
-    /* ================================
-       8. Check email verification
-    ================================= */
-    if (!profile.email_verified) {
-      return NextResponse.json(
-        {
-          error: "Please verify your email address before logging in",
-          action: "resend_verification",
-          suggestion: "Check your inbox for the verification email, or request a new one",
-        },
-        { 
-          status: 403,
-          headers: rateLimit.headers,
-        }
-      );
-    }
-
-    /* ================================
-       9. Set session with custom duration
-    ================================= */
-    const maxAge = rememberMe
-      ? 30 * 24 * 60 * 60 // 30 days
-      : 24 * 60 * 60; // 24 hours (increased from 1 hour for better UX)
-
-    await supabase.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-    });
-
-    /* ================================
-       10. Record successful login
-    ================================= */
-    await recordSuccessfulLogin(data.user.id, email, ip, userAgent);
-
-    /* ================================
-       11. Send login notification (optional - for new devices)
-    ================================= */
-    // TODO: Implement device fingerprinting to detect new devices
-    // For now, we can send notifications for all logins or skip this
-    // Uncomment below to send notification on every login:
-    // await sendLoginNotification(
-    //   email,
-    //   profile.full_name,
-    //   { ip, userAgent, timestamp: new Date() },
-    //   false // isNewDevice - would need device fingerprinting
-    // );
-
-    /* ================================
-       12. Determine redirect
-    ================================= */
-    const redirectTo =
-      profile.role === "employer"
-        ? "/dashboard/employer-dashboard"
-        : "/dashboard/employee-dashboard";
-
-    /* ================================
-       13. Success response
-    ================================= */
-    return NextResponse.json(
-      {
-        success: true,
-        redirectTo,
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          role: profile.role,
-        },
-        rateLimit: {
-          limit: rateLimit.limit,
-          remaining: rateLimit.remaining,
         },
       },
-      {
-        status: 200,
-        headers: rateLimit.headers,
-      }
-    );
-  } catch (err) {
-    console.error("Login error:", err);
-    
-    // Log the error for monitoring
-    // TODO: Send to error tracking service (e.g., Sentry)
+    },
+  );
 
+  const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
+    email:    input.email,
+    password: input.password,
+  });
+
+  // ── 7. Handle auth failure ───────────────────────────────────────────────────
+  if (authError || !authData.session) {
+    const loginCtx: LoginContext = {
+      ip,
+      userAgent,
+      timestamp: new Date(),
+    };
+
+    // Record failed attempt and potentially lock the account
+    if (profile) {
+      await recordFailedAttempt(profile.id, profile.full_name, input.email, loginCtx);
+    }
+
+    // Generic message to prevent user enumeration
     return NextResponse.json(
-      {
-        error: "An unexpected error occurred. Please try again or contact support if the problem persists.",
-      },
-      { status: 500 }
+      { error: 'Incorrect email or password. Please try again.' },
+      { status: 401, headers: rateResult.headers },
     );
   }
+
+  const { user, session } = authData;
+
+  // ── 8. Verify email confirmation ─────────────────────────────────────────────
+  if (profile && !profile.email_verified) {
+    return NextResponse.json(
+      {
+        error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
+        code:  'EMAIL_NOT_VERIFIED',
+      },
+      { status: 403, headers: rateResult.headers },
+    );
+  }
+
+  // ── 9. Reset failed attempts on success ─────────────────────────────────────
+  if (profile) {
+    await clearFailedAttempts(profile.id);
+  }
+
+  // ── 10. Security alert — new device / location ───────────────────────────────
+  // We detect "new device" heuristically by checking if the last-seen user-agent
+  // differs. For production you'd want a proper device-fingerprint table.
+  if (profile) {
+    const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
+
+    const { data: lastLogin } = await supabaseAdmin
+      .from('login_events')
+      .select('user_agent')
+      .eq('user_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single<{ user_agent: string }>();
+
+    const isNewDevice = !lastLogin || lastLogin.user_agent !== userAgent;
+
+    // Fire-and-forget — don't block the response
+    sendLoginNotification(input.email, profile.full_name, loginCtx, isNewDevice).catch(
+      (err) => console.error('[security-alert] sendLoginNotification failed:', err),
+    );
+
+    // Persist the login event
+    supabaseAdmin.from('login_events').insert({
+  user_id: profile.id,
+  ip_address: ip,
+  user_agent: userAgent,
+  created_at: new Date().toISOString(),
+}).match((error: unknown) => {
+  console.error('[security-alert] Failed to record login event:', error);
+});
+
+  }
+
+  // ── 11. Build success response ────────────────────────────────────────────────
+  // Session cookies were already written to `res` by the SSR client above.
+  // Return minimal data — the client should NOT store tokens in localStorage.
+  const successResponse = NextResponse.json(
+    {
+      message: 'Signed in successfully.',
+      role:    profile?.role ?? user.user_metadata?.role ?? 'employee',
+      userId:  user.id,
+    },
+    { status: 200, headers: rateResult.headers },
+  );
+
+  // Copy cookies from the auth SSR response onto the JSON response
+  res.cookies.getAll().forEach(({ name, value, ...options }) => {
+    successResponse.cookies.set(name, value, options);
+  });
+
+  return successResponse;
 }
+
+export async function GET()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
+export async function PUT()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
+export async function DELETE() { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }

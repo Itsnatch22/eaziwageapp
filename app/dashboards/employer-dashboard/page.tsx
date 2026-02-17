@@ -15,6 +15,7 @@ import SettingsTab from './pages/SettingsTab';
 
 export default function EmployerDashboard() {
   const [activeTab, setActiveTab] = useState('Overview');
+  
 
   const renderContent = () => {
     switch (activeTab) {

@@ -1,5 +1,5 @@
 import {
-  Users,
+  Users, Scan, EyeOff, Sparkles, Mail,
   Wallet,
   ShieldCheck,
   TrendingUp,
@@ -32,12 +32,12 @@ import {
   PieChart,
   Save,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
 } from "lucide-react";
 
 
 export const Icons = {
-  Users,
+  Users, Scan, EyeOff, Sparkles, Mail,
   Wallet,
   ShieldCheck,
   TrendingUp,
@@ -69,5 +69,5 @@ export const Icons = {
   PieChart,
   Save,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
 } as const;

@@ -1,340 +1,329 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
-import Script from "next/script";
+import React, { useState, useCallback, useEffect } from 'react';
+import Script from 'next/script';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowRight, Eye, EyeOff, Mail, Lock,
+  AlertCircle, Sparkles, Sun, Moon,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTheme } from '@/lib/ThemeContext';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface LoginPayload {
+  email:           string;
+  password:        string;
+  recaptcha_token: string;
+}
+
+declare global {
+  interface Window {
+    grecaptcha: {
+      ready: (cb: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+       render: (container: string | HTMLElement, parameters: Record<string, any>) => number;
+      reset: (widgetId?: number) => void;
+    };
+  }
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [suggestion, setSuggestion] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
-  const [lockoutTime, setLockoutTime] = useState<number>(0);
   const router = useRouter();
-  const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
-  // Countdown timer for lockout
-  useEffect(() => {
-    if (lockoutTime > 0) {
-      const timer = setInterval(() => {
-        setLockoutTime((prev) => {
-          if (prev <= 1) {
-            setIsLocked(false);
-            setError(null);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+  const [email,          setEmail]          = useState('');
+  const [password,       setPassword]       = useState('');
+  const [showPassword,   setShowPassword]   = useState(false);
+  const [error,          setError]          = useState('');
+  const [isLoading,      setIsLoading]      = useState(false);
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
 
-      return () => clearInterval(timer);
+  /** Executes reCAPTCHA v3 and returns a fresh token for the given action. */
+  const getReCaptchaToken = useCallback((action: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!RECAPTCHA_SITE_KEY)            return reject(new Error('reCAPTCHA site key not configured'));
+      if (!recaptchaReady || !window.grecaptcha) return reject(new Error('reCAPTCHA not ready'));
+      window.grecaptcha.ready(async () => {
+        try {
+          const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
+          resolve(token);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+  }, [recaptchaReady]);
+
+  const handleSubmit = useCallback(async () => {
+    setError('');
+
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password');
+      return;
     }
 
-    const checkRecaptcha = setInterval(() => {
-    if (window.grecaptcha) {
-      setRecaptchaLoaded(true);
-      clearInterval(checkRecaptcha);
-    }
-    }, 100);
-    return () => clearInterval(checkRecaptcha);
-  }, [lockoutTime]);
-
-  // Format lockout time display
-  const formatTime = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
-    }
-    return `${secs}s`;
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
     setIsLoading(true);
-    setError(null);
-    setWarning(null);
-    setSuggestion(null);
-
-    // Client-side validation
-    if (!email.trim()) {
-      setError("Please enter your email address");
-      setIsLoading(false);
-      return;
-    }
-
-    if (!email.includes("@") || !email.includes(".")) {
-      setError("Please enter a valid email address");
-      setIsLoading(false);
-      return;
-    }
-
-    if (!password) {
-      setError("Please enter your password");
-      setIsLoading(false);
-      return;
-    }
-
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
-      setIsLoading(false);
-      return;
-    }
-
-    // reCAPTCHA check
-    if (!window.grecaptcha) {
-      setError("Security verification not loaded. Please refresh the page and try again.");
-      setIsLoading(false);
-      return;
-    }
-
-    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-    if (!siteKey) {
-      setError("Security configuration error. Please contact support.");
-      setIsLoading(false);
-      return;
-    }
-
-    let recaptchaToken;
     try {
-      recaptchaToken = await new Promise<string>((resolve, reject) => {
-        window.grecaptcha.ready(() => {
-          Promise.resolve(window.grecaptcha.execute(siteKey, { action: "login" }))
-            .then(resolve)
-            .catch(reject);
-        });
+      const recaptchaToken = await getReCaptchaToken('login');
+
+      const payload: LoginPayload = {
+        email:           email.trim().toLowerCase(),
+        password,
+        recaptcha_token: recaptchaToken,
+      };
+
+      const res = await fetch('/api/auth/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
       });
 
-      if (!recaptchaToken) {
-        setError("Security verification failed. Please try again.");
-        setIsLoading(false);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? 'Login failed. Please check your credentials.');
         return;
       }
-    } catch (err) {
-      console.error("reCAPTCHA error:", err);
-      setError("Security verification error. Please refresh the page and try again.");
-      setIsLoading(false);
-      return;
-    }
 
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, rememberMe, recaptchaToken }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Handle different error scenarios
-        if (data.locked) {
-          setIsLocked(true);
-          setLockoutTime(data.remainingTime || 0);
-        }
-
-        if (data.warning) {
-          setWarning(data.warning);
-        }
-
-        if (data.suggestion) {
-          setSuggestion(data.suggestion);
-        }
-
-        throw new Error(data.error || "Login failed");
+      // Role-based redirect — Supabase session is in httpOnly cookies set by the API
+      switch (data.role as string) {
+        case 'admin':    router.push('/admin');                          break;
+        case 'employer': router.push('/dashboards/employer-dashboard'); break;
+        case 'employee': router.push('/dashboards/employee-dashboard'); break;
+        default:         router.push('/');
       }
-
-      // Success - redirect
-      router.push(data.redirectTo || "/dashboard");
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
+    } catch {
+      setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [email, password, getReCaptchaToken, router]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit(); };
 
   return (
     <>
+      {/**
+       * reCAPTCHA v3 — lazyOnload defers the script until after the page
+       * becomes interactive, keeping the login form fast to render.
+       * The button stays disabled until onReady fires.
+       */}
       <Script
-        src={`https://www.google.com/recaptcha/api.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}`}
+        src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
         strategy="lazyOnload"
+        onReady={() => setRecaptchaReady(true)}
       />
-      <div className="relative flex min-h-screen items-center justify-center bg-gray-50 dark:bg-black">
-        {/* Background */}
-        <div className="fixed inset-0 h-screen w-screen bg-green-600 sm:[clip-path:polygon(0_0,70%_0,100%_100%,0%_100%)]" />
 
-        <div className="relative z-10 mx-auto grid w-full max-w-6xl gap-12 p-8 md:grid-cols-2">
-          {/* LEFT */}
-          <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
-            className="flex flex-col justify-center text-white md:pr-8"
-          >
-            <h1 className="mt-12 font-serif text-4xl font-bold md:text-5xl">
-              Welcome Back to EaziWage
-            </h1>
-            <p className="mt-4 text-lg text-green-100">
-              Access your earned wages instantly, or manage your team.
-            </p>
-          </motion.div>
+      <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
 
-          {/* RIGHT */}
-          <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="mt-5 rounded-2xl bg-white p-8 shadow-lg"
-          >
-            <h2 className="text-2xl font-bold text-gray-900">Log In</h2>
+        {/* Background layers */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.06)_0%,transparent_60%)] pointer-events-none" />
+        <div className="absolute top-20 right-0 w-150 h-150 bg-green-500/8 rounded-full blur-[150px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-125 h-125 bg-slate-900/5 dark:bg-green-900/10 rounded-full blur-[150px] pointer-events-none" />
 
-            <form className="mt-6 space-y-4" onSubmit={handleLogin}>
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Work Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  className="mt-1 w-full rounded-lg border border-green-400 px-4 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLocked}
-                  autoComplete="email"
-                />
-              </div>
+        {/* Header */}
+        <header className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-end">
+            <button
+              onClick={toggleTheme}
+              className="p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
+        </header>
 
-              {/* Password */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700">
-                  Password
-                </label>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  className="mt-1 w-full rounded-lg border border-green-400 px-4 py-2 pr-16 focus:ring-2 focus:ring-green-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLocked}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 top-9 text-sm text-gray-500 hover:text-gray-700 disabled:text-gray-400"
-                  disabled={isLocked}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
+        {/* Main */}
+        <main className="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] px-4 sm:px-6 lg:px-8">
+          <div className="w-full max-w-md">
 
-              {/* Remember & Forgot */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:cursor-not-allowed"
-                    disabled={isLocked}
-                  />
-                  <span className={isLocked ? "text-gray-400" : ""}>
-                    Remember me on this device
-                  </span>
-                </label>
-
-                <a
-                  href="/forgot-password"
-                  className="text-sm font-medium text-green-600 hover:underline"
-                >
-                  Forgot password?
-                </a>
-              </div>
-
-              {/* Lockout Timer */}
-              {isLocked && lockoutTime > 0 && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-                  <p className="text-sm text-red-600 font-medium">
-                    🔒 Account temporarily locked
-                  </p>
-                  <p className="text-sm text-red-600 mt-1">
-                    Retry in: <span className="font-mono font-bold">{formatTime(lockoutTime)}</span>
-                  </p>
+            {/* Logo */}
+            <div className="flex justify-center mb-6">
+              <Link href="/" className="flex items-center gap-3 group">
+                <div className="relative">
+                  <div className="w-12 h-12 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/30">
+                    <span className="text-white font-bold text-2xl">E</span>
+                  </div>
+                  <div className="absolute inset-0 bg-green-600/20 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
                 </div>
-              )}
+                <span className="font-bold text-2xl text-slate-900 dark:text-white tracking-tight">EaziWage</span>
+              </Link>
+            </div>
 
-              {/* Warning */}
-              {warning && !isLocked && (
-                <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3">
-                  <p className="text-sm text-yellow-800">⚠️ {warning}</p>
-                </div>
-              )}
+            {/* Badge */}
+            <div className="flex justify-center mb-8">
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-full text-sm font-semibold text-green-700 dark:text-green-400">
+                <Sparkles className="w-4 h-4" />
+                Welcome back to EaziWage
+              </div>
+            </div>
 
-              {/* Error */}
-              {error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-                  <p className="text-sm text-red-600">{error}</p>
-                  {suggestion && (
-                    <p className="text-sm text-red-600 mt-2">
-                      💡 {suggestion}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                className="mt-6 w-full rounded-lg bg-green-600 px-4 py-2 font-semibold text-white transition hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                disabled={isLoading || isLocked}
-              >
-                {isLoading
-                  ? "Logging in..."
-                  : isLocked
-                  ? "Account Locked"
-                  : "Log In"
-                }
-              </button>
-            </form>
-
-            {/* Remember me warning */}
-            {rememberMe && (
-              <p className="mt-4 text-xs text-gray-500 text-center">
-                ℹ️ Only use "Remember me" on your personal device
+            {/* Headline */}
+            <div className="text-center mb-10">
+              <h1 className="text-4xl font-serif sm:text-5xl font-bold text-slate-900 dark:text-white leading-tight mb-4 tracking-tight">
+                Sign In to Your{' '}
+                <span className="bg-linear-to-r from-green-600 to-green-500 bg-clip-text text-transparent">
+                  Account
+                </span>
+              </h1>
+              <p className="text-lg text-slate-500 dark:text-slate-400">
+                Access your earnings, anytime, anywhere.
               </p>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <Alert className="mb-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 rounded-xl">
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <AlertDescription className="text-red-600 dark:text-red-400">{error}</AlertDescription>
+              </Alert>
             )}
 
-            <p className="mt-6 text-center text-sm text-gray-500">
-              Don&apos;t have an account?{" "}
-              <a
-                href="/register"
-                className="font-semibold text-green-600 hover:underline"
-              >
-                Sign up
-              </a>
-            </p>
+            {/* Card */}
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-8 shadow-xl shadow-slate-900/5">
+              <div className="flex flex-col gap-5">
 
-            {/* reCAPTCHA badge info */}
-            <p className="mt-4 text-xs text-gray-400 text-center">
-              Protected by reCAPTCHA
-            </p>
-          </motion.div>
-        </div>
+                {/* Email */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type="email"
+                      placeholder="employee@company.com"
+                      className="h-14 pl-4 pr-12 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-green-600 focus:ring-2 focus:ring-green-600/20 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      autoComplete="email"
+                    />
+                    <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••••"
+                      className="h-14 pl-4 pr-12 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-green-600 focus:ring-2 focus:ring-green-600/20 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-green-600 transition-colors"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Forgot password */}
+                <div className="flex justify-end -mt-2">
+                  <Link
+                    href="/forgot-password"
+                    className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
+
+                {/* Submit */}
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isLoading || !recaptchaReady}
+                  className="w-full h-14 mt-2 rounded-2xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold text-base shadow-lg shadow-green-600/25 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Signing in…
+                    </span>
+                  ) : !recaptchaReady ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Loading security check…
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      Sign In
+                      <ArrowRight className="w-5 h-5" />
+                    </span>
+                  )}
+                </Button>
+
+                {/* Divider */}
+                <div className="relative my-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200 dark:border-slate-700" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-white dark:bg-slate-900 text-slate-400">or continue with</span>
+                  </div>
+                </div>
+
+                {/* Google — only production-ready SSO */}
+                <button
+                  type="button"
+                  onClick={() => router.push('/api/auth/google')}
+                  className="flex items-center justify-center gap-3 h-12 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-green-600 hover:bg-green-50/50 dark:hover:bg-green-900/10 transition-all text-sm font-medium text-slate-700 dark:text-slate-300 w-full"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  Continue with Google
+                </button>
+
+                {/* Security note */}
+                <div className="flex items-center justify-center gap-1.5 pt-1">
+                  <Lock className="w-4 h-4 text-slate-400" />
+                  <span className="text-xs font-medium text-slate-400">
+                    Bank-grade 256-bit encryption · Protected by reCAPTCHA
+                  </span>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Register CTA */}
+            <div className="mt-8 text-center">
+              <p className="text-slate-500 dark:text-slate-400">
+                New to EaziWage?{' '}
+                <Link href="/register" className="text-green-600 dark:text-green-400 font-semibold hover:underline">
+                  Create an account
+                </Link>
+              </p>
+            </div>
+
+          </div>
+        </main>
       </div>
     </>
   );

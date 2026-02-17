@@ -1,120 +1,306 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
+import React, { useState, useCallback } from 'react';
+import Script        from 'next/script';
+import Link          from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowRight, ArrowLeft, Mail, Lock,
+  CheckCircle2, AlertCircle, Sun, Moon,
+} from 'lucide-react';
+import { Button }           from '@/components/ui/button';
+import { Input }            from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTheme }         from '@/lib/ThemeContext';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type PageState = 'idle' | 'loading' | 'success' | 'error';
+
+declare global {
+  interface Window {
+    grecaptcha: {
+      ready: (cb: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+      render: (container: string | HTMLElement, parameters: Record<string, any>) => number;
+    reset: (widgetId?: number) => void;
+    };
+  }
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
 
-  const validateEmail = (value: string) =>
-    /^\S+@\S+\.\S+$/.test(value.trim());
+  const [email,          setEmail]          = useState('');
+  const [pageState,      setPageState]      = useState<PageState>('idle');
+  const [errorMessage,   setErrorMessage]   = useState('');
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
+  const getReCaptchaToken = useCallback((action: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!RECAPTCHA_SITE_KEY)             return reject(new Error('reCAPTCHA site key not configured'));
+      if (!recaptchaReady || !window.grecaptcha) return reject(new Error('reCAPTCHA not ready'));
+      window.grecaptcha.ready(async () => {
+        try {
+          resolve(await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action }));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+  }, [recaptchaReady]);
 
-    if (!validateEmail(email)) {
-      setError("Please enter a valid work email");
+  const handleSubmit = useCallback(async () => {
+    setErrorMessage('');
+
+    if (!email.trim()) {
+      setErrorMessage('Please enter your email address');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setErrorMessage('Please enter a valid email address');
       return;
     }
 
-    setIsLoading(true);
+    setPageState('loading');
     try {
-      // Provide a redirect URL so the reset link lands back in the app.
-      const redirectTo = `${window.location.origin}/reset`;
+      const recaptchaToken = await getReCaptchaToken('forgot_password');
 
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), redirectTo }),
+      const res = await fetch('/api/auth/forgot-password', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          email:           email.trim().toLowerCase(),
+          recaptcha_token: recaptchaToken,
+        }),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        // Expect the API to return { error: "..." } on failure
-        throw new Error(data?.error || "Failed to send reset email");
+        setErrorMessage(data.error ?? 'Something went wrong. Please try again.');
+        setPageState('error');
+        return;
       }
 
-      // UX: don't reveal whether the email exists — generic message
-      setSuccess(
-        "If an account exists for that email, we sent a password reset link. Check your inbox."
-      );
-
-      // Optionally redirect to login after a short pause
-      setTimeout(() => {
-        router.push("/");
-      }, 4500);
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Something went wrong. Try again."
-      );
-    } finally {
-      setIsLoading(false);
+      setPageState('success');
+    } catch {
+      setErrorMessage('Something went wrong. Please try again.');
+      setPageState('error');
     }
+  }, [email, getReCaptchaToken]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSubmit();
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
-      <div className="absolute inset-0 bg-green-600 [clip-path:polygon(0_0,100%_0,100%_100%,0%_100%)] sm:[clip-path:polygon(0_0,70%_0,100%_100%,0%_100%)]" />
+  const isSubmitting = pageState === 'loading';
 
-      <motion.main
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
-        className="relative z-10 w-full max-w-2xl rounded-2xl bg-white p-8 shadow-lg"
-      >
-        <h1 className="text-2xl font-bold text-gray-900">Reset your password</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Enter the email associated with your EaziWage account and we&apos;ll send a
-          secure link to reset your password.
-        </p>
+  // ─── Success state ──────────────────────────────────────────────────────────
 
-        <form className="mt-6" onSubmit={handleSubmit}>
-          <label className="block text-sm font-medium text-gray-700">
-            Work Email
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              className="mt-2 w-full rounded-lg border border-green-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-              aria-label="Work email"
-            />
-          </label>
+  if (pageState === 'success') {
+    return (
+      <div className="min-h-screen bg-white dark:bg-slate-950 flex items-center justify-center px-4">
+        <div className="w-full max-w-md text-center">
 
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-          {success && <p className="mt-3 text-sm text-green-700">{success}</p>}
-
-          <div className="mt-6 flex items-center justify-between">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
-            >
-              {isLoading ? "Sending..." : "Send reset link"}
-            </button>
-
-            <a
-              className="text-sm text-gray-600 hover:underline"
-              href="/"
-            >
-              Back to login
-            </a>
+          {/* Success icon */}
+          <div className="relative mx-auto mb-8 w-20 h-20">
+            <div className="w-20 h-20 bg-linear-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/30 mx-auto">
+              <CheckCircle2 className="w-10 h-10 text-white" />
+            </div>
+            <div className="absolute inset-0 bg-green-600/20 rounded-2xl blur-xl -z-10" />
           </div>
-        </form>
 
-        <div className="mt-6 text-xs text-gray-400">
-          Tip: If you don't see the email, check your spam folder or contact
-          support at <span className="font-mono">support@eaziwage.com</span>.
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
+            Check your inbox
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
+            If an account exists for{' '}
+            <span className="font-semibold text-slate-700 dark:text-slate-300">{email}</span>,
+            you'll receive a password reset link shortly.
+          </p>
+          <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
+            The link expires in 1 hour. Check your spam folder if you don't see it.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              type="button"
+              onClick={() => { setEmail(''); setPageState('idle'); }}
+              className="w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+            >
+              Try a different email
+            </Button>
+            <Link
+              href="/login"
+              className="w-full h-12 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:border-green-600 hover:text-green-600 transition-all"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Sign In
+            </Link>
+          </div>
+
         </div>
-      </motion.main>
-    </div>
+      </div>
+    );
+  }
+
+  // ─── Main form ──────────────────────────────────────────────────────────────
+
+  return (
+    <>
+      <Script
+        src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
+        strategy="lazyOnload"
+        onReady={() => setRecaptchaReady(true)}
+      />
+
+      <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
+
+        {/* Background */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.06)_0%,transparent_60%)] pointer-events-none" />
+        <div className="absolute top-20 right-0 w-125 h-125 bg-green-500/8 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-100 h-100 bg-slate-900/5 dark:bg-green-900/10 rounded-full blur-[120px] pointer-events-none" />
+
+        {/* Header */}
+        <header className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-end">
+            <button
+              onClick={toggleTheme}
+              className="p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
+        </header>
+
+        {/* Main */}
+        <main className="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] px-4 sm:px-6 lg:px-8">
+          <div className="w-full max-w-md">
+
+            {/* Logo */}
+            <div className="flex justify-center mb-6">
+              <Link href="/" className="flex items-center gap-3 group">
+                <div className="relative">
+                  <div className="w-12 h-12 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/30">
+                    <span className="text-white font-bold text-2xl">E</span>
+                  </div>
+                  <div className="absolute inset-0 bg-green-600/20 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
+                </div>
+                <span className="font-bold text-2xl text-slate-900 dark:text-white tracking-tight">EaziWage</span>
+              </Link>
+            </div>
+
+            {/* Icon */}
+            <div className="flex justify-center mb-8">
+              <div className="w-16 h-16 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl flex items-center justify-center">
+                <Lock className="w-8 h-8 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+
+            {/* Headline */}
+            <div className="text-center mb-10">
+              <h1 className="text-4xl font-bold font-serif text-slate-900 dark:text-white leading-tight mb-4 tracking-tight">
+                Forgot your{' '}
+                <span className="bg-linear-to-r from-green-600 to-green-500 bg-clip-text text-transparent">
+                  password?
+                </span>
+              </h1>
+              <p className="text-base text-slate-500 dark:text-slate-400 leading-relaxed">
+                No worries. Enter the email address linked to your account and we'll send you a reset link.
+              </p>
+            </div>
+
+            {/* Error */}
+            {pageState === 'error' && errorMessage && (
+              <Alert className="mb-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 rounded-xl">
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <AlertDescription className="text-red-600 dark:text-red-400">{errorMessage}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Card */}
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-8 shadow-xl shadow-slate-900/5">
+              <div className="flex flex-col gap-5">
+
+                {/* Email */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type="email"
+                      placeholder="you@company.com"
+                      className="h-14 pl-4 pr-12 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-green-600 focus:ring-2 focus:ring-green-600/20 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      autoComplete="email"
+                      autoFocus
+                    />
+                    <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || !recaptchaReady}
+                  className="w-full h-14 rounded-2xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold text-base shadow-lg shadow-green-600/25 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Sending reset link…
+                    </span>
+                  ) : !recaptchaReady ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Loading security check…
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      Send Reset Link
+                      <ArrowRight className="w-5 h-5" />
+                    </span>
+                  )}
+                </Button>
+
+                {/* Back to login */}
+                <Link
+                  href="/login"
+                  className="flex items-center justify-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors pt-1"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to Sign In
+                </Link>
+
+              </div>
+            </div>
+
+            {/* Security note */}
+            <div className="mt-6 flex items-center justify-center gap-1.5">
+              <Lock className="w-4 h-4 text-slate-400" />
+              <span className="text-xs font-medium text-slate-400">
+                Protected by reCAPTCHA · Reset links expire in 1 hour
+              </span>
+            </div>
+
+          </div>
+        </main>
+      </div>
+    </>
   );
 }

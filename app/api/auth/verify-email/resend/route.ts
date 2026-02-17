@@ -4,10 +4,10 @@ import { Resend }                    from 'resend';
 import { z }                         from 'zod';
 import { render }                    from '@react-email/render';
 
-import { getEnv }                      from '@/env';
-import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { createToken }                 from '@/lib/token';
-import PasswordResetEmail              from '@/lib/emails/PasswordResetEmail';
+import { getEnv }                                from '@/env';
+import { resendLimiter, checkRateLimit }         from '@/lib/rate-limit';
+import { createToken }                           from '@/lib/token';
+import WelcomeEmail                              from '@/lib/emails/WelcomeEmail';
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ const supabase = createClient(
 const FROM_EMAIL    = 'EaziWage <noreply@eaziwage.com>';
 const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
-const TOKEN_TTL_MS  = 60 * 60 * 1000; // 1 hour
+const TOKEN_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -56,17 +56,19 @@ async function verifyRecaptcha(token: string, ip: string): Promise<boolean> {
   } catch { return false; }
 }
 
-// ─── Route Handler ────────────────────────────────────────────────────────────
+// ─── POST /api/auth/verify-email/resend ──────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
 
-  // ── 1. Rate limit — 5 attempts per hour per IP ──────────────────────────────
-  const rate = await checkRateLimit(rateLimiter, `forgot-password:${ip}`);
-  if (!rate.success) {
+  // ── 1. Rate limit — uses resendLimiter: 3 resends per hour per email ─────────
+  // We'll derive the key from the email after parsing, but first check by IP
+  // as a spam guard before we even parse the body.
+  const ipRate = await checkRateLimit(resendLimiter, `resend-verify-ip:${ip}`);
+  if (!ipRate.success) {
     return NextResponse.json(
       { error: 'Too many requests. Please wait before trying again.' },
-      { status: 429, headers: rate.headers },
+      { status: 429, headers: ipRate.headers },
     );
   }
 
@@ -79,49 +81,65 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues.map((e) => e.message).join('; ') },
-      { status: 422, headers: rate.headers },
+      { status: 422, headers: ipRate.headers },
     );
   }
 
   const { email, recaptcha_token } = parsed.data;
 
-  // ── 3. reCAPTCHA ────────────────────────────────────────────────────────────
+  // ── 3. Per-email rate limit (3 resends / hour) ───────────────────────────────
+  const emailRate = await checkRateLimit(resendLimiter, `resend-verify-email:${email}`);
+  if (!emailRate.success) {
+    return NextResponse.json(
+      { error: 'Verification email already sent recently. Please check your inbox or try again in an hour.' },
+      { status: 429, headers: emailRate.headers },
+    );
+  }
+
+  // ── 4. reCAPTCHA ────────────────────────────────────────────────────────────
   if (!(await verifyRecaptcha(recaptcha_token, ip))) {
     return NextResponse.json(
       { error: 'Security check failed. Please refresh and try again.' },
-      { status: 403, headers: rate.headers },
+      { status: 403 },
     );
   }
 
-  // ── 4. Look up profile ───────────────────────────────────────────────────────
-  // Always return 200 regardless of whether the email exists — prevents enumeration.
+  // ── 5. Look up profile ───────────────────────────────────────────────────────
+  // Always return 200 to prevent email enumeration.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, full_name, email')
+    .select('id, full_name, email, role, email_verified')
     .eq('email', email)
-    .single<{ id: string; full_name: string; email: string }>();
+    .single<{ id: string; full_name: string; email: string; role: string; email_verified: boolean }>();
 
   if (!profile) {
-    // Deliberate: same response whether email exists or not
     return NextResponse.json(
-      { message: 'If an account exists for this email, a reset link has been sent.' },
-      { status: 200, headers: rate.headers },
+      { message: 'If an unverified account exists for this email, a new verification link has been sent.' },
+      { status: 200 },
     );
   }
 
-  // ── 5. Invalidate any existing reset tokens for this user ───────────────────
+  // Already verified — no need to resend
+  if (profile.email_verified) {
+    return NextResponse.json(
+      { message: 'If an unverified account exists for this email, a new verification link has been sent.' },
+      { status: 200 },
+    );
+  }
+
+  // ── 6. Invalidate existing unused tokens for this user ───────────────────────
   await supabase
-    .from('password_resets')
+    .from('email_verifications')
     .update({ used_at: new Date().toISOString() })
     .eq('user_id', profile.id)
     .is('used_at', null);
 
-  // ── 6. Create new reset token ────────────────────────────────────────────────
+  // ── 7. Create fresh token ────────────────────────────────────────────────────
   const { token, tokenHash } = createToken();
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
 
   const { error: insertError } = await supabase
-    .from('password_resets')
+    .from('email_verifications')
     .insert({
       user_id:    profile.id,
       token_hash: tokenHash,
@@ -130,35 +148,45 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
 
   if (insertError) {
-    console.error('[forgot-password] Token insert error:', insertError);
+    console.error('[verify-email/resend] Token insert error:', insertError);
     return NextResponse.json(
-      { error: 'Failed to generate reset link. Please try again.' },
-      { status: 500, headers: rate.headers },
+      { error: 'Failed to generate a new verification link. Please try again.' },
+      { status: 500 },
     );
   }
 
-  // ── 7. Send email ────────────────────────────────────────────────────────────
-  const resetUrl = `${BASE_URL}/reset-password?token=${token}`;
-  const html     = await render(
-    PasswordResetEmail({ fullName: profile.full_name, email: profile.email, resetUrl }),
+  // ── 8. Send email ────────────────────────────────────────────────────────────
+  const verificationUrl = `${BASE_URL}/verify-email?token=${token}`;
+  const role = profile.role as 'employee' | 'employer';
+
+  const html = await render(
+    WelcomeEmail({
+      fullName:        profile.full_name,
+      email:           profile.email,
+      role,
+      verificationUrl,
+    }),
   );
 
   const { error: emailError } = await resend.emails.send({
     from:    FROM_EMAIL,
     to:      profile.email,
-    subject: 'Reset your EaziWage password',
+    subject: 'Verify your EaziWage email address',
     html,
-    tags: [{ name: 'category', value: 'password-reset' }],
+    tags: [
+      { name: 'category', value: 'email-verification' },
+      { name: 'type',     value: 'resend'             },
+    ],
   });
 
   if (emailError) {
-    console.error('[forgot-password] Email send error:', emailError);
-    // Non-fatal from the user's perspective — they get the same success message
+    console.error('[verify-email/resend] Email error:', emailError);
+    // Non-fatal — user gets the same success response
   }
 
   return NextResponse.json(
-    { message: 'If an account exists for this email, a reset link has been sent.' },
-    { status: 200, headers: rate.headers },
+    { message: 'If an unverified account exists for this email, a new verification link has been sent.' },
+    { status: 200 },
   );
 }
 

@@ -1,9 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient }        from '@supabase/ssr';
 
-export async function proxy(req: NextRequest) {
-  const res = NextResponse.next();
+// ─── Types ────────────────────────────────────────────────────────────────────
 
+type UserRole = 'employer' | 'employee';
+
+interface Profile {
+  role: UserRole;
+}
+
+// ─── Route groups ─────────────────────────────────────────────────────────────
+
+/** Routes accessible without authentication */
+const PUBLIC_PATHS = new Set([
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+  '/terms',
+  '/privacy',
+]);
+
+/** Auth routes — redirect already-signed-in users away from these */
+const AUTH_ONLY_PATHS = new Set(['/login', '/register', '/forgot-password']);
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
+
+export async function proxy(req: NextRequest): Promise<NextResponse> {
+  const res      = NextResponse.next();
+  const pathname = req.nextUrl.pathname;
+
+  // Create SSR-aware Supabase client that reads/writes cookies correctly
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -13,55 +42,86 @@ export async function proxy(req: NextRequest) {
           return req.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            res.cookies.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            res.cookies.set(name, value, options);
+          });
         },
       },
-    }
+    },
   );
 
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const user = session?.user;
-  const pathname = req.nextUrl.pathname;
+  const user    = session?.user ?? null;
+  const isAuth  = user !== null;
 
-  const publicPaths = ["/", "/register", "/reset-password", "/forgot-password"];
-  const isPublic = publicPaths.includes(pathname);
+  const isPublic           = PUBLIC_PATHS.has(pathname);
+  const isAuthOnly         = AUTH_ONLY_PATHS.has(pathname);
+  const isEmployerDashboard = pathname.startsWith('/dashboards/employer-dashboard');
+  const isEmployeeDashboard = pathname.startsWith('/dashboards/employee-dashboard');
+  const isDashboard         = isEmployerDashboard || isEmployeeDashboard;
+  const isOnboarding        = pathname.startsWith('/employer/onboarding') ||
+                              pathname.startsWith('/employee/onboarding');
 
-  const isEmployerDashboard = pathname.startsWith("/dashboards/employer-dashboard");
-  const isEmployeeDashboard = pathname.startsWith("/dashboards/employee-dashboard");
-  const isDashboard = isEmployerDashboard || isEmployeeDashboard;
-
-  if (!user && isDashboard) {
-    return NextResponse.redirect(new URL("/", req.url));
+  // ── Unauthenticated user tries to access a protected route ──────────────────
+  if (!isAuth && (isDashboard || isOnboarding)) {
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  if (user && isPublic && pathname !== "/") {
-    // Add exceptions here to allow access even if logged in
-    if (pathname === "/register" || pathname === "/forgot-password") { // Add more paths as needed
-      return res; // Skip redirect, allow access
+  // ── Authenticated user tries to access an auth-only route ───────────────────
+  // (e.g. hits /login after already being signed in)
+  if (isAuth && isAuthOnly) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user!.id)
+      .single<Profile>();
+
+    const destination =
+      profile?.role === 'employer'
+        ? '/dashboards/employer-dashboard'
+        : '/dashboards/employee-dashboard';
+
+    return NextResponse.redirect(new URL(destination, req.url));
+  }
+
+  // ── Role-based dashboard guard ───────────────────────────────────────────────
+  if (isAuth && isDashboard) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user!.id)
+      .single<Profile>();
+
+    const role = profile?.role;
+
+    if (isEmployerDashboard && role !== 'employer') {
+      return NextResponse.redirect(new URL('/dashboards/employee-dashboard', req.url));
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    const redirectTo =
-      profile?.role === "employer"
-        ? "/dashboards/employer-dashboard"
-        : "/dashboards/employee-dashboard";
-
-    return NextResponse.redirect(new URL(redirectTo, req.url));
+    if (isEmployeeDashboard && role !== 'employee') {
+      return NextResponse.redirect(new URL('/dashboards/employer-dashboard', req.url));
+    }
   }
 
   return res;
 }
 
+// ─── Matcher ──────────────────────────────────────────────────────────────────
+
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static  (static files)
+     * - _next/image   (image optimisation)
+     * - favicon.ico
+     * - Public asset extensions
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)',
+  ],
 };
