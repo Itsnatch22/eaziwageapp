@@ -1,7 +1,7 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
+import { withBotId } from 'botid/next/config';
+ 
+const nextConfig = {
+  // Your existing Next.js config
 };
-
-export default nextConfig;
+ 
+export default withBotId(nextConfig);

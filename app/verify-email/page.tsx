@@ -203,7 +203,7 @@ export default function VerifyEmailPage() {
               <div className="absolute inset-0 bg-green-600/20 rounded-2xl blur-xl -z-10" />
             </div>
 
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
+            <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
               Email verified!
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
@@ -238,7 +238,7 @@ export default function VerifyEmailPage() {
               <div className="absolute inset-0 bg-amber-400/20 rounded-2xl blur-xl -z-10" />
             </div>
 
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
+            <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
               Link expired
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
@@ -284,7 +284,7 @@ export default function VerifyEmailPage() {
                   </span>
                 )}
               </Button>
-              <Link href="/login" className="text-sm text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors text-center">
+              <Link href="/" className="text-sm text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors text-center">
                 Back to Sign In
               </Link>
             </div>
@@ -302,7 +302,7 @@ export default function VerifyEmailPage() {
               <div className="absolute inset-0 bg-slate-500/10 rounded-2xl blur-xl -z-10" />
             </div>
 
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
+            <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
               Invalid link
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
@@ -318,7 +318,7 @@ export default function VerifyEmailPage() {
               >
                 Request a new verification email
               </Button>
-              <Link href="/login" className="w-full h-12 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-sm font-medium text-slate-600 dark:text-slate-400 hover:border-green-600 hover:text-green-600 transition-all">
+              <Link href="/" className="w-full h-12 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-sm font-medium text-slate-600 dark:text-slate-400 hover:border-green-600 hover:text-green-600 transition-all">
                 Back to Sign In
               </Link>
             </div>
@@ -336,7 +336,7 @@ export default function VerifyEmailPage() {
             </div>
 
             <div className="text-center mb-10">
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
+              <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
                 Verify your email
               </h1>
               <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -393,7 +393,7 @@ export default function VerifyEmailPage() {
                   )}
                 </Button>
 
-                <Link href="/login" className="text-sm text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors text-center">
+                <Link href="/" className="text-sm text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors text-center">
                   Back to Sign In
                 </Link>
               </div>
@@ -412,7 +412,7 @@ export default function VerifyEmailPage() {
               <div className="absolute inset-0 bg-green-600/20 rounded-2xl blur-xl -z-10" />
             </div>
 
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
+            <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
               Email sent!
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
@@ -422,7 +422,7 @@ export default function VerifyEmailPage() {
             <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
               The link expires in 24 hours. Check your spam folder if you don't see it.
             </p>
-            <Link href="/login" className="inline-flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-400 hover:underline">
+            <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-400 hover:underline">
               Back to Sign In
             </Link>
           </div>
