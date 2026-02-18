@@ -97,17 +97,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const code        = searchParams.get('code');
   const isSetup     = searchParams.get('setup') === '1';
   const oauthError  = searchParams.get('error');
+  const requestedRoleParam = searchParams.get('role');
+  const requestedRole = requestedRoleParam === 'employer' || requestedRoleParam === 'employee' ? requestedRoleParam : null;
 
   // ── OAuth denial ─────────────────────────────────────────────────────────────
   if (oauthError) {
     const desc = searchParams.get('error_description') ?? oauthError;
     return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(desc)}`, req.url),
+      new URL(`/?error=${encodeURIComponent(desc)}`, req.url),
     );
   }
 
   // Build SSR-aware Supabase client that writes session cookies onto the response
-  const response = NextResponse.redirect(new URL('/login', req.url)); // default fallback
+  const response = NextResponse.redirect(new URL('/', req.url)); // default fallback
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
@@ -128,13 +130,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session?.user) {
-      return NextResponse.redirect(new URL('/login', req.url));
+      return NextResponse.redirect(new URL('/', req.url));
     }
 
     const user     = session.user;
     const fullName = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'User';
     const email    = user.email ?? '';
-    const role     = (user.user_metadata?.role as 'employee' | 'employer') ?? 'employee';
+    const role     = (requestedRole as 'employee' | 'employer' | null) ?? (user.user_metadata?.role as 'employee' | 'employer') ?? 'employee';
     const avatarUrl = user.user_metadata?.avatar_url as string | undefined;
 
     // Upsert profile — safe to call multiple times
@@ -164,7 +166,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // ── Branch: standard PKCE code exchange ──────────────────────────────────────
   if (!code) {
-    return NextResponse.redirect(new URL('/login', req.url));
+    return NextResponse.redirect(new URL('/', req.url));
   }
 
   const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
@@ -172,7 +174,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (exchangeError || !data.session) {
     console.error('[google-callback] Code exchange failed:', exchangeError);
     return NextResponse.redirect(
-      new URL('/login?error=auth_failed', req.url),
+      new URL('/?error=auth_failed', req.url),
     );
   }
 
@@ -198,7 +200,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // ── New Google user: create profile ────────────────────────────────────────
     const fullName  = user.user_metadata?.full_name  ?? user.email?.split('@')[0] ?? 'User';
     const email     = user.email ?? '';
-    const role      = (user.user_metadata?.role as 'employee' | 'employer') ?? 'employee';
+    const role      = (requestedRole as 'employee' | 'employer' | null) ?? (user.user_metadata?.role as 'employee' | 'employer') ?? 'employee';
     const avatarUrl = user.user_metadata?.avatar_url as string | undefined;
 
     await supabaseAdmin.from('profiles').insert({
@@ -271,7 +273,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       : '/employee/onboarding';
   } else {
     switch (existingProfile.role) {
-      case 'admin':    destination = '/admin';                          break;
+      case 'admin':    destination = '/admin';                         break;
       case 'employer': destination = '/dashboards/employer-dashboard'; break;
       case 'employee': destination = '/dashboards/employee-dashboard'; break;
       default:         destination = '/';

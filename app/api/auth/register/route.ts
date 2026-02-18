@@ -169,7 +169,7 @@ async function sendReferralNotification(
 ): Promise<void> {
   const { error } = await resend.emails.send({
     from:    FROM_EMAIL,
-    to:      'onboarding@eaziwage.com',
+    to:      'onboarding@contact.eaziwage.com',
     subject: `New employer referral from ${requester.name}`,
     html: `
       <p>A new employee registered and referred their employer for onboarding:</p>

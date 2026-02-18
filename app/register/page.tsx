@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useTheme } from '@/lib/ThemeContext';
+import Image from 'next/image';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,10 +65,11 @@ declare global {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DIALING_CODES: DialCode[] = [
-  { code: 'KE', name: 'Kenya',    dialCode: '+254', flag: '🇰🇪' },
-  { code: 'TZ', name: 'Tanzania', dialCode: '+255', flag: '🇹🇿' },
-  { code: 'UG', name: 'Uganda',   dialCode: '+256', flag: '🇺🇬' },
-  { code: 'RW', name: 'Rwanda',   dialCode: '+250', flag: '🇷🇼' },
+  { code: 'KE', name: 'Kenya',    dialCode: '+254', flag: '/flag/KE.png' },
+  { code: 'TZ', name: 'Tanzania', dialCode: '+255', flag: '/flag/TZ.png' },
+  { code: 'UG', name: 'Uganda',   dialCode: '+256', flag: '/flag/UG.png' },
+  { code: 'RW', name: 'Rwanda',   dialCode: '+250', flag: '/flag/RW.png' },
+  { code: 'SA', name: 'South Africa',   dialCode: '+27', flag: '/flag/SA.png' },
 ];
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
@@ -122,7 +124,7 @@ function DialCodeSelector({ selected, onSelect, size = 'md' }: DialCodeSelectorP
                 selected.code === country.code ? 'bg-green-50 dark:bg-green-900/20' : ''
               }`}
             >
-              <span className={flagSize}>{country.flag}</span>
+              <Image src={country.flag} alt={country.name} width={20} height={20} className={flagSize}/>
               <span className={`text-slate-900 dark:text-white ${textSize}`}>{country.name}</span>
               <span className={`text-slate-500 ${textSize} ml-auto`}>{country.dialCode}</span>
             </button>
@@ -498,7 +500,7 @@ export default function RegisterPage() {
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">Full Name</label>
                   <div className="relative">
-                    <Input type="text" placeholder="e.g. Jane Doe"
+                    <Input type="text" placeholder="Your name as it appears on your ID card"
                       className="h-14 pl-4 pr-12 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
                       value={fullName} onChange={(e) => setFullName(e.target.value)} onKeyDown={handleKeyDown}
                     />
@@ -615,7 +617,7 @@ export default function RegisterPage() {
                   <div className="flex flex-col gap-2">
                     <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">Company Name</label>
                     <div className="relative">
-                      <Input type="text" placeholder="e.g. Acme Corporation"
+                      <Input type="text" placeholder="Company name as it appears on official documents"
                         className="h-14 pl-4 pr-12 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
                         value={companyName} onChange={(e) => setCompanyName(e.target.value)} onKeyDown={handleKeyDown}
                       />
@@ -654,7 +656,7 @@ export default function RegisterPage() {
                     I agree to the{' '}
                     <Link href="https://eaziwage.com/terms.pdf" target="_blank" className="text-green-600 dark:text-green-400 hover:underline font-medium">Terms of Service</Link>
                     {' '}and{' '}
-                    <Link href="hhtps://eaziwage.com/data.pdf" target="_blank" className="text-green-600 dark:text-green-400 hover:underline font-medium">Privacy Policy</Link>.
+                    <Link href="https://eaziwage.com/data.pdf" target="_blank" className="text-green-600 dark:text-green-400 hover:underline font-medium">Privacy Policy</Link>.
                   </label>
                 </div>
 
@@ -690,7 +692,7 @@ export default function RegisterPage() {
                 </div>
 
                 {/* Google */}
-                <button type="button" onClick={() => router.push('/api/auth/google')}
+                <button type="button" onClick={() => router.push(`/api/auth/google?role=${accountType}`)}
                   className="flex items-center justify-center gap-2 h-12 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-green-600 hover:bg-green-50/50 dark:hover:bg-green-900/10 transition-all text-sm font-medium text-slate-700 dark:text-slate-300 w-full">
                   <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -726,3 +728,4 @@ export default function RegisterPage() {
     </>
   );
 }
+
