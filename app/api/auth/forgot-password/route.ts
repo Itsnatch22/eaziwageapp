@@ -22,8 +22,8 @@ const supabase = createClient(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FROM_EMAIL    = 'EaziWage <noreply@eaziwage.com>';
-const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
+const FROM_EMAIL    = 'EaziWage <passwords@contact.eaziwage.com>';
+const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwageapp.vercel.app';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const TOKEN_TTL_MS  = 60 * 60 * 1000; // 1 hour
 

@@ -14,17 +14,16 @@ interface Profile {
 /** Routes accessible without authentication */
 const PUBLIC_PATHS = new Set([
   '/',
-  '/login',
   '/register',
   '/forgot-password',
   '/reset-password',
   '/verify-email',
-  '/terms',
-  '/privacy',
+  'https://eaziwage.com/terms.pdf',
+  'https://eaziwage.com/data.pdf',
 ]);
 
 /** Auth routes — redirect already-signed-in users away from these */
-const AUTH_ONLY_PATHS = new Set(['/login', '/register', '/forgot-password']);
+const AUTH_ONLY_PATHS = new Set(['/', '/register', '/forgot-password']);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
