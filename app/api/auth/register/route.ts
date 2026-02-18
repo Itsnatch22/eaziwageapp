@@ -24,7 +24,7 @@ const supabase = createClient(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FROM_EMAIL   = 'EaziWage <noreply@eaziwage.com>';
+const FROM_EMAIL   = 'EaziWage <noreply@contact.eaziwage.com>';
 const BASE_URL     = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const RECAPTCHA_MIN_SCORE = 0.5;
