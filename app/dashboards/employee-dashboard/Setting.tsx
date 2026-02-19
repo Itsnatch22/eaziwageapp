@@ -43,7 +43,7 @@ const ToggleSwitch = ({ checked, onChange, id }: ToogleSwitchProps) => (
 interface EditableFieldProps {
   label: string;
   value: string;
-  onSave: () => void;
+  onSave: (value: string) => void | Promise<void>;
   type?: string;
   placeholder?: string;
   icon?: React.ComponentType<{ className?: string }>;
@@ -52,7 +52,7 @@ interface EditableFieldProps {
 const EditableField = ({ label, value, onSave, type = 'text', placeholder, icon: Icon, disabled = false }: EditableFieldProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value || '');
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -117,7 +117,7 @@ interface SettingsItemProps {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   subtitle?: string;
-  onClick: () => void;
+  onClick?: () => void;
   rightContent?: React.ReactNode;
   showChevron?: boolean;
 }
@@ -147,7 +147,7 @@ const SectionHeader = ({ title }: SectionHeaderProps) => (
 
 interface KYCDocumentItemProps {
     title: string;
-    status: 'approved' | 'pending' | 'submitted';
+    status: 'approved' | 'pending' | 'submitted' | null;
     icon: React.ComponentType<{ className?: string }>;
 };
 
@@ -496,8 +496,8 @@ interface BiometricScanModalProps {
 const BiometricScanModal = ({ isOpen, onClose, onSuccess }: BiometricScanModalProps) => {
   const [scanning, setScanning] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (isOpen && !scanning && !scanComplete) {
@@ -525,7 +525,7 @@ const BiometricScanModal = ({ isOpen, onClose, onSuccess }: BiometricScanModalPr
 
   const stopCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
       streamRef.current = null;
     }
   };
@@ -645,7 +645,7 @@ const NotificationsPanel = ({ isOpen, onClose, notifications }: NotificationsPan
         </div>
         <div className="max-h-80 overflow-y-auto">
           {notifications.length > 0 ? (
-            notifications.map((notif: { type: string; title: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; message: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; time: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; }, i: React.Key | null | undefined) => (
+            notifications.map((notif, i) => (
               <div key={i} className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
                 <div className="flex items-start gap-3">
                   <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", notif.type === 'success' ? 'bg-primary/10' : 'bg-blue-100 dark:bg-blue-500/20')}>
@@ -671,13 +671,46 @@ const NotificationsPanel = ({ isOpen, onClose, notifications }: NotificationsPan
   );
 };
 
+interface EmployeeProfile {
+  employer_name?: string;
+  kyc_status?: string;
+  job_title?: string;
+  address_line1?: string;
+  city?: string;
+  postal_code?: string;
+  mobile_money_provider?: string;
+  mobile_money_number?: string;
+  bank_name?: string;
+  bank_account?: string;
+  id_document_front?: string;
+  address_proof?: string;
+  payslip_1?: string;
+  employment_contract?: string;
+  selfie?: string;
+  [key: string]: unknown;
+}
+
+interface KycDocument {
+  document_type: string;
+  status?: 'approved' | 'pending' | 'submitted';
+}
+
+interface ProfileData {
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  profile_picture_url?: string;
+  employee?: EmployeeProfile;
+  kycDocuments?: KycDocument[];
+}
+
 export default function Settings() {
     const router = useRouter();
     const { theme, toggleTheme } = useTheme();
-    const [profile, setProfile] = useState(null);
+    const [profile, setProfile] = useState<ProfileData | null>(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
-    const fileInputRef = useRef(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
 
@@ -821,11 +854,11 @@ export default function Settings() {
         );
     }
 
-    const employee = profile?.employee || {};
-    const kycDocs = [] || profile?.kycDocuments || [];
+    const employee = profile?.employee;
+    const kycDocs = profile?.kycDocuments ?? [];
 
-    const getDocStatus = (docType) => {
-        const doc = kycDocs.find(d => d.document_type === docType);
+    const getDocStatus = (docType: string): 'approved' | 'pending' | 'submitted' | null => {
+        const doc = kycDocs.find((d: KycDocument) => d.document_type === docType);
         return doc?.status || (employee?.[docType] ? 'submitted' : null);
     };
 
@@ -864,7 +897,7 @@ export default function Settings() {
                     className="w-full h-full rounded-xl object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full rounded-xl bg-gradient-to-br from-primary to-emerald-600 flex items-center justify-center">
+                  <div className="w-full h-full rounded-xl bg-linear-to-br from-primary to-emerald-600 flex items-center justify-center">
                     <span className="text-white font-bold text-2xl">
                       {profile?.full_name?.[0] || user?.full_name?.[0] || 'U'}
                     </span>
@@ -926,23 +959,23 @@ export default function Settings() {
           <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
             <EditableField 
               label="Full Name" 
-              value={profile?.full_name} 
+              value={profile?.full_name || ''} 
               onSave={(val) => handleUserSettingsSave('full_name', val)}
               icon={User}
               placeholder="Enter your full name"
             />
             <EditableField 
               label="Email" 
-              value={profile?.email} 
+              value={profile?.email || ''} 
               icon={Mail}
               type="email"
               disabled
-              onSave={() => {}}
+              onSave={() => undefined}
             />
             <EditableField 
               label="Phone Number" 
-              value={profile?.phone} 
-              onSave={(val: string) => handleUserSettingsSave('phone', val)}
+              value={profile?.phone || ''} 
+              onSave={(val) => handleUserSettingsSave('phone', val)}
               icon={Phone}
               placeholder="Enter phone number"
             />
@@ -955,21 +988,21 @@ export default function Settings() {
           <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
             <EditableField 
               label="Address Line 1" 
-              value={employee?.address_line1} 
+              value={employee?.address_line1 || ''} 
               onSave={(val) => handleEmployeeSettingsSave('address_line1', val)}
               icon={MapPin}
               placeholder="Street address"
             />
             <EditableField 
               label="City" 
-              value={employee?.city} 
+              value={employee?.city || ''} 
               onSave={(val) => handleEmployeeSettingsSave('city', val)}
               icon={Building2}
               placeholder="City"
             />
             <EditableField 
               label="Postal Code" 
-              value={employee?.postal_code} 
+              value={employee?.postal_code || ''} 
               onSave={(val) => handleEmployeeSettingsSave('postal_code', val)}
               icon={MapPin}
               placeholder="Postal code"
@@ -993,6 +1026,7 @@ export default function Settings() {
                   <CheckCircle2 className="w-3 h-3" /> Active
                 </span>
               )}
+              onClick={() => {}}
               showChevron={false}
             />
             <SettingsItem 
@@ -1007,6 +1041,7 @@ export default function Settings() {
                   <CheckCircle2 className="w-3 h-3" /> Active
                 </span>
               )}
+              onClick={() => {}}
               showChevron={false}
             />
           </div>

@@ -230,12 +230,56 @@ interface FileUploaderProps {
     label: string;
     accept?: string;
     description?: string;
-    onUpload: (file: File) => void;
+    onUpload: (file: File) => void | Promise<void>;
     onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    uploadedFile?: File | null;
+    uploadedFile?: UploadedDocument | null;
     uploading?: boolean;
     testId?: string;
     required?: boolean;
+}
+
+type IdType = 'national_id' | 'passport';
+
+type UploadDocumentType =
+  | 'id_front'
+  | 'id_back'
+  | 'address_proof'
+  | 'tax_certificate'
+  | 'payslip_1'
+  | 'payslip_2'
+  | 'bank_statement'
+  | 'employment_contract';
+
+interface UploadedDocument {
+  name: string;
+  url?: string;
+  id?: string;
+}
+
+type UploadedFilesState = Record<UploadDocumentType, UploadedDocument | null>;
+
+interface OnboardingFormData {
+  employer_id: string;
+  employee_code: string;
+  national_id: string;
+  id_type: IdType;
+  nationality: string;
+  date_of_birth: string;
+  employment_type: string;
+  job_title: string;
+  monthly_salary: string;
+  bank_name: string;
+  bank_account: string;
+  mobile_money_provider: string;
+  mobile_money_number: string;
+  country: string;
+  tax_id: string;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  postal_code: string;
+  department: string;
+  start_date: string;
 }
 
 const FileUploader = ({
@@ -249,10 +293,10 @@ const FileUploader = ({
     testId,
     required = false 
 }: FileUploaderProps) => {
-    const fileInputRef = useRef(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    const handleFileSelect = async (e: { target: { files: any[]; }; }) => {
-    const file = e.target.files[0];
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
         if (file) {
         // Validate file type
         const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -267,6 +311,7 @@ const FileUploader = ({
         }
         onUpload(file);
         }
+      onChange?.(e);
     };
     
     return (
@@ -338,8 +383,8 @@ export default function Onboarding() {
   const [idType, setIdType] = useState('national_id');
   
   // File upload states
-  const [uploadingFile, setUploadingFile] = useState(null);
-  const [uploadedFiles, setUploadedFiles] = useState({
+  const [uploadingFile, setUploadingFile] = useState<UploadDocumentType | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFilesState>({
     id_front: null,
     id_back: null,
     address_proof: null,
@@ -352,7 +397,7 @@ export default function Onboarding() {
   
   const user = JSON.parse(localStorage.getItem('eaziwage_user') || '{}');
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<OnboardingFormData>({
     employer_id: '',
     employee_code: '',
     national_id: '',
@@ -395,27 +440,34 @@ export default function Onboarding() {
     fetchData();
   }, []);
 
-  const handleFileUpload = async (file, documentType) => {
+  const handleFileUpload = async (file: File, documentType: UploadDocumentType) => {
     setUploadingFile(documentType);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('document_type', documentType);
-      
-      const response = await kycApi.uploadFile(formData);
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      uploadData.append('document_type', documentType);
+
+      const response = await fetch('/api/employee/kyc/documents', {
+        method: 'POST',
+        body: uploadData,
+      });
+      const responseData = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(responseData?.message || 'Failed to upload document');
+      }
       
       setUploadedFiles(prev => ({
         ...prev,
         [documentType]: {
           name: file.name,
-          url: response.data.document_url,
-          id: response.data.id
+          url: responseData?.data?.document_url ?? responseData?.document_url,
+          id: responseData?.data?.id ?? responseData?.id
         }
       }));
       
       toast.success('Document uploaded successfully!');
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to upload document');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload document');
     } finally {
       setUploadingFile(null);
     }
@@ -438,18 +490,11 @@ export default function Onboarding() {
         const errorData = await res.json();
         setError(errorData.message || 'Failed to onboarding');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       let errorMessage = 'Failed to create profile';
       
-      const detail = err.response?.data?.detail;
-      if (detail) {
-        if (typeof detail === 'string') {
-          errorMessage = detail;
-        } else if (Array.isArray(detail)) {
-          errorMessage = detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ');
-        } else if (typeof detail === 'object' && detail.msg) {
-          errorMessage = detail.msg;
-        }
+      if (error instanceof Error && error.message) {
+        errorMessage = error.message;
       }
       
       setError(errorMessage);
@@ -458,15 +503,15 @@ export default function Onboarding() {
     }
   };
 
-  const updateField = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Reset mobile money provider when country changes
-    if (field === 'country') {
-      setFormData(prev => ({ ...prev, [field]: value, mobile_money_provider: '' }));
-    }
+  const updateField = <K extends keyof OnboardingFormData>(field: K, value: OnboardingFormData[K]) => {
+    setFormData(prev =>
+      field === 'country'
+        ? { ...prev, [field]: value, mobile_money_provider: '' }
+        : { ...prev, [field]: value }
+    );
   };
 
-  const handleIdTypeChange = (type) => {
+  const handleIdTypeChange = (type: IdType) => {
     setIdType(type);
     setFormData(prev => ({ 
       ...prev, 
@@ -483,8 +528,6 @@ export default function Onboarding() {
     setError('');
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
-      // Track progress
-      kycApi.updateKycStep(currentStep + 1).catch(() => {});
     }
   };
 
@@ -534,7 +577,7 @@ export default function Onboarding() {
       case 0: // Welcome
         return (
           <div className="text-center py-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-primary to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/30">
+            <div className="w-20 h-20 bg-linear-to-br from-primary to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/30">
               <Sparkles className="w-10 h-10 text-white" />
             </div>
             <h2 className="font-heading text-3xl font-bold text-slate-900 dark:text-white mb-4">
@@ -562,7 +605,7 @@ export default function Onboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Shield className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -650,7 +693,7 @@ export default function Onboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <FileText className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -720,7 +763,7 @@ export default function Onboarding() {
                     <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700" data-testid="onboarding-nationality">
                       <SelectValue placeholder="Select your nationality" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
+                    <SelectContent className="max-h-75">
                       {ALL_COUNTRIES.map((c) => (
                         <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
                       ))}
@@ -781,7 +824,7 @@ export default function Onboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Home className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -892,7 +935,7 @@ export default function Onboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Receipt className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -961,7 +1004,7 @@ export default function Onboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Briefcase className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -1092,7 +1135,7 @@ export default function Onboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Wallet className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -1211,15 +1254,15 @@ export default function Onboarding() {
       {/* Hero Background */}
       <div className="absolute inset-0 gradient-mesh" />
       <div className="absolute inset-0 bg-grid" />
-      <div className="absolute top-20 right-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[150px]" />
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[150px]" />
+      <div className="absolute top-20 right-0 w-150 h-150 bg-primary/10 rounded-full blur-[150px]" />
+      <div className="absolute bottom-0 left-0 w-125 h-125 bg-emerald-500/10 rounded-full blur-[150px]" />
       
       {/* Header */}
       <header className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-center">
-          <Link to="/" className="flex items-center gap-3 group" data-testid="logo-link">
+	          <Link href="/" className="flex items-center gap-3 group" data-testid="logo-link">
             <div className="relative">
-              <div className="w-11 h-11 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-primary/30">
+              <div className="w-11 h-11 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-primary/30">
                 <span className="text-white font-bold text-xl">E</span>
               </div>
             </div>
@@ -1249,7 +1292,7 @@ export default function Onboarding() {
                     index < currentStep
                       ? 'bg-primary text-white'
                       : index === currentStep
-                      ? 'bg-gradient-to-br from-primary to-emerald-600 text-white shadow-lg shadow-primary/30'
+                      ? 'bg-linear-to-br from-primary to-emerald-600 text-white shadow-lg shadow-primary/30'
                       : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                   }`}
                 >
@@ -1308,7 +1351,7 @@ export default function Onboarding() {
               type="button"
               onClick={handleSubmit}
               disabled={loading || !canProceed()}
-              className="h-14 px-8 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30 btn-glow"
+              className="h-14 px-8 rounded-2xl bg-linear-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30 btn-glow"
               data-testid="complete-onboarding"
             >
               {loading ? (
@@ -1328,7 +1371,7 @@ export default function Onboarding() {
               type="button"
               onClick={nextStep}
               disabled={!canProceed()}
-              className="h-14 px-8 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30 btn-glow"
+              className="h-14 px-8 rounded-2xl bg-linear-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30 btn-glow"
               data-testid="next-step"
             >
               Continue

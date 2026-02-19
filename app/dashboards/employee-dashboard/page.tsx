@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Wallet, TrendingUp, Clock, ArrowRight, 
@@ -12,23 +12,43 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePageLayout } from '@/components/employee/EmployeeLayout';
 import { useTheme } from '@/lib/ThemeContext';
 import { logout } from '@/actions/auth';
-import { useRouter } from 'next/router';
 
-interface Notification {
-    type: 'success' | 'info';
-    title: string;
-    message: string;
-    time: string;
-    isOpen: boolean;
-    onClose: () => void;
-    notifications: {
-      type: string;
-      title: string;
-      message: string;
-      time: string;
-    }[];
+interface NotificationItem {
+  type: 'success' | 'info';
+  title: string;
+  message: string;
+  time: string;
 }
-const NotificationsPanel = ({ isOpen, onClose, notifications }: Notification) => {
+interface NotificationsPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  notifications: NotificationItem[];
+}
+
+interface RecentTransaction {
+  id: string | number;
+  type: string;
+  amount: number;
+  created_at: string;
+}
+
+interface DashboardStats {
+  earned_wages?: number;
+  advance_limit?: number;
+  total_advances?: number;
+  recent_transactions?: RecentTransaction[];
+}
+
+interface EmployeeSummary {
+  full_name?: string;
+  profile_picture_url?: string;
+  employer_name?: string;
+  job_title?: string;
+  status?: string;
+  kyc_status?: string;
+}
+
+const NotificationsPanel = ({ isOpen, onClose, notifications }: NotificationsPanelProps) => {
   if (!isOpen) return null;
 
   return (
@@ -74,16 +94,14 @@ interface DashboardHeaderProps {
     full_name: string;
     profile_picture_url?: string;
   } | null;
-  employee: {
-    full_name: string;
-  } | null;
+  employee: EmployeeSummary | null;
 }
 
 const DashboardHeader = ({ user, employee }: DashboardHeaderProps) => {
   const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
   
-  const notifications = [
+  const notifications: NotificationItem[] = [
     { type: 'success', title: 'KYC Submitted', message: 'Your documents are under review', time: '2 hours ago' },
     { type: 'info', title: 'Welcome to EaziWage', message: 'Complete your profile to get started', time: '1 day ago' },
   ];
@@ -165,12 +183,12 @@ interface SpeedDialCounterProps {
 }
 const SpeedDialCounter = ({ value, max }: SpeedDialCounterProps) => {
   const [displayValue, setDisplayValue] = useState(0);
-  const animationRef = useRef(null);
+  const animationRef = useRef<number | null>(null);
   
   useEffect(() => {
     const startTime = performance.now();
     const duration = 1500;
-    const animate = (currentTime) => {
+    const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const easeOut = 1 - Math.pow(1 - progress, 3);
@@ -273,12 +291,13 @@ const StatCard = ({ icon: Icon, label, value, subtext, iconBg = "bg-primary/10",
 );
 
 export default function EmployeeDashboardPage() {
-    const [stats, setStats] = useState(null);
-    const [employee, setEmployee] = useState(null);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [employee, setEmployee] = useState<EmployeeSummary | null>(null);
+    const [userProfile, setUserProfile] = useState<{ full_name: string; profile_picture_url?: string } | null>(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
     const router = useRouter();
-    const user = fullName ? { full_name: fullName, profile_picture_url: profilePictureUrl } : null;
+    const user = userProfile || (employee?.full_name ? { full_name: employee.full_name, profile_picture_url: employee.profile_picture_url } : null);
 
     useEffect(() => {
     const fetchStats = async () => {
@@ -290,11 +309,35 @@ export default function EmployeeDashboardPage() {
           },
         });
         const data = await response.json();
-        setStats(statsRes.data);
-        setEmployee(employeeRes.data);
-      } catch (error) {
-        if (err.response?.status === 404) setError('profile_not_found');
-        else setError('Failed to load dashboard');
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError('profile_not_found');
+          } else {
+            setError(data?.message || 'Failed to load dashboard');
+          }
+          return;
+        }
+        const statsData: DashboardStats = data?.stats || data?.data?.stats || data?.data || {};
+        const employeeData: EmployeeSummary | null = data?.employee || data?.data?.employee || null;
+        const userData = data?.user || data?.profile || null;
+        setStats(statsData);
+        setEmployee(employeeData);
+        if (userData?.full_name) {
+          setUserProfile({
+            full_name: userData.full_name,
+            profile_picture_url: userData.profile_picture_url,
+          });
+        }
+      } catch {
+        const fallbackUser = JSON.parse(localStorage.getItem('eaziwage_user') || 'null');
+        if (fallbackUser?.full_name) {
+          setUserProfile({
+            full_name: fallbackUser.full_name,
+            profile_picture_url: fallbackUser.profile_picture_url,
+          });
+        } else {
+          setError('Failed to load dashboard');
+        }
       } finally {
         setLoading(false);
       }
@@ -305,7 +348,7 @@ export default function EmployeeDashboardPage() {
     const getNextPayday = () => {
     const today = new Date();
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    const daysUntil = Math.ceil((lastDay - today) / (1000 * 60 * 60 * 24));
+    const daysUntil = Math.ceil((lastDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return { date: lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), daysUntil };
   };
 
@@ -323,13 +366,13 @@ export default function EmployeeDashboardPage() {
     return (
       <EmployeePageLayout>
         <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6">
-          <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-emerald-500/20 rounded-3xl flex items-center justify-center mb-6 shadow-lg">
+          <div className="w-20 h-20 bg-linear-to-br from-primary/20 to-emerald-500/20 rounded-3xl flex items-center justify-center mb-6 shadow-lg">
             <AlertCircle className="w-10 h-10 text-primary" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3 text-center">Complete Your Profile</h1>
           <p className="text-slate-500 dark:text-slate-400 mb-8 text-center text-sm max-w-xs">Set up your employee profile to start accessing wage advances.</p>
-          <Link to="/employee/onboarding">
-            <Button className="h-12 px-8 bg-gradient-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25 btn-glow" data-testid="complete-profile-btn">
+	          <Link href="/employee/onboarding">
+	            <Button className="h-12 px-8 bg-linear-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25 btn-glow" data-testid="complete-profile-btn">
               Get Started <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </Link>
@@ -352,7 +395,7 @@ export default function EmployeeDashboardPage() {
       <main className="relative z-10 max-w-md mx-auto px-4 pb-28 space-y-5">
         {/* KYC Alert Banner */}
         {kycPending && (
-          <div className="bg-gradient-to-r from-primary/10 to-emerald-500/10 backdrop-blur-sm rounded-xl p-3.5 flex items-center gap-3 border border-primary/20" data-testid="kyc-alert">
+	          <div className="bg-linear-to-r from-primary/10 to-emerald-500/10 backdrop-blur-sm rounded-xl p-3.5 flex items-center gap-3 border border-primary/20" data-testid="kyc-alert">
             <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
               <AlertCircle className="w-5 h-5 text-primary" />
             </div>
@@ -362,7 +405,7 @@ export default function EmployeeDashboardPage() {
                 {employee?.kyc_status === 'submitted' ? 'Usually takes 1-2 business days' : 'Complete your KYC to continue'}
               </p>
             </div>
-            <Link to="/employee/onboarding">
+	            <Link href="/employee/onboarding">
               <ChevronRight className="w-5 h-5 text-primary" />
             </Link>
           </div>
@@ -388,9 +431,9 @@ export default function EmployeeDashboardPage() {
           </div>
 
           {/* Request Button */}
-          <Link to="/employee/advances" className="block">
+	          <Link href="/employee/advances" className="block">
             <Button 
-              className="w-full h-12 rounded-xl bg-gradient-to-r from-primary to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-primary/25 btn-glow hover:shadow-xl transition-shadow"
+	              className="w-full h-12 rounded-xl bg-linear-to-r from-primary to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-primary/25 btn-glow hover:shadow-xl transition-shadow"
               disabled={!canRequestAdvance} 
               data-testid="request-advance-btn"
             >
@@ -479,7 +522,7 @@ export default function EmployeeDashboardPage() {
                 <p className="text-sm font-semibold text-slate-900 dark:text-white capitalize">{employee?.kyc_status || 'Pending'}</p>
               </div>
               {employee?.kyc_status !== 'approved' && (
-                <Link to="/employee/onboarding">
+	                <Link href="/employee/onboarding">
                   <Button size="sm" variant="ghost" className="text-primary text-xs h-7 px-3">Complete</Button>
                 </Link>
               )}
@@ -491,13 +534,13 @@ export default function EmployeeDashboardPage() {
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden" data-testid="recent-activity">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50 dark:border-slate-700/30">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">Recent Activity</h3>
-            <Link to="/employee/transactions" className="text-xs font-semibold text-primary flex items-center gap-1">
+	            <Link href="/employee/transactions" className="text-xs font-semibold text-primary flex items-center gap-1">
               View All <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          {stats?.recent_transactions?.length > 0 ? (
-            <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
-              {stats.recent_transactions.slice(0, 3).map((tx) => (
+	          {(stats?.recent_transactions?.length || 0) > 0 ? (
+	            <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
+	              {(stats?.recent_transactions || []).slice(0, 3).map((tx: RecentTransaction) => (
                 <div key={tx.id} className="flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
                     <div className={cn(

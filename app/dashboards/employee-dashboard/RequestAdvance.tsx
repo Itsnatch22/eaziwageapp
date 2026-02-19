@@ -10,6 +10,19 @@ import { formatCurrency, calculateFeePercentage, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
 
+interface EmployeeProfile {
+  status?: string;
+  kyc_status?: string;
+  advance_limit?: number;
+  earned_wages?: number;
+  risk_score?: number;
+  mobile_money_provider?: string;
+  mobile_money_number?: string;
+  bank_name?: string;
+  bank_account?: string;
+}
+
+type DisbursementMethod = 'mobile_money' | 'bank_transfer';
 
 interface CircularProgressProps {
     value: number;
@@ -37,19 +50,21 @@ const CircularProgress = ({ value, max }: CircularProgressProps) => {
 
 export default function RequestAdvance() {
   const router = useRouter();
-  const [employee, setEmployee] = useState(null);
+  const [employee, setEmployee] = useState<EmployeeProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [amount, setAmount] = useState(100);
-  const [disbursementMethod, setDisbursementMethod] = useState('mobile_money');
+  const [disbursementMethod, setDisbursementMethod] = useState<DisbursementMethod>('mobile_money');
 
     useEffect(() => {
         const fetchEmployee = async () => {
             try {
                 const res = await fetch('/api/employee/profile');
-                setEmployee(await res.json());
-                const available = Math.min(res.data?.advance_limit || 0, response.data?.earned_wages || 0);
+                const data = await res.json();
+                const employeeData: EmployeeProfile = data?.employee || data?.data || data || {};
+                setEmployee(employeeData);
+                const available = Math.min(employeeData.advance_limit || 0, employeeData.earned_wages || 0);
                 if (available > 0) setAmount(Math.min(100, available));
             } catch (error) {
                 toast.error('Failed to load employee data');
@@ -61,7 +76,7 @@ export default function RequestAdvance() {
     }, []);
 
     const maxAmount = Math.min(employee?.advance_limit || 0, employee?.earned_wages || 0);
-    const feePercentage = calculateFeePercentage(employee?.risk_score || 3.0);
+    const feePercentage = calculateFeePercentage({ crsTotal: employee?.risk_score || 3.0 });
     const feeAmount = amount * (feePercentage / 100);
     const netAmount = amount - feeAmount;
     const quickAmounts = [500, 1000, 2000, 5000];
@@ -127,7 +142,7 @@ export default function RequestAdvance() {
               </div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3 text-center">Complete Verification</h1>
               <p className="text-slate-600 dark:text-slate-400 mb-8 text-center max-w-xs text-sm">Complete your KYC verification to start requesting advances.</p>
-              <Button onClick={() => router.push('/employee/onboarding')} className="h-12 px-8 bg-gradient-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25" data-testid="complete-verification-btn">
+              <Button onClick={() => router.push('/employee/onboarding')} className="h-12 px-8 bg-linear-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25" data-testid="complete-verification-btn">
                 Start Verification <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </>

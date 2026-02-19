@@ -15,28 +15,29 @@ import { toast } from 'sonner';
 
 interface Document {
     id: string;
-    type: string;
-    number: string;
+    document_type: string;
+    document_number?: string;
     status: 'approved' | 'rejected' | 'pending';
-    uploaded_at: string;
-    file_url: string;
+    created_at: string;
+    file_url?: string;
+    reviewer_notes?: string;
 }
 
 export default function EmployeeKYC() {
-    const [documents, setDocuments] = useState([]);
+    const [documents, setDocuments] = useState<Document[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [selectedType, setSelectedType] = useState('');
     const [documentNumber, setDocumentNumber] = useState('');
-    const [selectedFile, setSelectedFile] = useState(null);
-    const fileInputRef = useRef(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const fetchDocuments = async () => {
         try {
             setLoading(true);
             const response = await fetch('/api/employee/kyc/documents');
             const data = await response.json();
-            setDocuments(data.documents);
+            setDocuments(data.documents || []);
         } catch (error) {
             toast.error('Failed to load documents');
         } finally {
@@ -48,8 +49,8 @@ export default function EmployeeKYC() {
         fetchDocuments();
     }, []);
 
-    const handleFileSelect = (e: { target: { files: any[]; }; }) => {
-    const file = e.target.files[0];
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       // Validate file type
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -98,7 +99,7 @@ export default function EmployeeKYC() {
         }
     };
 
-    const getStatusBadge = ({status}: {status: 'approved' | 'rejected' | 'pending'}) => {
+    const getStatusBadge = (status: 'approved' | 'rejected' | 'pending') => {
         switch (status) {
         case 'approved':
             return <span className="badge badge-success flex items-center gap-1"><Check className="w-3 h-3" /> Approved</span>;
@@ -109,7 +110,7 @@ export default function EmployeeKYC() {
         }
     };
 
-    const getDocumentLabel = (type) => {
+    const getDocumentLabel = (type: string) => {
         return DOCUMENT_TYPES.find(d => d.value === type)?.label || type;
     };
 
