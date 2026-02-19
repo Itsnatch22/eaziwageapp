@@ -22,8 +22,8 @@ const supabaseAdmin = createClient(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FROM_EMAIL = 'EaziWage <noreply@eaziwage.com>';
-const BASE_URL   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
+const FROM_EMAIL = 'EaziWage <noreply@contact.eaziwage.com>';
+const BASE_URL   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwageapp.vercel.app';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

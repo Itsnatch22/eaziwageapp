@@ -6,6 +6,7 @@
 interface EnvConfig {
   // Public (client-side) variables
   NEXT_PUBLIC_SUPABASE_URL: string;
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: string;
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: string;
   NEXT_PUBLIC_APP_URL?: string;
   
@@ -36,6 +37,12 @@ export function validateEnv(): EnvConfig {
     errors.push('NEXT_PUBLIC_SUPABASE_URL is not defined');
   } else if (!isValidUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)) {
     errors.push('NEXT_PUBLIC_SUPABASE_URL is not a valid URL');
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    errors.push('NEXT_PUBLIC_SUPABASE_ANON_KEY is not defined');
+  } else if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.length < 20) {
+    errors.push('NEXT_PUBLIC_SUPABASE_ANON_KEY looks too short to be valid');
   }
 
   if (!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
@@ -75,6 +82,7 @@ export function validateEnv(): EnvConfig {
 
   return {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
     RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY!,

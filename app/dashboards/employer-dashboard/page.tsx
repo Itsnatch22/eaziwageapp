@@ -1,150 +1,398 @@
-"use client"
-import { useState } from 'react';
-import Link from 'next/link';
-import { Icons } from '@/constants';
+"use client";
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { 
+  Users, TrendingUp, Clock, ArrowRight, CreditCard, Building2, Upload, 
+  BarChart3, AlertCircle, CheckCircle2, ArrowUpRight, ChevronRight,
+  Wallet, Zap, Calendar, DollarSign, Activity, PieChart
+} from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { EmployerPortalLayout } from '../../components/employer/EmployerLayout';
+import { dashboardApi, employerApi } from '../../lib/api';
+import { formatCurrency, cn } from '../../lib/utils';
+import { GradientIconBox } from '../../components/employer/SharedComponents';
 
-//page imports
-import OverviewTab from './pages/Overview';
-import EmployeesTab from './pages/EmployeesTab';
-import PayrollTab from './pages/PayrollTab';
-import InsightsTab from './pages/InsightsTab';
-import CommunicationTab from './pages/CommunicationTab';
-import SettingsTab from './pages/SettingsTab';
-
-// --- Main Dashboard Component ---
-
-export default function EmployerDashboard() {
-  const [activeTab, setActiveTab] = useState('Overview');
+// Animated Counter Component
+const AnimatedCounter = ({ value, prefix = '', suffix = '' }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const animationRef = useRef(null);
   
+  useEffect(() => {
+    const numValue = typeof value === 'number' ? value : parseFloat(value) || 0;
+    const startTime = performance.now();
+    const duration = 1200;
+    
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(numValue * easeOut));
+      if (progress < 1) animationRef.current = requestAnimationFrame(animate);
+    };
+    
+    animationRef.current = requestAnimationFrame(animate);
+    return () => { if (animationRef.current) cancelAnimationFrame(animationRef.current); };
+  }, [value]);
+  
+  return <span>{prefix}{displayValue.toLocaleString()}{suffix}</span>;
+};
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'Employees':
-        return <EmployeesTab />;
-      case 'Payroll':
-        return <PayrollTab />;
-      case 'Insights':
-        return <InsightsTab />;
-      case 'Comms':
-        return <CommunicationTab />;
-      case 'Settings':
-        return <SettingsTab />;
-      case 'Overview':
-      default:
-        return <OverviewTab />;
-    }
-  };
+// Main Stats Card
+const MainStatsCard = ({ stats, employer }) => {
+  const totalEmployees = stats?.total_employees || 0;
+  const activeEmployees = stats?.active_employees || 0;
+  const percentage = totalEmployees > 0 ? Math.round((activeEmployees / totalEmployees) * 100) : 0;
+  const circumference = 2 * Math.PI * 44;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <aside className="w-72 bg-white border-r border-slate-200 hidden lg:flex flex-col sticky top-0 h-screen">
-        <div className="p-8">
-          <Link href="/" className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-100">
-              <span className="text-white font-black text-2xl">E</span>
-            </div>
-            <span className="text-2xl font-black text-green-900 tracking-tighter">EaziWage</span>
-          </Link>
+    <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-slate-200/50 dark:border-slate-700/30">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400">Company Overview</h2>
+          <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{employer?.company_name}</p>
         </div>
-        
-        <nav className="grow px-4 space-y-1.5 py-6">
-          <NavItem 
-            icon={<Icons.LayoutDashboard size={22} />} 
-            label="Dashboard" 
-            active={activeTab === 'Overview'} 
-            onClick={() => setActiveTab('Overview')} 
-          />
-          <NavItem 
-            icon={<Icons.Users size={22} />} 
-            label="Employees" 
-            active={activeTab === 'Employees'} 
-            onClick={() => setActiveTab('Employees')} 
-          />
-          <NavItem 
-            icon={<Icons.CreditCard size={22} />} 
-            label="Payroll & Funding" 
-            active={activeTab === 'Payroll'} 
-            onClick={() => setActiveTab('Payroll')} 
-          />
-          <NavItem 
-            icon={<Icons.Bell size={22} />} 
-            label="Communications" 
-            active={activeTab === 'Comms'} 
-            onClick={() => setActiveTab('Comms')} 
-          />
-          <NavItem 
-            icon={<Icons.TrendingUp size={22} />} 
-            label="Analytics Hub" 
-            active={activeTab === 'Insights'} 
-            onClick={() => setActiveTab('Insights')} 
-          />
-          <div className="pt-4 mt-4 border-t border-slate-50 px-4">
-             <h5 className="text-[10px] font-black text-green-400 uppercase tracking-widest mb-4">Configuration</h5>
-             <NavItem 
-                icon={<Icons.Settings size={22} />} 
-                label="System Settings" 
-                active={activeTab === 'Settings'} 
-                onClick={() => setActiveTab('Settings')} 
-              />
-          </div>
-        </nav>
-
-        <div className="p-8 border-t border-slate-50">
-          <Link href="/" className="flex items-center text-green-500 hover:text-red-600 transition-colors group">
-            <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center mr-3 group-hover:bg-red-50 group-hover:text-red-600 transition-all">
-              <Icons.LogOut size={20} />
-            </div>
-            <span className="text-sm font-black uppercase tracking-widest">Sign Out</span>
-          </Link>
+        <div className={cn(
+          "px-3 py-1.5 rounded-full text-xs font-semibold",
+          employer?.status === 'approved' 
+            ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+            : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
+        )}>
+          {employer?.status === 'approved' ? 'Verified' : 'Pending'}
         </div>
-      </aside>
+      </div>
 
-      {/* Main Content */}
-      <main className="grow p-6 lg:p-12 overflow-y-auto max-w-350 mx-auto w-full">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
-          <div>
-            <div className="flex items-center space-x-2 text-[10px] font-black text-green-600 uppercase tracking-widest mb-2 bg-green-50 px-3 py-1 rounded-lg w-fit">
-               <Icons.ShieldCheck size={12} />
-               <span>Enterprise Console • Secure Instance</span>
-            </div>
-            <h1 className="text-4xl font-black text-green-900 tracking-tighter">{activeTab}</h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button className="p-3 bg-white border border-green-200 text-slate-400 hover:text-green-600 rounded-2xl transition-all shadow-sm relative">
-              <Icons.Clock size={22} />
-              <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>
-            </button>
-            <div className="h-12 w-px bg-slate-200 mx-2"></div>
-            <div className="flex items-center space-x-3 cursor-pointer group">
-               <div className="text-right hidden sm:block">
-                  <p className="text-sm font-black text-green-900 group-hover:text-green-600 transition-colors">Admin Console</p>
-                  <p className="text-[10px] text-green-500 font-bold uppercase">Welcome admin.</p>
-               </div>
-               <div className="w-12 h-12 bg-green-900 text-white rounded-[1.2rem] flex items-center justify-center font-black shadow-lg">
-                AD
-               </div>
-            </div>
-          </div>
-        </header>
+      {/* Circular Progress */}
+      <div className="relative w-40 h-40 mx-auto mb-6">
+        <div className="absolute inset-2 rounded-full bg-primary/10 blur-xl" />
+        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="6" 
+            className="text-slate-200 dark:text-slate-800/60" />
+          <circle cx="50" cy="50" r="44" fill="none" stroke="url(#employerGradient)" strokeWidth="6" 
+            strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+            className="transition-all duration-1000 ease-out" />
+          <defs>
+            <linearGradient id="employerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#0df259" />
+              <stop offset="100%" stopColor="#10b981" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-3xl font-bold text-slate-900 dark:text-white">
+            <AnimatedCounter value={totalEmployees} />
+          </span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Employees</span>
+        </div>
+      </div>
 
-        {renderContent()}
-      </main>
+      {/* Quick Stats Row */}
+      <div className="flex items-center justify-center gap-8">
+        <div className="text-center">
+          <span className="text-2xl font-bold text-primary">{activeEmployees}</span>
+          <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">Active</span>
+        </div>
+        <div className="w-px h-10 bg-slate-200 dark:bg-slate-700" />
+        <div className="text-center">
+          <span className="text-2xl font-bold text-slate-900 dark:text-white">{percentage}%</span>
+          <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">Utilization</span>
+        </div>
+      </div>
     </div>
   );
-}
+};
 
-// Helper Components
-const NavItem = ({ icon, label, active = false, onClick }: any) => (
-  <button 
-    onClick={onClick}
-    className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all group ${
-      active ? 'bg-green-900 text-white shadow-xl shadow-slate-200' : 'text-green-500 hover:bg-green-50 hover:text-green-900'
-    }`}
-  >
-    <div className={`${active ? 'text-green-400' : 'text-green-400 group-hover:text-green-600'} transition-colors`}>
-      {icon}
+// Metric Card with gradient icon (matches website)
+const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }) => (
+  <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:shadow-lg transition-all duration-300 group">
+    <div className="flex items-start justify-between mb-3">
+      <GradientIconBox icon={Icon} size="md" />
+      {trend && (
+        <div className={cn(
+          "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full",
+          trendUp ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600" : "bg-red-100 dark:bg-red-500/20 text-red-600"
+        )}>
+          <ArrowUpRight className={cn("w-3 h-3", !trendUp && "rotate-180")} />
+          {trend}
+        </div>
+      )}
     </div>
-    <span className="text-sm font-bold tracking-tight">{label}</span>
-  </button>
+    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{label}</p>
+    <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
+    {subtext && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtext}</p>}
+  </div>
 );
+
+// Quick Action Card with gradient icon (matches website)
+const QuickActionCard = ({ icon: Icon, title, description, href }) => (
+  <Link to={href} className="block group">
+    <div className="relative overflow-hidden rounded-2xl p-5 border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/30">
+      <div className="relative z-10">
+        <GradientIconBox icon={Icon} size="lg" className="mb-4 group-hover:scale-110 transition-transform duration-300" />
+        <h3 className="font-semibold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{title}</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{description}</p>
+        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary group-hover:translate-x-1 transition-all mt-3" />
+      </div>
+    </div>
+  </Link>
+);
+
+// Status Item with gradient icon (matches website)
+const StatusItem = ({ icon: Icon, label, value, status }) => (
+  <div className="flex items-center gap-4 p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+    <div className={cn(
+      "w-10 h-10 rounded-xl flex items-center justify-center shadow-md",
+      status === 'success' ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' : 
+      status === 'warning' ? 'bg-gradient-to-br from-amber-500 to-amber-600' : 
+      'bg-gradient-to-br from-primary to-emerald-600'
+    )}>
+      <Icon className="w-5 h-5 text-white" />
+    </div>
+    <div className="flex-1">
+      <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="font-semibold text-slate-900 dark:text-white">{value}</p>
+    </div>
+  </div>
+);
+
+export default function EmployerDashboard() {
+  const [stats, setStats] = useState(null);
+  const [employer, setEmployer] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [statsRes, employerRes] = await Promise.all([
+          dashboardApi.getEmployerDashboard(),
+          employerApi.getMe()
+        ]);
+        setStats(statsRes.data);
+        setEmployer(employerRes.data);
+      } catch (err) {
+        if (err.response?.status === 404) {
+          setError('profile_not_found');
+        } else {
+          setError('Failed to load dashboard data');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <EmployerPortalLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-14 h-14 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      </EmployerPortalLayout>
+    );
+  }
+
+  if (error === 'profile_not_found') {
+    return (
+      <EmployerPortalLayout>
+        <div className="max-w-lg mx-auto py-16 text-center">
+          <div className="w-24 h-24 bg-gradient-to-br from-primary/20 to-emerald-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Building2 className="w-12 h-12 text-primary" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Complete Your Company Profile</h1>
+          <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-md mx-auto">
+            Set up your company profile to start offering EaziWage to your employees and unlock all features.
+          </p>
+          <Link to="/employer/onboarding">
+            <Button className="h-12 px-8 bg-gradient-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl transition-shadow" data-testid="complete-profile-btn">
+              Complete Setup <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </Link>
+        </div>
+      </EmployerPortalLayout>
+    );
+  }
+
+  const isPending = employer?.status === 'pending';
+
+  return (
+    <EmployerPortalLayout employer={employer}>
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Verification Alert */}
+        {isPending && (
+          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 dark:from-amber-500/20 dark:to-orange-500/20 backdrop-blur-sm rounded-2xl p-4 flex items-center gap-4 border border-amber-500/20" data-testid="verification-alert">
+            <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+              <AlertCircle className="w-6 h-6 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-amber-900 dark:text-amber-200">Verification in Progress</h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300/80 mt-0.5">
+                Your company profile is being reviewed. This usually takes 1-2 business days.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Top Section - Main Stats + Metrics */}
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Main Stats Card */}
+          <MainStatsCard stats={stats} employer={employer} />
+
+          {/* Metrics Grid */}
+          <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
+            <MetricCard 
+              icon={DollarSign}
+              label="Advances This Month"
+              value={formatCurrency(stats?.monthly_advances_disbursed || stats?.total_advances_disbursed || 0)}
+              subtext="This month's disbursements"
+              trend="+12.5%"
+              trendUp={true}
+            />
+            <MetricCard 
+              icon={TrendingUp}
+              label="Avg. Fee Rate"
+              value={`${(stats?.avg_fee_rate || 4.5).toFixed(1)}%`}
+              subtext="Based on risk score"
+            />
+            <MetricCard 
+              icon={Wallet}
+              label="Monthly Payroll"
+              value={formatCurrency(stats?.monthly_payroll || 0)}
+              subtext="This month's total"
+              trend="+8.2%"
+              trendUp={true}
+            />
+            <MetricCard 
+              icon={Activity}
+              label="Avg. Advance"
+              value={formatCurrency(stats?.avg_advance_amount || 5000)}
+              subtext="Per employee"
+              trend="-2.1%"
+              trendUp={false}
+            />
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h2>
+            <Link to="/employer/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
+              Upload Payroll <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <QuickActionCard 
+              icon={Users}
+              title="Manage Employees"
+              description="Add, edit, or view profiles"
+              href="/employer/employees"
+            />
+            <QuickActionCard 
+              icon={Upload}
+              title="Upload Payroll"
+              description="Update earnings data"
+              href="/employer/payroll"
+            />
+            <QuickActionCard 
+              icon={CreditCard}
+              title="View Advances"
+              description="Track wage advances"
+              href="/employer/advances"
+            />
+            <QuickActionCard 
+              icon={BarChart3}
+              title="Reports"
+              description="Analytics and insights"
+              href="/employer/reports"
+            />
+          </div>
+        </div>
+
+        {/* Bottom Section - Company Status + Risk */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Company Status */}
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-5">Company Status</h2>
+            <div className="space-y-3">
+              <StatusItem 
+                icon={CheckCircle2}
+                label="Verification Status"
+                value={employer?.status === 'approved' ? 'Fully Verified' : 'Under Review'}
+                status={employer?.status === 'approved' ? 'success' : 'warning'}
+              />
+              <StatusItem 
+                icon={Building2}
+                label="Industry"
+                value={employer?.industry?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Not Set'}
+                status="default"
+              />
+              <StatusItem 
+                icon={Calendar}
+                label="Payroll Cycle"
+                value={employer?.payroll_cycle?.charAt(0).toUpperCase() + employer?.payroll_cycle?.slice(1) || 'Monthly'}
+                status="default"
+              />
+            </div>
+          </div>
+
+          {/* Risk Score */}
+          <div className="bg-gradient-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-primary/10 dark:border-primary/20">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Risk Assessment</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Your company's risk profile</p>
+              </div>
+              <div className={cn(
+                "px-4 py-2 rounded-xl font-semibold text-sm",
+                (employer?.risk_score || 3.5) >= 4 ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' :
+                (employer?.risk_score || 3.5) >= 3 ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' :
+                (employer?.risk_score || 3.5) >= 2.6 ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' :
+                'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300'
+              )}>
+                {(employer?.risk_score || 3.5) >= 4 ? 'Low Risk' :
+                 (employer?.risk_score || 3.5) >= 3 ? 'Medium Risk' :
+                 (employer?.risk_score || 3.5) >= 2.6 ? 'High Risk' : 'Very High Risk'}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              <div className="relative w-24 h-24">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" 
+                    className="text-white/50 dark:text-slate-700/50" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="url(#riskGradient)" strokeWidth="8" 
+                    strokeLinecap="round" strokeDasharray={2 * Math.PI * 40} 
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - ((employer?.risk_score || 3.5) / 5))}
+                    className="transition-all duration-1000" />
+                  <defs>
+                    <linearGradient id="riskGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#0df259" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {(employer?.risk_score || 3.5).toFixed(1)}
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Your risk score determines the fee rates applied to employee advances. A lower risk score means better rates for your employees.
+                </p>
+                <Link to="/employer/risk-insights" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:gap-2 transition-all">
+                  View Details <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </EmployerPortalLayout>
+  );
+}
