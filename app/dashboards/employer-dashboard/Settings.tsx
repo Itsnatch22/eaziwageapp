@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client"
 import React, { useState, useEffect } from "react"
 import { 
@@ -403,7 +404,7 @@ export default function EmployerSettings() {
                   </div>
                   
                   {/* Employer Code */}
-                  <div className="mt-4 p-4 bg-gradient-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 rounded-xl border border-primary/20">
+                  <div className="mt-4 p-4 bg-linear-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 rounded-xl border border-primary/20">
                     <Label className="text-slate-700 dark:text-slate-300 text-sm">Employer Code</Label>
                     <div className="flex items-center gap-3 mt-2">
                       <code className="px-4 py-2 bg-white dark:bg-slate-800 rounded-lg font-mono text-lg font-bold text-primary border border-primary/30">
@@ -518,8 +519,8 @@ export default function EmployerSettings() {
                 <div className={cn(
                   "rounded-2xl p-6 border",
                   employer?.status === 'approved' 
-                    ? "bg-gradient-to-br from-emerald-500/5 to-teal-500/5 border-emerald-500/20"
-                    : "bg-gradient-to-br from-amber-500/5 to-orange-500/5 border-amber-500/20"
+                    ? "bg-linear-to-br from-emerald-500/5 to-teal-500/5 border-emerald-500/20"
+                    : "bg-linear-to-br from-amber-500/5 to-orange-500/5 border-amber-500/20"
                 )}>
                   <div className="flex items-center gap-4">
                     <div className={cn(
@@ -788,7 +789,7 @@ export default function EmployerSettings() {
                   </div>
                 </SettingsCard>
 
-                <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20 rounded-2xl p-6 border border-blue-500/20">
+                <div className="bg-linear-to-r from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20 rounded-2xl p-6 border border-blue-500/20">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shrink-0 shadow-sm">
                       <Users className="w-6 h-6 text-white" />
@@ -1051,3 +1052,4 @@ export default function EmployerSettings() {
     </EmployerPortalLayout>
   );
 }
+

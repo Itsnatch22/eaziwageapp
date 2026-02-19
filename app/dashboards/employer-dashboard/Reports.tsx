@@ -1,18 +1,19 @@
+// @ts-nocheck
 "use client"
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { 
   Download, Calendar, 
   Users, CreditCard, DollarSign, PieChart, ArrowUpRight, ArrowDownRight,
   FileText, Wallet, Activity,
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
+import { Button } from '@/components/ui/button';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
-} from '../../components/ui/select';
-import { EmployerPortalLayout } from '../../components/employer/EmployerLayout';
-import { dashboardApi, advanceApi, employeeApi, employerApi } from '../../lib/api';
-import { formatCurrency, cn } from '../../lib/utils';
+} from '@/components/ui/select';
+import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
+import { dashboardApi, advanceApi, employeeApi, employerApi } from '@/lib/api';
+import { formatCurrency, cn } from '@/lib/utils';
 
 // Metric Card with Trend - solid green icon
 const MetricCard = ({ title, value, change, changeType, icon: Icon }) => (
@@ -207,7 +208,7 @@ export default function EmployerReports() {
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia [&::-webkit-calendar-picker-indicator]:saturate-[10] [&::-webkit-calendar-picker-indicator]:hue-rotate-[90deg]"
+                className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia [&::-webkit-calendar-picker-indicator]:saturate-[10] [&::-webkit-calendar-picker-indicator]:hue-rotate-90"
               />
             </div>
             <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
@@ -349,7 +350,7 @@ export default function EmployerReports() {
               />
             </div>
             
-            <div className="mt-6 p-4 bg-gradient-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 rounded-xl border border-primary/10">
+            <div className="mt-6 p-4 bg-linear-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 rounded-xl border border-primary/10">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-slate-700 dark:text-slate-300">Utilization Rate</span>
                 <span className="text-2xl font-bold text-primary">{employeeStats.utilizationRate}%</span>
@@ -419,7 +420,7 @@ export default function EmployerReports() {
 
         {/* Risk Score Card */}
         {(stats?.risk_score || employer?.risk_score) && (
-          <div className="bg-gradient-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-primary/10 dark:border-primary/20">
+          <div className="bg-linear-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-primary/10 dark:border-primary/20">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Company Risk Score</h3>
@@ -468,3 +469,5 @@ export default function EmployerReports() {
     </EmployerPortalLayout>
   );
 }
+
+

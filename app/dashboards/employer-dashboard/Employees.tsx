@@ -21,13 +21,51 @@ import { GradientIconBox, GradientAvatar, currencies, countries } from '@/compon
 
 const API_URL = process.env.BACKEND_URL;
 
+interface EWASettings {
+  ewa_enabled?: boolean;
+  max_advance_percentage?: number;
+  min_advance_amount?: number;
+  max_advance_amount?: number;
+  cooldown_period?: number;
+}
+
+interface Employee {
+  id: string;
+  full_name?: string;
+  employee_code?: string;
+  job_title?: string;
+  department?: string;
+  monthly_salary?: number;
+  tenure_months?: number;
+  kyc_status?: string;
+  status?: string;
+  ewa_settings?: EWASettings;
+  [key: string]: unknown;
+}
+
+interface Employer {
+  id?: string;
+  company_name: string;
+  full_name?: string;
+}
+
+interface ExtendedStats {
+  total_employees: number;
+  active_employees: number;
+  kyc_completion_rate: number;
+  retention_rate: number;
+  avg_tenure_months: number;
+  new_hires_30_days: number;
+  department_breakdown?: Record<string, number>;
+}
+
 interface MetricCardProps {
     icon: LucideIcon;
     label: string;
-    value: string;
+    value: string | number;
     subtext: string;
-    trend: string;
-    trendUp: boolean;
+    trend?: string;
+    trendUp?: boolean;
 }
 
 // Metric Card with gradient icon (matches website)
@@ -81,12 +119,12 @@ const KYCBadge = ({ status }: KYCBadgeProps) => {
 };
 
 // Employee Row
-const EmployeeRow = ({ employee, onViewDetails, onEditEWA, currency }: { employee: any, onViewDetails: any, onEditEWA: any, currency: string }) => (
+const EmployeeRow = ({ employee, onViewDetails, onEditEWA, currency }: { employee: Employee, onViewDetails: (employee: Employee) => void, onEditEWA: (employee: Employee) => void, currency: string }) => (
   <div className="flex items-center gap-4 p-4 bg-white/40 dark:bg-slate-800/40 rounded-xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors group">
     {/* Avatar */}
     <GradientAvatar 
-      initials={employee.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 
-         employee.job_title?.charAt(0) || 'E'}
+	      initials={employee.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 
+	         employee.job_title?.charAt(0) || 'E'}
       size="md"
     />
     
@@ -100,7 +138,7 @@ const EmployeeRow = ({ employee, onViewDetails, onEditEWA, currency }: { employe
     
     {/* Salary */}
     <div className="text-right hidden sm:block">
-      <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employee.monthly_salary, currency)}</p>
+	      <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employee.monthly_salary || 0, currency)}</p>
       <p className="text-xs text-slate-500 dark:text-slate-400">Monthly</p>
     </div>
     
@@ -112,11 +150,11 @@ const EmployeeRow = ({ employee, onViewDetails, onEditEWA, currency }: { employe
     
     {/* KYC Status */}
     <div className="hidden lg:flex items-center justify-center w-12">
-      <KYCBadge status={employee.kyc_status} />
+	      <KYCBadge status={employee.kyc_status || 'pending'} />
     </div>
     
     {/* Status */}
-    <StatusBadge status={employee.status} />
+	    <StatusBadge status={employee.status || 'pending'} />
     
     {/* EWA Status */}
     <div className="hidden xl:block">
@@ -156,14 +194,15 @@ const EmployeeRow = ({ employee, onViewDetails, onEditEWA, currency }: { employe
 );
 
 interface EWASettingsModalProps {
-    employee: any;
+    employee: Employee | null;
     isOpen: boolean;
     onClose: () => void;
-    onSave: (settings: any) => void;
+    onSave: (employeeId: string, settings: EWASettings) => void;
 }
 // EWA Settings Modal
 const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModalProps) => {
-  const [settings, setSettings] = useState({
+  const currentEmployee = employee;
+  const [settings, setSettings] = useState<EWASettings>({
     ewa_enabled: true,
     max_advance_percentage: 50,
     min_advance_amount: 500,
@@ -173,21 +212,22 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (employee?.ewa_settings) {
+    if (currentEmployee?.ewa_settings) {
       setSettings({
-        ewa_enabled: employee.ewa_settings.ewa_enabled ?? true,
-        max_advance_percentage: employee.ewa_settings.max_advance_percentage || 50,
-        min_advance_amount: employee.ewa_settings.min_advance_amount || 500,
-        max_advance_amount: employee.ewa_settings.max_advance_amount || 50000,
-        cooldown_period: employee.ewa_settings.cooldown_period || 7
+        ewa_enabled: currentEmployee.ewa_settings.ewa_enabled ?? true,
+        max_advance_percentage: currentEmployee.ewa_settings.max_advance_percentage || 50,
+        min_advance_amount: currentEmployee.ewa_settings.min_advance_amount || 500,
+        max_advance_amount: currentEmployee.ewa_settings.max_advance_amount || 50000,
+        cooldown_period: currentEmployee.ewa_settings.cooldown_period || 7
       });
     }
-  }, [employee]);
+  }, [currentEmployee]);
 
   const handleSave = async () => {
+    if (!currentEmployee?.id) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/employees/${employee.id}/ewa-settings`, {
+      const response = await fetch(`/api/employees/${currentEmployee.id}/ewa-settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -197,7 +237,7 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
       
       if (response.ok) {
         toast.success('EWA settings updated');
-        onSave(employee.id, settings);
+        onSave(currentEmployee.id, settings);
         onClose();
       } else {
         toast.error('Failed to update settings');
@@ -209,7 +249,7 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
     }
   };
 
-  if (!isOpen || !employee) return null;
+  if (!isOpen || !currentEmployee) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -219,7 +259,7 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
       >
         <div className="bg-primary p-6">
           <h2 className="text-xl font-bold text-white">EWA Settings</h2>
-          <p className="text-white/80 text-sm mt-1">{employee.full_name || employee.employee_code}</p>
+	          <p className="text-white/80 text-sm mt-1">{currentEmployee.full_name || currentEmployee.employee_code}</p>
         </div>
         
         <div className="p-6 space-y-6">
@@ -241,10 +281,10 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-slate-700 dark:text-slate-300">Max Advance Percentage</Label>
-                  <span className="text-xl font-bold text-primary">{settings.max_advance_percentage}%</span>
+	                  <span className="text-xl font-bold text-primary">{settings.max_advance_percentage ?? 50}%</span>
                 </div>
                 <Slider
-                  value={[settings.max_advance_percentage]}
+	                  value={[settings.max_advance_percentage ?? 50]}
                   onValueChange={(v) => setSettings(prev => ({ ...prev, max_advance_percentage: v[0] }))}
                   max={100}
                   min={10}
@@ -322,7 +362,7 @@ const FilterButton = ({ active, onClick, children }: FilterButtonProps) => (
 );
 
 // Department Pie Chart using Recharts
-const DepartmentPieChart = ({ data, totalEmployees }: { data: any, totalEmployees: number }) => {
+const DepartmentPieChart = ({ data, totalEmployees }: { data: Record<string, number>, totalEmployees: number }) => {
   if (!data || Object.keys(data).length === 0) return null;
   
   const COLORS = [
@@ -331,11 +371,11 @@ const DepartmentPieChart = ({ data, totalEmployees }: { data: any, totalEmployee
   ];
   
   // Convert data to recharts format
-  const chartData = Object.entries(data).map(([name, value], index) => ({
-    name,
-    value,
-    color: COLORS[index % COLORS.length]
-  }));
+	  const chartData = Object.entries(data).map(([name, value], index) => ({
+	    name,
+	    value: Number(value),
+	    color: COLORS[index % COLORS.length]
+	  }));
 
   const CustomTooltip = ({ active, payload }: { active: boolean, payload: any }) => {
     if (active && payload && payload.length) {
@@ -403,7 +443,7 @@ const DepartmentPieChart = ({ data, totalEmployees }: { data: any, totalEmployee
 };
 
 interface EmployeeViewModalProps {
-    employee: any;
+    employee: Employee | null;
     isOpen: boolean;
     onClose: () => void;
 }
@@ -419,9 +459,9 @@ const EmployeeViewModal = ({ employee, isOpen, onClose }: EmployeeViewModalProps
       >
         <div className="bg-linear-to-r from-primary to-emerald-600 p-6">
           <div className="flex items-center gap-4">
-            <GradientAvatar 
-              initials={employee.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'E'}
-              size="lg"
+	            <GradientAvatar 
+	              initials={employee.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'E'}
+	              size="lg"
               className="border-2 border-white/30"
             />
             <div>
@@ -436,7 +476,7 @@ const EmployeeViewModal = ({ employee, isOpen, onClose }: EmployeeViewModalProps
           <div className="grid grid-cols-2 gap-4">
             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
               <p className="text-xs text-slate-500 dark:text-slate-400">Monthly Salary</p>
-              <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employee.monthly_salary)}</p>
+	              <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employee.monthly_salary || 0)}</p>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
               <p className="text-xs text-slate-500 dark:text-slate-400">Tenure</p>
@@ -444,13 +484,13 @@ const EmployeeViewModal = ({ employee, isOpen, onClose }: EmployeeViewModalProps
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
               <p className="text-xs text-slate-500 dark:text-slate-400">Status</p>
-              <StatusBadge status={employee.status} />
+	              <StatusBadge status={employee.status || 'pending'} />
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
               <p className="text-xs text-slate-500 dark:text-slate-400">KYC Status</p>
               <div className="flex items-center gap-2 mt-1">
-                <KYCBadge status={employee.kyc_status} />
-                <span className="text-sm capitalize text-slate-700 dark:text-slate-300">{employee.kyc_status}</span>
+	                <KYCBadge status={employee.kyc_status || 'pending'} />
+	                <span className="text-sm capitalize text-slate-700 dark:text-slate-300">{employee.kyc_status || 'pending'}</span>
               </div>
             </div>
           </div>
@@ -481,9 +521,9 @@ const EmployeeViewModal = ({ employee, isOpen, onClose }: EmployeeViewModalProps
 };
 
 export default function EmployerEmployees() {
-  const [employees, setEmployees] = useState([]);
-  const [employer, setEmployer] = useState(null);
-  const [extendedStats, setExtendedStats] = useState(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employer, setEmployer] = useState<Employer | null>(null);
+  const [extendedStats, setExtendedStats] = useState<ExtendedStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -491,7 +531,7 @@ export default function EmployerEmployees() {
   const [countryFilter, setCountryFilter] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState('KES');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [showEWAModal, setShowEWAModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [seeding, setSeeding] = useState(false);
@@ -499,16 +539,25 @@ export default function EmployerEmployees() {
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('eaziwage_token');
-      const [employerRes, employeesRes, statsRes] = await Promise.all([
-        employerApi.getMe(),
-        employeeApi.list(),
+      const [profileRes, employeesRes, statsRes] = await Promise.all([
+        fetch('/api/profile').then(r => r.json()).catch(() => null),
+        fetch('/api/employees').then(r => r.json()).catch(() => null),
         fetch(`${API_URL}/api/dashboard/employer/extended`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }).then(r => r.json()).catch(() => null)
       ]);
-      setEmployer(employerRes.data);
-      setEmployees(employeesRes.data || []);
-      setExtendedStats(statsRes);
+      const profile = profileRes?.profile;
+      setEmployer(
+        profile
+          ? {
+              id: profile.id,
+              full_name: profile.full_name,
+              company_name: profile.company_name || profile.full_name || 'Employer',
+            }
+          : null
+      );
+      setEmployees(employeesRes?.employees || []);
+      setExtendedStats(statsRes?.data || statsRes || null);
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -538,14 +587,14 @@ export default function EmployerEmployees() {
     }
   };
 
-  const handleEWASave = (employeeId, newSettings) => {
+  const handleEWASave = (employeeId: string, newSettings: EWASettings) => {
     setEmployees(prev => prev.map(e => 
       e.id === employeeId ? { ...e, ewa_settings: newSettings } : e
     ));
   };
 
   // Get unique departments
-  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
+  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))] as string[];
 
   // Filter employees
   const filteredEmployees = employees.filter(e => {
@@ -671,7 +720,7 @@ export default function EmployerEmployees() {
                     type="date"
                     value={dateRange.from}
                     onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                    className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia [&::-webkit-calendar-picker-indicator]:saturate-[10] [&::-webkit-calendar-picker-indicator]:hue-rotate-[90deg]"
+                    className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia [&::-webkit-calendar-picker-indicator]:saturate-[10] [&::-webkit-calendar-picker-indicator]:hue-rotate-90"
                     placeholder="From"
                   />
                 </div>
@@ -681,7 +730,7 @@ export default function EmployerEmployees() {
                     type="date"
                     value={dateRange.to}
                     onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                    className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia [&::-webkit-calendar-picker-indicator]:saturate-[10] [&::-webkit-calendar-picker-indicator]:hue-rotate-[90deg]"
+                    className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia [&::-webkit-calendar-picker-indicator]:saturate-[10] [&::-webkit-calendar-picker-indicator]:hue-rotate-90"
                     placeholder="To"
                   />
                 </div>

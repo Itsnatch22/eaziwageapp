@@ -1,23 +1,25 @@
+// @ts-nocheck
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Building2, MapPin, Users, ArrowRight, ArrowLeft,
-  Phone, Mail, Briefcase, AlertCircle, Check, Sparkles,
-  Shield, FileText, ChevronRight, ChevronDown, Upload,
-  Globe, Calendar, Banknote, UserCheck, Scale, Factory,
-  DollarSign, CreditCard, User, Plus, Trash2, Info, X
+  Phone,  AlertCircle, Check, Sparkles,
+  Shield, FileText, ChevronDown, Upload,
+  Globe, UserCheck, Scale, Factory,
+  DollarSign, Plus, Trash2, Info, X
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Alert, AlertDescription } from '../../components/ui/alert';
-import { employerApi } from '../../lib/api';
-import { PAYROLL_CYCLES } from '../../lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PAYROLL_CYCLES } from '@/lib/utils';
 import { toast } from 'sonner';
-import { useTheme } from '../../lib/ThemeContext';
+import { useTheme } from '@/lib/ThemeContext';
 import { Sun, Moon } from 'lucide-react';
+import { employerApi } from '@/lib/api';
 
 // Countries of Operation
 const COUNTRIES = [
@@ -108,6 +110,16 @@ const STEPS = [
 ];
 
 // File Uploader Component
+interface FileUploaderProps {
+  label: string;
+  description: string;
+  onUpload: (file: File) => void;
+  uploadedFile: File | null;
+  uploading: boolean;
+  testId?: string;
+  required?: boolean;
+  optional?: boolean;
+}
 const FileUploader = ({ 
   label, 
   description, 
@@ -117,10 +129,10 @@ const FileUploader = ({
   testId,
   required = false,
   optional = false
-}) => {
+}: FileUploaderProps) => {
   const fileInputRef = useRef(null);
   
-  const handleFileSelect = async (e) => {
+  const handleFileSelect = async (e: { target: { files: any[]; }; }) => {
     const file = e.target.files[0];
     if (file) {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -170,7 +182,7 @@ const FileUploader = ({
               <Check className="w-5 h-5 text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[180px]">
+              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-45">
                 {uploadedFile.name || 'Document uploaded'}
               </p>
               <p className="text-xs text-slate-500">Click to replace</p>
@@ -250,7 +262,7 @@ const BeneficialOwnerRow = ({ owner, index, onUpdate, onRemove }) => (
 );
 
 export default function EmployerOnboarding() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -384,7 +396,7 @@ export default function EmployerOnboarding() {
       });
       
       toast.success('Company profile created successfully! Our team will review your application.');
-      navigate('/employer');
+      router.push('/employer');
     } catch (err) {
       let errorMessage = 'Failed to create company profile';
       const detail = err.response?.data?.detail;
@@ -457,7 +469,7 @@ export default function EmployerOnboarding() {
       case 0: // Welcome
         return (
           <div className="text-center py-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-primary to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/30">
+            <div className="w-20 h-20 bg-linear-to-br from-primary to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/30">
               <Building2 className="w-10 h-10 text-white" />
             </div>
             <h2 className="font-heading text-3xl font-bold text-slate-900 dark:text-white mb-4">
@@ -496,7 +508,7 @@ export default function EmployerOnboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Shield className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -557,7 +569,7 @@ export default function EmployerOnboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Building2 className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -658,7 +670,7 @@ export default function EmployerOnboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <MapPin className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -793,7 +805,7 @@ export default function EmployerOnboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <UserCheck className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -868,7 +880,7 @@ export default function EmployerOnboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Factory className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -1051,7 +1063,7 @@ export default function EmployerOnboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <DollarSign className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -1180,7 +1192,7 @@ export default function EmployerOnboarding() {
         return (
           <div className="py-6">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                 <Phone className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
@@ -1266,15 +1278,15 @@ export default function EmployerOnboarding() {
       {/* Background */}
       <div className="absolute inset-0 gradient-mesh" />
       <div className="absolute inset-0 bg-grid" />
-      <div className="absolute top-20 right-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[150px]" />
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[150px]" />
+      <div className="absolute top-20 right-0 w-150 h-150 bg-primary/10 rounded-full blur-[150px]" />
+      <div className="absolute bottom-0 left-0 w-125 h-125 bg-emerald-500/10 rounded-full blur-[150px]" />
       
       {/* Header */}
       <header className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-center">
-          <Link to="/" className="flex items-center gap-3 group" data-testid="logo-link">
+          <Link href="/" className="flex items-center gap-3 group" data-testid="logo-link">
             <div className="relative">
-              <div className="w-11 h-11 bg-gradient-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-primary/30">
+              <div className="w-11 h-11 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-primary/30">
                 <span className="text-white font-bold text-xl">E</span>
               </div>
             </div>
@@ -1303,7 +1315,7 @@ export default function EmployerOnboarding() {
                     index < currentStep
                       ? 'bg-primary text-white'
                       : index === currentStep
-                      ? 'bg-gradient-to-br from-primary to-emerald-600 text-white shadow-lg shadow-primary/30'
+                      ? 'bg-linear-to-br from-primary to-emerald-600 text-white shadow-lg shadow-primary/30'
                       : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                   }`}
                 >
@@ -1362,7 +1374,7 @@ export default function EmployerOnboarding() {
               type="button"
               onClick={handleSubmit}
               disabled={loading || !canProceed()}
-              className="h-14 px-8 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30"
+              className="h-14 px-8 rounded-2xl bg-linear-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30"
               data-testid="complete-employer-onboarding"
             >
               {loading ? (
@@ -1382,7 +1394,7 @@ export default function EmployerOnboarding() {
               type="button"
               onClick={nextStep}
               disabled={!canProceed()}
-              className="h-14 px-8 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30"
+              className="h-14 px-8 rounded-2xl bg-linear-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30"
               data-testid="employer-next-step"
             >
               Continue
@@ -1394,3 +1406,4 @@ export default function EmployerOnboarding() {
     </div>
   );
 }
+

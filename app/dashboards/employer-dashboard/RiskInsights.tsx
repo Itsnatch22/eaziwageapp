@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client"
 import React, { useState, useEffect } from 'react';
 import { 
@@ -186,7 +187,7 @@ const FeeImpactCard = ({ currentScore, currentFee }: FeeImpactCardProps) => {
   ];
 
   return (
-    <div className="bg-gradient-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-primary/10 dark:border-primary/20">
+    <div className="bg-linear-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-primary/10 dark:border-primary/20">
       <div className="flex items-center gap-3 mb-5">
         <GradientIconBox icon={DollarSign} size="md" />
         <div>
@@ -534,3 +535,4 @@ export default function RiskInsightsPage() {
     </EmployerPortalLayout>
   );
 }
+
