@@ -14,6 +14,7 @@ import { logout } from '@/actions/auth';
 import React,{ useState, useRef, useEffect }from 'react';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/lib/stores/auth';
 
 export const EmployerBackground = () => (
   <>
@@ -121,17 +122,25 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const location = usePathname();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
-  const user = JSON.parse(localStorage.getItem('eaziwage_user') || '{}');
+  const user = useAuthStore((state: { user: any; }) => state.user);
   const [showContactModal, setShowContactModal] = useState(false);
+  const fullName = user?.full_name?.trim() || 'User';
+  const userEmail = user?.email || 'No email';
+  const initials = fullName
+    .split(' ')
+    .filter(Boolean)
+    .map((n: string) => n[0])
+    .join('')
+    .toUpperCase() || 'U';
 
   const navItems = [
-    { href: '/employer', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/employer/employees', label: 'Employees', icon: Users },
-    { href: '/employer/payroll', label: 'Payroll', icon: Upload },
-    { href: '/employer/advances', label: 'Advances', icon: CreditCard },
-    { href: '/employer/reports', label: 'Reports', icon: BarChart3 },
-    { href: '/employer/risk-insights', label: 'Risk Insights', icon: Shield },
-    { href: '/employer/settings', label: 'Settings', icon: Settings },
+    { href: '/dashboards/employer-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/dashboards/employer-dashboard/employees', label: 'Employees', icon: Users },
+    { href: '/dashboards/employer-dashboard/payroll', label: 'Payroll', icon: Upload },
+    { href: '/dashboards/employer-dashboard/advances', label: 'Advances', icon: CreditCard },
+    { href: '/dashboards/employer-dashboard/reports', label: 'Reports', icon: BarChart3 },
+    { href: '/dashboards/employer-dashboard/risk-insights', label: 'Risk Insights', icon: Shield },
+    { href: '/dashboards/employer-dashboard/settings', label: 'Settings', icon: Settings },
   ];
   
   const isActive = (path: string) => {
@@ -238,12 +247,12 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-11 h-11 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
                 <span className="text-white font-bold text-sm">
-                  {user.full_name?.split(' ').map((n: any[]) => n[0]).join('').toUpperCase() || 'U'}
+                  {initials}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.full_name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{fullName}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{userEmail}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

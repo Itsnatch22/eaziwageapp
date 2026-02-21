@@ -66,7 +66,7 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
 
   // ── Unauthenticated user tries to access a protected route ──────────────────
   if (!isAuth && (isDashboard || isOnboarding)) {
-    const loginUrl = new URL('/login', req.url);
+    const loginUrl = new URL('/', req.url);
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
   }

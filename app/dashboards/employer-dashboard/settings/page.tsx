@@ -245,7 +245,7 @@ export default function EmployerSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-        const res = await fetch("/api/employer/settings", {
+        const res = await fetch("/api/employer-dashboard/settings", {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
@@ -269,7 +269,7 @@ export default function EmployerSettings() {
   const handleBankChangeRequest = async () => {
     setSaving(true);
     try {
-        const res = await fetch("/api/employer/settings/bank-change-request", {
+        const res = await fetch("/api/employer-dashboard/settings/bank-change-request", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

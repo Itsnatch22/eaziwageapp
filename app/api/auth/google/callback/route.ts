@@ -226,7 +226,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       created_at: new Date().toISOString(),
     });
 
-    const onboardingUrl = role === 'employer' ? '/employer/onboarding' : '/employee/onboarding';
+    const onboardingUrl = role === 'employer' ? '/employer-dashboard/onboarding' : '/employee-dashboard/onboarding';
     const redirect = NextResponse.redirect(new URL(onboardingUrl, req.url));
     response.cookies.getAll().forEach(({ name, value, ...opts }) => redirect.cookies.set(name, value, opts));
     return redirect;
@@ -269,8 +269,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   if (!existingProfile.onboarding_complete) {
     destination = existingProfile.role === 'employer'
-      ? '/employer/onboarding'
-      : '/employee/onboarding';
+      ? '/employer-dashboard/onboarding'
+      : '/employee-dashboard/onboarding';
   } else {
     switch (existingProfile.role) {
       case 'admin':    destination = '/admin';                         break;

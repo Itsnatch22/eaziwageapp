@@ -1,4 +1,5 @@
 // @ts-nocheck
+"use client"
 import React, { useState, useEffect } from 'react';
 import { 
   Upload, Download, Calendar, FileText, CheckCircle2, Clock, AlertCircle,

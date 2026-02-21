@@ -769,7 +769,7 @@ export default function Settings() {
         const formData = new FormData();
         formData.append('profilePicture', file);
 
-        const res = await fetch('/api/profile', {
+        const res = await fetch('/api/employee-dashboard/profile', {
             method: 'POST',
             body: formData,
         });
@@ -790,7 +790,7 @@ export default function Settings() {
 };
     const handleUserSettingsSave = async (field: string, value: string) => {
         try {
-            const res = await fetch('/api/profile', {
+            const res = await fetch('/api/employee-dashboard/profile', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ [field]: value }),
@@ -820,7 +820,7 @@ export default function Settings() {
 
     const handleEmployeeSettingsSave = async (field: string, value: string) => {
         try {
-            const res = await fetch('/api/employee-settings', {
+            const res = await fetch('/api/employer-dashboard/employee-settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ [field]: value }),

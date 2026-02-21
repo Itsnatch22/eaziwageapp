@@ -1,0 +1,149 @@
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+
+const profileUpdateSchema = z.object({
+    full_name: z.string().min(2, 'Full name must be at least 2 characters').optional(),
+    phone: z.string().regex(/^\+?[\d\s\-\(\)]{10,}$/, 'Invalid phone number format').optional(),
+});
+
+async function getFullProfile( supabase: any, userId: string){
+    let { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+    if (!profile) {
+        const { data: newProfile } = await supabase
+        .from('profiles')
+        .insert({
+            id: userId,
+            full_name: 'User',
+            email: 'user@eaziwage.com',
+        })
+        .select()
+        .single();
+        profile = newProfile;
+    }
+
+    let { data: employee } = await supabase
+    .from('employees')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+    
+    if (!employee) {
+        const { data: newEmployee } = await supabase
+        .from('employees')
+        .insert({ user_id: userId, kyc_status: 'pending' })
+        .select()
+        .single();
+        employee = newEmployee;
+    }
+
+    const docMap: Record<string, string> = {
+        id_front: 'id_document_front',
+        address_proof: 'address_proof',
+        payslip_1: 'payslip_1',
+        employment_contract: 'employment_contract',
+        selfie: 'selfie',
+    };
+
+    const kycDocuments = Object.entries(docMap).map(([docType,field]) => ({
+        document_type: docType,
+        status: (employee as any)?.[field] ? ('submitted' as const) : null,
+    }));
+
+    return {
+        ...profile,
+        employee: employee || {},
+        kycDocuments,
+    };
+}
+
+export async function GET() {
+    const supabase = await createRouteHandlerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return Response.json({ error: 'Unauthorized' }, { status: 400 });
+    }
+
+    const profile = await getFullProfile(supabase, user.id);
+    return Response.json({profile});
+}
+
+export async function POST(req: NextRequest) {
+    const supabase = await createRouteHandlerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    };
+
+    const contentType = req.headers.get('content-type') || '';
+
+    if (contentType.includes('multipart/form-data')) {
+        const formData = await req.formData();
+        const file = formData.get('profilePicture') as File | null;
+
+        if (!file) {
+            return Response.json({ error: 'No file provided' }, { status: 400 });
+        }
+
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+            return Response.json({ error: 'Invalid image format' }, { status: 400 });
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            return Response.json({ error: 'File too large (max 2MB)' }, { status: 400 });
+        }
+
+        const filePath = `${user.id}`;
+        const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true, contentType: file.type });
+
+        if (uploadError) {
+            return Response.json({ error: 'Upload failed' }, { status: 500 });
+        }
+
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+        await supabase
+        .from('profiles')
+        .update({ profile_picture_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+
+        const profile = await getFullProfile(supabase, user.id);
+        return Response.json({ profile });
+    }
+
+    let body;
+    try {
+        body = await req.json();
+    } catch {
+        return Response.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    const parsed = profileUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+        return Response.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    }
+
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (parsed.data.full_name) updates.full_name = parsed.data.full_name;
+    if (parsed.data.phone) updates.phone = parsed.data.phone;
+
+    const { error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', user.id);
+
+    if (error) {
+        return Response.json({ error: 'Update failed' }, { status: 500 });
+    }
+
+    const profile = await getFullProfile(supabase, user.id);
+    return Response.json({ profile });
+}

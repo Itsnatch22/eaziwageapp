@@ -300,7 +300,7 @@ export default function EmployerDashboard() {
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h2>
-            <Link href="/employer/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
+            <Link href="/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
               Upload Payroll <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -309,25 +309,25 @@ export default function EmployerDashboard() {
               icon={Users}
               title="Manage Employees"
               description="Add, edit, or view profiles"
-              href="/employer/employees"
+              href="/employer-dashboard/employees"
             />
             <QuickActionCard 
               icon={Upload}
               title="Upload Payroll"
               description="Update earnings data"
-              href="/employer/payroll"
+              href="/employer-dashboard/payroll"
             />
             <QuickActionCard 
               icon={CreditCard}
               title="View Advances"
               description="Track wage advances"
-              href="/employer/advances"
+              href="/employer-dashboard/advances"
             />
             <QuickActionCard 
               icon={BarChart3}
               title="Reports"
               description="Analytics and insights"
-              href="/employer/reports"
+              href="/employer-dashboard/reports"
             />
           </div>
         </div>

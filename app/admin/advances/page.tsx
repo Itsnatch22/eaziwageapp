@@ -5,13 +5,13 @@ import {
   MoreHorizontal, Wallet, ArrowUpRight, RefreshCw, AlertTriangle,
   DollarSign
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
-} from '../../components/ui/dropdown-menu';
-import { AdminPortalLayout } from '../../components/admin/AdminLayout';
-import { formatCurrency, formatDateTime, cn } from '../../lib/utils';
+} from '@/components/ui/dropdown-menu';
+import { AdminPortalLayout } from '@/components/admin/AdminLayout';
+import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 type VariantColor = 'purple' | 'green' | 'amber' | 'red' | 'blue';
