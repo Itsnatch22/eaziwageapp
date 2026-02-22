@@ -218,20 +218,25 @@ export default function EmployerSettings() {
   useEffect(() => {
     const fetchData = async () => {
         try {
-            const res = await fetch("/api/employer/settings");
-            setEmployer(res.data);
+            const res = await fetch("/api/employer-dashboard/profile");
+            if (!res.ok) {
+              throw new Error(`Failed to fetch employer profile: ${res.status}`);
+            }
+            const payload = await res.json();
+            const employerData = payload?.profile ?? payload ?? {};
+            setEmployer(employerData);
             setSettings(prev => ({
                 ...prev,
-                companyName: res.data.company_name || '',
-                contactPerson: res.data.contact_person || '',
-                contactEmail: res.data.contact_email || '',
-                contactPhone: res.data.contact_phone || '',
-                payrollCycle: res.data.payroll_cycle || 'monthly',
-                physicalAddress: res.data.physical_address || '',
-                city: res.data.city || '',
-                postalCode: res.data.postal_code || '',
-                countyRegion: res.data.county_region || '',
-                country: res.data.country || 'KE'
+                companyName: employerData.company_name || '',
+                contactPerson: employerData.contact_person || '',
+                contactEmail: employerData.contact_email || '',
+                contactPhone: employerData.contact_phone || '',
+                payrollCycle: employerData.payroll_cycle || 'monthly',
+                physicalAddress: employerData.physical_address || '',
+                city: employerData.city || '',
+                postalCode: employerData.postal_code || '',
+                countyRegion: employerData.county_region || '',
+                country: employerData.country || 'KE'
             }));
         } catch (err) {
             console.error("Failed to fetch employer data:", err);

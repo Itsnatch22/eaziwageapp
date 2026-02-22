@@ -308,7 +308,7 @@ const FileUploader = ({
               <Check className="w-5 h-5 text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[180px]">{uploadedFile.name}</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-45">{uploadedFile.name}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">Click to replace</p>
             </div>
           </div>
@@ -659,7 +659,7 @@ export default function Onboarding() {
                     <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-nationality">
                       <SelectValue placeholder="Select your nationality" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
+                    <SelectContent className="max-h-75">
                       {ALL_COUNTRIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
