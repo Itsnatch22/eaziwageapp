@@ -1,9 +1,9 @@
-"use client"
-import { useState, useEffect } from 'react';
-import { 
+"use client";
+import { useState, useEffect, useCallback } from 'react';
+import {
   Users, Search, Download, TrendingUp, UserCheck, Clock,
-   Eye, Settings, 
-  CheckCircle2, XCircle, Calendar, Building2, Globe, LucideIcon
+  Eye, Settings, CheckCircle2, XCircle, Calendar, Building2,
+  Globe, LucideIcon, AlertCircle,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Button } from '@/components/ui/button';
@@ -11,22 +11,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { 
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { GradientIconBox, GradientAvatar, currencies, countries } from '@/components/employer/SharedComponents';
+import {
+  GradientIconBox, GradientAvatar, currencies, countries,
+} from '@/components/employer/SharedComponents';
 
-const API_URL = process.env.BACKEND_URL;
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface EWASettings {
-  ewa_enabled?: boolean;
-  max_advance_percentage?: number;
-  min_advance_amount?: number;
-  max_advance_amount?: number;
-  cooldown_period?: number;
+  ewa_enabled: boolean;
+  max_advance_percentage: number;
+  min_advance_amount: number;
+  max_advance_amount: number;
+  cooldown_period: number;
 }
 
 interface Employee {
@@ -39,8 +41,12 @@ interface Employee {
   tenure_months?: number;
   kyc_status?: string;
   status?: string;
-  ewa_settings?: EWASettings;
-  [key: string]: unknown;
+  country?: string;
+  city?: string;
+  employment_type?: string;
+  start_date?: string;
+  submitted_at?: string;
+  ewa_settings?: EWASettings | null;
 }
 
 interface Employer {
@@ -59,26 +65,29 @@ interface ExtendedStats {
   department_breakdown?: Record<string, number>;
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 interface MetricCardProps {
-    icon: LucideIcon;
-    label: string;
-    value: string | number;
-    subtext: string;
-    trend?: string;
-    trendUp?: boolean;
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  subtext: string;
+  trend?: string;
+  trendUp?: boolean;
 }
 
-// Metric Card with gradient icon (matches website)
 const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }: MetricCardProps) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30">
     <div className="flex items-start justify-between mb-3">
       <GradientIconBox icon={Icon} size="md" />
       {trend && (
         <div className={cn(
-          "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full",
-          trendUp ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600" : "bg-red-100 dark:bg-red-500/20 text-red-600"
+          'flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full',
+          trendUp
+            ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600'
+            : 'bg-red-100 dark:bg-red-500/20 text-red-600',
         )}>
-          <TrendingUp className={cn("w-3 h-3", !trendUp && "rotate-180")} />
+          <TrendingUp className={cn('w-3 h-3', !trendUp && 'rotate-180')} />
           {trend}
         </div>
       )}
@@ -89,74 +98,149 @@ const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }: Metri
   </div>
 );
 
-interface StatusBadgeProps {
-    status: string;
-}
-// Status Badge
-const StatusBadge = ({ status }: StatusBadgeProps) => {
+const StatusBadge = ({ status }: { status: string }) => {
   const config = {
     approved: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Active' },
-    pending: { bg: 'bg-amber-100 dark:bg-amber-500/20', text: 'text-amber-700 dark:text-amber-300', label: 'Pending' },
-    rejected: { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300', label: 'Rejected' },
+    pending:  { bg: 'bg-amber-100 dark:bg-amber-500/20',  text: 'text-amber-700 dark:text-amber-300',  label: 'Pending' },
+    rejected: { bg: 'bg-red-100 dark:bg-red-500/20',      text: 'text-red-700 dark:text-red-300',      label: 'Rejected' },
   };
-  const { bg, text, label } = config[status as keyof typeof config] || config.pending;
-  return <span className={cn("px-3 py-1 rounded-full text-xs font-semibold", bg, text)}>{label}</span>;
+  const { bg, text, label } = config[status as keyof typeof config] ?? config.pending;
+  return <span className={cn('px-3 py-1 rounded-full text-xs font-semibold', bg, text)}>{label}</span>;
 };
 
-interface KYCBadgeProps {
-    status: string;
-}
-// KYC Status Badge
-const KYCBadge = ({ status }: KYCBadgeProps) => {
+const KYCBadge = ({ status }: { status: string }) => {
   const config = {
-    approved: { icon: CheckCircle2, color: 'text-emerald-600' },
-    pending: { icon: Clock, color: 'text-amber-600' },
-    submitted: { icon: Clock, color: 'text-blue-600' },
-    rejected: { icon: XCircle, color: 'text-red-600' },
+    approved:     { icon: CheckCircle2, color: 'text-emerald-600' },
+    pending:      { icon: Clock,         color: 'text-amber-600'   },
+    under_review: { icon: Clock,         color: 'text-blue-600'    },
+    rejected:     { icon: XCircle,       color: 'text-red-600'     },
   };
-  const { icon: Icon, color } = config[status as keyof typeof config] || config.pending;
-  return <Icon className={cn("w-5 h-5", color)} />;
+  const { icon: Icon, color } = config[status as keyof typeof config] ?? config.pending;
+  return <Icon className={cn('w-5 h-5', color)} />;
 };
 
-// Employee Row
-const EmployeeRow = ({ employee, onViewDetails, onEditEWA, currency }: { employee: Employee, onViewDetails: (employee: Employee) => void, onEditEWA: (employee: Employee) => void, currency: string }) => (
+const FilterButton = ({
+  active, onClick, children,
+}: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      'px-4 py-2 rounded-xl text-sm font-medium transition-all',
+      active
+        ? 'bg-primary text-white shadow-lg shadow-primary/25'
+        : 'bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800',
+    )}
+  >
+    {children}
+  </button>
+);
+
+// ─── Department Pie Chart ─────────────────────────────────────────────────────
+
+const CHART_COLORS = [
+  '#0df259', '#10b981', '#059669', '#047857', '#065f46',
+  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#ec4899',
+];
+
+const DepartmentPieChart = ({
+  data, totalEmployees,
+}: { data: Record<string, number>; totalEmployees: number }) => {
+  if (!data || Object.keys(data).length === 0) return null;
+
+  const chartData = Object.entries(data).map(([name, value], i) => ({
+    name, value: Number(value), color: CHART_COLORS[i % CHART_COLORS.length],
+  }));
+
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: typeof chartData[0] }[] }) => {
+    if (active && payload?.length) {
+      const d = payload[0].payload;
+      return (
+        <div className="bg-white dark:bg-slate-800 px-3 py-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{d.name}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            {d.value} employees ({totalEmployees > 0 ? ((d.value / totalEmployees) * 100).toFixed(1) : 0}%)
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="flex items-center gap-6" data-testid="department-pie-chart">
+      <div className="relative w-40 h-40 shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={chartData} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2} dataKey="value">
+              {chartData.map((entry, i) => (
+                <Cell key={`cell-${i}`} fill={entry.color} className="hover:opacity-80 transition-opacity cursor-pointer" />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-xl font-bold text-slate-900 dark:text-white">{totalEmployees}</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Total</span>
+        </div>
+      </div>
+      <div className="flex-1 grid grid-cols-2 gap-2">
+        {chartData.slice(0, 8).map((item) => (
+          <div key={item.name} className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+            <span className="text-xs text-slate-600 dark:text-slate-400 truncate">{item.name}</span>
+            <span className="text-xs font-semibold text-slate-900 dark:text-white ml-auto">{item.value}</span>
+          </div>
+        ))}
+        {chartData.length > 8 && (
+          <div className="text-xs text-slate-500 col-span-2">+{chartData.length - 8} more departments</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Employee Row ─────────────────────────────────────────────────────────────
+
+const EmployeeRow = ({
+  employee, onViewDetails, onEditEWA, currency,
+}: {
+  employee: Employee;
+  onViewDetails: (e: Employee) => void;
+  onEditEWA: (e: Employee) => void;
+  currency: string;
+}) => (
   <div className="flex items-center gap-4 p-4 bg-white/40 dark:bg-slate-800/40 rounded-xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors group">
-    {/* Avatar */}
-    <GradientAvatar 
-	      initials={employee.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 
-	         employee.job_title?.charAt(0) || 'E'}
+    <GradientAvatar
+      initials={
+        employee.full_name?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) ||
+        employee.job_title?.charAt(0).toUpperCase() ||
+        'E'
+      }
       size="md"
     />
-    
-    {/* Info */}
     <div className="flex-1 min-w-0">
       <p className="font-semibold text-slate-900 dark:text-white truncate">
         {employee.full_name || `Employee ${employee.employee_code}`}
       </p>
-      <p className="text-xs text-slate-500 dark:text-slate-400">{employee.job_title} • {employee.department || 'General'}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        {employee.job_title} • {employee.department || 'General'}
+      </p>
     </div>
-    
-    {/* Salary */}
     <div className="text-right hidden sm:block">
-	      <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employee.monthly_salary || 0, currency)}</p>
+      <p className="font-bold text-slate-900 dark:text-white">
+        {formatCurrency(employee.monthly_salary ?? 0, currency)}
+      </p>
       <p className="text-xs text-slate-500 dark:text-slate-400">Monthly</p>
     </div>
-    
-    {/* Tenure */}
     <div className="text-center hidden md:block w-20">
-      <p className="font-semibold text-slate-900 dark:text-white">{employee.tenure_months || 0}m</p>
+      <p className="font-semibold text-slate-900 dark:text-white">{employee.tenure_months ?? 0}m</p>
       <p className="text-xs text-slate-500 dark:text-slate-400">Tenure</p>
     </div>
-    
-    {/* KYC Status */}
     <div className="hidden lg:flex items-center justify-center w-12">
-	      <KYCBadge status={employee.kyc_status || 'pending'} />
+      <KYCBadge status={employee.kyc_status ?? 'pending'} />
     </div>
-    
-    {/* Status */}
-	    <StatusBadge status={employee.status || 'pending'} />
-    
-    {/* EWA Status */}
+    <StatusBadge status={employee.status ?? 'pending'} />
     <div className="hidden xl:block">
       {employee.ewa_settings?.ewa_enabled === false ? (
         <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
@@ -172,17 +256,15 @@ const EmployeeRow = ({ employee, onViewDetails, onEditEWA, currency }: { employe
         </span>
       )}
     </div>
-    
-    {/* Actions */}
     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-      <button 
+      <button
         onClick={() => onViewDetails(employee)}
         className="p-2 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
         title="View Details"
       >
         <Eye className="w-4 h-4" />
       </button>
-      <button 
+      <button
         onClick={() => onEditEWA(employee)}
         className="p-2 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
         title="EWA Settings"
@@ -193,85 +275,91 @@ const EmployeeRow = ({ employee, onViewDetails, onEditEWA, currency }: { employe
   </div>
 );
 
-interface EWASettingsModalProps {
-    employee: Employee | null;
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (employeeId: string, settings: EWASettings) => void;
-}
-// EWA Settings Modal
-const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModalProps) => {
-  const currentEmployee = employee;
-  const [settings, setSettings] = useState<EWASettings>({
-    ewa_enabled: true,
-    max_advance_percentage: 50,
-    min_advance_amount: 500,
-    max_advance_amount: 50000,
-    cooldown_period: 7
-  });
+// ─── EWA Settings Modal ───────────────────────────────────────────────────────
+
+const DEFAULT_EWA: EWASettings = {
+  ewa_enabled: true,
+  max_advance_percentage: 50,
+  min_advance_amount: 500,
+  max_advance_amount: 50000,
+  cooldown_period: 7,
+};
+
+const EWASettingsModal = ({
+  employee, isOpen, onClose, onSave,
+}: {
+  employee: Employee | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (employeeId: string, settings: EWASettings) => void;
+}) => {
+  const [settings, setSettings] = useState<EWASettings>(DEFAULT_EWA);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (currentEmployee?.ewa_settings) {
+    if (employee?.ewa_settings) {
       setSettings({
-        ewa_enabled: currentEmployee.ewa_settings.ewa_enabled ?? true,
-        max_advance_percentage: currentEmployee.ewa_settings.max_advance_percentage || 50,
-        min_advance_amount: currentEmployee.ewa_settings.min_advance_amount || 500,
-        max_advance_amount: currentEmployee.ewa_settings.max_advance_amount || 50000,
-        cooldown_period: currentEmployee.ewa_settings.cooldown_period || 7
+        ewa_enabled:            employee.ewa_settings.ewa_enabled ?? true,
+        max_advance_percentage: employee.ewa_settings.max_advance_percentage ?? 50,
+        min_advance_amount:     employee.ewa_settings.min_advance_amount ?? 500,
+        max_advance_amount:     employee.ewa_settings.max_advance_amount ?? 50000,
+        cooldown_period:        employee.ewa_settings.cooldown_period ?? 7,
       });
+    } else {
+      setSettings(DEFAULT_EWA);
     }
-  }, [currentEmployee]);
+  }, [employee]);
 
   const handleSave = async () => {
-    if (!currentEmployee?.id) return;
+    if (!employee?.id) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/employees/${currentEmployee.id}/ewa-settings`, {
+      const res = await fetch(`/api/employees/${employee.id}/ewa-settings`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
       });
-      
-      if (response.ok) {
-        toast.success('EWA settings updated');
-        onSave(currentEmployee.id, settings);
-        onClose();
-      } else {
-        toast.error('Failed to update settings');
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const msg = Array.isArray(data.detail)
+          ? data.detail.map((e: { msg: string }) => e.msg).join(', ')
+          : data.error ?? 'Failed to update settings';
+        toast.error(msg);
+        return;
       }
-    } catch (err) {
+
+      toast.success('EWA settings updated');
+      onSave(employee.id, settings);
+      onClose();
+    } catch {
       toast.error('Failed to update settings');
     } finally {
       setSaving(false);
     }
   };
 
-  if (!isOpen || !currentEmployee) return null;
+  if (!isOpen || !employee) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div 
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="bg-primary p-6">
           <h2 className="text-xl font-bold text-white">EWA Settings</h2>
-	          <p className="text-white/80 text-sm mt-1">{currentEmployee.full_name || currentEmployee.employee_code}</p>
+          <p className="text-white/80 text-sm mt-1">{employee.full_name || employee.employee_code}</p>
         </div>
-        
+
         <div className="p-6 space-y-6">
-          {/* Enable/Disable Toggle */}
+          {/* Enable/Disable */}
           <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
             <div>
               <p className="font-medium text-slate-900 dark:text-white">Enable EWA Access</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">Allow this employee to request advances</p>
             </div>
-            <Switch 
-              checked={settings.ewa_enabled} 
-              onCheckedChange={(v) => setSettings(prev => ({ ...prev, ewa_enabled: v }))}
+            <Switch
+              checked={settings.ewa_enabled}
+              onCheckedChange={(v) => setSettings((prev) => ({ ...prev, ewa_enabled: v }))}
             />
           </div>
 
@@ -281,14 +369,12 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-slate-700 dark:text-slate-300">Max Advance Percentage</Label>
-	                  <span className="text-xl font-bold text-primary">{settings.max_advance_percentage ?? 50}%</span>
+                  <span className="text-xl font-bold text-primary">{settings.max_advance_percentage}%</span>
                 </div>
                 <Slider
-	                  value={[settings.max_advance_percentage ?? 50]}
-                  onValueChange={(v) => setSettings(prev => ({ ...prev, max_advance_percentage: v[0] }))}
-                  max={100}
-                  min={10}
-                  step={5}
+                  value={[settings.max_advance_percentage]}
+                  onValueChange={(v) => setSettings((prev) => ({ ...prev, max_advance_percentage: v[0] }))}
+                  max={100} min={10} step={5}
                 />
               </div>
 
@@ -299,7 +385,7 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
                   <Input
                     type="number"
                     value={settings.min_advance_amount}
-                    onChange={(e) => setSettings(prev => ({ ...prev, min_advance_amount: parseInt(e.target.value) || 0 }))}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, min_advance_amount: parseInt(e.target.value) || 0 }))}
                     className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                   />
                 </div>
@@ -308,7 +394,7 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
                   <Input
                     type="number"
                     value={settings.max_advance_amount}
-                    onChange={(e) => setSettings(prev => ({ ...prev, max_advance_amount: parseInt(e.target.value) || 0 }))}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, max_advance_amount: parseInt(e.target.value) || 0 }))}
                     className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                   />
                 </div>
@@ -320,9 +406,8 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
                 <Input
                   type="number"
                   value={settings.cooldown_period}
-                  onChange={(e) => setSettings(prev => ({ ...prev, cooldown_period: parseInt(e.target.value) || 0 }))}
-                  min={0}
-                  max={30}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, cooldown_period: parseInt(e.target.value) || 0 }))}
+                  min={0} max={30}
                   className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                 />
               </div>
@@ -341,127 +426,27 @@ const EWASettingsModal = ({ employee, isOpen, onClose, onSave }: EWASettingsModa
   );
 };
 
-interface FilterButtonProps {
-    active: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
-}
-// Filter Button
-const FilterButton = ({ active, onClick, children }: FilterButtonProps) => (
-  <button
-    onClick={onClick}
-    className={cn(
-      "px-4 py-2 rounded-xl text-sm font-medium transition-all",
-      active 
-        ? "bg-primary text-white shadow-lg shadow-primary/25"
-        : "bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
-    )}
-  >
-    {children}
-  </button>
-);
+// ─── Employee View Modal ──────────────────────────────────────────────────────
 
-// Department Pie Chart using Recharts
-const DepartmentPieChart = ({ data, totalEmployees }: { data: Record<string, number>, totalEmployees: number }) => {
-  if (!data || Object.keys(data).length === 0) return null;
-  
-  const COLORS = [
-    '#0df259', '#10b981', '#059669', '#047857', '#065f46',
-    '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#ec4899'
-  ];
-  
-  // Convert data to recharts format
-	  const chartData = Object.entries(data).map(([name, value], index) => ({
-	    name,
-	    value: Number(value),
-	    color: COLORS[index % COLORS.length]
-	  }));
-
-  const CustomTooltip = ({ active, payload }: { active: boolean, payload: any }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white dark:bg-slate-800 px-3 py-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">{data.name}</p>
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            {data.value} employees ({((data.value / totalEmployees) * 100).toFixed(1)}%)
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  return (
-    <div className="flex items-center gap-6" data-testid="department-pie-chart">
-      {/* Pie Chart */}
-      <div className="relative w-40 h-40 shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={chartData}
-              cx="50%"
-              cy="50%"
-              innerRadius={35}
-              outerRadius={60}
-              paddingAngle={2}
-              dataKey="value"
-            >
-              {chartData.map((entry, index) => (
-                <Cell 
-                  key={`cell-${index}`} 
-                  fill={entry.color}
-                  className="hover:opacity-80 transition-opacity cursor-pointer"
-                />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip active={false} payload={undefined} />} />
-          </PieChart>
-        </ResponsiveContainer>
-        {/* Center text */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-xl font-bold text-slate-900 dark:text-white">{totalEmployees}</span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">Total</span>
-        </div>
-      </div>
-      
-      {/* Legend */}
-      <div className="flex-1 grid grid-cols-2 gap-2">
-        {chartData.slice(0, 8).map((item) => (
-          <div key={item.name} className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-            <span className="text-xs text-slate-600 dark:text-slate-400 truncate">{item.name}</span>
-            <span className="text-xs font-semibold text-slate-900 dark:text-white ml-auto">{item.value}</span>
-          </div>
-        ))}
-        {chartData.length > 8 && (
-          <div className="text-xs text-slate-500 col-span-2">+{chartData.length - 8} more departments</div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-interface EmployeeViewModalProps {
-    employee: Employee | null;
-    isOpen: boolean;
-    onClose: () => void;
-}
-// Employee View Modal
-const EmployeeViewModal = ({ employee, isOpen, onClose }: EmployeeViewModalProps) => {
+const EmployeeViewModal = ({
+  employee, isOpen, onClose,
+}: {
+  employee: Employee | null;
+  isOpen: boolean;
+  onClose: () => void;
+}) => {
   if (!isOpen || !employee) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div 
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="bg-linear-to-r from-primary to-emerald-600 p-6">
           <div className="flex items-center gap-4">
-	            <GradientAvatar 
-	              initials={employee.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'E'}
-	              size="lg"
+            <GradientAvatar
+              initials={
+                employee.full_name?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || 'E'
+              }
+              size="lg"
               className="border-2 border-white/30"
             />
             <div>
@@ -471,28 +456,48 @@ const EmployeeViewModal = ({ employee, isOpen, onClose }: EmployeeViewModalProps
             </div>
           </div>
         </div>
-        
+
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
               <p className="text-xs text-slate-500 dark:text-slate-400">Monthly Salary</p>
-	              <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employee.monthly_salary || 0)}</p>
+              <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employee.monthly_salary ?? 0)}</p>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
               <p className="text-xs text-slate-500 dark:text-slate-400">Tenure</p>
-              <p className="font-bold text-slate-900 dark:text-white">{employee.tenure_months || 0} months</p>
+              <p className="font-bold text-slate-900 dark:text-white">{employee.tenure_months ?? 0} months</p>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
               <p className="text-xs text-slate-500 dark:text-slate-400">Status</p>
-	              <StatusBadge status={employee.status || 'pending'} />
+              <div className="mt-1">
+                <StatusBadge status={employee.status ?? 'pending'} />
+              </div>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
               <p className="text-xs text-slate-500 dark:text-slate-400">KYC Status</p>
               <div className="flex items-center gap-2 mt-1">
-	                <KYCBadge status={employee.kyc_status || 'pending'} />
-	                <span className="text-sm capitalize text-slate-700 dark:text-slate-300">{employee.kyc_status || 'pending'}</span>
+                <KYCBadge status={employee.kyc_status ?? 'pending'} />
+                <span className="text-sm capitalize text-slate-700 dark:text-slate-300">
+                  {employee.kyc_status ?? 'pending'}
+                </span>
               </div>
             </div>
+            {employee.country && (
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Location</p>
+                <p className="font-bold text-slate-900 dark:text-white">
+                  {employee.city ? `${employee.city}, ` : ''}{employee.country}
+                </p>
+              </div>
+            )}
+            {employee.employment_type && (
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Employment Type</p>
+                <p className="font-bold text-slate-900 dark:text-white capitalize">
+                  {employee.employment_type.replace('_', ' ')}
+                </p>
+              </div>
+            )}
           </div>
 
           {employee.ewa_settings && (
@@ -501,11 +506,21 @@ const EmployeeViewModal = ({ employee, isOpen, onClose }: EmployeeViewModalProps
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <span className="text-slate-500">Max Advance:</span>
-                  <span className="ml-2 font-medium text-slate-900 dark:text-white">{employee.ewa_settings.max_advance_percentage || 50}%</span>
+                  <span className="ml-2 font-medium text-slate-900 dark:text-white">
+                    {employee.ewa_settings.max_advance_percentage ?? 50}%
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-500">Status:</span>
-                  <span className="ml-2 font-medium text-slate-900 dark:text-white">{employee.ewa_settings.ewa_enabled === false ? 'Disabled' : 'Enabled'}</span>
+                  <span className="ml-2 font-medium text-slate-900 dark:text-white">
+                    {employee.ewa_settings.ewa_enabled === false ? 'Disabled' : 'Enabled'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Cooldown:</span>
+                  <span className="ml-2 font-medium text-slate-900 dark:text-white">
+                    {employee.ewa_settings.cooldown_period} days
+                  </span>
                 </div>
               </div>
             </div>
@@ -520,113 +535,167 @@ const EmployeeViewModal = ({ employee, isOpen, onClose }: EmployeeViewModalProps
   );
 };
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+const Skeleton = ({ className }: { className?: string }) => (
+  <div className={cn('animate-pulse bg-slate-200 dark:bg-slate-700 rounded-xl', className)} />
+);
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function EmployerEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employer, setEmployer] = useState<Employer | null>(null);
-  const [extendedStats, setExtendedStats] = useState<ExtendedStats | null>(null);
+  const [stats, setStats] = useState<ExtendedStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
+
+  // Filters — these are applied client-side so the list is reactive without
+  // a round-trip. The API also supports the same filters as query params for
+  // future server-side pagination.
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState('KES');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [showEWAModal, setShowEWAModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
-  const fetchData = async () => {
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setFetchError('');
     try {
-      const token = localStorage.getItem('eaziwage_token');
-      const [profileRes, employeesRes, statsRes] = await Promise.all([
-        fetch('/api/profile').then(r => r.json()).catch(() => null),
-        fetch('/api/employees').then(r => r.json()).catch(() => null),
-        fetch(`${API_URL}/api/dashboard/employer/extended`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }).then(r => r.json()).catch(() => null)
+      // Build query string for date range (passed to server for DB-level filtering)
+      const params = new URLSearchParams();
+      if (dateRange.from) params.set('from', dateRange.from);
+      if (dateRange.to)   params.set('to', dateRange.to);
+
+      const [profileRes, employeesRes] = await Promise.all([
+        fetch('/api/employer-dashboard/profile'),
+        fetch(`/api/employer-dashboard/employees?${params.toString()}`),
       ]);
-      const profile = profileRes?.profile;
+
+      const [profileData, employeesData] = await Promise.all([
+        profileRes.json().catch(() => ({})),
+        employeesRes.json().catch(() => ({})),
+      ]);
+
+      if (!profileRes.ok) {
+        throw new Error(profileData.error ?? 'Failed to load profile');
+      }
+      if (!employeesRes.ok) {
+        throw new Error(employeesData.error ?? 'Failed to load employees');
+      }
+
+      const profile = profileData.profile;
       setEmployer(
         profile
-          ? {
-              id: profile.id,
-              full_name: profile.full_name,
-              company_name: profile.company_name || profile.full_name || 'Employer',
-            }
-          : null
+          ? { id: profile.id, full_name: profile.full_name, company_name: profile.company_name || profile.full_name || 'Employer' }
+          : null,
       );
-      setEmployees(employeesRes?.employees || []);
-      setExtendedStats(statsRes?.data || statsRes || null);
-    } catch (err) {
-      console.error('Failed to fetch data:', err);
+      setEmployees(employeesData.employees ?? []);
+      setStats(employeesData.stats ?? null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to load data';
+      setFetchError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange.from, dateRange.to]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
+  // ── Seed ──────────────────────────────────────────────────────────────────
   const handleSeedEmployees = async () => {
     setSeeding(true);
     try {
-      const token = localStorage.getItem('eaziwage_token');
-      const response = await fetch(`${API_URL}/api/seed/demo-employees`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      toast.success(data.message);
+      const res = await fetch('/api/employer-dashboard/seed/demo-employees', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? 'Seed failed');
+      toast.success(data.message ?? 'Demo employees seeded!');
       fetchData();
-    } catch (err) {
-      toast.error('Failed to seed employees');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to seed employees');
     } finally {
       setSeeding(false);
     }
   };
 
+  // ── EWA save (optimistic update) ──────────────────────────────────────────
   const handleEWASave = (employeeId: string, newSettings: EWASettings) => {
-    setEmployees(prev => prev.map(e => 
-      e.id === employeeId ? { ...e, ewa_settings: newSettings } : e
-    ));
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === employeeId ? { ...e, ewa_settings: newSettings } : e)),
+    );
   };
 
-  // Get unique departments
-  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))] as string[];
+  // ── CSV export ────────────────────────────────────────────────────────────
+  const handleExportCSV = () => {
+    const headers = ['Name', 'Code', 'Job Title', 'Department', 'Salary', 'Tenure (months)', 'KYC Status', 'Status', 'Country'];
+    const rows = filteredEmployees.map((e) => [
+      e.full_name ?? '',
+      e.employee_code ?? '',
+      e.job_title ?? '',
+      e.department ?? '',
+      e.monthly_salary ?? 0,
+      e.tenure_months ?? 0,
+      e.kyc_status ?? '',
+      e.status ?? '',
+      e.country ?? '',
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map(String).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `employees-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-  // Filter employees
-  const filteredEmployees = employees.filter(e => {
+  // ── Client-side filtering ─────────────────────────────────────────────────
+  const departments = [...new Set(employees.map((e) => e.department).filter(Boolean))] as string[];
+
+  const filteredEmployees = employees.filter((e) => {
     if (statusFilter && e.status !== statusFilter) return false;
     if (departmentFilter && e.department !== departmentFilter) return false;
+    if (countryFilter && e.country !== countryFilter) return false;
     if (searchTerm) {
-      const search = searchTerm.toLowerCase();
+      const s = searchTerm.toLowerCase();
       return (
-        e.full_name?.toLowerCase().includes(search) ||
-        e.employee_code?.toLowerCase().includes(search) ||
-        e.job_title?.toLowerCase().includes(search) ||
-        e.department?.toLowerCase().includes(search)
+        e.full_name?.toLowerCase().includes(s) ||
+        e.employee_code?.toLowerCase().includes(s) ||
+        e.job_title?.toLowerCase().includes(s) ||
+        e.department?.toLowerCase().includes(s)
       );
     }
     return true;
   });
 
-  // Calculate stats
-  const stats = extendedStats || {
-    total_employees: employees.length,
-    active_employees: employees.filter(e => e.status === 'approved').length,
-    kyc_completion_rate: employees.length > 0 
-      ? Math.round((employees.filter(e => e.kyc_status === 'approved').length / employees.length) * 100)
+  // ── Computed stats (fall back to local computation if API stats absent) ───
+  const displayStats: ExtendedStats = stats ?? {
+    total_employees:      employees.length,
+    active_employees:     employees.filter((e) => e.status === 'approved').length,
+    kyc_completion_rate:  employees.length > 0
+      ? Math.round((employees.filter((e) => e.kyc_status === 'approved').length / employees.length) * 100)
       : 0,
-    retention_rate: 0,
+    retention_rate:    0,
     avg_tenure_months: 0,
-    new_hires_30_days: 0
+    new_hires_30_days: 0,
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-6">
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -637,54 +706,49 @@ export default function EmployerEmployees() {
               Manage your workforce and EWA settings
             </p>
           </div>
-          <div className="flex gap-2">
-            {employees.length < 50 && (
-              <Button 
-                variant="outline"
-                onClick={handleSeedEmployees}
-                disabled={seeding}
-                className="bg-white/60 dark:bg-slate-800/60"
-                data-testid="seed-employees-btn"
-              >
-                {seeding ? 'Seeding...' : 'Seed 60 Demo Employees'}
-              </Button>
-            )}
-          </div>
+          {employees.length < 50 && (
+            <Button
+              variant="outline"
+              onClick={handleSeedEmployees}
+              disabled={seeding}
+              className="bg-white/60 dark:bg-slate-800/60"
+              data-testid="seed-employees-btn"
+            >
+              {seeding ? 'Seeding...' : 'Seed 60 Demo Employees'}
+            </Button>
+          )}
         </div>
+
+        {/* Error banner */}
+        {fetchError && !loading && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-200 dark:border-red-800/30">
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-900 dark:text-red-100">{fetchError}</p>
+            </div>
+            <button onClick={fetchData} className="text-xs text-red-600 dark:text-red-400 font-medium hover:underline shrink-0">
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Stats Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard 
-            icon={Users}
-            label="Total Employees"
-            value={stats.total_employees}
-            subtext={`${stats.active_employees} active`}
-          />
-          <MetricCard 
-            icon={TrendingUp}
-            label="Retention Rate"
-            value={`${stats.retention_rate || 0}%`}
-            subtext="Employees with 12+ months"
-            trend="+5.2%"
-            trendUp={true}
-          />
-          <MetricCard 
-            icon={UserCheck}
-            label="KYC Completion"
-            value={`${stats.kyc_completion_rate}%`}
-            subtext="Fully verified"
-          />
-          <MetricCard 
-            icon={Clock}
-            label="Avg. Tenure"
-            value={`${stats.avg_tenure_months || 0} months`}
-            subtext={`${stats.new_hires_30_days || 0} new this month`}
-          />
-        </div>
+        {loading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard icon={Users}     label="Total Employees"  value={displayStats.total_employees}         subtext={`${displayStats.active_employees} active`} />
+            <MetricCard icon={TrendingUp} label="Retention Rate"  value={`${displayStats.retention_rate}%`}   subtext="Employees with 12+ months" trend="+5.2%" trendUp />
+            <MetricCard icon={UserCheck}  label="KYC Completion"  value={`${displayStats.kyc_completion_rate}%`} subtext="Fully verified" />
+            <MetricCard icon={Clock}      label="Avg. Tenure"     value={`${displayStats.avg_tenure_months} months`} subtext={`${displayStats.new_hires_30_days} new this month`} />
+          </div>
+        )}
 
-        {/* Department Distribution with Utilization Pie Chart */}
-        {extendedStats?.department_breakdown && Object.keys(extendedStats.department_breakdown).length > 0 && (
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30 mt-8">
+        {/* Department Pie Chart */}
+        {!loading && displayStats.department_breakdown && Object.keys(displayStats.department_breakdown).length > 0 && (
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center gap-3 mb-6">
               <GradientIconBox icon={Building2} size="md" />
               <div>
@@ -692,14 +756,14 @@ export default function EmployerEmployees() {
                 <p className="text-sm text-slate-500 dark:text-slate-400">Employee utilization across departments</p>
               </div>
             </div>
-            <DepartmentPieChart data={extendedStats.department_breakdown} totalEmployees={stats.total_employees} />
+            <DepartmentPieChart data={displayStats.department_breakdown} totalEmployees={displayStats.total_employees} />
           </div>
         )}
 
         {/* Search & Filters */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex flex-col gap-4">
-            {/* Row 1: Search and Date Range */}
+            {/* Row 1: Search + Date Range */}
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -711,44 +775,36 @@ export default function EmployerEmployees() {
                   data-testid="search-employees"
                 />
               </div>
-              
-              {/* Date Range - Themed */}
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 px-3 h-11 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
                   <Calendar className="w-4 h-4 text-primary" />
-                  <input 
+                  <input
                     type="date"
                     value={dateRange.from}
-                    onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                    className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia [&::-webkit-calendar-picker-indicator]:saturate-[10] [&::-webkit-calendar-picker-indicator]:hue-rotate-90"
+                    onChange={(e) => setDateRange((prev) => ({ ...prev, from: e.target.value }))}
+                    className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32"
                     placeholder="From"
                   />
                 </div>
                 <span className="text-slate-400">to</span>
                 <div className="flex items-center gap-2 px-3 h-11 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
-                  <input 
+                  <input
                     type="date"
                     value={dateRange.to}
-                    onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                    className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:sepia [&::-webkit-calendar-picker-indicator]:saturate-[10] [&::-webkit-calendar-picker-indicator]:hue-rotate-90"
+                    onChange={(e) => setDateRange((prev) => ({ ...prev, to: e.target.value }))}
+                    className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32"
                     placeholder="To"
                   />
                 </div>
               </div>
             </div>
-            
+
             {/* Row 2: Filters */}
             <div className="flex items-center gap-2 flex-wrap">
-              <FilterButton active={statusFilter === ''} onClick={() => setStatusFilter('')}>
-                All
-              </FilterButton>
-              <FilterButton active={statusFilter === 'approved'} onClick={() => setStatusFilter('approved')}>
-                Active
-              </FilterButton>
-              <FilterButton active={statusFilter === 'pending'} onClick={() => setStatusFilter('pending')}>
-                Pending
-              </FilterButton>
-              
+              <FilterButton active={statusFilter === ''}         onClick={() => setStatusFilter('')}>All</FilterButton>
+              <FilterButton active={statusFilter === 'approved'} onClick={() => setStatusFilter('approved')}>Active</FilterButton>
+              <FilterButton active={statusFilter === 'pending'}  onClick={() => setStatusFilter('pending')}>Pending</FilterButton>
+
               {departments.length > 0 && (
                 <Select value={departmentFilter || 'all'} onValueChange={(v) => setDepartmentFilter(v === 'all' ? '' : v)}>
                   <SelectTrigger className="w-40 h-10 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700">
@@ -756,14 +812,11 @@ export default function EmployerEmployees() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map(dept => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                    ))}
+                    {departments.map((dept) => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
                   </SelectContent>
                 </Select>
               )}
 
-              {/* Country Filter */}
               <Select value={countryFilter || 'all'} onValueChange={(v) => setCountryFilter(v === 'all' ? '' : v)}>
                 <SelectTrigger className="w-36 h-10 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700">
                   <Globe className="w-4 h-4 mr-2" />
@@ -771,19 +824,18 @@ export default function EmployerEmployees() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Countries</SelectItem>
-                  {countries.map(c => (
+                  {countries.map((c) => (
                     <SelectItem key={c.code} value={c.code}>{c.flag} {c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              {/* Currency Selector */}
               <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
                 <SelectTrigger className="w-28 h-10 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {currencies.map(c => (
+                  {currencies.map((c) => (
                     <SelectItem key={c.code} value={c.code}>{c.code} ({c.symbol})</SelectItem>
                   ))}
                 </SelectContent>
@@ -792,7 +844,7 @@ export default function EmployerEmployees() {
           </div>
         </div>
 
-        {/* Employees List */}
+        {/* Employee List */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -805,23 +857,19 @@ export default function EmployerEmployees() {
               </div>
               <h3 className="font-semibold text-slate-900 dark:text-white">No employees found</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-                {searchTerm || statusFilter || departmentFilter
+                {searchTerm || statusFilter || departmentFilter || countryFilter
                   ? 'Try adjusting your search or filters'
                   : 'Add employees or seed demo data to get started'}
               </p>
               {employees.length === 0 && (
-                <Button 
-                  onClick={handleSeedEmployees}
-                  disabled={seeding}
-                  className="mt-4 bg-primary text-white"
-                >
+                <Button onClick={handleSeedEmployees} disabled={seeding} className="mt-4 bg-primary text-white">
                   {seeding ? 'Seeding...' : 'Seed 60 Demo Employees'}
                 </Button>
               )}
             </div>
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
-              {/* Header */}
+              {/* Table header */}
               <div className="hidden lg:flex items-center gap-4 px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <div className="w-11" />
                 <div className="flex-1">Employee</div>
@@ -832,56 +880,42 @@ export default function EmployerEmployees() {
                 <div className="w-24 hidden xl:block">EWA</div>
                 <div className="w-20" />
               </div>
-              
-              {filteredEmployees.map(employee => (
-                <EmployeeRow 
-                  key={employee.id} 
+
+              {filteredEmployees.map((employee) => (
+                <EmployeeRow
+                  key={employee.id}
                   employee={employee}
                   currency={selectedCurrency}
-                  onViewDetails={(e) => {
-                    setSelectedEmployee(e);
-                    setShowViewModal(true);
-                  }}
-                  onEditEWA={(e) => {
-                    setSelectedEmployee(e);
-                    setShowEWAModal(true);
-                  }}
+                  onViewDetails={(e) => { setSelectedEmployee(e); setShowViewModal(true); }}
+                  onEditEWA={(e)       => { setSelectedEmployee(e); setShowEWAModal(true);  }}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* Summary Footer */}
+        {/* Footer */}
         {filteredEmployees.length > 0 && (
           <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
             <span>Showing {filteredEmployees.length} of {employees.length} employees</span>
-            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60">
-              <Download className="w-4 h-4 mr-2" /> Export CSV
+            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60" onClick={handleExportCSV}>
+              <Download className="w-4 h-4 mr-2" />Export CSV
             </Button>
           </div>
         )}
       </div>
 
-      {/* EWA Settings Modal */}
-      <EWASettingsModal 
+      {/* Modals */}
+      <EWASettingsModal
         employee={selectedEmployee}
         isOpen={showEWAModal}
-        onClose={() => {
-          setShowEWAModal(false);
-          setSelectedEmployee(null);
-        }}
+        onClose={() => { setShowEWAModal(false); setSelectedEmployee(null); }}
         onSave={handleEWASave}
       />
-
-      {/* Employee View Modal */}
-      <EmployeeViewModal 
+      <EmployeeViewModal
         employee={selectedEmployee}
         isOpen={showViewModal}
-        onClose={() => {
-          setShowViewModal(false);
-          setSelectedEmployee(null);
-        }}
+        onClose={() => { setShowViewModal(false); setSelectedEmployee(null); }}
       />
     </EmployerPortalLayout>
   );

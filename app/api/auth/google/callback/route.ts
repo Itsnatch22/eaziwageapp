@@ -112,7 +112,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const response = NextResponse.redirect(new URL('/', req.url)); // default fallback
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return req.cookies.getAll(); },
@@ -158,7 +158,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     await sendGoogleWelcomeEmail(fullName, email, role);
 
-    const onboardingUrl = role === 'employer' ? '/employer/onboarding' : '/employee/onboarding';
+    const onboardingUrl = role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard';
     const redirect = NextResponse.redirect(new URL(onboardingUrl, req.url));
     response.cookies.getAll().forEach(({ name, value, ...opts }) => redirect.cookies.set(name, value, opts));
     return redirect;
@@ -226,7 +226,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       created_at: new Date().toISOString(),
     });
 
-    const onboardingUrl = role === 'employer' ? '/employer-dashboard/onboarding' : '/employee-dashboard/onboarding';
+    const onboardingUrl = role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard';
     const redirect = NextResponse.redirect(new URL(onboardingUrl, req.url));
     response.cookies.getAll().forEach(({ name, value, ...opts }) => redirect.cookies.set(name, value, opts));
     return redirect;
@@ -269,8 +269,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   if (!existingProfile.onboarding_complete) {
     destination = existingProfile.role === 'employer'
-      ? '/employer-dashboard/onboarding'
-      : '/employee-dashboard/onboarding';
+      ? '/dashboards/employer-dashboard'
+      : '/dashboards/employee-dashboard';
   } else {
     switch (existingProfile.role) {
       case 'admin':    destination = '/admin';                         break;

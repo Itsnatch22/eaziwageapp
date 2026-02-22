@@ -7,7 +7,10 @@ const ThemeContext = createContext({
 
 export const useTheme = () => useContext(ThemeContext);
 
-export const ThemeProvider = ({ children }) => {
+interface ThemeProviderProps {
+  children: React.ReactNode;
+}
+export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('eaziwage_theme');
