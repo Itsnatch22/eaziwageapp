@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
-import { employerApi, payrollApi, employeeApi } from '@/lib/api';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 

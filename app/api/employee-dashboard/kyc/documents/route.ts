@@ -10,7 +10,7 @@ import { employeeDocumentTypeSchema } from '@/lib/validations/employee-validatio
 
 export const runtime = 'nodejs'; // needs file streaming
 
-const BUCKET = 'employee-kyc-documents';
+const BUCKET = 'KYC';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB (employee docs are smaller)
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 

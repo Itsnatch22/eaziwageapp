@@ -1052,7 +1052,7 @@ export default function Settings() {
           <div className="flex items-center justify-between px-4 pt-4 pb-2">
             <h3 className="text-xs font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase">KYC Documents</h3>
             <button 
-              onClick={() => router.push('/employee/onboarding')}
+              onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}
               className="text-xs font-semibold text-primary flex items-center gap-1"
             >
               Manage <ChevronRight className="w-3 h-3" />

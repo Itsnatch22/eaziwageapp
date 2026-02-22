@@ -12,7 +12,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
-import { dashboardApi, advanceApi, employeeApi, employerApi } from '@/lib/api';
 import { formatCurrency, cn } from '@/lib/utils';
 
 // Metric Card with Trend - solid green icon

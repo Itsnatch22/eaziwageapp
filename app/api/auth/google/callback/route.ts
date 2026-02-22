@@ -36,6 +36,12 @@ function getClientIp(req: NextRequest): string {
   ).trim();
 }
 
+function resolveNext(value: string | null): string | null {
+  if (!value) return null;
+  if (!value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
+}
+
 /**
  * Sends the welcome email for new Google sign-ups.
  * Google accounts are pre-verified so we skip the email-verification
@@ -97,6 +103,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const code        = searchParams.get('code');
   const isSetup     = searchParams.get('setup') === '1';
   const oauthError  = searchParams.get('error');
+  const nextParam   = resolveNext(searchParams.get('next'));
   const requestedRoleParam = searchParams.get('role');
   const requestedRole = requestedRoleParam === 'employer' || requestedRoleParam === 'employee' ? requestedRoleParam : null;
 
@@ -127,42 +134,47 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // ── Branch: profile setup after first OAuth (setup=1) ────────────────────────
   if (isSetup) {
-    const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await supabase.auth.getSession();
 
-    if (!session?.user) {
-      return NextResponse.redirect(new URL('/', req.url));
-    }
-
-    const user     = session.user;
-    const fullName = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'User';
-    const email    = user.email ?? '';
-    const role     = (requestedRole as 'employee' | 'employer' | null) ?? (user.user_metadata?.role as 'employee' | 'employer') ?? 'employee';
-    const avatarUrl = user.user_metadata?.avatar_url as string | undefined;
-
-    // Upsert profile — safe to call multiple times
-    await supabaseAdmin.from('profiles').upsert(
-      {
-        id:                 user.id,
-        full_name:          fullName,
-        email,
-        phone:              user.user_metadata?.phone ?? '',
-        phone_country_code: user.user_metadata?.phone_country_code ?? 'KE',
-        role,
-        email_verified:     true,   // Google accounts are pre-verified
-        onboarding_complete: false,
-        avatar_url:         avatarUrl ?? null,
-        created_at:         new Date().toISOString(),
-      },
-      { onConflict: 'id', ignoreDuplicates: false },
-    );
-
-    await sendGoogleWelcomeEmail(fullName, email, role);
-
-    const onboardingUrl = role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard';
-    const redirect = NextResponse.redirect(new URL(onboardingUrl, req.url));
-    response.cookies.getAll().forEach(({ name, value, ...opts }) => redirect.cookies.set(name, value, opts));
-    return redirect;
+  if (!session?.user) {
+    return NextResponse.redirect(new URL('/', req.url));
   }
+
+  const user = session.user;
+  const fullName = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'User';
+  const email = user.email ?? '';
+  const role = (requestedRole as 'employee' | 'employer' | null) ?? (user.user_metadata?.role as 'employee' | 'employer') ?? 'employee';
+  const avatarUrl = user.user_metadata?.avatar_url as string | undefined;
+
+  // Check if profile now exists (in case race resolved itself)
+  const { data: existing } = await supabaseAdmin.from('profiles').select('id').eq('id', user.id).single();
+  if (!existing) {
+    const { error } = await supabaseAdmin.from('profiles').insert({
+      id: user.id,
+      full_name: fullName,
+      email,
+      phone: user.user_metadata?.phone ?? '',
+      phone_country_code: user.user_metadata?.phone_country_code ?? 'KE',
+      role,
+      email_verified: true,
+      onboarding_complete: false,
+      avatar_url: avatarUrl ?? null,
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error('[google-callback] Profile insert failed:', error);
+      return NextResponse.redirect(new URL('/?error=profile_creation_failed', req.url));
+    }
+  }
+
+  await sendGoogleWelcomeEmail(fullName, email, role);
+
+  const onboardingUrl = nextParam ?? (role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard');
+  const redirect = NextResponse.redirect(new URL(onboardingUrl, req.url));
+  response.cookies.getAll().forEach(({ name, value, ...opts }) => redirect.cookies.set(name, value, opts));
+  return redirect;
+}
 
   // ── Branch: standard PKCE code exchange ──────────────────────────────────────
   if (!code) {
@@ -226,7 +238,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       created_at: new Date().toISOString(),
     });
 
-    const onboardingUrl = role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard';
+    const onboardingUrl = nextParam ?? (role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard');
     const redirect = NextResponse.redirect(new URL(onboardingUrl, req.url));
     response.cookies.getAll().forEach(({ name, value, ...opts }) => redirect.cookies.set(name, value, opts));
     return redirect;
@@ -280,7 +292,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const redirect = NextResponse.redirect(new URL(destination, req.url));
+  const redirect = NextResponse.redirect(new URL(nextParam ?? destination, req.url));
   response.cookies.getAll().forEach(({ name, value, ...opts }) => redirect.cookies.set(name, value, opts));
   return redirect;
 }

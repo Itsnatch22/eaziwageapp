@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   HelpCircle, Info, ChevronDown, Clock,
@@ -60,7 +60,7 @@ export default function RequestAdvance() {
     useEffect(() => {
         const fetchEmployee = async () => {
             try {
-                const res = await fetch('/api/employee/profile');
+                const res = await fetch('/api/employee-dashboard/profile');
                 const data = await res.json();
                 const employeeData: EmployeeProfile = data?.employee || data?.data || data || {};
                 setEmployee(employeeData);
@@ -84,14 +84,14 @@ export default function RequestAdvance() {
     const handleSubmit = async () => {
         setSubmitting(true);
         try {
-            const res = await fetch('/api/employee/request-advance', {
+            const res = await fetch('/api/employee-dashboard/request-advance', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ amount, disbursement_method: disbursementMethod }),
             });
             if (res.ok) {
                 toast.success('Advance requested successfully');
-                router.push('/employee/transactions');
+                router.push('/employee-dashboard/transactions');
             } else {
                 const errorData = await res.json();
                 toast.error(errorData.message || 'Failed to request advance');
@@ -142,7 +142,7 @@ export default function RequestAdvance() {
               </div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3 text-center">Complete Verification</h1>
               <p className="text-slate-600 dark:text-slate-400 mb-8 text-center max-w-xs text-sm">Complete your KYC verification to start requesting advances.</p>
-              <Button onClick={() => router.push('/employee/onboarding')} className="h-12 px-8 bg-linear-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25" data-testid="complete-verification-btn">
+              <Button onClick={() => router.push('/dashboards/employee-dashboard/onboarding')} className="h-12 px-8 bg-linear-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25" data-testid="complete-verification-btn">
                 Start Verification <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </>

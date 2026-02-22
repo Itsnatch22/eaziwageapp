@@ -11,6 +11,12 @@ function resolveRole(value: string | null): 'employee' | 'employer' | null {
   return null;
 }
 
+function resolveNext(value: string | null): string | null {
+  if (!value) return null;
+  if (!value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!anonKey) {
@@ -18,10 +24,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const role = resolveRole(req.nextUrl.searchParams.get('role'));
-  const callbackUrl = new URL('/api/auth/google/callback', APP_URL);
+  const next = resolveNext(req.nextUrl.searchParams.get('next'));
+  const callbackUrl = new URL('/callback', APP_URL);
 
   if (role) {
     callbackUrl.searchParams.set('role', role);
+  }
+  if (next) {
+    callbackUrl.searchParams.set('next', next);
   }
 
   const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, anonKey, {

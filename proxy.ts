@@ -11,17 +11,6 @@ interface Profile {
 
 // ─── Route groups ─────────────────────────────────────────────────────────────
 
-/** Routes accessible without authentication */
-const PUBLIC_PATHS = new Set([
-  '/',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
-  '/verify-email',
-  'https://eaziwage.com/terms.pdf',
-  'https://eaziwage.com/data.pdf',
-]);
-
 /** Auth routes — redirect already-signed-in users away from these */
 const AUTH_ONLY_PATHS = new Set(['/', '/register', '/forgot-password']);
 
@@ -56,7 +45,6 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
   const user    = session?.user ?? null;
   const isAuth  = user !== null;
 
-  const isPublic           = PUBLIC_PATHS.has(pathname);
   const isAuthOnly         = AUTH_ONLY_PATHS.has(pathname);
   const isEmployerDashboard = pathname.startsWith('/dashboards/employer-dashboard');
   const isEmployeeDashboard = pathname.startsWith('/dashboards/employee-dashboard');
@@ -89,23 +77,43 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── Role-based dashboard guard ───────────────────────────────────────────────
-  if (isAuth && isDashboard) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user!.id)
-      .single<Profile>();
+if (isAuth && isDashboard) {
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user!.id)
+    .single<Profile>();
 
-    const role = profile?.role;
+  if (profileError || !profile) {
+    // Handle race condition: redirect to setup with inferred role
+    const inferredRole = isEmployerDashboard ? 'employer' : 'employee';
+    const setupUrl = new URL('/callback', req.url);
+    setupUrl.searchParams.set('setup', '1');
+    setupUrl.searchParams.set('role', inferredRole);
 
-    if (isEmployerDashboard && role !== 'employer') {
-      return NextResponse.redirect(new URL('/dashboards/employee-dashboard', req.url));
+    // Optional: Add retry limit to prevent infinite loops
+    const attempt = parseInt(req.nextUrl.searchParams.get('setup_attempt') || '0', 10);
+    if (attempt > 2) {
+      // After 3 attempts, redirect to error or login
+      const errorUrl = new URL('/', req.url);
+      errorUrl.searchParams.set('error', 'profile_setup_failed');
+      return NextResponse.redirect(errorUrl);
     }
+    setupUrl.searchParams.set('setup_attempt', (attempt + 1).toString());
 
-    if (isEmployeeDashboard && role !== 'employee') {
-      return NextResponse.redirect(new URL('/dashboards/employer-dashboard', req.url));
-    }
+    return NextResponse.redirect(setupUrl);
   }
+
+  const role = profile.role;
+
+  if (isEmployerDashboard && role !== 'employer') {
+    return NextResponse.redirect(new URL('/dashboards/employee-dashboard', req.url));
+  }
+
+  if (isEmployeeDashboard && role !== 'employee') {
+    return NextResponse.redirect(new URL('/dashboards/employer-dashboard', req.url));
+  }
+}
 
   return res;
 }

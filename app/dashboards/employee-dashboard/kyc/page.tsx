@@ -35,7 +35,7 @@ export default function EmployeeKYC() {
     const fetchDocuments = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/employee/kyc/documents');
+            const response = await fetch('/api/employee-dashboard/kyc/documents');
             const data = await response.json();
             setDocuments(data.documents || []);
         } catch (error) {
@@ -78,7 +78,7 @@ export default function EmployeeKYC() {
         formData.append('file', selectedFile);
         formData.append('document_type', selectedType);
         formData.append('document_number', documentNumber);
-        const response = await fetch('/api/employee/kyc/documents', {
+        const response = await fetch('/api/employee-dashboard/kyc/documents', {
             method: 'POST',
             body: formData,
         });

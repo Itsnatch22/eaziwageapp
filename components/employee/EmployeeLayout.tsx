@@ -1,3 +1,5 @@
+"use client";
+
 import { 
   Home, Wallet, History, User, LogOut, Sun, Moon, Bell, ChevronRight
 } from 'lucide-react';
@@ -5,8 +7,7 @@ import { cn } from '../../lib/utils';
 import { useTheme } from '../../lib/ThemeContext';
 import React from 'react'
 import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { logout } from '@/actions/auth';
 
@@ -15,10 +16,10 @@ export const FloatingNav  = ({className}: {className?: string}) => {
     const router = useRouter();
 
     const navItems = [
-    { id: 'home', icon: Home, label: 'Home', path: '/employee' },
-    { id: 'advance', icon: Wallet, label: 'Advance', path: '/employee/advances' },
-    { id: 'history', icon: History, label: 'History', path: '/employee/transactions' },
-    { id: 'profile', icon: User, label: 'Profile', path: '/employee/settings' },
+    { id: 'home', icon: Home, label: 'Home', path: '/dashboards/employee-dashboard' },
+    { id: 'advance', icon: Wallet, label: 'Advance', path: '/dashboards/employee-dashboard/request-advance' },
+    { id: 'history', icon: History, label: 'History', path: '/dashboards/employee-dashboard/transactions' },
+    { id: 'profile', icon: User, label: 'Profile', path: '/dashboards/employee-dashboard/settings' },
   ];
 
   const isActive = (path: string) => {
@@ -124,7 +125,7 @@ export const EmployeeHeader = ({
           </button>
         ) : (
           <div className="flex items-center gap-3">
-            <Link href="/employee/settings" className="shrink-0">
+            <Link href="/dashboards/employee-dashboard/settings" className="shrink-0">
               {user?.profile_picture_url ? (
                 <img 
                   src={`${process.env.BASE_URL}${user.profile_picture_url}`} 

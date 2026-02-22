@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
-import { dashboardApi, employerApi } from '@/lib/api';
 import { formatCurrency, cn } from '@/lib/utils';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
 
@@ -226,7 +225,7 @@ export default function EmployerDashboard() {
           <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-md mx-auto">
             Set up your company profile to start offering EaziWage to your employees and unlock all features.
           </p>
-          <Link href="/employer/onboarding">
+          <Link href="/dashboards/employer-dashboard/onboarding">
             <Button className="h-12 px-8 bg-linear-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl transition-shadow" data-testid="complete-profile-btn">
               Complete Setup <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
