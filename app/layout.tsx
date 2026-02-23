@@ -28,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
+        suppressHydrationWarning
         className={`${ibmPlexMono.variable} ${playfairDisplay.variable} antialiased`}
       >
         {children}

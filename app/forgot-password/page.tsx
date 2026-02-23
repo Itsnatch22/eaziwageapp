@@ -140,7 +140,7 @@ export default function ForgotPasswordPage() {
               Try a different email
             </Button>
             <Link
-              href="/login"
+              href="/"
               className="w-full h-12 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:border-green-600 hover:text-green-600 transition-all"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -280,7 +280,7 @@ export default function ForgotPasswordPage() {
 
                 {/* Back to login */}
                 <Link
-                  href="/login"
+                  href="/"
                   className="flex items-center justify-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors pt-1"
                 >
                   <ArrowLeft className="w-4 h-4" />

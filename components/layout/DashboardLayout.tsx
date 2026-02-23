@@ -1,4 +1,6 @@
-import React from 'react';
+"use client";
+
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -47,7 +49,18 @@ interface DashboardLayoutProps {
 export const DashboardLayout = ({ children, role }: DashboardLayoutProps) => {
   const router = useRouter();
   const pathname = usePathname();
-  const user = JSON.parse(localStorage.getItem('eaziwage_user') || '{}');
+  const [user, setUser] = useState<{ full_name?: string; email?: string }>({});
+
+  useEffect(() => {
+    try {
+      const storedUser = window.localStorage.getItem('eaziwage_user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch {
+      setUser({});
+    }
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -81,7 +94,7 @@ export const DashboardLayout = ({ children, role }: DashboardLayoutProps) => {
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           {links.map((link) => {
             const Icon = link.icon;
-            const isActive = location.pathname === link.href;
+            const isActive = pathname === link.href;
             return (
               <Link
                 key={link.href}
@@ -121,15 +134,15 @@ export const DashboardLayout = ({ children, role }: DashboardLayoutProps) => {
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3 mb-3">
             <Avatar className="h-10 w-10 border-2 border-slate-700">
-              <AvatarFallback className="bg-primary text-white font-semibold">
-                {generateInitials(user.full_name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{user.full_name}</p>
-              <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                <AvatarFallback className="bg-primary text-white font-semibold">
+                  {generateInitials({ name: user.full_name || '' })}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{user.full_name || 'User'}</p>
+                <p className="text-xs text-slate-400 truncate">{user.email || ''}</p>
+              </div>
             </div>
-          </div>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors duration-200"

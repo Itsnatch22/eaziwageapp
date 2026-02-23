@@ -374,7 +374,11 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push(accountType === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard');
+      const destination =
+        data.role === 'employer'
+          ? '/dashboards/employer-dashboard'
+          : '/dashboards/employee-dashboard';
+      router.replace(destination);
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {

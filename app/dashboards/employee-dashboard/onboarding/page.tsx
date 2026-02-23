@@ -330,6 +330,7 @@ export default function Onboarding() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const user = useAuthStore((state: { user: any; }) => state.user); // ✅ replaced localStorage
+  const [identity, setIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -377,6 +378,33 @@ export default function Onboarding() {
     postal_code: '',
     start_date: '',
   });
+
+  const welcomeName =
+    user?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    user?.email?.split('@')[0] ||
+    identity?.full_name ||
+    identity?.email?.split('@')[0] ||
+    'there';
+
+  useEffect(() => {
+    const fetchIdentity = async () => {
+      try {
+        const res = await fetch('/api/employee-dashboard/profile');
+        const data = await res.json();
+        if (!res.ok) return;
+        const profile = data?.profile || {};
+        setIdentity({
+          full_name: profile?.full_name || '',
+          email: profile?.email || '',
+        });
+      } catch {
+        // Non-fatal fallback only.
+      }
+    };
+    fetchIdentity();
+  }, []);
 
   // ── Fetch approved employers on mount ────────────────────────────────────
   useEffect(() => {
@@ -550,7 +578,7 @@ export default function Onboarding() {
               <Sparkles className="w-10 h-10 text-white" />
             </div>
             <h2 className="font-heading text-3xl font-bold text-slate-900 dark:text-white mb-4">
-              Welcome to EaziWage, {user?.full_name?.split(' ')[0] || 'there'}!
+              Welcome to EaziWage, {welcomeName.split(' ')[0] || 'there'}!
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-300 mb-8 max-w-md mx-auto">
               Let's get you verified to access your earned wages instantly. This comprehensive KYC process takes about 5–10 minutes.

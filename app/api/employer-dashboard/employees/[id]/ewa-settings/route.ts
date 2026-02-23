@@ -13,9 +13,10 @@ export const runtime = 'edge';
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const supabase = await createClient();
+  const { id } = await params;
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const {
@@ -27,7 +28,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const employeeId = params.id;
+  const employeeId = id;
 
   // ── Resolve employer ──────────────────────────────────────────────────────
   const { data: employer, error: employerError } = await supabase

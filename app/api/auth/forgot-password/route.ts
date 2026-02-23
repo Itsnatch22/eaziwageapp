@@ -22,8 +22,8 @@ const supabase = createClient(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FROM_EMAIL    = 'EaziWage <passwords@contact.eaziwage.com>';
-const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwageapp.vercel.app';
+const FROM_EMAIL    = 'EaziWage <noreply@contact.eaziwage.com>';
+const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const TOKEN_TTL_MS  = 60 * 60 * 1000; // 1 hour
 
@@ -83,10 +83,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { email, recaptcha_token } = parsed.data;
+  const normalizedEmail = parsed.data.email.trim().toLowerCase();
+  const { recaptcha_token } = parsed.data;
 
   // ── 3. reCAPTCHA ────────────────────────────────────────────────────────────
-  if (!(await verifyRecaptcha(recaptcha_token, ip))) {
+  const isRecaptchaValid = await verifyRecaptcha(recaptcha_token, ip);
+  console.log('[forgot-password] reCAPTCHA validation:', { 
+    email: normalizedEmail, 
+    ip, 
+    valid: isRecaptchaValid 
+  });
+  
+  if (!isRecaptchaValid) {
     return NextResponse.json(
       { error: 'Security check failed. Please refresh and try again.' },
       { status: 403, headers: rate.headers },
@@ -94,15 +102,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 4. Look up profile ───────────────────────────────────────────────────────
-  // Always return 200 regardless of whether the email exists — prevents enumeration.
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id, full_name, email')
-    .eq('email', email)
-    .single<{ id: string; full_name: string; email: string }>();
+    .eq('email', normalizedEmail)
+    .limit(1)
+    .maybeSingle<{ id: string; full_name: string | null; email: string }>();
+
+  console.log('[forgot-password] Profile lookup:', { 
+    email: normalizedEmail, 
+    found: !!profile,
+    profileError: profileError?.message 
+  });
 
   if (!profile) {
-    // Deliberate: same response whether email exists or not
+    // Deliberate: same response whether email exists or not (prevents enumeration)
+    console.log('[forgot-password] No profile found - returning success to prevent enumeration');
     return NextResponse.json(
       { message: 'If an account exists for this email, a reset link has been sent.' },
       { status: 200, headers: rate.headers },
@@ -110,11 +125,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 5. Invalidate any existing reset tokens for this user ───────────────────
-  await supabase
+  const { error: invalidateError } = await supabase
     .from('password_resets')
     .update({ used_at: new Date().toISOString() })
     .eq('user_id', profile.id)
     .is('used_at', null);
+
+  if (invalidateError) {
+    console.error('[forgot-password] Error invalidating old tokens:', invalidateError);
+  }
 
   // ── 6. Create new reset token ────────────────────────────────────────────────
   const { token, tokenHash } = createToken();
@@ -137,13 +156,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  console.log('[forgot-password] Reset token created:', { 
+    userId: profile.id, 
+    expiresAt: expiresAt.toISOString() 
+  });
+
   // ── 7. Send email ────────────────────────────────────────────────────────────
   const resetUrl = `${BASE_URL}/reset-password?token=${token}`;
-  const html     = await render(
-    PasswordResetEmail({ fullName: profile.full_name, email: profile.email, resetUrl }),
-  );
+  
+  let html: string;
+  try {
+    html = await render(
+      PasswordResetEmail({
+        fullName: profile.full_name?.trim() || profile.email,
+        email: profile.email,
+        resetUrl,
+      }),
+    );
+  } catch (renderError) {
+    console.error('[forgot-password] Email render error:', renderError);
+    return NextResponse.json(
+      { error: 'Failed to generate reset email. Please try again.' },
+      { status: 500, headers: rate.headers },
+    );
+  }
 
-  const { error: emailError } = await resend.emails.send({
+  console.log('[forgot-password] Sending email to:', profile.email);
+  
+  const { data: emailData, error: emailError } = await resend.emails.send({
     from:    FROM_EMAIL,
     to:      profile.email,
     subject: 'Reset your EaziWage password',
@@ -152,9 +192,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   if (emailError) {
-    console.error('[forgot-password] Email send error:', emailError);
-    // Non-fatal from the user's perspective — they get the same success message
+    console.error('[forgot-password] Email send FAILED:', {
+      error: emailError,
+      to: profile.email,
+      from: FROM_EMAIL,
+    });
+    
+    // Return error to user instead of silent failure
+    return NextResponse.json(
+      { error: 'Failed to send reset email. Please try again or contact support.' },
+      { status: 500, headers: rate.headers },
+    );
   }
+
+  console.log('[forgot-password] Email sent successfully:', {
+    to: profile.email,
+    emailId: emailData?.id,
+  });
 
   return NextResponse.json(
     { message: 'If an account exists for this email, a reset link has been sent.' },

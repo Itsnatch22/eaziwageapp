@@ -184,13 +184,23 @@ export default function EmployerDashboard() {
 
   useEffect(() => {
     const fetchData = async () => {
+      let redirectedToOnboarding = false;
       try {
-        const [statsRes, employerRes] = await Promise.all([
-          dashboardApi.getEmployerDashboard(),
-          employerApi.getMe()
-        ]);
+        const employerRes = await employerApi.getMe();
+        const employerData = employerRes.data;
+        const onboardingStatus = String(employerData?.status || '').toLowerCase();
+        const hasCompanyName = Boolean(employerData?.company_name);
+        const onboardingIncomplete = !hasCompanyName || onboardingStatus === 'draft';
+
+        if (onboardingIncomplete) {
+          redirectedToOnboarding = true;
+          router.replace('/dashboards/employer-dashboard/onboarding');
+          return;
+        }
+
+        const statsRes = await dashboardApi.getEmployerDashboard();
         setStats(statsRes.data);
-        setEmployer(employerRes.data);
+        setEmployer(employerData);
       } catch (err: any) {
         if (err?.response?.status === 404) {
           setError('profile_not_found');
@@ -198,7 +208,9 @@ export default function EmployerDashboard() {
           setError('Failed to load dashboard data');
         }
       } finally {
-        setLoading(false);
+        if (!redirectedToOnboarding) {
+          setLoading(false);
+        }
       }
     };
     fetchData();
@@ -299,7 +311,7 @@ export default function EmployerDashboard() {
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h2>
-            <Link href="/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
+            <Link href="/dashboards/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
               Upload Payroll <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -308,25 +320,25 @@ export default function EmployerDashboard() {
               icon={Users}
               title="Manage Employees"
               description="Add, edit, or view profiles"
-              href="/employer-dashboard/employees"
+              href="/dashboards/employer-dashboard/employees"
             />
             <QuickActionCard 
               icon={Upload}
               title="Upload Payroll"
               description="Update earnings data"
-              href="/employer-dashboard/payroll"
+              href="/dashboards/employer-dashboard/payroll"
             />
             <QuickActionCard 
               icon={CreditCard}
               title="View Advances"
               description="Track wage advances"
-              href="/employer-dashboard/advances"
+              href="/dashboards/employer-dashboard/advances"
             />
             <QuickActionCard 
               icon={BarChart3}
               title="Reports"
               description="Analytics and insights"
-              href="/employer-dashboard/reports"
+              href="/dashboards/employer-dashboard/reports"
             />
           </div>
         </div>
@@ -404,7 +416,7 @@ export default function EmployerDashboard() {
                 <p className="text-sm text-slate-600 dark:text-slate-300">
                   Your risk score determines the fee rates applied to employee advances. A lower risk score means better rates for your employees.
                 </p>
-                <Link href="/employer/risk-insights" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:gap-2 transition-all">
+                <Link href="/dashboards/employer-dashboard/risk-insights" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:gap-2 transition-all">
                   View Details <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>

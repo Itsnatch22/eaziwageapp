@@ -6,16 +6,16 @@ import {
   CheckCircle2, XCircle, Clock, Edit, Settings, AlertCircle,
   DollarSign, Users, Calendar, RefreshCw, Save, ChevronRight
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Badge } from '../../components/ui/badge';
-import { Switch } from '../../components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
-} from '../../components/ui/select';
-import { AdminPortalLayout } from '../../components/admin/AdminLayout';
-import { formatCurrency, formatDateTime, cn } from '../../lib/utils';
+} from '@/components/ui/select';
+import { AdminPortalLayout } from '@/components/admin/AdminLayout';
+import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
