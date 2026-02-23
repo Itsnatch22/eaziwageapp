@@ -5,11 +5,11 @@ import {
   FileText, Search, CheckCircle2, XCircle, Clock, Download, 
   RefreshCw, X, Calendar
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Textarea } from '../../components/ui/textarea';
-import { AdminPortalLayout } from '../../components/admin/AdminLayout';
-import { formatDateTime, cn } from '../../lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { AdminPortalLayout } from '@/components/admin/AdminLayout';
+import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
