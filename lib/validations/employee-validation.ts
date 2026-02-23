@@ -54,3 +54,37 @@ export const employeeListQuerySchema = z.object({
   from: z.string().optional(),  // ISO date
   to: z.string().optional(),    // ISO date
 });
+
+export const employeeOnboardingSchema = z.object({
+  employer_id: z.string().uuid('Invalid employer ID'),
+  employee_code: z.string().optional(),
+  national_id: z.string().min(1, 'National ID is required'),
+  id_type: z.enum(['national_id', 'passport']),
+  nationality: z.string().optional(),
+  date_of_birth: z.string().min(1, 'Date of birth is required'),
+  country: z.string().min(1, 'Country is required'),
+  address_line1: z.string().min(1, 'Address line 1 is required'),
+  address_line2: z.string().optional(),
+  city: z.string().min(1, 'City is required'),
+  postal_code: z.string().optional(),
+  tax_id: z.string().optional(),
+  job_title: z.string().min(1, 'Job title is required'),
+  department: z.string().optional(),
+  employment_type: z.string().min(1, 'Employment type is required'),
+  start_date: z.string().optional(),
+  monthly_salary: z.number().nonnegative('Monthly salary must be 0 or more'),
+  bank_name: z.string().min(1, 'Bank name is required'),
+  bank_account: z.string().min(1, 'Bank account is required'),
+  mobile_money_provider: z.string().min(1, 'Mobile money provider is required'),
+  mobile_money_number: z.string().min(1, 'Mobile money number is required'),
+  id_front: z.string().url().optional(),
+  id_back: z.string().url().optional(),
+  address_proof: z.string().url().optional(),
+  tax_certificate: z.string().url().optional(),
+  payslip_1: z.string().url().optional(),
+  payslip_2: z.string().url().optional(),
+  bank_statement: z.string().url().optional(),
+  employment_contract: z.string().url().optional(),
+});
+
+export type EmployeeOnboardingPayload = z.infer<typeof employeeOnboardingSchema>;
