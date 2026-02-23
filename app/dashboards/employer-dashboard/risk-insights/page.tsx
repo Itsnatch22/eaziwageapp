@@ -270,7 +270,7 @@ export default function RiskInsightsPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch('/api/employer-dashboard/employer-data');
+        const res = await fetch('/api/employer-dashboard/risk-insights');
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? 'Failed to load risk data');
         setEmployer(data);

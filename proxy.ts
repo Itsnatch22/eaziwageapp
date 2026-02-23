@@ -46,11 +46,11 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
   const isAuth  = user !== null;
 
   const isAuthOnly         = AUTH_ONLY_PATHS.has(pathname);
-  const isEmployerDashboard = pathname.startsWith('/dashboards/employer-dashboard');
-  const isEmployeeDashboard = pathname.startsWith('/dashboards/employee-dashboard');
+  const isEmployerDashboard = pathname.startsWith('/dashboard/employer-dashboard');
+  const isEmployeeDashboard = pathname.startsWith('/dashboard/employee-dashboard');
   const isDashboard         = isEmployerDashboard || isEmployeeDashboard;
-  const isOnboarding        = pathname.startsWith('/dashboards/employer-dashboard/onboarding') ||
-                              pathname.startsWith('/dashboards/employee-dashboard/onboarding');
+  const isOnboarding        = pathname.startsWith('/dashboard/employer-dashboard/onboarding') ||
+                              pathname.startsWith('/dashboard/employee-dashboard/onboarding');
 
   // ── Unauthenticated user tries to access a protected route ──────────────────
   if (!isAuth && (isDashboard || isOnboarding)) {
@@ -70,8 +70,8 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
 
     const destination =
       profile?.role === 'employer'
-        ? '/dashboards/employer-dashboard'
-        : '/dashboards/employee-dashboard';
+        ? '/dashboard/employer-dashboard'
+        : '/dashboard/employee-dashboard';
 
     return NextResponse.redirect(new URL(destination, req.url));
   }
@@ -107,11 +107,11 @@ if (isAuth && isDashboard) {
   const role = profile.role;
 
   if (isEmployerDashboard && role !== 'employer') {
-    return NextResponse.redirect(new URL('/dashboards/employee-dashboard', req.url));
+    return NextResponse.redirect(new URL('/dashboard/employee-dashboard', req.url));
   }
 
   if (isEmployeeDashboard && role !== 'employee') {
-    return NextResponse.redirect(new URL('/dashboards/employer-dashboard', req.url));
+    return NextResponse.redirect(new URL('/dashboard/employer-dashboard', req.url));
   }
 }
 

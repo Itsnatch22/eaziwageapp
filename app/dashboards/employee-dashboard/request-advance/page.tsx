@@ -91,7 +91,7 @@ export default function RequestAdvance() {
             });
             if (res.ok) {
                 toast.success('Advance requested successfully');
-                router.push('/employee-dashboard/transactions');
+                router.push('/dashboards/employee-dashboard/transactions');
             } else {
                 const errorData = await res.json();
                 toast.error(errorData.message || 'Failed to request advance');

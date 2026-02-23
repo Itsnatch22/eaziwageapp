@@ -155,7 +155,7 @@ export default function EmployerAdvances() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/employer/advances")
+        const res = await fetch("/api/employer-dashboard/advances")
         const data = await res.json()
         setAdvances(data)
       } catch (error) {

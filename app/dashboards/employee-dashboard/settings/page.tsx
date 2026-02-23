@@ -300,13 +300,13 @@ const ContactSupportModal = ({ isOpen, onClose }: ContactSupportModalProps) => {
             </div>
           </a>
           
-          <a href="https://wa.me/254700123456" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors">
+          <a href="https://wa.me/254723154900" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors">
             <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
               <MessageCircle className="w-6 h-6 text-white" />
             </div>
             <div>
               <p className="font-semibold text-slate-900 dark:text-white">WhatsApp</p>
-              <p className="text-sm text-primary">+254 700 123 456</p>
+              <p className="text-sm text-primary">+254 723 154 900</p>
             </div>
           </a>
         </div>

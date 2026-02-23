@@ -131,12 +131,13 @@ export default function EmployerReports() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statsRes, employerRes, advancesRes, employeesRes] = await Promise.all([
-          dashboardApi.getEmployerDashboard(),
-          employerApi.getMe(),
-          advanceApi.list(),
-          employeeApi.list()
-        ]);
+        const response = await fetch(`/api/employer-dashboard/reports`, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const statsRes = await response.json();
+        const employerRes = await employerApi.getMe();
+        const advancesRes = await advanceApi.list();
+        const employeesRes = await employeeApi.list();
         setStats(statsRes.data);
         setEmployer(employerRes.data);
         setAdvances(advancesRes.data);

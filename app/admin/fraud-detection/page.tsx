@@ -389,9 +389,8 @@ export default function FraudDetection() {
   // Fetch fraud rules from backend
   const fetchRules = async () => {
     try {
-      const token = localStorage.getItem('eaziwage_token');
-      const response = await fetch(`${API_URL}/api/admin/fraud-rules`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetch(`/api/admin/fraud-rules`, {
+        headers: { 'Content-Type': 'application/json' }
       });
       if (response.ok) {
         const data = await response.json();
@@ -404,9 +403,8 @@ export default function FraudDetection() {
 
   const fetchFlaggedTransactions = async () => {
     try {
-      const token = localStorage.getItem('eaziwage_token');
-      const response = await fetch(`${API_URL}/api/admin/advances/flagged`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetch(`/api/admin/advances/flagged`, {
+        headers: { 'Content-Type': 'application/json' }
       });
       if (response.ok) {
         const data = await response.json();
@@ -429,10 +427,9 @@ export default function FraudDetection() {
 
   const handleToggleRule = async (ruleId) => {
     try {
-      const token = localStorage.getItem('eaziwage_token');
-      const response = await fetch(`${API_URL}/api/admin/fraud-rules/${ruleId}/toggle`, {
+      const response = await fetch(`/api/admin/fraud-rules/${ruleId}/toggle`, {
         method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Content-Type': 'application/json' }
       });
       if (response.ok) {
         const result = await response.json();
@@ -448,10 +445,9 @@ export default function FraudDetection() {
 
   const handleDeleteRule = async (ruleId) => {
     try {
-      const token = localStorage.getItem('eaziwage_token');
-      const response = await fetch(`${API_URL}/api/admin/fraud-rules/${ruleId}`, {
+      const response = await fetch(`/api/admin/fraud-rules/${ruleId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Content-Type': 'application/json' }
       });
       if (response.ok) {
         setRules(prev => prev.filter(r => r.id !== ruleId));
@@ -464,15 +460,13 @@ export default function FraudDetection() {
 
   const handleSaveRule = async (ruleData) => {
     try {
-      const token = localStorage.getItem('eaziwage_token');
       
       if (editingRule) {
         // Update existing rule
-        const response = await fetch(`${API_URL}/api/admin/fraud-rules/${editingRule.id}`, {
+        const response = await fetch(`/api/admin/fraud-rules/${editingRule.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify(ruleData)
         });
@@ -483,11 +477,10 @@ export default function FraudDetection() {
         }
       } else {
         // Create new rule
-        const response = await fetch(`${API_URL}/api/admin/fraud-rules`, {
+        const response = await fetch(`/api/admin/fraud-rules`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify(ruleData)
         });
@@ -507,12 +500,10 @@ export default function FraudDetection() {
 
   const handleReviewAction = async (transactionId, decision, notes) => {
     try {
-      const token = localStorage.getItem('eaziwage_token');
-      await fetch(`${API_URL}/api/admin/advances/${transactionId}/review`, {
+      await fetch(`/api/admin/advances/${transactionId}/review`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ decision, notes })
       });
