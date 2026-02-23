@@ -3,7 +3,7 @@
 // POST — Submit full employee KYC application
 // GET  — Fetch the current user's existing application (for resume / status check)
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { employeeOnboardingSchema } from '@/lib/validations/employee-validation';

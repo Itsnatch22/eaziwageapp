@@ -17,7 +17,7 @@
 //            error_summary, warning_summary }
 //   422 — { error: 'Validation failed', detail: [...] }
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadPayrollSchema, type PayrollRow } from '@/lib/validations/payroll-validation';
 

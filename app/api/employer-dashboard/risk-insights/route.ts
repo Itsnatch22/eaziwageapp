@@ -22,7 +22,7 @@
 //
 // The page derives feePercentage client-side via calculateFeePercentage(risk_score).
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'edge';

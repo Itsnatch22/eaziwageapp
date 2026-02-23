@@ -13,7 +13,7 @@
 //
 // On success, sends a branded React Email via Resend (non-fatal if it fails).
 //
-import { createClient }    from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend }          from 'resend';
 import { z }               from 'zod';

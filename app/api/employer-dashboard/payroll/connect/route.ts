@@ -6,7 +6,7 @@
 // The integration_code is a short alphanumeric token the employer shares with
 // their IT team. External systems include it as a Bearer token on API push calls.
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { connectPayrollSchema } from '@/lib/validations/payroll-validation';
 import { randomBytes } from 'crypto';

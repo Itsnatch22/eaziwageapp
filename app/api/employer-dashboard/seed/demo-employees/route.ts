@@ -5,7 +5,7 @@
 // Seeds 60 realistic demo employees linked to the authenticated employer.
 // Only works for approved employers. Idempotent: won't seed twice.
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs'; // needs crypto for UUIDs

@@ -5,7 +5,7 @@
 //   - Computed risk_score and risk_rating
 //   - Granular risk_factors shaped for the UI's categoryScores structure
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'edge';
