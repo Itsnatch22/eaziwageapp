@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 
 export const runtime = 'edge';
 

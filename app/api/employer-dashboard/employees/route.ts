@@ -13,7 +13,7 @@
 //   ?search=john
 //   ?from=2024-01-01&to=2024-12-31   (filters by employee submitted_at)
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';

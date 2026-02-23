@@ -5,14 +5,12 @@ import {
   FileText, Search, CheckCircle2, XCircle, Clock, Download, 
   RefreshCw, X, Calendar
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Textarea } from '../../components/ui/textarea';
-import { AdminPortalLayout } from '../../components/admin/AdminLayout';
-import { formatDateTime, cn } from '../../lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { AdminPortalLayout } from '@/components/admin/AdminLayout';
+import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const DOCUMENT_TYPES = [
   { value: 'national_id', label: 'National ID' },
@@ -280,7 +278,7 @@ export default function AdminKYCReview() {
     try {
       
       // Fetch documents
-      const docsResponse = await fetch(`/api/kyc/documents${filter !== 'all' ? `?status=${filter}` : ''}`, {
+      const docsResponse = await fetch(`/api/employee-dashboard/kyc/documents${filter !== 'all' ? `?status=${filter}` : ''}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -318,7 +316,7 @@ export default function AdminKYCReview() {
   const handleReview = async (docId, status, notes) => {
     setActionLoading(true);
     try {
-      const response = await fetch(`/api/kyc/documents/${docId}/review?status=${status}&notes=${encodeURIComponent(notes || '')}`, {
+      const response = await fetch(`/api/employee-dashboard/kyc/documents/${docId}/review?status=${status}&notes=${encodeURIComponent(notes || '')}`, {
         method: 'PATCH',
       });
       const data = await response.json();

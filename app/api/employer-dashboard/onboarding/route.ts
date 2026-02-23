@@ -1,5 +1,5 @@
 // app/api/employer-dashboard/onboarding/route.ts
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { onboardingSubmitSchema, stepUpdateSchema } from '@/lib/validations/employer-onboarding';

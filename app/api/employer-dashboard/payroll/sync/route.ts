@@ -12,7 +12,7 @@
 //   200 — { message, sync_log_id, status, last_sync_at, records_received, ... }
 //   404 — integration not found / not owned by employer
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { triggerSyncSchema } from '@/lib/validations/payroll-validation';
 

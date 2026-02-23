@@ -297,15 +297,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       (err) => console.error('[security-alert] sendLoginNotification failed:', err),
     );
 
-    // Persist the login event
-    supabaseAdmin.from('login_events').insert({
-  user_id: profile.id,
-  ip_address: ip,
-  user_agent: userAgent,
-  created_at: new Date().toISOString(),
-}).match((error: unknown) => {
-  console.error('[security-alert] Failed to record login event:', error);
-});
+    // Persist the login event (fire-and-forget)
+    void (async () => {
+      const { error } = await supabaseAdmin.from('login_events').insert({
+        user_id: profile.id,
+        ip_address: ip,
+        user_agent: userAgent,
+        created_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error('[security-alert] Failed to record login event:', error);
+      }
+    })();
 
   }
 

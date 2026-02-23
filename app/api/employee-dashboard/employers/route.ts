@@ -4,7 +4,7 @@
 // Reads from the `approved_employers` view which filters employer_onboarding
 // to status = 'approved' only.
 //
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
