@@ -167,7 +167,7 @@ const FileUploader = ({
               <Check className="w-5 h-5 text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[180px]">
+              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-45">
                 {uploadedFile.name || "Document uploaded"}
               </p>
               <p className="text-xs text-slate-500">Click to replace</p>
@@ -727,7 +727,7 @@ export default function EmployerOnboarding() {
               {/* Countries of Operation */}
               <div className="flex flex-col gap-2">
                 <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Countries of Operation *</Label>
-                <div className="flex flex-wrap gap-2 p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/50 min-h-[56px]">
+                <div className="flex flex-wrap gap-2 p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/50 min-h-14">
                   {COUNTRIES.map((c) => {
                     const selected = countriesOfOperation.includes(c.code);
                     return (

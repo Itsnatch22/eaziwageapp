@@ -123,6 +123,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const user = useAuthStore((state: { user: any; }) => state.user);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [profileIdentity, setProfileIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
   const authName =
@@ -143,6 +144,10 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
     .map((n: string) => n[0])
     .join('')
     .toUpperCase() || 'U';
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     const fetchIdentity = async () => {
@@ -276,12 +281,16 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-11 h-11 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
                 <span className="text-white font-bold text-sm">
-                  {initials}
+                  {isHydrated ? initials : 'U'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{fullName}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{userEmail}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                  {isHydrated ? fullName : 'User'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {isHydrated ? userEmail : 'No email'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -320,6 +329,7 @@ interface TopHeaderProps {
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [greeting, setGreeting] = useState('Welcome');
   const notificationsRef = useRef<HTMLDivElement | null>(null);
 
   // Close notifications when clicking outside
@@ -333,12 +343,18 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getGreeting = () => {
+  useEffect(() => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
+    if (hour < 12) {
+      setGreeting('Good Morning');
+      return;
+    }
+    if (hour < 17) {
+      setGreeting('Good Afternoon');
+      return;
+    }
+    setGreeting('Good Evening');
+  }, []);
 
   // Sample notifications
   const notifications = [
@@ -364,7 +380,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{getGreeting()}</p>
+	              <p className="text-sm text-slate-500 dark:text-slate-400">{greeting}</p>
               <h1 className="text-lg font-bold text-slate-900 dark:text-white">
                 {employer?.company_name || 'Company Portal'}
               </h1>

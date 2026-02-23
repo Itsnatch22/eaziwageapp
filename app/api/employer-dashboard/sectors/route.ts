@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/client';
 import { NextResponse } from 'next/server';
 
-export const runtime = 'chrome';
+export const runtime = 'edge';
 
 export async function GET() {
   const supabase = await createClient();
