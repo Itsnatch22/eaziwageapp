@@ -7,9 +7,9 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const { id } = params;
+  const { id } = await params;
 
   // ── 1. Rate-limit ──────────────────────────────────────────────────────────
   const ip         = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
