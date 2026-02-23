@@ -278,6 +278,12 @@ export default function EmployerOnboarding() {
 
   const [countriesOfOperation, setCountriesOfOperation] = useState<string[]>([]);
   const user = useAuthStore((state) => state.user);
+  const userFullName =
+    user?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    "";
+  const userEmail = user?.email || user?.user_metadata?.email || "";
 
   const [beneficialOwners, setBeneficialOwners] = useState([
     { full_name: "", id_number: "", nationality: "", ownership_percentage: 0, is_pep: false },
@@ -304,11 +310,44 @@ export default function EmployerOnboarding() {
     monthly_payroll_amount: "",
     bank_name: "",
     bank_account_number: "",
-    contact_person: user?.full_name || "",
-    contact_email: user?.email || "",
+    contact_person: userFullName,
+    contact_email: userEmail,
     contact_phone: "",
     contact_position: "",
   });
+
+  useEffect(() => {
+    if (!userFullName && !userEmail) return;
+    setFormData((prev) => ({
+      ...prev,
+      contact_person: prev.contact_person || userFullName,
+      contact_email: prev.contact_email || userEmail,
+    }));
+  }, [userFullName, userEmail]);
+
+  useEffect(() => {
+    const fetchProfileFallback = async () => {
+      if (userFullName && userEmail) return;
+      try {
+        const res = await fetch("/api/employer-dashboard/profile");
+        const data = await res.json();
+        if (!res.ok) return;
+        const profile = data?.profile || {};
+        const fallbackName = profile?.full_name || profile?.contact_person || "";
+        const fallbackEmail = profile?.email || profile?.contact_email || "";
+        if (!fallbackName && !fallbackEmail) return;
+
+        setFormData((prev) => ({
+          ...prev,
+          contact_person: prev.contact_person || fallbackName,
+          contact_email: prev.contact_email || fallbackEmail,
+        }));
+      } catch {
+        // Non-fatal fallback only.
+      }
+    };
+    fetchProfileFallback();
+  }, [userFullName, userEmail]);
 
   // ── Fetch sectors on mount ───────────────────────────────────────────────
   useEffect(() => {

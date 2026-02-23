@@ -299,7 +299,7 @@ export default function EmployerDashboard() {
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h2>
-            <Link href="/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
+            <Link href="/dashboards/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
               Upload Payroll <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -404,7 +404,7 @@ export default function EmployerDashboard() {
                 <p className="text-sm text-slate-600 dark:text-slate-300">
                   Your risk score determines the fee rates applied to employee advances. A lower risk score means better rates for your employees.
                 </p>
-                <Link href="/employer/risk-insights" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:gap-2 transition-all">
+                <Link href="/dashboards/employer-dashboard/risk-insights" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:gap-2 transition-all">
                   View Details <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>

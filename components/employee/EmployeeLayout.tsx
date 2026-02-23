@@ -77,12 +77,14 @@ interface EmployeeHeaderProps {
     onBack?: () => void;
     rightContent?: React.ReactNode;
     user?: {
-        full_name: string;
-        profile_picture_url: string;
+        full_name?: string;
+        email?: string;
+        profile_picture_url?: string;
     };
     employee?: {
-        full_name: string;
-        profile_picture_url: string;
+        full_name?: string;
+        email?: string;
+        profile_picture_url?: string;
     };
 }
 
@@ -97,6 +99,13 @@ export const EmployeeHeader = ({
 }: EmployeeHeaderProps) => {
     const { theme, toggleTheme } = useTheme();
     const router = useRouter();
+
+    const resolvedName =
+      employee?.full_name?.trim() ||
+      user?.full_name?.trim() ||
+      employee?.email?.split('@')[0] ||
+      user?.email?.split('@')[0] ||
+      'User';
 
     const handleBack = () => {
         if (onBack) {
@@ -125,26 +134,26 @@ export const EmployeeHeader = ({
           </button>
         ) : (
           <div className="flex items-center gap-3">
-            <Link href="/dashboards/employee-dashboard/settings" className="shrink-0">
-              {user?.profile_picture_url ? (
+	            <Link href="/dashboards/employee-dashboard/settings" className="shrink-0">
+	              {user?.profile_picture_url ? (
                 <img 
                   src={`${process.env.BASE_URL}${user.profile_picture_url}`} 
                   alt="Profile" 
                   className="w-10 h-10 rounded-xl object-cover ring-2 ring-primary/20"
                 />
-              ) : (
-                <div className="w-10 h-10 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary/25">
-                  <span className="text-white font-bold text-sm">{employee?.full_name?.[0] || user?.full_name?.[0] || 'U'}</span>
-                </div>
-              )}
-            </Link>
-            <div className="min-w-0">
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{getGreeting()}</p>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                {employee?.full_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || 'User'}
-              </h2>
-            </div>
-          </div>
+	              ) : (
+	                <div className="w-10 h-10 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary/25">
+	                  <span className="text-white font-bold text-sm">{resolvedName[0]?.toUpperCase() || 'U'}</span>
+	                </div>
+	              )}
+	            </Link>
+	            <div className="min-w-0">
+	              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{getGreeting()}</p>
+	              <h2 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+	                {resolvedName.split(' ')[0]}
+	              </h2>
+	            </div>
+	          </div>
         )}
         
         {title && (

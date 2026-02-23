@@ -123,15 +123,44 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const user = useAuthStore((state: { user: any; }) => state.user);
+  const [profileIdentity, setProfileIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
-  const fullName = user?.full_name?.trim() || 'User';
-  const userEmail = user?.email || 'No email';
+  const authName =
+    user?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    '';
+  const authEmail = user?.email || user?.user_metadata?.email || '';
+  const fullName =
+    authName?.trim() ||
+    profileIdentity?.full_name?.trim() ||
+    profileIdentity?.email?.split('@')[0] ||
+    'User';
+  const userEmail = authEmail || profileIdentity?.email || 'No email';
   const initials = fullName
     .split(' ')
     .filter(Boolean)
     .map((n: string) => n[0])
     .join('')
     .toUpperCase() || 'U';
+
+  useEffect(() => {
+    const fetchIdentity = async () => {
+      try {
+        const res = await fetch('/api/employer-dashboard/profile');
+        const data = await res.json();
+        if (!res.ok) return;
+        const profile = data?.profile || {};
+        setProfileIdentity({
+          full_name: profile?.full_name || profile?.contact_person || '',
+          email: profile?.email || profile?.contact_email || '',
+        });
+      } catch {
+        // Non-fatal; auth store is primary source.
+      }
+    };
+    fetchIdentity();
+  }, []);
 
   const navItems = [
     { href: '/dashboards/employer-dashboard', label: 'Dashboard', icon: LayoutDashboard },

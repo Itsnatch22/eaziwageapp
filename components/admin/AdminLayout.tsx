@@ -385,13 +385,33 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
+        const fallbackName =
+          session.user.user_metadata?.full_name ||
+          session.user.user_metadata?.name ||
+          session.user.email?.split('@')[0] ||
+          'Admin';
+        const fallbackEmail = session.user.email || '';
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, full_name, email, role')
           .eq('id', session.user.id)
           .single<AdminUser>();
 
-        if (profile) setUser(profile);
+        if (profile) {
+          setUser({
+            ...profile,
+            full_name: profile.full_name || fallbackName,
+            email: profile.email || fallbackEmail,
+          });
+          return;
+        }
+
+        setUser({
+          id: session.user.id,
+          full_name: fallbackName,
+          email: fallbackEmail,
+          role: (session.user.user_metadata?.role as string) || 'admin',
+        });
       }
     };
     fetchUser();

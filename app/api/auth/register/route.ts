@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient }               from '@supabase/supabase-js';
+import { createServerClient }         from '@supabase/ssr';
 import { Resend }                    from 'resend';
 import { z }                         from 'zod';
 import { render }                    from '@react-email/render';
@@ -277,7 +278,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email:             input.email,
     password:          input.password,
-    email_confirm:     false,   // We handle verification ourselves
+    email_confirm:     true,
     user_metadata: {
       full_name:          input.full_name,
       role:               input.role,
@@ -314,7 +315,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       role:               input.role,
       company_code:       input.role === 'employee' ? (input.company_code || null) : null,
       company_name:       input.role === 'employer' ? input.company_name : null,
-      email_verified:     false,
+      email_verified:     true,
       created_at:         new Date().toISOString(),
     });
 
@@ -370,15 +371,52 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // ── 12. Success ──────────────────────────────────────────────────────────────
-  return NextResponse.json(
+  // ── 12. Create authenticated session for immediate dashboard access ─────────
+  const authRes = NextResponse.next();
+  const authClient = createServerClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
-      message:  'Account created successfully. Please check your email to verify your account.',
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            authRes.cookies.set(name, value, options);
+          });
+        },
+      },
+    },
+  );
+
+  const { error: signInError } = await authClient.auth.signInWithPassword({
+    email: input.email,
+    password: input.password,
+  });
+
+  if (signInError) {
+    console.error('[auth] auto-signin error:', signInError);
+    return NextResponse.json(
+      { error: 'Account created, but automatic sign-in failed. Please sign in manually.' },
+      { status: 500, headers: rateResult.headers },
+    );
+  }
+
+  const successResponse = NextResponse.json(
+    {
+      message: 'Account created successfully.',
       userId,
-      role:     input.role,
+      role: input.role,
     },
     { status: 201, headers: rateResult.headers },
   );
+
+  authRes.cookies.getAll().forEach(({ name, value, ...options }) => {
+    successResponse.cookies.set(name, value, options);
+  });
+
+  return successResponse;
 }
 
 // Reject non-POST methods cleanly
