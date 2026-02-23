@@ -711,7 +711,7 @@ export default function Settings() {
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const [user, setUser] = useState<{ full_name?: string }>({});
 
 
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -733,6 +733,15 @@ export default function Settings() {
   ];
 
   useEffect(() => {
+    try {
+      const storedUser = window.localStorage.getItem('user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch {
+      setUser({});
+    }
+
     const fetchProfile = async () => {
       try {
         const res = await fetch('/api/profile');
