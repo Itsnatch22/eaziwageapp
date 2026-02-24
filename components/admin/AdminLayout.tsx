@@ -86,7 +86,6 @@ function AdminSidebar({ isOpen, onClose, user }: SidebarProps) {
     { href: '/admin/fraud-detection',   label: 'Fraud Detection',  icon: AlertTriangle   },
     { href: '/admin/review-management', label: 'Review Requests',  icon: HelpCircle      },
     { href: '/admin/api-health',        label: 'API Health',       icon: Wifi            },
-    { href: '/admin/settings',          label: 'Settings',         icon: Settings        },
   ];
 
   const isActive = (href: string): boolean => {

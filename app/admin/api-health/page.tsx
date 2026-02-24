@@ -4,10 +4,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Activity, CheckCircle2, AlertTriangle, XCircle, RefreshCw,
   Server, CreditCard, Smartphone,
+  Database,
 } from 'lucide-react';
 import { Button }            from '@/components/ui/button';
 import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { cn }                from '@/lib/utils';
+import { createClient } from '@supabase/supabase-js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -265,14 +267,18 @@ const OverallHealthBanner: React.FC<OverallHealthBannerProps> = ({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminAPIHealth() {
-  const [data,       setData]       = useState<APIHealthData | null>(null);
-  const [loading,    setLoading]    = useState(true);
+  const [data, setData] = useState<APIHealthData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  );
 
   const fetchData = useCallback(async () => {
     try {
-      // GET /api/admin/api-health
-      const res = await fetch('/api/admin/api-health');
+      const res = await fetch('/api/admin/check-api-health');
       if (res.ok) {
         const result: APIHealthData = await res.json();
         setData(result);
@@ -285,22 +291,49 @@ export default function AdminAPIHealth() {
     }
   }, []);
 
+  // Initial load
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const handleRefresh = () => {
+  // REAL-TIME SUBSCRIPTION (this is the magic)
+  useEffect(() => {
+    const channel = supabase
+      .channel('api-health-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'api_health' },
+        () => {
+          fetchData(); // instant UI update
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchData, supabase]);
+
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchData();
+    try {
+      await fetch('/api/admin/check-api-health', { method: 'POST' });
+      await fetchData();
+    } catch (err) {
+      console.error('[AdminAPIHealth] refresh failed:', err);
+      setRefreshing(false);
+    }
   };
 
-  // Map API names to icons
+  // getIcon stays exactly the same
   const getIcon = (name: string): React.ComponentType<React.SVGProps<SVGSVGElement>> => {
     const lower = name.toLowerCase();
     if (lower.includes('mpesa') || lower.includes('mobile')) return Smartphone;
-    if (lower.includes('airtel'))   return Smartphone;
-    if (lower.includes('bank'))     return CreditCard;
-    if (lower.includes('payroll'))  return Server;
+    if (lower.includes('airtel')) return Smartphone;
+    if (lower.includes('bank')) return CreditCard;
+    if (lower.includes('payroll') || lower.includes('vercel')) return Server;
+    if (lower.includes('supabase')) return Database;
+    if (lower.includes('twilio') ||  lower.includes('cellulant')) return Activity;
     return Activity;
   };
 
@@ -323,10 +356,12 @@ export default function AdminAPIHealth() {
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
               API Health Monitor
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
               Real-time status of all integrated services
+              <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             </p>
           </div>
+
           <Button 
             variant="outline" 
             className="bg-white/60 dark:bg-slate-800/60"
@@ -334,17 +369,16 @@ export default function AdminAPIHealth() {
             disabled={refreshing}
           >
             <RefreshCw className={cn('w-4 h-4 mr-2', refreshing && 'animate-spin')} /> 
-            {refreshing ? 'Refreshing...' : 'Refresh Status'}
+            {refreshing ? 'Checking...' : 'Force Check Now'}
           </Button>
         </div>
 
-        {/* Overall Health Banner */}
+        {/* Banner & Grid stay exactly as you wrote them */}
         <OverallHealthBanner 
           status={data?.overall_status || 'healthy'}
           integrations={data?.integrations || []}
         />
 
-        {/* API Cards Grid */}
         <div className="grid sm:grid-cols-2 gap-6">
           {data?.integrations?.map((api, index) => (
             <APICard 
@@ -355,7 +389,6 @@ export default function AdminAPIHealth() {
           ))}
         </div>
 
-        {/* Last Updated */}
         {data?.last_updated && (
           <div className="text-center text-sm text-slate-500 dark:text-slate-400">
             Last updated: {new Date(data.last_updated).toLocaleString()}

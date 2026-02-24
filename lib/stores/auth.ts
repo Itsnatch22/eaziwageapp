@@ -1,4 +1,4 @@
-import { createClient } from "../client";
+import { createClient } from "../supabase/client";
 import { useEffect, useState } from "react";
 
 interface AuthState {
@@ -37,7 +37,7 @@ export function useAuthStore<T>(selector: (state: AuthState) => T): T {
 // Client-side initialization
 if (typeof window !== 'undefined') {
   const initializeAuth = async () => {
-    const supabase = await createClient();
+    const supabase = createClient();
 
     const syncUser = async () => {
       try {

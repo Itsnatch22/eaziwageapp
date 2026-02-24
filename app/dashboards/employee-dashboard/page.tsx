@@ -431,7 +431,7 @@ export default function EmployeeDashboardPage() {
           </div>
 
           {/* Request Button */}
-	          <Link href="/employee/advances" className="block">
+	          <Link href="/dashboards/employee-dashboard/request-advance" className="block">
             <Button 
 	              className="w-full h-12 rounded-xl bg-linear-to-r from-primary to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-primary/25 btn-glow hover:shadow-xl transition-shadow"
               disabled={!canRequestAdvance} 

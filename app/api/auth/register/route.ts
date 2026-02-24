@@ -91,18 +91,26 @@ async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean
     const params = new URLSearchParams({
       secret:   env.RECAPTCHA_SECRET_KEY,
       response: token,
-      remoteip,
     });
+    if (remoteip && remoteip !== '0.0.0.0') params.set('remoteip', remoteip);
 
-    const res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
-    const data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+    let res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+    let data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+
+    // Some proxy/edge IP values can fail verification. Retry once without remoteip.
+    if (!data.success && params.has('remoteip')) {
+      params.delete('remoteip');
+      res = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+      data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+    }
 
     if (!data.success) {
       console.warn('[reCAPTCHA] Verification failed:', data['error-codes']);
       return false;
     }
 
-    const score = data.score ?? 0;
+    if (typeof data.score !== 'number') return true;
+    const score = data.score;
     if (score < RECAPTCHA_MIN_SCORE) {
       console.warn(`[reCAPTCHA] Score too low: ${score}`);
       return false;

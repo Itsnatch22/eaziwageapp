@@ -39,18 +39,19 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
   );
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  const user    = session?.user ?? null;
-  const isAuth  = user !== null;
+  const authenticatedUser = userError ? null : user;
+  const isAuth  = authenticatedUser !== null;
 
   const isAuthOnly         = AUTH_ONLY_PATHS.has(pathname);
-  const isEmployerDashboard = pathname.startsWith('/dashboards/employer-dashboard');
-  const isEmployeeDashboard = pathname.startsWith('/dashboards/employee-dashboard');
+  const isEmployerDashboard = pathname.startsWith('/dashboard/employer-dashboard');
+  const isEmployeeDashboard = pathname.startsWith('/dashboard/employee-dashboard');
   const isDashboard         = isEmployerDashboard || isEmployeeDashboard;
-  const isOnboarding        = pathname.startsWith('/dashboards/employer-dashboard/onboarding') ||
-                              pathname.startsWith('/dashboards/employee-dashboard/onboarding');
+  const isOnboarding        = pathname.startsWith('/dashboard/employer-dashboard/onboarding') ||
+                              pathname.startsWith('/dashboard/employee-dashboard/onboarding');
 
   // ── Unauthenticated user tries to access a protected route ──────────────────
   if (!isAuth && (isDashboard || isOnboarding)) {
@@ -65,13 +66,13 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user!.id)
+      .eq('id', authenticatedUser!.id)
       .single<Profile>();
 
     const destination =
       profile?.role === 'employer'
-        ? '/dashboards/employer-dashboard'
-        : '/dashboards/employee-dashboard';
+        ? '/dashboard/employer-dashboard'
+        : '/dashboard/employee-dashboard';
 
     return NextResponse.redirect(new URL(destination, req.url));
   }
@@ -81,17 +82,24 @@ if (isAuth && isDashboard) {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', user!.id)
+    .eq('id', authenticatedUser!.id)
     .single<Profile>();
 
-  if (profileError || !profile) {
+  if (profileError) {
+    console.error('[proxy] Failed to read profile for dashboard guard:', profileError);
+    const errorUrl = new URL('/', req.url);
+    errorUrl.searchParams.set('error', 'profile_read_failed');
+    return NextResponse.redirect(errorUrl);
+  }
+
+  if (!profile) {
     // Handle race condition: redirect to setup with inferred role
     const inferredRole = isEmployerDashboard ? 'employer' : 'employee';
     const setupUrl = new URL('/callback', req.url);
     setupUrl.searchParams.set('setup', '1');
     setupUrl.searchParams.set('role', inferredRole);
 
-    // Optional: Add retry limit to prevent infinite loops
+    // Add retry limit and preserve counter across redirects to avoid infinite loops
     const attempt = parseInt(req.nextUrl.searchParams.get('setup_attempt') || '0', 10);
     if (attempt > 2) {
       // After 3 attempts, redirect to error or login
@@ -107,11 +115,11 @@ if (isAuth && isDashboard) {
   const role = profile.role;
 
   if (isEmployerDashboard && role !== 'employer') {
-    return NextResponse.redirect(new URL('/dashboards/employee-dashboard', req.url));
+    return NextResponse.redirect(new URL('/dashboard/employee-dashboard', req.url));
   }
 
   if (isEmployeeDashboard && role !== 'employee') {
-    return NextResponse.redirect(new URL('/dashboards/employer-dashboard', req.url));
+    return NextResponse.redirect(new URL('/dashboard/employer-dashboard', req.url));
   }
 }
 

@@ -71,16 +71,25 @@ async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean
     const params = new URLSearchParams({
       secret:   env.RECAPTCHA_SECRET_KEY,
       response: token,
-      remoteip,
     });
-    const res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
-    const data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+    if (remoteip && remoteip !== '0.0.0.0') params.set('remoteip', remoteip);
+
+    let res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+    let data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+
+    // Some proxy/edge IP values can fail verification. Retry once without remoteip.
+    if (!data.success && params.has('remoteip')) {
+      params.delete('remoteip');
+      res = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+      data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+    }
 
     if (!data.success) {
       console.warn('[reCAPTCHA] Login verification failed:', data['error-codes']);
       return false;
     }
-    const score = data.score ?? 0;
+    if (typeof data.score !== 'number') return true;
+    const score = data.score;
     if (score < RECAPTCHA_MIN_SCORE) {
       console.warn(`[reCAPTCHA] Login score too low: ${score}`);
       return false;
@@ -218,9 +227,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const res = NextResponse.next();
   const supabaseAuth = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    // We use the service key here only to call signInWithPassword — the
-    // resulting session is still scoped to the authenticated user.
-    env.SUPABASE_SERVICE_ROLE_KEY,
+    // Use anon key for user-auth flows; session remains scoped to the user.
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return req.cookies.getAll(); },
@@ -336,3 +344,4 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 export async function GET()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
 export async function PUT()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
 export async function DELETE() { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
+

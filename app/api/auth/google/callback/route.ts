@@ -104,6 +104,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const isSetup     = searchParams.get('setup') === '1';
   const oauthError  = searchParams.get('error');
   const nextParam   = resolveNext(searchParams.get('next'));
+  const setupAttempt = parseInt(searchParams.get('setup_attempt') ?? '0', 10);
   const requestedRoleParam = searchParams.get('role');
   const requestedRole = requestedRoleParam === 'employer' || requestedRoleParam === 'employee' ? requestedRoleParam : null;
 
@@ -134,13 +135,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // ── Branch: profile setup after first OAuth (setup=1) ────────────────────────
   if (isSetup) {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-  if (!session?.user) {
+  if (userError || !user) {
     return NextResponse.redirect(new URL('/', req.url));
   }
-
-  const user = session.user;
   const fullName = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'User';
   const email = user.email ?? '';
   const role = (requestedRole as 'employee' | 'employer' | null) ?? (user.user_metadata?.role as 'employee' | 'employer') ?? 'employee';
@@ -170,8 +169,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   await sendGoogleWelcomeEmail(fullName, email, role);
 
-  const onboardingUrl = nextParam ?? (role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard');
-  const redirect = NextResponse.redirect(new URL(onboardingUrl, req.url));
+  const onboardingUrl = new URL(
+    nextParam ?? (role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard'),
+    req.url,
+  );
+  if (!Number.isNaN(setupAttempt) && setupAttempt > 0) {
+    onboardingUrl.searchParams.set('setup_attempt', String(setupAttempt));
+  }
+  const redirect = NextResponse.redirect(onboardingUrl);
   response.cookies.getAll().forEach(({ name, value, ...opts }) => redirect.cookies.set(name, value, opts));
   return redirect;
 }
