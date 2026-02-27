@@ -21,7 +21,7 @@ const supabase = createClient(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FROM_EMAIL    = 'EaziWage <noreply@eaziwage.com>';
+const FROM_EMAIL    = 'EaziWage <noreply@contact.eaziwage.com>';
 const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const TOKEN_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours
@@ -127,12 +127,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── Mark token as used (atomic — prevents replay) ────────────────────────────
   const { error: tokenUpdateError } = await supabase
     .from('email_verifications')
     .update({ used_at: new Date().toISOString() })
     .eq('id', record.id)
-    .is('used_at', null); // extra guard: only update if still unused
+    .is('used_at', null); 
 
   if (tokenUpdateError) {
     console.error('[verify-email] Token update error:', tokenUpdateError);
@@ -142,7 +141,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── Mark profile as verified ─────────────────────────────────────────────────
   // FIXED: Query profile.profiles with role_normalized
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -150,7 +148,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .eq('id', record.user_id)
     .select('role_normalized, full_name, email')
     .single<{ role_normalized: string; full_name: string; email: string }>();
-
+    
   if (profileError || !profile) {
     console.error('[verify-email] Profile update error:', profileError);
     return NextResponse.json(
