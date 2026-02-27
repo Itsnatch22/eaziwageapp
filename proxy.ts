@@ -184,7 +184,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // Admin can access any dashboard, but redirect them to admin panel preferably
     if (isAdmin && !pathname.startsWith('/admin')) {
       // Allow admins to view dashboards for testing, but you could redirect:
-      // return NextResponse.redirect(new URL('/admin', request.url));
+      return NextResponse.redirect(new URL('/admin', request.url));
     }
   }
 

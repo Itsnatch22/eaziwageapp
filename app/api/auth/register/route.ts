@@ -261,10 +261,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // ── 6. Employee-specific: validate company_code exists (if provided) ─────────
   if (input.role === 'employee' && input.company_code) {
+    // Check if the company code exists in the approved employers table
+    // Using ilike for case-insensitive matching in case some codes are lowercase
     const { data: employer, error: empError } = await supabase
       .from('employers')
       .select('id, status')
-      .eq('company_code', input.company_code.toUpperCase())
+      .ilike('employer_code', input.company_code)
       .single();
 
     if (empError || !employer) {

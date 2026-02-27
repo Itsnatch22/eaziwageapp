@@ -312,7 +312,7 @@ export default function EmployerSettings() {
   useEffect(() => {
     const fetchData = async () => {
         try {
-            const res = await fetch("/api/employer-dashboard/profile");
+            const res = await fetch("/api/employer-dashboard/settings");
             if (!res.ok) {
               throw new Error(`Failed to fetch employer profile: ${res.status}`);
             }

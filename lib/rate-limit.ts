@@ -12,11 +12,11 @@ const redis = new Redis({
 
 /**
  * Rate limiter for registration endpoint
- * Limits to 5 registration attempts per hour per IP
+ * Limits to 7 registration attempts per hour per IP
  */
 export const rateLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(5, "1 h"),
+  limiter: Ratelimit.slidingWindow(7, "1 h"),
   analytics: true,
   prefix: "ratelimit:register",
 });
@@ -27,7 +27,7 @@ export const rateLimiter = new Ratelimit({
  */
 export const resendLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(3, "1 h"),
+  limiter: Ratelimit.slidingWindow(5, "1 h"),
   analytics: true,
   prefix: "ratelimit:resend",
 });

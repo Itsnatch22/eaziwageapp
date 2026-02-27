@@ -15,7 +15,7 @@ const supabase = createClient(
 type EmployerRow = {
   id: string;
   company_name: string | null;
-  company_code: string | null;
+  employer_code: string | null;
 };
 
 export async function GET(req: Request): Promise<NextResponse> {
@@ -35,7 +35,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 
     const { data, error } = await supabase
       .from('employers')
-      .select('id, company_name, company_code')
+      .select('id, company_name, employer_code')
       .eq('status', 'approved')
       .order('company_name', { ascending: true });
 
@@ -47,12 +47,12 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
-    const employers: EmployerRow[] = (data ?? [])
-      .filter((row): row is EmployerRow => Boolean(row?.id && row?.company_code))
+    const employers = (data ?? [])
+      .filter((row): row is EmployerRow => Boolean(row?.id && row?.employer_code))
       .map((row) => ({
         id: row.id,
-        company_name: row.company_name ?? row.company_code ?? 'Unknown company',
-        company_code: row.company_code ?? '',
+        company_name: row.company_name ?? row.employer_code ?? 'Unknown company',
+        company_code: row.employer_code ?? '',
       }));
 
     return NextResponse.json(employers, { status: 200, headers: rateResult.headers });
