@@ -183,16 +183,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const userId = authData.user.id;
 
-  // ── 7. Create profile record ────────────────────────────────────────────────
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: userId,
-    email: cleanEmail,
-    role_normalized: 'admin',
-    is_admin: true,
-    full_name: cleanEmail.split('@')[0],
-    email_verified: false,
-    created_at: new Date().toISOString(),
-  });
+  // ── 7. Create or Update admin record ─────────────────────────────────────────
+  const { error: profileError } = await supabase.from('system_admins').upsert(
+    {
+      id: userId, // This updates the record to match the new Auth ID
+      email: cleanEmail,
+      role_normalized: 'admin',
+      is_admin: true,
+      full_name: cleanEmail.split('@')[0],
+    },
+    { onConflict: 'email' } // Tell it to resolve conflicts based on the email
+  );
 
   if (profileError) {
     console.error('[Admin Signup] Profile creation error:', profileError);

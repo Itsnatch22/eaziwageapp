@@ -73,10 +73,10 @@ export async function POST(req: NextRequest) {
 
     // FIXED: Query profile.profiles with role_normalized or is_admin
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('role_normalized, is_admin')
-      .eq('id', user.id)
-      .single();
+    .from('system_admins')
+    .select('role_normalized, is_admin')
+    .eq('email', user.email)
+    .single();
 
     // Check if user is admin using either is_admin flag or role_normalized
     const isAdmin = profile?.is_admin === true || profile?.role_normalized === 'admin';

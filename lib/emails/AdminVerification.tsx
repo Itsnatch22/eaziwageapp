@@ -22,7 +22,7 @@ interface AdminVerificationEmailProps {
 export const AdminVerificationEmail = ({
   fullName = 'Admin',
   email = 'admin@example.com',
-  verificationUrl = 'https://eaziwage.com/verify-email?token=abc123',
+  verificationUrl = 'https://app.eaziwage.com/verify-email?token=abc123',
 }: AdminVerificationEmailProps) => (
   <Html>
     <Head />
