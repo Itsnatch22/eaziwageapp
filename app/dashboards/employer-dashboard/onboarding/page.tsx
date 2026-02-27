@@ -488,7 +488,7 @@ export default function EmployerOnboarding() {
               <Building2 className="w-10 h-10 text-white" />
             </div>
             <h2 className="font-heading text-3xl font-bold text-slate-900 dark:text-white mb-4">
-              Welcome to EaziWage Employer Portal
+              Welcome to EaziWage Employer Portal {userFullName ? `, ${userFullName.split(" ")[0]}` : ""}!
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-300 mb-8 max-w-lg mx-auto">
               Complete your company's due diligence onboarding to offer earned wage access to your employees.

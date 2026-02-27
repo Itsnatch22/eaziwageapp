@@ -279,7 +279,7 @@ export function validateDocumentStatus(status: unknown): DocumentStatus {
 }
 
 export function isAdminRole(role: UserRole): boolean {
-  return ['admin', 'super_admin', 'compliance'].includes(role);
+  return ['admin', 'super_admin', 'compliance', 'employer_admin'].includes(role);
 }
 
 // ============================================================================

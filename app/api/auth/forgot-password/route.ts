@@ -102,6 +102,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 4. Look up profile ───────────────────────────────────────────────────────
+  // FIXED: Query profile.profiles schema
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id, full_name, email')

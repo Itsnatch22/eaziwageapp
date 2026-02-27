@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   ArrowRight, Eye, EyeOff, Mail, Lock,
   AlertCircle, Sparkles, Sun, Moon,
@@ -13,9 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useTheme } from '@/lib/ThemeContext';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface LoginPayload {
+interface AdminSignupPayload {
   email:           string;
   password:        string;
   recaptcha_token: string;
@@ -26,39 +24,29 @@ declare global {
     grecaptcha: {
       ready: (cb: () => void) => void;
       execute: (siteKey: string, options: { action: string }) => Promise<string>;
-       render: (container: string | HTMLElement, parameters: Record<string, any>) => number;
+      render: (container: string | HTMLElement, parameters: Record<string, any>) => number;
       reset: (widgetId?: number) => void;
     };
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export default function LoginPage() {
+export default function AdminSignupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
-  const nextParam = searchParams.get('next');
-  const safeNext =
-    nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
-      ? nextParam
-      : null;
-
+  
   const [email,          setEmail]          = useState('');
   const [password,       setPassword]       = useState('');
   const [showPassword,   setShowPassword]   = useState(false);
   const [error,          setError]          = useState('');
+  const [success,        setSuccess]        = useState('');
   const [isLoading,      setIsLoading]      = useState(false);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
 
-  /** Executes reCAPTCHA v3 and returns a fresh token for the given action. */
   const getReCaptchaToken = useCallback((action: string): Promise<string> => {
     return new Promise((resolve, reject) => {
-      if (!RECAPTCHA_SITE_KEY)            return reject(new Error('reCAPTCHA site key not configured'));
+      if (!RECAPTCHA_SITE_KEY) return reject(new Error('reCAPTCHA site key not configured'));
       if (!recaptchaReady || !window.grecaptcha) return reject(new Error('reCAPTCHA not ready'));
       window.grecaptcha.ready(async () => {
         try {
@@ -73,23 +61,29 @@ export default function LoginPage() {
 
   const handleSubmit = useCallback(async () => {
     setError('');
+    setSuccess('');
 
     if (!email.trim() || !password) {
       setError('Please enter your email and password');
       return;
     }
 
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const recaptchaToken = await getReCaptchaToken('login');
+      const recaptchaToken = await getReCaptchaToken('signup');
 
-      const payload: LoginPayload = {
+      const payload: AdminSignupPayload = {
         email:           email.trim().toLowerCase(),
         password,
         recaptcha_token: recaptchaToken,
       };
 
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/admin/auth/sign-up', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
@@ -98,40 +92,23 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? 'Login failed. Please check your credentials.');
+        setError(data.error ?? 'Signup failed. Please try again.');
         return;
       }
 
-      // Role-based redirect — Supabase session is in httpOnly cookies set by the API
-      let defaultDestination = '/';
-      switch (data.role as string) {
-        case 'admin':
-          defaultDestination = '/admin';
-          break;
-        case 'employer':
-          defaultDestination = '/dashboards/employer-dashboard';
-          break;
-        case 'employee':
-          defaultDestination = '/dashboards/employee-dashboard';
-          break;
-      }
-      router.push(safeNext ?? defaultDestination);
+      setSuccess('Admin account created! Please check your email to confirm, then sign in.');
+      setTimeout(() => router.push('/admin/admin-login'), 3000);
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, getReCaptchaToken, router, safeNext]);
+  }, [email, password, getReCaptchaToken, router]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit(); };
 
   return (
     <>
-      {/**
-       * reCAPTCHA v3 — lazyOnload defers the script until after the page
-       * becomes interactive, keeping the login form fast to render.
-       * The button stays disabled until onReady fires.
-       */}
       <Script
         src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
         strategy="lazyOnload"
@@ -139,21 +116,16 @@ export default function LoginPage() {
       />
 
       <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
-
-        {/* Background layers */}
+        {/* Background layers – same as your login page */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.06)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute top-20 right-0 w-150 h-150 bg-green-500/8 rounded-full blur-[150px] pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-125 h-125 bg-slate-900/5 dark:bg-green-900/10 rounded-full blur-[150px] pointer-events-none" />
 
-        {/* Header */}
+        {/* Header – same */}
         <header className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-end">
-            <button
-              onClick={toggleTheme}
-              className="p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300"
-              aria-label="Toggle theme"
-            >
+            <button onClick={toggleTheme} className="p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300" aria-label="Toggle theme">
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
           </div>
@@ -162,8 +134,7 @@ export default function LoginPage() {
         {/* Main */}
         <main className="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] px-4 sm:px-6 lg:px-8">
           <div className="w-full max-w-md">
-
-            {/* Logo */}
+            {/* Logo – same */}
             <div className="flex justify-center mb-6">
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative">
@@ -180,24 +151,30 @@ export default function LoginPage() {
             <div className="flex justify-center mb-8">
               <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-full text-sm font-semibold text-green-700 dark:text-green-400">
                 <Sparkles className="w-4 h-4" />
-                Welcome back to EaziWage
+                Create Admin Account
               </div>
             </div>
 
             {/* Headline */}
             <div className="text-center mb-10">
               <h1 className="text-4xl font-serif sm:text-5xl font-bold text-slate-900 dark:text-white leading-tight mb-4 tracking-tight">
-                Sign In to Your{' '}
+                Set Up Your{' '}
                 <span className="bg-linear-to-r from-green-600 to-green-500 bg-clip-text text-transparent">
-                  Account
+                  Admin Account
                 </span>
               </h1>
               <p className="text-lg text-slate-500 dark:text-slate-400">
-                Access your earnings, anytime, anywhere.
+                Join the team and get started managing EaziWage.
               </p>
             </div>
 
-            {/* Error */}
+            {/* Success/Error */}
+            {success && (
+              <Alert className="mb-6 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 rounded-xl">
+                <AlertCircle className="h-4 w-4 text-green-500" />
+                <AlertDescription className="text-green-600 dark:text-green-400">{success}</AlertDescription>
+              </Alert>
+            )}
             {error && (
               <Alert className="mb-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 rounded-xl">
                 <AlertCircle className="h-4 w-4 text-red-500" />
@@ -205,11 +182,10 @@ export default function LoginPage() {
               </Alert>
             )}
 
-            {/* Card */}
+            {/* Card – same structure as login */}
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-8 shadow-xl shadow-slate-900/5">
               <div className="flex flex-col gap-5">
-
-                {/* Email */}
+                {/* Email – same */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     Email Address
@@ -217,7 +193,7 @@ export default function LoginPage() {
                   <div className="relative">
                     <Input
                       type="email"
-                      placeholder="employee@company.com"
+                      placeholder="admin@company.com"
                       className="h-14 pl-4 pr-12 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-green-600 focus:ring-2 focus:ring-green-600/20 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -228,7 +204,7 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Password */}
+                {/* Password – same */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     Password
@@ -241,7 +217,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      autoComplete="current-password"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
@@ -254,16 +230,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Forgot password */}
-                <div className="flex justify-end -mt-2">
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
-
                 {/* Submit */}
                 <Button
                   type="button"
@@ -274,7 +240,7 @@ export default function LoginPage() {
                   {isLoading ? (
                     <span className="flex items-center gap-2">
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Signing in…
+                      Creating account…
                     </span>
                   ) : !recaptchaReady ? (
                     <span className="flex items-center gap-2">
@@ -283,24 +249,25 @@ export default function LoginPage() {
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      Sign In
+                      Sign Up
                       <ArrowRight className="w-5 h-5" />
                     </span>
                   )}
                 </Button>
 
-                {/* Security note */}
+                {/* Security note – same */}
                 <div className="flex items-center justify-center gap-1.5 pt-1">
                   <Lock className="w-4 h-4 text-slate-400" />
-                  <span className="text-xs font-medium text-slate-400">
-                    Bank-grade 256-bit encryption · Protected by reCAPTCHA
+                  <span className="text-xs text-slate-400">
+                    Bank-grade encryption · Protected by reCAPTCHA
                   </span>
                 </div>
-                <div className="mt-8 text-center">
-                  <p className="text-slate-500 dark:text-slate-400">
-                    New to EaziWage?{' '}
-                    <Link href="/register" className="text-green-600 dark:text-green-400 font-semibold hover:underline">
-                      Create an account
+                  {/* Login link */}
+                <div className="text-center mt-6">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Already have an account?{' '}
+                    <Link href="/admin/admin-login" className="text-green-600 hover:text-green-700 font-medium">
+                      Sign In
                     </Link>
                   </p>
                 </div>

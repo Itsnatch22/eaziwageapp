@@ -7,14 +7,26 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: string | number | bigint, currency = 'KES') {
-  const numericAmount = Number(amount); // Convert the amount to a number
-  if (isNaN(numericAmount)) {
-    return ''; // Return an empty string if the amount is not a valid number
-  }
-  return new Intl.NumberFormat('en-KE', {
+const currencyLocaleMap: Record<string, string> = {
+  KES: 'en-KE',
+  RWF: 'en-RW',
+  TZS: 'sw-TZ',
+  UGX: 'en-UG',
+};
+
+export function formatCurrency(
+  amount: string | number | bigint,
+  currency = 'KES'
+) {
+  const numericAmount = Number(amount);
+
+  if (isNaN(numericAmount)) return '';
+
+  const locale = currencyLocaleMap[currency] || 'en';
+
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: currency,
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(numericAmount);

@@ -112,6 +112,7 @@ async function recordFailedAttempt(
   email:     string,
   ctx:       LoginContext,
 ): Promise<void> {
+  // Query from profile.profiles with role_normalized
   const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('failed_login_attempts')
@@ -192,14 +193,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 4. Look up profile (to check account lock before attempting auth) ────────
+  // FIXED: Query profile.profiles with role_normalized
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('id, full_name, role, email_verified, locked_until, failed_login_attempts')
+    .select('id, full_name, role_normalized, email_verified, locked_until, failed_login_attempts')
     .eq('email', input.email)
     .single<{
       id:                    string;
       full_name:             string;
-      role:                  string;
+      role_normalized:       string;
       email_verified:        boolean;
       locked_until:          string | null;
       failed_login_attempts: number;
@@ -327,7 +329,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const successResponse = NextResponse.json(
     {
       message: 'Signed in successfully.',
-      role:    profile?.role ?? user.user_metadata?.role ?? 'employee',
+      // FIXED: Use role_normalized instead of role
+      role:    profile?.role_normalized ?? user.user_metadata?.role ?? 'employee',
       userId:  user.id,
     },
     { status: 200, headers: rateResult.headers },
@@ -344,4 +347,3 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 export async function GET()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
 export async function PUT()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
 export async function DELETE() { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
-

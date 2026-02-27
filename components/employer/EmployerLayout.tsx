@@ -330,7 +330,27 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
   const [greeting, setGreeting] = useState('Welcome');
+  const [notifications, setNotifications] = useState<any[]>([]);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
+
+  // Fetch real notifications
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch('/api/employer-dashboard/notifications');
+        if (res.ok) {
+          const data = await res.json();
+          setNotifications(data.notifications || []);
+        }
+      } catch (err) {
+        console.error('Failed to load notifications', err);
+      }
+    };
+    fetchNotifications();
+    // Setting up a basic interval to fetch notifications every 2 minutes
+    const intervalId = setInterval(fetchNotifications, 120000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Close notifications when clicking outside
   useEffect(() => {
@@ -355,14 +375,6 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
     }
     setGreeting('Good Evening');
   }, []);
-
-  // Sample notifications
-  const notifications = [
-    { id: 1, type: 'advance', title: 'New Advance Request', message: 'John Kamau requested KES 15,000 advance', time: '2 hours ago', read: false },
-    { id: 2, type: 'system', title: 'Payroll Due', message: 'Monthly payroll submission is due in 3 days', time: '5 hours ago', read: false },
-    { id: 3, type: 'employee', title: 'KYC Completed', message: 'Sarah Mwangi completed KYC verification', time: '1 day ago', read: true },
-    { id: 4, type: 'advance', title: 'Advance Disbursed', message: '45 advances disbursed successfully', time: '2 days ago', read: true },
-  ];
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -462,7 +474,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
                   </div>
                   <div className="p-3 border-t border-slate-200/50 dark:border-slate-700/30">
                     <Link 
-                      href="/employer/notifications"
+                      href="/dashboards/employer-dashboard/notifications"
                       className="block w-full text-center text-sm font-medium text-primary hover:text-primary/80 py-2 rounded-xl hover:bg-primary/5 transition-colors"
                       onClick={() => setShowNotifications(false)}
                     >

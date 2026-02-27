@@ -1,27 +1,19 @@
+// app/api/admin/employers/[id]/status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { z } from 'zod';
 
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
-const StatusUpdateSchema = z.object({
-  status: z.enum(['approved', 'pending', 'rejected', 'suspended']),
-});
-
-function toDbStatus(status: 'approved' | 'pending' | 'rejected' | 'suspended'): string {
-  if (status === 'pending') return 'submitted';
-  return status;
-}
+type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const { id } = await params;
-
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-employer-status:${ip}`);
 
@@ -45,29 +37,12 @@ export async function PATCH(
     );
   }
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid request body.', code: 'BAD_REQUEST' },
-      { status: 400, headers: rateResult.headers }
-    );
-  }
-
-  const parsed = StatusUpdateSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? 'Invalid request.', code: 'VALIDATION_ERROR' },
-      { status: 400, headers: rateResult.headers }
-    );
-  }
-
   const env = getEnv();
   const adminSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // Verify Admin Role
   const { data: profile, error: profileError } = await adminSupabase
     .from('profiles')
     .select('role')
@@ -92,22 +67,81 @@ export async function PATCH(
     );
   }
 
-  const dbStatus = toDbStatus(parsed.data.status);
-  const { data, error } = await adminSupabase
-    .from('employer_onboarding')
-    .update({ status: dbStatus, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select('id, status, updated_at')
-    .single();
+  const { status: newStatus } = (await req.json()) as { status: AdminEmployerStatus };
 
-  if (error) {
-    console.error('[PATCH /api/admin/employers/:id/status] Supabase error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update employer status.', code: 'SERVER_ERROR' },
-      { status: 500, headers: rateResult.headers }
-    );
+  if (!['approved', 'pending', 'rejected', 'suspended'].includes(newStatus)) {
+    return NextResponse.json({ error: 'Invalid status provided.' }, { status: 400 });
   }
 
-  return NextResponse.json({ success: true, employer: data }, { status: 200, headers: rateResult.headers });
-}
+  // Fetch the onboarding record
+  const { data: onboardingRecord, error: fetchError } = await adminSupabase
+    .from('employer_onboarding')
+    .select('*')
+    .eq('id', id)
+    .single();
 
+  if (fetchError || !onboardingRecord) {
+    return NextResponse.json({ error: 'Employer not found.' }, { status: 404 });
+  }
+
+  // Update the status in employer_onboarding table
+  const { error: updateError } = await adminSupabase
+    .from('employer_onboarding')
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (updateError) {
+    return NextResponse.json({ error: 'Failed to update employer status.' }, { status: 500 });
+  }
+
+  // If approved, create a new record in the employers table
+  if (newStatus === 'approved' && onboardingRecord.status !== 'approved') {
+    const {
+      company_name,
+      company_code,
+      industry,
+      country,
+      registration_number,
+      tax_id,
+      physical_address,
+      contact_person,
+      contact_email,
+      contact_phone,
+      payroll_cycle,
+      risk_score,
+    } = onboardingRecord;
+
+    const { error: insertError } = await adminSupabase.from('employers').insert([
+      {
+        id,
+        company_name,
+        employer_code: company_code ?? `EMP-${id.slice(0, 8).toUpperCase()}`,
+        industry,
+        country,
+        registration_number,
+        tax_id,
+        address: physical_address,
+        contact_person,
+        contact_email,
+        contact_phone,
+        payroll_cycle,
+        status: 'approved',
+        risk_score,
+        employee_count: 0,
+        total_advances: 0,
+        monthly_payroll: 0,
+      },
+    ]);
+
+    if (insertError) {
+      // Rollback the status update if the insert fails
+      await adminSupabase
+        .from('employer_onboarding')
+        .update({ status: onboardingRecord.status })
+        .eq('id', id);
+      return NextResponse.json({ error: 'Failed to create employer record.' }, { status: 500 });
+    }
+  }
+
+  return NextResponse.json({ message: 'Employer status updated successfully.' });
+}

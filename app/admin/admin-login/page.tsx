@@ -79,7 +79,7 @@ export default function AdminLoginPage() {
             recaptcha_token: recaptchaToken,
           };
     
-          const res = await fetch('/api/auth/login', {
+          const res = await fetch('/api/admin/auth/login', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify(payload),
@@ -286,7 +286,15 @@ export default function AdminLoginPage() {
                         Bank-grade 256-bit encryption · Protected by reCAPTCHA
                       </span>
                     </div>
-    
+                      
+                      <div className="mt-8 text-center">
+                        <p className="text-slate-500 dark:text-slate-400">
+                          New to EaziWage?{' '}
+                          <Link href="/admin/admin-signup" className="text-green-600 dark:text-green-400 font-semibold hover:underline">
+                            Create a new admin account
+                          </Link>
+                        </p>
+                      </div>
                   </div>
                 </div>
               </div>

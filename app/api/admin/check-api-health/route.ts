@@ -73,7 +73,6 @@ export async function POST(_req: NextRequest) {
     checkVercel(),
     checkCellulant(),
     checkSafaricom(),
-    checkAirtel(),
   ]);
 
   const results = checks
@@ -179,33 +178,5 @@ async function checkSafaricom() {
     };
   } catch {
     return { name: 'M-Pesa Daraja', provider: 'Safaricom', status: 'down' as const, latency_ms: Date.now() - start };
-  }
-}
-
-async function checkAirtel() {
-  const start = Date.now();
-  try {
-    const res = await fetch('https://openapiuat.airtel.africa/auth/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        client_id: process.env.AIRTEL_CLIENT_ID,
-        client_secret: process.env.AIRTEL_CLIENT_SECRET,
-        grant_type: 'client_credentials',
-      }),
-      signal: AbortSignal.timeout(8000),
-    });
-
-    return {
-      name: 'Airtel Money',
-      provider: 'Airtel',
-      status: res.ok ? 'healthy' : 'degraded',
-      latency_ms: Date.now() - start,
-    };
-  } catch {
-    return { name: 'Airtel Money', provider: 'Airtel', status: 'down' as const, latency_ms: Date.now() - start };
   }
 }

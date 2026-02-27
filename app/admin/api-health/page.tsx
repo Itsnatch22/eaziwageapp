@@ -329,7 +329,6 @@ export default function AdminAPIHealth() {
   const getIcon = (name: string): React.ComponentType<React.SVGProps<SVGSVGElement>> => {
     const lower = name.toLowerCase();
     if (lower.includes('mpesa') || lower.includes('mobile')) return Smartphone;
-    if (lower.includes('airtel')) return Smartphone;
     if (lower.includes('bank')) return CreditCard;
     if (lower.includes('payroll') || lower.includes('vercel')) return Server;
     if (lower.includes('supabase')) return Database;

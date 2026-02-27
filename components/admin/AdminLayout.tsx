@@ -219,9 +219,10 @@ function AdminSidebar({ isOpen, onClose, user }: SidebarProps) {
 
 interface HeaderProps {
   onMenuClick: () => void;
+  user:    AdminUser | null;
 }
 
-function AdminHeader({ onMenuClick }: HeaderProps) {
+function AdminHeader({ onMenuClick, user }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -280,7 +281,7 @@ function AdminHeader({ onMenuClick }: HeaderProps) {
             </button>
             <div>
               <p className="text-sm text-slate-500 dark:text-slate-400">{getGreeting()}</p>
-              <h1 className="text-lg font-bold text-slate-900 dark:text-white">Admin Portal</h1>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-white">{user?.role || 'Admin Portal'}</h1>
             </div>
           </div>
 
@@ -381,19 +382,19 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   useEffect(() => {
     const fetchUser = async () => {
       const supabase = createBrowserClient(SUPABASE_URL, SUPABASE_ANON);
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { user } } = await supabase.auth.getUser();
 
-      if (session?.user) {
+      if (user) {
         const fallbackName =
-          session.user.user_metadata?.full_name ||
-          session.user.user_metadata?.name ||
-          session.user.email?.split('@')[0] ||
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          user.email?.split('@')[0] ||
           'Admin';
-        const fallbackEmail = session.user.email || '';
+        const fallbackEmail = user.email || '';
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, full_name, email, role')
-          .eq('id', session.user.id)
+          .eq('id', user.id)
           .single<AdminUser>();
 
         if (profile) {
@@ -406,10 +407,10 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         }
 
         setUser({
-          id: session.user.id,
+          id: user.id,
           full_name: fallbackName,
           email: fallbackEmail,
-          role: (session.user.user_metadata?.role as string) || 'admin',
+          role: (user.user_metadata?.role as string) || 'admin',
         });
       }
     };
@@ -422,7 +423,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
 
       <div className="lg:ml-72 min-h-screen flex flex-col">
-        <AdminHeader onMenuClick={() => setSidebarOpen(true)} />
+        <AdminHeader onMenuClick={() => setSidebarOpen(true)} user={user} />
         <main className="flex-1 p-4 lg:p-8">{children}</main>
       </div>
     </div>

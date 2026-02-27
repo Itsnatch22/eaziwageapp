@@ -13,7 +13,7 @@ import { sendKYCNotification, logEmail } from '@/lib/email-service';
 
 export const runtime = 'nodejs';
 
-const BUCKET = 'KYC';
+const BUCKET = 'employee-kyc-documents';
 
 /**
  * Create admin Supabase client with service role
