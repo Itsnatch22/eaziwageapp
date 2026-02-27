@@ -1,22 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
-import { render } from '@react-email/render';
 import { z } from 'zod';
 
 import { getEnv } from '@/env';
 import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { createToken } from '@/lib/token';
-import AdminVerificationEmail from '@/lib/emails/AdminVerification';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 export const runtime = 'nodejs';
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 const env = getEnv();
-const resend = new Resend(env.RESEND_API_KEY);
 
-const supabase = createClient(
+// Service role client for user management
+const supabaseAdmin = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
   env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } },
@@ -24,10 +21,7 @@ const supabase = createClient(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FROM_EMAIL = 'EaziWage Admin <admin@contact.eaziwage.com>';
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
-const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -138,35 +132,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 5. Check if user already exists ─────────────────────────────────────────
-  const { data: existingProfile } = await supabase
+  const { data: existingProfile } = await supabaseAdmin
     .from('profiles')
     .select('id, email, email_verified')
     .eq('email', cleanEmail)
     .maybeSingle();
 
   if (existingProfile) {
-    if (existingProfile.email_verified) {
-      return NextResponse.json(
-        { error: 'An account with this email already exists. Please sign in.' },
-        { status: 409, headers: rate.headers },
-      );
-    } else {
-      // User exists but not verified - resend verification email
-      return NextResponse.json(
-        { 
-          error: 'An account with this email exists but is not verified. Please check your email for the verification link.',
-          code: 'EMAIL_NOT_VERIFIED',
-        },
-        { status: 409, headers: rate.headers },
-      );
-    }
+    return NextResponse.json(
+      { error: 'An account with this email already exists. Please sign in.' },
+      { status: 409, headers: rate.headers },
+    );
   }
 
   // ── 6. Create Supabase auth user ────────────────────────────────────────────
-  const { data: authData, error: signupError } = await supabase.auth.admin.createUser({
+  const { data: authData, error: signupError } = await supabaseAdmin.auth.admin.createUser({
     email: cleanEmail,
     password,
-    email_confirm: false, // We'll send our own verification email
+    email_confirm: true, // Auto-confirm email
     user_metadata: {
       role: 'admin',
       full_name: cleanEmail.split('@')[0],
@@ -183,103 +166,57 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const userId = authData.user.id;
 
-  // ── 7. Create or Update admin record ─────────────────────────────────────────
-  const { error: profileError } = await supabase.from('system_admins').upsert(
+  // ── 7. Create admin record ─────────────────────────────────────────
+  const { error: profileError } = await supabaseAdmin.from('system_admins').upsert(
     {
-      id: userId, // This updates the record to match the new Auth ID
+      id: userId,
       email: cleanEmail,
       role_normalized: 'admin',
       is_admin: true,
       full_name: cleanEmail.split('@')[0],
     },
-    { onConflict: 'email' } // Tell it to resolve conflicts based on the email
+    { onConflict: 'email' }
   );
 
   if (profileError) {
     console.error('[Admin Signup] Profile creation error:', profileError);
     // Rollback: delete the auth user
-    await supabase.auth.admin.deleteUser(userId);
+    await supabaseAdmin.auth.admin.deleteUser(userId);
     return NextResponse.json(
       { error: 'Failed to create admin profile' },
       { status: 500, headers: rate.headers },
     );
   }
 
-  // ── 8. Create verification token ────────────────────────────────────────────
-  const { token, tokenHash } = createToken();
-  const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
-
-  const { error: tokenError } = await supabase
-    .from('email_verifications')
-    .insert({
-      user_id: userId,
-      token_hash: tokenHash,
-      expires_at: expiresAt.toISOString(),
-      created_at: new Date().toISOString(),
-    });
-
-  if (tokenError) {
-    console.error('[Admin Signup] Token creation error:', tokenError);
-    // Don't fail the signup - admin can request new verification email
-  }
-
-  // ── 9. Send verification email ──────────────────────────────────────────────
-  const verificationUrl = `${BASE_URL}/verify-email?token=${token}`;
-  
-  let html: string;
-  try {
-    html = await render(
-      AdminVerificationEmail({
-        fullName: cleanEmail.split('@')[0],
-        email: cleanEmail,
-        verificationUrl,
-      }),
-    );
-  } catch (renderError) {
-    console.error('[Admin Signup] Email render error:', renderError);
-    return NextResponse.json(
-      { 
-        success: true,
-        message: 'Admin account created, but verification email failed to send. Please contact support.',
-        warning: true,
-      },
-      { status: 201, headers: rate.headers },
-    );
-  }
-
-  const { data: emailData, error: emailError } = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: cleanEmail,
-    subject: 'Verify your EaziWage admin account',
-    html,
-    tags: [{ name: 'category', value: 'admin-verification' }],
+  // ── 8. Establish session (Auto-Login) ───────────────────────────────────────
+  const supabase = await createRouteHandlerClient();
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password,
   });
 
-  if (emailError) {
-    console.error('[Admin Signup] Email send error:', {
-      error: emailError,
-      to: cleanEmail,
-    });
+  if (signInError) {
+    console.error('[Admin Signup] Auto-login error:', signInError);
+    // Still return success 201 because user IS created
     return NextResponse.json(
       {
         success: true,
-        message: 'Admin account created, but verification email failed to send. Please request a new verification link.',
-        warning: true,
+        message: 'Admin account created successfully! Please sign in.',
+        autoLoginFailed: true,
       },
       { status: 201, headers: rate.headers },
     );
   }
 
-  console.log('[Admin Signup] Success:', {
+  console.log('[Admin Signup] Success + Auto-Login:', {
     userId,
     email: cleanEmail,
-    emailId: emailData?.id,
   });
 
   return NextResponse.json(
     {
       success: true,
-      message: 'Admin account created successfully! Please check your email to verify your account.',
+      message: 'Admin account created and authenticated successfully!',
     },
     { status: 201, headers: rate.headers },
   );

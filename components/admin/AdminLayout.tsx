@@ -357,6 +357,13 @@ function AdminHeader({ onMenuClick, user }: HeaderProps) {
                       ))
                     )}
                   </div>
+                  <Link
+                    href="/admin/notifications"
+                    onClick={() => setShowNotifications(false)}
+                    className="block py-3 text-center text-xs font-semibold text-green-600 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-t border-slate-200/50 dark:border-slate-700/30"
+                  >
+                    View All Notifications
+                  </Link>
                 </div>
               )}
             </div>

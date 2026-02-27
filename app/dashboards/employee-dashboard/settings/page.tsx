@@ -829,7 +829,7 @@ export default function Settings() {
 
     const handleEmployeeSettingsSave = async (field: string, value: string) => {
         try {
-            const res = await fetch('/api/employer-dashboard/employee-settings', {
+            const res = await fetch('/api/employee-dashboard/employee-settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ [field]: value }),

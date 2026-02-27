@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 import {
   ArrowRight, Eye, EyeOff, Mail, Lock,
   AlertCircle, Sparkles, Sun, Moon,
@@ -31,6 +32,8 @@ declare global {
 }
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export default function AdminSignupPage() {
   const router = useRouter();
@@ -43,6 +46,26 @@ export default function AdminSignupPage() {
   const [success,        setSuccess]        = useState('');
   const [isLoading,      setIsLoading]      = useState(false);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const supabase = createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Check if is admin
+        const { data: profile } = await supabase
+          .from('system_admins')
+          .select('is_admin, role_normalized')
+          .eq('email', user.email)
+          .single();
+        
+        if (profile?.is_admin || profile?.role_normalized === 'admin') {
+          router.push('/admin');
+        }
+      }
+    };
+    checkUser();
+  }, [router]);
 
   const getReCaptchaToken = useCallback((action: string): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -93,14 +116,17 @@ export default function AdminSignupPage() {
 
       if (!res.ok) {
         setError(data.error ?? 'Signup failed. Please try again.');
+        setIsLoading(false);
         return;
       }
 
-      setSuccess('Admin account created! Please check your email to confirm, then sign in.');
-      setTimeout(() => router.push('/admin/admin-login'), 3000);
+      setSuccess('Account created successfully! Please log in to continue.');
+      // Redirect to login page after 2 seconds
+      setTimeout(() => {
+        router.push('/admin/admin-login');
+      }, 2000);
     } catch {
       setError('Something went wrong. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   }, [email, password, getReCaptchaToken, router]);
@@ -267,7 +293,7 @@ export default function AdminSignupPage() {
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     Already have an account?{' '}
                     <Link href="/admin/admin-login" className="text-green-600 hover:text-green-700 font-medium">
-                      Sign In
+                      Log In
                     </Link>
                   </p>
                 </div>

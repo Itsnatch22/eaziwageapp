@@ -19,7 +19,7 @@ import * as React from 'react';
 interface WelcomeEmailProps {
   fullName: string;
   email: string;
-  role: 'employee' | 'employer';
+  role: 'employee' | 'employer' | 'admin';
   verificationUrl: string;
   companyName?: string;
 }

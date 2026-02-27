@@ -1,4 +1,3 @@
-// proxy.ts  (or rename to middleware.ts)
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
@@ -8,6 +7,7 @@ type UserRole = 'employer' | 'employee' | 'admin';
 interface Profile {
   role_normalized: UserRole;
   is_admin?: boolean;
+  email_verified: boolean;
 }
 
 // ─── Route Groups ─────────────────────────────────────────────────────────────
@@ -21,32 +21,33 @@ const PUBLIC_PATHS = new Set([
   '/admin/admin-signup',
 ]);
 
-// API routes should not trigger redirects
-const isApiRoute = (pathname: string) => pathname.startsWith('/api/');
+// ─── Helper Functions ─────────────────────────────────────────────────────────
 
-// Static assets and Next.js internals
-const isStaticAsset = (pathname: string) => {
+// Check if path should skip middleware (API or static assets)
+function isSkippedPath(pathname: string): boolean {
   return (
+    pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/static/') ||
     /\.(ico|png|jpg|jpeg|gif|webp|svg|css|js|woff|woff2|ttf|eot)$/.test(pathname)
   );
-};
+}
 
-export async function proxy(request: NextRequest): Promise<NextResponse> {
-  const { pathname } = request.nextUrl;
+// Categorize the pathname
+function categorizePath(pathname: string) {
+  return {
+    isPublic: PUBLIC_PATHS.has(pathname),
+    isAdmin: pathname.startsWith('/admin') && 
+             pathname !== '/admin/admin-login' && 
+             pathname !== '/admin/admin-signup',
+    isEmployerDashboard: pathname.startsWith('/dashboards/employer-dashboard'),
+    isEmployeeDashboard: pathname.startsWith('/dashboards/employee-dashboard'),
+  };
+}
 
-  // Skip middleware for API routes and static assets
-  if (isApiRoute(pathname) || isStaticAsset(pathname)) {
-    return NextResponse.next();
-  }
-
-  const response = NextResponse.next({
-    request: { headers: request.headers },
-  });
-
-  // ─── Supabase SSR Client ──────────────────────────────────────────────────────
-  const supabase = createServerClient(
+// Create Supabase SSR client
+function createSupabaseClient(request: NextRequest, response: NextResponse) {
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -62,33 +63,81 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       },
     }
   );
+}
 
-  const {
-    data: { user },
-    error: sessionError,
-  } = await supabase.auth.getUser();
+// Create Supabase admin client
+function createSupabaseAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+}
 
+// Fetch user profile from appropriate table
+async function fetchUserProfile(
+  supabaseAdmin: ReturnType<typeof createSupabaseAdminClient>,
+  userId: string,
+  isAdminPath: boolean
+): Promise<Profile | null> {
+  const table = isAdminPath ? 'system_admins' : 'profiles';
+  const { data, error } = await supabaseAdmin
+    .from(table)
+    .select('role_normalized, is_admin, email_verified') // Added email_verified to select
+    .eq('id', userId)
+    .single<Profile>();
+
+  if (error) {
+    console.error('[Middleware] Profile lookup error:', {
+      userId,
+      error: error.message,
+      table,
+    });
+    return null;
+  }
+
+  return data;
+}
+
+// Determine redirect URL based on role and admin status
+function getDashboardRedirectUrl(userRole: UserRole, isAdmin: boolean): string {
+  if (isAdmin) return '/admin';
+  return userRole === 'employer'
+    ? '/dashboards/employer-dashboard'
+    : '/dashboards/employee-dashboard';
+}
+
+export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+
+  // Early return for skipped paths
+  if (isSkippedPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  const response = NextResponse.next({
+    request: { headers: request.headers },
+  });
+
+  // Create Supabase clients
+  const supabase = createSupabaseClient(request, response);
+  const supabaseAdmin = createSupabaseAdminClient();
+
+  // Get user session
+  const { data: { user }, error: sessionError } = await supabase.auth.getUser();
   const isAuthenticated = !sessionError && !!user;
 
-  // ─── Path Categorization ──────────────────────────────────────────────────────
-  const isPublicPath = PUBLIC_PATHS.has(pathname);
-  const isAdminRoute = pathname.startsWith('/admin') && 
-                       pathname !== '/admin/admin-login' && 
-                       pathname !== '/admin/admin-signup';
-  const isEmployerDashboard = pathname.startsWith('/dashboards/employer-dashboard');
-  const isEmployeeDashboard = pathname.startsWith('/dashboards/employee-dashboard');
-  const isDashboardRoute = isEmployerDashboard || isEmployeeDashboard;
-  const isCallbackRoute = pathname === '/callback' || pathname.startsWith('/callback');
+  // Path categorization
+  const { isPublic, isAdmin, isEmployerDashboard, isEmployeeDashboard } = categorizePath(pathname);
+  const isDashboard = isEmployerDashboard || isEmployeeDashboard;
 
-  // ─── Case 1: Unauthenticated user trying to access protected route ───────────
+  // ─── Unauthenticated User Handling ────────────────────────────────────────────
   if (!isAuthenticated) {
-    // Allow access to public paths
-    if (isPublicPath || isCallbackRoute) {
+    if (isPublic) {
       return response;
     }
 
-    // Redirect to login with return URL for protected routes
-    if (isDashboardRoute || isAdminRoute) {
+    if (isDashboard || isAdmin) {
       const loginUrl = new URL('/', request.url);
       loginUrl.searchParams.set('next', pathname);
       return NextResponse.redirect(loginUrl);
@@ -97,98 +146,52 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return response;
   }
 
-  // ─── Case 2: Authenticated user - Get profile once ───────────────────────────
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
+  // ─── Authenticated User - Fetch Profile ───────────────────────────────────────
+  const profile = await fetchUserProfile(supabaseAdmin, user!.id, isAdmin);
 
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('role_normalized, is_admin, email_verified')
-    .eq('id', user.id)
-    .single<Profile & { email_verified: boolean }>();
-
-  // ─── Case 3: Profile doesn't exist or error ──────────────────────────────────
-  if (profileError || !profile) {
-    console.error('[Middleware] Profile lookup error:', {
-      userId: user.id,
-      error: profileError?.message,
-      pathname,
-    });
-
-    // Allow callback route to handle profile setup
-    if (isCallbackRoute) {
-      return response;
-    }
-
-    // Redirect to callback for profile setup
-    const setupUrl = new URL('/callback', request.url);
-    setupUrl.searchParams.set('setup', '1');
-    setupUrl.searchParams.set('error', 'profile_not_found');
-    return NextResponse.redirect(setupUrl);
+  if (!profile) {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   const userRole = profile.role_normalized;
-  const isAdmin = profile.is_admin === true || userRole === 'admin';
+  const isAdminUser = profile.is_admin === true || userRole === 'admin';
 
-  // ─── Case 4: Email not verified ──────────────────────────────────────────────
-  // Allow access to verification and logout routes
-  if (!profile.email_verified && !pathname.startsWith('/verify-email') && !isCallbackRoute) {
-    const verifyUrl = new URL('/verify-email', request.url);
-    return NextResponse.redirect(verifyUrl);
+  // ─── Email Verification Check ─────────────────────────────────────────────────
+  if (!profile.email_verified && !pathname.startsWith('/verify-email')) {
+    return NextResponse.redirect(new URL('/verify-email', request.url));
   }
 
-  // ─── Case 5: Admin route protection ──────────────────────────────────────────
-  if (isAdminRoute) {
-    if (!isAdmin) {
-      // Non-admin trying to access admin route
-      const dashboardUrl = userRole === 'employer'
-        ? '/dashboards/employer-dashboard'
-        : '/dashboards/employee-dashboard';
+  // ─── Admin Route Protection ───────────────────────────────────────────────────
+  if (isAdmin) {
+    if (!isAdminUser) {
+      const dashboardUrl = getDashboardRedirectUrl(userRole, isAdminUser);
       return NextResponse.redirect(new URL(dashboardUrl, request.url));
     }
-    // Admin has access
     return response;
   }
 
-  // ─── Case 6: Authenticated user on public paths (login/register) ─────────────
-  if (isPublicPath && !isCallbackRoute) {
-    // Redirect to appropriate dashboard based on role
-    const dashboardUrl = isAdmin
-      ? '/admin'
-      : userRole === 'employer'
-      ? '/dashboards/employer-dashboard'
-      : '/dashboards/employee-dashboard';
-
+  // ─── Redirect Authenticated Users from Public Paths ───────────────────────────
+  if (isPublic) {
+    const dashboardUrl = getDashboardRedirectUrl(userRole, isAdminUser);
     return NextResponse.redirect(new URL(dashboardUrl, request.url));
   }
 
-  // ─── Case 7: Role-based dashboard access control ─────────────────────────────
-  if (isDashboardRoute) {
-    // Employer trying to access employee dashboard
+  // ─── Role-Based Dashboard Access Control ──────────────────────────────────────
+  if (isDashboard) {
     if (isEmployeeDashboard && userRole === 'employer') {
-      return NextResponse.redirect(
-        new URL('/dashboards/employer-dashboard', request.url)
-      );
+      return NextResponse.redirect(new URL('/dashboards/employer-dashboard', request.url));
     }
 
-    // Employee trying to access employer dashboard
     if (isEmployerDashboard && userRole === 'employee') {
-      return NextResponse.redirect(
-        new URL('/dashboards/employee-dashboard', request.url)
-      );
+      return NextResponse.redirect(new URL('/dashboards/employee-dashboard', request.url));
     }
 
-    // Admin can access any dashboard, but redirect them to admin panel preferably
-    if (isAdmin && !pathname.startsWith('/admin')) {
-      // Allow admins to view dashboards for testing, but you could redirect:
+    if (isAdminUser && !pathname.startsWith('/admin')) {
       return NextResponse.redirect(new URL('/admin', request.url));
     }
   }
 
-  // ─── Case 8: All checks passed, allow access ─────────────────────────────────
+  // ─── All Checks Passed ────────────────────────────────────────────────────────
   return response;
 }
 
