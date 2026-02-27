@@ -16,6 +16,7 @@ interface EnvConfig {
   UPSTASH_REDIS_REST_URL: string;
   UPSTASH_REDIS_REST_TOKEN: string;
   RESEND_API_KEY: string;
+  ADMIN_EMAILS?: string; // Comma-separated list of allowed admin emails (optional)
 }
 
 class EnvironmentError extends Error {
@@ -69,6 +70,15 @@ export function validateEnv(): EnvConfig {
       errors.push('UPSTASH_REDIS_REST_TOKEN is not defined');
     }
 
+    if(!process.env.ADMIN_EMAILS) {
+      errors.push('ADMIN_EMAILS is not defined');
+    } else {
+      const emails = process.env.ADMIN_EMAILS.split(',').map(e => e.trim());
+      if (emails.some(e => !e || !/\S+@\S+\.\S+/.test(e))) {
+        errors.push('ADMIN_EMAILS contains invalid email addresses');
+      }
+    }
+
     if (!process.env.RESEND_API_KEY) {
       errors.push('RESEND_API_KEY is not defined');
     }
@@ -89,6 +99,7 @@ export function validateEnv(): EnvConfig {
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL!,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN!,
     RESEND_API_KEY: process.env.RESEND_API_KEY!,
+    ADMIN_EMAILS: process.env.ADMIN_EMAILS,
   };
 }
 

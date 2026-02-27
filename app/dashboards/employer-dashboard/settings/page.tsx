@@ -286,7 +286,7 @@ export default function EmployerSettings() {
       }
     };
 
-    const [settings, setSettings] = useState({
+    const [profile, setProfile] = useState({
     maxAdvancePercentage: 50,
     minAdvanceAmount: 500,
     maxAdvanceAmount: 50000,
@@ -314,12 +314,12 @@ export default function EmployerSettings() {
         try {
             const res = await fetch("/api/employer-dashboard/profile");
             if (!res.ok) {
-              throw new Error(`Failed to fetch employer settings: ${res.status}`);
+              throw new Error(`Failed to fetch employer profile: ${res.status}`);
             }
             const payload = await res.json();
             const employerData = payload?.employer ?? payload ?? {};
             setEmployer(employerData);
-            setSettings(prev => ({
+            setProfile(prev => ({
                 ...prev,
                 companyName: employerData.company_name || '',
                 contactPerson: employerData.contact_person || '',
@@ -353,22 +353,22 @@ export default function EmployerSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-        const res = await fetch("/api/employer-dashboard/settings", {
+        const res = await fetch("/api/employer-dashboard/profile", {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(settings),
+            body: JSON.stringify(profile),
         });
         if (res.ok) {
-            toast.success("Settings saved successfully");
+            toast.success("Profile saved successfully");
         } else {
             const data = await res.json();
-            toast.error(data.error || "Failed to save settings");
+            toast.error(data.error || "Failed to save profile");
         }
     } catch (err) {
-        console.error("Failed to save settings:", err);
-        toast.error("Failed to save settings");
+        console.error("Failed to save profile:", err);
+        toast.error("Failed to save profile");
     } finally {
         setSaving(false);
     }
@@ -492,7 +492,7 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Company Name</Label>
                       <Input
-                        value={settings.companyName}
+                        value={profile.companyName}
                         readOnly
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                         data-testid="company-name-input"
@@ -502,7 +502,7 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Payroll Cycle</Label>
                       <Input
-                        value={settings.payrollCycle === 'monthly' ? 'Monthly' : settings.payrollCycle === 'bi-weekly' ? 'Bi-Weekly' : settings.payrollCycle === 'weekly' ? 'Weekly' : settings.payrollCycle}
+                        value={profile.payrollCycle === 'monthly' ? 'Monthly' : profile.payrollCycle === 'bi-weekly' ? 'Bi-Weekly' : profile.payrollCycle === 'weekly' ? 'Weekly' : settings.payrollCycle}
                         readOnly
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed capitalize"
                         data-testid="payroll-cycle-select"
@@ -529,7 +529,7 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Physical Address</Label>
                       <Input
-                        value={settings.physicalAddress}
+                        value={profile.physicalAddress}
                         readOnly
                         placeholder="Street address, building name"
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
@@ -540,7 +540,7 @@ export default function EmployerSettings() {
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">City</Label>
                         <Input
-                          value={settings.city}
+                          value={profile.city}
                           readOnly
                           placeholder="Nairobi"
                           className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
@@ -550,7 +550,7 @@ export default function EmployerSettings() {
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Postal Code</Label>
                         <Input
-                          value={settings.postalCode}
+                          value={profile.postalCode}
                           readOnly
                           placeholder="00100"
                           className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
@@ -562,7 +562,7 @@ export default function EmployerSettings() {
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">County/Region</Label>
                         <Input
-                          value={settings.countyRegion}
+                          value={profile.countyRegion}
                           readOnly
                           placeholder="Your county or region"
                           className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
@@ -572,7 +572,7 @@ export default function EmployerSettings() {
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Country</Label>
                         <Input
-                          value={settings.country === 'KE' ? 'Kenya' : settings.country === 'UG' ? 'Uganda' : settings.country === 'TZ' ? 'Tanzania' : settings.country === 'RW' ? 'Rwanda' : settings.country}
+                          value={profile.country === 'KE' ? 'Kenya' : profile.country === 'UG' ? 'Uganda' : profile.country === 'TZ' ? 'Tanzania' : profile.country === 'RW' ? 'Rwanda' : profile.country}
                           readOnly
                           placeholder="Country"
                           className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
@@ -589,7 +589,7 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Contact Person</Label>
                       <Input
-                        value={settings.contactPerson}
+                        value={profile.contactPerson}
                         readOnly
                         placeholder="Full name"
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
@@ -599,7 +599,7 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Phone Number</Label>
                       <Input
-                        value={settings.contactPhone}
+                        value={profile.contactPhone}
                         readOnly
                         placeholder="+254 700 000 000"
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
@@ -610,7 +610,7 @@ export default function EmployerSettings() {
                       <Label className="text-slate-700 dark:text-slate-300">Email Address</Label>
                       <Input
                         type="email"
-                        value={settings.contactEmail}
+                        value={profile.contactEmail}
                         readOnly
                         placeholder="email@company.com"
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
