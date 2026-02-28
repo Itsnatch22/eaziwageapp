@@ -363,7 +363,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
       });
 
       return () => {
-        pusherClient.unsubscribe(`employer-${user.id}`);
+        pusherClient!.unsubscribe(`employer-${user.id}`);
       };
     }
   }, [user?.id, fetchNotifications]);
