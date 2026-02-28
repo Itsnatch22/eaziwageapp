@@ -7,7 +7,7 @@ const profileUpdateSchema = z.object({
     phone: z.string().regex(/^\+?[\d\s\-\(\)]{10,}$/, 'Invalid phone number format').optional(),
 });
 
-async function getFullProfile( supabase: any, userId: string){
+async function getFullProfile( supabase: any, userId: string, user: any){
     let { data: profile } = await supabase
     .from('profiles')
     .select('*')
@@ -19,8 +19,10 @@ async function getFullProfile( supabase: any, userId: string){
         .from('profiles')
         .insert({
             id: userId,
-            full_name: 'User',
-            email: 'user@eaziwage.com',
+            full_name: user?.user_metadata?.full_name || user?.user_metadata?.name || 'User',
+            email: user?.email || '',
+            role: user?.user_metadata?.role || 'employee',
+            role_normalized: user?.user_metadata?.role || 'employee',
         })
         .select()
         .single();
@@ -70,7 +72,7 @@ export async function GET() {
         return Response.json({ error: 'Unauthorized' }, { status: 400 });
     }
 
-    const profile = await getFullProfile(supabase, user.id);
+    const profile = await getFullProfile(supabase, user.id, user);
     return Response.json({profile});
 }
 
@@ -115,7 +117,7 @@ export async function POST(req: NextRequest) {
         .update({ profile_picture_url: urlData.publicUrl, updated_at: new Date().toISOString() })
         .eq('id', user.id);
 
-        const profile = await getFullProfile(supabase, user.id);
+        const profile = await getFullProfile(supabase, user.id, user);
         return Response.json({ profile });
     }
 
@@ -144,6 +146,6 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: 'Update failed' }, { status: 500 });
     }
 
-    const profile = await getFullProfile(supabase, user.id);
+    const profile = await getFullProfile(supabase, user.id, user);
     return Response.json({ profile });
 }

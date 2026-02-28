@@ -1,10 +1,4 @@
-// app/api/admin/employers/route.ts
-//
-// GET /api/admin/employers
-//
-// Admin endpoint to list all employers with comprehensive risk scoring data
-// Aligned with EaziWage Risk Classification, Scoring & Framework (REV1)
-//
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 

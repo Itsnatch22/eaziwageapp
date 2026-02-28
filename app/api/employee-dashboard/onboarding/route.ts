@@ -1,13 +1,9 @@
-// app/api/employee-dashboard/onboarding/route.ts
-//
-// POST — Submit full employee KYC application
-// GET  — Fetch the current user's existing application (for resume / status check)
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { employeeOnboardingSchema } from '@/lib/validations/employee-validation';
 import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
+import pusherServer from '@/lib/pusher-server';
 
 export const runtime = 'nodejs';
 
@@ -210,27 +206,43 @@ export async function POST(req: NextRequest) {
   try {
     // 1. Employer Notification
     if (employer.user_id) {
-      await supabase.from('notifications').insert({
-        user_id: employer.user_id,
-        type: 'employee',
-        title: 'New Employee Registration',
-        message: `${employeeName} has submitted their KYC application.`,
-        read: false,
-      });
+      const { data: empNotif, error: empNotifError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: employer.user_id,
+          type: 'employee',
+          title: 'New Employee Registration',
+          message: `${employeeName} has submitted their KYC application.`,
+          read: false,
+        })
+        .select()
+        .single();
+
+      if (!empNotifError && empNotif) {
+        await pusherServer.trigger(`employer-${employer.user_id}`, 'new-notification', empNotif);
+      }
     }
 
     // 2. Admin Notification
-    await supabase.from('admin_notifications').insert({
-      type: 'review_request',
-      title: 'New KYC Application',
-      message: `${employeeName} from ${employer.company_name} has submitted a new KYC application for review.`,
-      read: false,
-      metadata: {
-        employee_id: user.id,
-        employer_id: employer.id,
-        company_name: employer.company_name,
-      },
-    });
+    const { data: adminNotif, error: adminNotifError } = await supabase
+      .from('admin_notifications')
+      .insert({
+        type: 'review_request',
+        title: 'New KYC Application',
+        message: `${employeeName} from ${employer.company_name} has submitted a new KYC application for review.`,
+        read: false,
+        metadata: {
+          employee_id: user.id,
+          employer_id: employer.id,
+          company_name: employer.company_name,
+        },
+      })
+      .select()
+      .single();
+
+    if (!adminNotifError && adminNotif) {
+      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
+    }
   } catch (notifErr) {
     console.error('[onboarding/notifications]', notifErr);
     // Non-fatal, continue to email

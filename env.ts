@@ -9,6 +9,8 @@ interface EnvConfig {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: string;
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: string;
   NEXT_PUBLIC_APP_URL?: string;
+  NEXT_PUBLIC_PUSHER_APP_KEY: string;
+  NEXT_PUBLIC_PUSHER_CLUSTER: string;
   
   // Server-side only variables
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -16,7 +18,10 @@ interface EnvConfig {
   UPSTASH_REDIS_REST_URL: string;
   UPSTASH_REDIS_REST_TOKEN: string;
   RESEND_API_KEY: string;
-  ADMIN_EMAILS?: string; // Comma-separated list of allowed admin emails (optional)
+  ADMIN_EMAILS?: string;
+  ADMIN_PASSWORD?: string;
+  PUSHER_APP_ID: string;
+  PUSHER_APP_SECRET: string;
 }
 
 class EnvironmentError extends Error {
@@ -50,6 +55,14 @@ export function validateEnv(): EnvConfig {
     errors.push('NEXT_PUBLIC_RECAPTCHA_SITE_KEY is not defined');
   }
 
+  if (!process.env.NEXT_PUBLIC_PUSHER_APP_KEY) {
+    errors.push('NEXT_PUBLIC_PUSHER_APP_KEY is not defined');
+  }
+
+  if (!process.env.NEXT_PUBLIC_PUSHER_CLUSTER) {
+    errors.push('NEXT_PUBLIC_PUSHER_CLUSTER is not defined');
+  }
+
   // Check server-side variables (only on server)
   if (typeof window === 'undefined') {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -70,7 +83,7 @@ export function validateEnv(): EnvConfig {
       errors.push('UPSTASH_REDIS_REST_TOKEN is not defined');
     }
 
-    if(!process.env.ADMIN_EMAILS) {
+    if (!process.env.ADMIN_EMAILS) {
       errors.push('ADMIN_EMAILS is not defined');
     } else {
       const emails = process.env.ADMIN_EMAILS.split(',').map(e => e.trim());
@@ -79,8 +92,20 @@ export function validateEnv(): EnvConfig {
       }
     }
 
+    if (!process.env.ADMIN_PASSWORD) {
+      errors.push('ADMIN_PASSWORD is not defined');
+    }
+
     if (!process.env.RESEND_API_KEY) {
       errors.push('RESEND_API_KEY is not defined');
+    }
+
+    if (!process.env.PUSHER_APP_ID) {
+      errors.push('PUSHER_APP_ID is not defined');
+    }
+
+    if (!process.env.PUSHER_APP_SECRET) {
+      errors.push('PUSHER_APP_SECRET is not defined');
     }
   }
 
@@ -94,12 +119,18 @@ export function validateEnv(): EnvConfig {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_PUSHER_APP_KEY: process.env.NEXT_PUBLIC_PUSHER_APP_KEY!,
+    NEXT_PUBLIC_PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
     RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY!,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL!,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN!,
     RESEND_API_KEY: process.env.RESEND_API_KEY!,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
+    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+    PUSHER_APP_ID: process.env.PUSHER_APP_ID!,
+    PUSHER_APP_SECRET: process.env.PUSHER_APP_SECRET!,
   };
 }
 

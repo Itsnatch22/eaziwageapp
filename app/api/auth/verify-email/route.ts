@@ -146,8 +146,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .from('profiles')
     .update({ email_verified: true })
     .eq('id', record.user_id)
-    .select('role_normalized, full_name, email')
-    .single<{ role_normalized: string; full_name: string; email: string }>();
+    .select('role_normalized, role, full_name, email')
+    .single<{ role_normalized: string; role: string; full_name: string; email: string }>();
     
   if (profileError || !profile) {
     console.error('[verify-email] Profile update error:', profileError);
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   return NextResponse.json(
-    { message: 'Email verified successfully.', role: profile.role_normalized },
+    { message: 'Email verified successfully.', role: profile.role_normalized || profile.role },
     { status: 200, headers: rate.headers },
   );
 }

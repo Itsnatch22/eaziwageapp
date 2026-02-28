@@ -11,10 +11,12 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
 import { logout } from '@/actions/auth';
-import React,{ useState, useRef, useEffect }from 'react';
+import React,{ useState, useRef, useEffect, useCallback }from 'react';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
+import pusherClient from '@/lib/pusher-client';
+import { toast } from 'sonner';
 
 export const EmployerBackground = () => (
   <>
@@ -332,25 +334,39 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const [greeting, setGreeting] = useState('Welcome');
   const [notifications, setNotifications] = useState<any[]>([]);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
+  const user = useAuthStore((state: any) => state.user);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch('/api/employer-dashboard/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+      }
+    } catch (err) {
+      console.error('Failed to load notifications', err);
+    }
+  }, []);
 
   // Fetch real notifications
   useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const res = await fetch('/api/employer-dashboard/notifications');
-        if (res.ok) {
-          const data = await res.json();
-          setNotifications(data.notifications || []);
-        }
-      } catch (err) {
-        console.error('Failed to load notifications', err);
-      }
-    };
     fetchNotifications();
-    // Setting up a basic interval to fetch notifications every 2 minutes
-    const intervalId = setInterval(fetchNotifications, 120000);
-    return () => clearInterval(intervalId);
-  }, []);
+    
+    if (user?.id) {
+      const channel = pusherClient.subscribe(`employer-${user.id}`);
+      channel.bind('new-notification', (data: any) => {
+        toast(data.title, {
+          description: data.message,
+          icon: <Bell className="w-5 h-5 text-primary" />
+        });
+        fetchNotifications();
+      });
+
+      return () => {
+        pusherClient.unsubscribe(`employer-${user.id}`);
+      };
+    }
+  }, [user?.id, fetchNotifications]);
 
   // Close notifications when clicking outside
   useEffect(() => {

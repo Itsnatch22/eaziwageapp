@@ -65,6 +65,21 @@ interface ExtendedStats {
   department_breakdown?: Record<string, number>;
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const DEFAULT_EWA: EWASettings = {
+  ewa_enabled: true,
+  max_advance_percentage: 50,
+  min_advance_amount: 500,
+  max_advance_amount: 50000,
+  cooldown_period: 7,
+};
+
+const CHART_COLORS = [
+  '#0df259', '#10b981', '#059669', '#047857', '#065f46',
+  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#ec4899',
+];
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface MetricCardProps {
@@ -76,7 +91,7 @@ interface MetricCardProps {
   trendUp?: boolean;
 }
 
-const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }: MetricCardProps) => (
+const MetricCard: React.FC<MetricCardProps> = ({ icon: Icon, label, value, subtext, trend, trendUp }) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30">
     <div className="flex items-start justify-between mb-3">
       <GradientIconBox icon={Icon} size="md" />
@@ -98,7 +113,7 @@ const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }: Metri
   </div>
 );
 
-const StatusBadge = ({ status }: { status: string }) => {
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const config = {
     approved: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Active' },
     pending:  { bg: 'bg-amber-100 dark:bg-amber-500/20',  text: 'text-amber-700 dark:text-amber-300',  label: 'Pending' },
@@ -108,7 +123,7 @@ const StatusBadge = ({ status }: { status: string }) => {
   return <span className={cn('px-3 py-1 rounded-full text-xs font-semibold', bg, text)}>{label}</span>;
 };
 
-const KYCBadge = ({ status }: { status: string }) => {
+const KYCBadge: React.FC<{ status: string }> = ({ status }) => {
   const config = {
     approved:     { icon: CheckCircle2, color: 'text-emerald-600' },
     pending:      { icon: Clock,         color: 'text-amber-600'   },
@@ -119,9 +134,9 @@ const KYCBadge = ({ status }: { status: string }) => {
   return <Icon className={cn('w-5 h-5', color)} />;
 };
 
-const FilterButton = ({
+const FilterButton: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({
   active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
+}) => (
   <button
     onClick={onClick}
     className={cn(
@@ -135,23 +150,17 @@ const FilterButton = ({
   </button>
 );
 
-// ─── Department Pie Chart ─────────────────────────────────────────────────────
-
-const CHART_COLORS = [
-  '#0df259', '#10b981', '#059669', '#047857', '#065f46',
-  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#ec4899',
-];
-
-const DepartmentPieChart = ({
-  data, totalEmployees,
-}: { data: Record<string, number>; totalEmployees: number }) => {
+const DepartmentPieChart: React.FC<{
+  data: Record<string, number>;
+  totalEmployees: number;
+}> = ({ data, totalEmployees }) => {
   if (!data || Object.keys(data).length === 0) return null;
 
   const chartData = Object.entries(data).map(([name, value], i) => ({
     name, value: Number(value), color: CHART_COLORS[i % CHART_COLORS.length],
   }));
 
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: typeof chartData[0] }[] }) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload?.length) {
       const d = payload[0].payload;
       return (
@@ -200,16 +209,12 @@ const DepartmentPieChart = ({
   );
 };
 
-// ─── Employee Row ─────────────────────────────────────────────────────────────
-
-const EmployeeRow = ({
-  employee, onViewDetails, onEditEWA, currency,
-}: {
+const EmployeeRow: React.FC<{
   employee: Employee;
   onViewDetails: (e: Employee) => void;
   onEditEWA: (e: Employee) => void;
   currency: string;
-}) => (
+}> = ({ employee, onViewDetails, onEditEWA, currency }) => (
   <div className="flex items-center gap-4 p-4 bg-white/40 dark:bg-slate-800/40 rounded-xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors group">
     <GradientAvatar
       initials={
@@ -275,24 +280,12 @@ const EmployeeRow = ({
   </div>
 );
 
-// ─── EWA Settings Modal ───────────────────────────────────────────────────────
-
-const DEFAULT_EWA: EWASettings = {
-  ewa_enabled: true,
-  max_advance_percentage: 50,
-  min_advance_amount: 500,
-  max_advance_amount: 50000,
-  cooldown_period: 7,
-};
-
-const EWASettingsModal = ({
-  employee, isOpen, onClose, onSave,
-}: {
+const EWASettingsModal: React.FC<{
   employee: Employee | null;
   isOpen: boolean;
   onClose: () => void;
   onSave: (employeeId: string, settings: EWASettings) => void;
-}) => {
+}> = ({ employee, isOpen, onClose, onSave }) => {
   const [settings, setSettings] = useState<EWASettings>(DEFAULT_EWA);
   const [saving, setSaving] = useState(false);
 
@@ -320,21 +313,19 @@ const EWASettingsModal = ({
         body: JSON.stringify(settings),
       });
 
-      const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
+        const data = await res.json();
         const msg = Array.isArray(data.detail)
           ? data.detail.map((e: { msg: string }) => e.msg).join(', ')
           : data.error ?? 'Failed to update settings';
-        toast.error(msg);
-        return;
+        throw new Error(msg);
       }
 
       toast.success('EWA settings updated');
       onSave(employee.id, settings);
       onClose();
-    } catch {
-      toast.error('Failed to update settings');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update settings');
     } finally {
       setSaving(false);
     }
@@ -426,15 +417,11 @@ const EWASettingsModal = ({
   );
 };
 
-// ─── Employee View Modal ──────────────────────────────────────────────────────
-
-const EmployeeViewModal = ({
-  employee, isOpen, onClose,
-}: {
+const EmployeeViewModal: React.FC<{
   employee: Employee | null;
   isOpen: boolean;
   onClose: () => void;
-}) => {
+}> = ({ employee, isOpen, onClose }) => {
   if (!isOpen || !employee) return null;
 
   return (
@@ -535,24 +522,20 @@ const EmployeeViewModal = ({
   );
 };
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-
-const Skeleton = ({ className }: { className?: string }) => (
+const Skeleton: React.FC<{ className?: string }> = ({ className }) => (
   <div className={cn('animate-pulse bg-slate-200 dark:bg-slate-700 rounded-xl', className)} />
 );
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function EmployerEmployees() {
+const EmployerEmployees: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employer, setEmployer] = useState<Employer | null>(null);
   const [stats, setStats] = useState<ExtendedStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
 
-  // Filters — these are applied client-side so the list is reactive without
-  // a round-trip. The API also supports the same filters as query params for
-  // future server-side pagination.
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -570,27 +553,26 @@ export default function EmployerEmployees() {
     setLoading(true);
     setFetchError('');
     try {
-      // Build query string for date range (passed to server for DB-level filtering)
       const params = new URLSearchParams();
       if (dateRange.from) params.set('from', dateRange.from);
-      if (dateRange.to)   params.set('to', dateRange.to);
+      if (dateRange.to) params.set('to', dateRange.to);
 
       const [profileRes, employeesRes] = await Promise.all([
         fetch('/api/employer-dashboard/profile'),
         fetch(`/api/employer-dashboard/employees?${params.toString()}`),
       ]);
 
-      const [profileData, employeesData] = await Promise.all([
-        profileRes.json().catch(() => ({})),
-        employeesRes.json().catch(() => ({})),
-      ]);
-
       if (!profileRes.ok) {
-        throw new Error(profileData.error ?? 'Failed to load profile');
+        const data = await profileRes.json();
+        throw new Error(data.error ?? 'Failed to load profile');
       }
       if (!employeesRes.ok) {
-        throw new Error(employeesData.error ?? 'Failed to load employees');
+        const data = await employeesRes.json();
+        throw new Error(data.error ?? 'Failed to load employees');
       }
+
+      const profileData = await profileRes.json();
+      const employeesData = await employeesRes.json();
 
       const profile = profileData.profile;
       setEmployer(
@@ -607,7 +589,7 @@ export default function EmployerEmployees() {
     } finally {
       setLoading(false);
     }
-  }, [dateRange.from, dateRange.to]);
+  }, [dateRange]);
 
   useEffect(() => {
     fetchData();
@@ -618,9 +600,11 @@ export default function EmployerEmployees() {
     setSeeding(true);
     try {
       const res = await fetch('/api/employer-dashboard/seed/demo-employees', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? 'Seed failed');
-      toast.success(data.message ?? 'Demo employees seeded!');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? 'Seed failed');
+      }
+      toast.success('Demo employees seeded!');
       fetchData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to seed employees');
@@ -919,4 +903,6 @@ export default function EmployerEmployees() {
       />
     </EmployerPortalLayout>
   );
-}
+};
+
+export default EmployerEmployees;

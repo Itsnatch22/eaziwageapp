@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Bell, CheckCircle2, Shield, Building2, AlertTriangle, 
-  Search, RefreshCw, MoreHorizontal, Eye, Check, Trash2, 
+  Search, RefreshCw,  Check, 
   ArrowLeft, Clock
 } from 'lucide-react';
 import { Button }                  from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { AdminPortalLayout }       from '@/components/admin/AdminLayout';
 import { formatDateTime, cn }      from '@/lib/utils';
 import { toast }                   from 'sonner';
 import Link from 'next/link';
+import pusherClient from '@/lib/pusher-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,20 @@ export default function AdminNotificationsPage() {
 
   useEffect(() => {
     fetchNotifications();
+
+    // Subscribe to Pusher channel for real-time notifications
+    const channel = pusherClient.subscribe('admin-notifications'); // Adjust channel name as needed
+
+    channel.bind('new-notification', (data: Notification) => {
+      // Add new notification to the top of the list
+      setNotifications((prev) => [data, ...prev]);
+      toast.success('New notification received!');
+    });
+
+    // Cleanup subscription on unmount
+    return () => {
+      pusherClient.unsubscribe('admin-notifications');
+    };
   }, [fetchNotifications]);
 
   const markAsRead = async (ids: string[]) => {

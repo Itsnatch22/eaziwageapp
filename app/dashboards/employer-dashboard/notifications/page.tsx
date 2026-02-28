@@ -5,14 +5,32 @@ import { Bell, CreditCard, Users, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import pusherClient from '@/lib/pusher-client';
+import { useAuthStore } from '@/lib/stores/auth';
 
 export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const user = useAuthStore((state: any) => state.user);
 
     useEffect(() => {
         fetchNotifications();
-    }, []);
+
+        if (user?.id) {
+            const channel = pusherClient.subscribe(`employer-${user.id}`);
+            channel.bind('new-notification', (data: any) => {
+                toast(data.title, {
+                    description: data.message,
+                    icon: <Bell className="w-5 h-5 text-primary" />
+                });
+                fetchNotifications();
+            });
+
+            return () => {
+                pusherClient.unsubscribe(`employer-${user.id}`);
+            };
+        }
+    }, [user?.id]);
 
     const fetchNotifications = async () => {
         try {

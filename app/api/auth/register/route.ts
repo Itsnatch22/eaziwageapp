@@ -10,6 +10,7 @@ import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { validateEmail }             from '@/lib/email-validation';
 import { createToken }               from '@/lib/token';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
+import pusherServer from '@/lib/pusher-server';
 
 // ─── Environment ──────────────────────────────────────────────────────────────
 
@@ -260,12 +261,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 6. Employee-specific: validate company_code exists (if provided) ─────────
+  let employerUserId: string | null = null;
   if (input.role === 'employee' && input.company_code) {
     // Check if the company code exists in the approved employers table
     // Using ilike for case-insensitive matching in case some codes are lowercase
     const { data: employer, error: empError } = await supabase
       .from('employers')
-      .select('id, status')
+      .select('id, status, user_id')
       .ilike('employer_code', input.company_code)
       .single();
 
@@ -282,6 +284,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 422, headers: rateResult.headers },
       );
     }
+    employerUserId = employer.user_id;
   }
 
   // ── 7. Create Supabase Auth user ────────────────────────────────────────────
@@ -323,6 +326,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       phone:              input.phone,
       phone_country_code: input.phone_country_code,
       role:               input.role,
+      role_normalized:    input.role,
       company_code:       input.role === 'employee' ? (input.company_code || null) : null,
       company_name:       input.role === 'employer' ? input.company_name : null,
       email_verified:     true,
@@ -425,6 +429,52 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   authRes.cookies.getAll().forEach(({ name, value, ...options }) => {
     successResponse.cookies.set(name, value, options);
   });
+
+  // ── 13. Create Real-time Notifications ──────────────────────────────────────
+  try {
+    // 1. Admin Notification
+    const { data: adminNotif, error: adminNotifError } = await supabase
+      .from('admin_notifications')
+      .insert({
+        type: input.role === 'employer' ? 'employer_kyc' : 'employee',
+        title: `New ${input.role.charAt(0).toUpperCase() + input.role.slice(1)} Registration`,
+        message: `${input.full_name} has registered as a ${input.role}.`,
+        read: false,
+        metadata: {
+          user_id: userId,
+          role: input.role,
+          company_name: input.company_name,
+        },
+      })
+      .select()
+      .single();
+
+    if (!adminNotifError && adminNotif) {
+      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
+    }
+
+    // 2. Employer Notification (if employee registers with company code)
+    if (input.role === 'employee' && employerUserId) {
+      const { data: empNotif, error: empNotifError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: employerUserId,
+          type: 'employee',
+          title: 'New Employee Registered',
+          message: `${input.full_name} has registered and linked to your company.`,
+          read: false,
+        })
+        .select()
+        .single();
+
+      if (!empNotifError && empNotif) {
+        await pusherServer.trigger(`employer-${employerUserId}`, 'new-notification', empNotif);
+      }
+    }
+  } catch (notifErr) {
+    console.error('[register/notifications]', notifErr);
+    // Non-fatal
+  }
 
   return successResponse;
 }

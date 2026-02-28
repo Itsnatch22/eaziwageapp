@@ -10,6 +10,7 @@ import {
   MAX_FILE_SIZE,
 } from '@/lib/validations/kyc-validation';
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
+import pusherServer from '@/lib/pusher-server';
 
 export const runtime = 'nodejs';
 
@@ -316,6 +317,66 @@ export async function POST(req: NextRequest) {
             errorMessage: error.message,
           });
         });
+    }
+
+    // ── Create Real-time Notifications ──────────────────────────────────────
+    try {
+      // Fetch employer info
+      const { data: empOnboarding } = await adminSupabase
+        .from('employee_onboarding')
+        .select('employer_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (empOnboarding?.employer_id) {
+        const { data: employer } = await adminSupabase
+          .from('employer_onboarding')
+          .select('user_id, company_name')
+          .eq('id', empOnboarding.employer_id)
+          .maybeSingle();
+
+        if (employer?.user_id) {
+          // 1. Employer Notification
+          const { data: empNotif, error: empNotifError } = await adminSupabase
+            .from('notifications')
+            .insert({
+              user_id: employer.user_id,
+              type: 'employee',
+              title: 'KYC Document Uploaded',
+              message: `${profile?.full_name || 'An employee'} has uploaded a new ${documentType}.`,
+              read: false,
+            })
+            .select()
+            .single();
+
+          if (!empNotifError && empNotif) {
+            await pusherServer.trigger(`employer-${employer.user_id}`, 'new-notification', empNotif);
+          }
+
+          // 2. Admin Notification
+          const { data: adminNotif, error: adminNotifError } = await adminSupabase
+            .from('admin_notifications')
+            .insert({
+              type: 'review_request',
+              title: 'New KYC Document',
+              message: `${profile?.full_name || 'An employee'} from ${employer.company_name} uploaded a ${documentType}.`,
+              read: false,
+              metadata: {
+                user_id: user.id,
+                employer_id: empOnboarding.employer_id,
+                document_type: documentType,
+              },
+            })
+            .select()
+            .single();
+
+          if (!adminNotifError && adminNotif) {
+            await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.error('[POST /kyc/documents] Notification error:', notifErr);
     }
 
     return NextResponse.json(validatedDoc, { status: 201 });
