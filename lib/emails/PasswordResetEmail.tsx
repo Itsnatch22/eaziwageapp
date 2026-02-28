@@ -14,7 +14,7 @@ interface PasswordResetEmailProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com';
 
 const C = {
   green:      '#16a34a',
@@ -110,7 +110,7 @@ export default function PasswordResetEmail({ fullName, email, resetUrl }: Passwo
 PasswordResetEmail.PreviewProps = {
   fullName: 'Jane Wanjiku',
   email:    'jane@acme.co.ke',
-  resetUrl: 'https://eaziwage.com/reset-password?token=abc123',
+  resetUrl: 'https://app.eaziwage.com/reset-password?token=abc123',
 } satisfies PasswordResetEmailProps;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
