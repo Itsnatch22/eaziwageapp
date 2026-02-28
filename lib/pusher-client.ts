@@ -1,7 +1,11 @@
-import Pusher from 'pusher-js'
+import Pusher from 'pusher-js';
+import { getEnv } from '@/env';
 
-const pusherClient = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-});
+const env = typeof window !== 'undefined' ? getEnv() : null;
 
-export default pusherClient
+const pusherClient = env ? new Pusher(env.NEXT_PUBLIC_PUSHER_APP_KEY, {
+  cluster: env.NEXT_PUBLIC_PUSHER_CLUSTER,
+  forceTLS: true,
+}) : null;
+
+export default pusherClient;

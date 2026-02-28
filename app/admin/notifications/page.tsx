@@ -12,13 +12,7 @@ import { AdminPortalLayout }       from '@/components/admin/AdminLayout';
 import { formatDateTime, cn }      from '@/lib/utils';
 import { toast }                   from 'sonner';
 import Link from 'next/link';
-import Pusher from 'pusher-js';
-
-// Instantiate Pusher
-const pusherClient = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-  forceTLS: true,
-});
+import pusherClient from '@/lib/pusher-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,8 +75,10 @@ export default function AdminNotificationsPage() {
   useEffect(() => {
     fetchNotifications();
 
+    if (!pusherClient) return;
+
     // Subscribe to Pusher channel for real-time notifications
-    const channel = pusherClient.subscribe('admin-notifications'); // Adjust channel name as needed
+    const channel = pusherClient!.subscribe('admin-notifications'); // Adjust channel name as needed
 
     channel.bind('new-notification', (data: Notification) => {
       // Add new notification to the top of the list
@@ -92,7 +88,7 @@ export default function AdminNotificationsPage() {
 
     // Cleanup subscription on unmount
     return () => {
-      pusherClient.unsubscribe('admin-notifications');
+      pusherClient!.unsubscribe('admin-notifications');
     };
   }, [fetchNotifications]);
 

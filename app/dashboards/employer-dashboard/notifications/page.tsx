@@ -16,7 +16,7 @@ export default function NotificationsPage() {
     useEffect(() => {
         fetchNotifications();
 
-        if (user?.id) {
+        if (user?.id && pusherClient) {
             const channel = pusherClient.subscribe(`employer-${user.id}`);
             channel.bind('new-notification', (data: any) => {
                 toast(data.title, {

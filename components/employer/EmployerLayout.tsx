@@ -351,8 +351,8 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   // Fetch real notifications
   useEffect(() => {
     fetchNotifications();
-    
-    if (user?.id) {
+
+    if (user?.id && pusherClient) {
       const channel = pusherClient.subscribe(`employer-${user.id}`);
       channel.bind('new-notification', (data: any) => {
         toast(data.title, {
@@ -367,7 +367,6 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
       };
     }
   }, [user?.id, fetchNotifications]);
-
   // Close notifications when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: { target: any; }) => {
