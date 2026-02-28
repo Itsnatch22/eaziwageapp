@@ -1,17 +1,3 @@
-// app/api/payroll/sync/route.ts
-//
-// POST /api/payroll/sync
-//
-// Manually triggers a sync for a linked payroll integration.
-// In production this would call the external provider's API (or wait for
-// an inbound push). Here we simulate the pull and log the result.
-//
-// Request body: { integration_id: string (UUID) }
-//
-// Response:
-//   200 — { message, sync_log_id, status, last_sync_at, records_received, ... }
-//   404 — integration not found / not owned by employer
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { triggerSyncSchema } from '@/lib/validations/payroll-validation';
@@ -72,9 +58,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Simulate pull sync ────────────────────────────────────────────────────
-  // In production: call the provider's API here (OAuth2 token exchange, etc.)
-  // We return a realistic log entry regardless, and update last_sync_at.
   const syncStart = Date.now();
 
   // Simulate: 95% chance of success

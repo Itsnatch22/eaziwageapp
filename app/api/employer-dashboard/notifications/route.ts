@@ -17,10 +17,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Try to fetch from a notifications table if it exists. 
-    // Fallback to sample data for the employer dashboard if it doesn't.
-    // In a real database, we would query: 
-    // .from('notifications').eq('user_id', user.id).order('created_at', { ascending: false })
     
     const { data: notifications, error } = await supabase
         .from('notifications')

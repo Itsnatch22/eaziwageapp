@@ -1,14 +1,7 @@
-// app/api/employer/employer-data/route.ts
-//
-// GET — Returns the authenticated employer's full profile including:
-//   - Company details from employer_onboarding
-//   - Computed risk_score and risk_rating
-//   - Granular risk_factors shaped for the UI's categoryScores structure
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 // Default risk factors when none have been scored yet
 const DEFAULT_RISK_FACTORS = {

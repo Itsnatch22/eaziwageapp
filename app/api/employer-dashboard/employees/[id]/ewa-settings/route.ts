@@ -1,10 +1,4 @@
-// app/api/employees/[id]/ewa-settings/route.ts
-//
-// PUT /api/employees/[id]/ewa-settings
-//
-// Upserts EWA settings for a specific employee.
-// The employer must own the employee (employee linked to their employer_id).
-//
+
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ewaSettingsSchema } from '@/lib/validations/employee-validation';

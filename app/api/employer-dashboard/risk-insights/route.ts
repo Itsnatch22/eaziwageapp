@@ -29,15 +29,6 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// ─── Framework Constants (from PDF Table 4) ───────────────────────────────────
-//
-// Risk Category Thresholds (from PDF Table 6):
-//   Low Risk (A):       4.0 – 5.0  → Stable, compliant, transparent, financially healthy
-//   Medium Risk (B):    3.0 – 3.9  → Moderate risk, minor compliance or liquidity issues
-//   High Risk (C):      2.6 – 2.9  → Weak compliance, unstable finances, or opaque ownership
-//   Very High Risk (D): 0.0 – 2.5  → Cannot advance wages
-//
-// Category Weights (from PDF Table 1):
 const CATEGORY_WEIGHTS = {
   legal_compliance:  0.20,  // 20%
   financial_health:  0.35,  // 35% (core risk driver)
@@ -199,9 +190,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Fetch Employer Profile ─────────────────────────────────────────────────
-  // risk_score + risk_rating are synchronized automatically via 
-  // Postgres trigger fn_sync_employer_risk_score
   const { data: employer, error: empError } = await supabase
     .from('employer_onboarding')
     .select(

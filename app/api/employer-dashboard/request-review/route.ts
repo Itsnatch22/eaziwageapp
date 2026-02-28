@@ -1,18 +1,3 @@
-// app/api/employer-dashboard/request-review/route.ts
-//
-// POST /api/employer-dashboard/request-review
-//
-// Creates a risk-score review request for the authenticated employer.
-//
-// Request body:
-//   { employerId: string, type?: string, message: string }
-//
-// Success:  201  { message: string }
-// Conflict: 409  { error: "A review request is already pending..." }
-// Invalid:  422  { error: "Validation failed", detail: [{field, msg}] }
-//
-// On success, sends a branded React Email via Resend (non-fatal if it fails).
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend }          from 'resend';

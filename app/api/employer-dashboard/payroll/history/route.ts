@@ -1,23 +1,3 @@
-// app/api/payroll/history/route.ts
-//
-// GET /api/payroll/history
-//
-// Returns all payroll_uploads for the authenticated employer,
-// newest first. Includes per-upload summary stats and error/warning counts.
-//
-// Response shape:
-// [
-//   {
-//     id, month, source, status,
-//     file_name, total_rows, processed_rows, failed_rows,
-//     total_gross, total_net, total_deductions,
-//     error_summary: [{row, field, message}],
-//     warning_summary: [{row, field, message}],
-//     uploaded_at, processed_at,
-//     employees: [ { employee_code, days_worked, gross_salary, row_status, row_errors } ]
-//   }
-// ]
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 

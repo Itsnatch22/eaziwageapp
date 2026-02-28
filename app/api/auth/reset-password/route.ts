@@ -186,14 +186,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const resend = new Resend(env.RESEND_API_KEY);
 
     const { error: emailError } = await resend.emails.send({
-      from:    'EaziWage Security <security@contact.eaziwage.com>',
+      from:    'EaziWage Security <security@eaziwage.com>',
       to:      profile.email,
       subject: 'Your EaziWage password was changed',
       react:   ResetPasswordEmail({
         fullName:   profile.full_name ?? 'there',
         ip,
         userAgent:  req.headers.get('user-agent') ?? 'Unknown device',
-        resetUrl:   `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com'}/forgot-password`,
+        resetUrl:   `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com'}/forgot-password`,
       }),
     });
 

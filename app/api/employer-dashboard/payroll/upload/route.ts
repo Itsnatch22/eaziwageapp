@@ -1,22 +1,4 @@
-// app/api/payroll/upload/route.ts
-//
-// POST /api/payroll/upload
-//
-// Accepts a parsed payroll payload (from CSV/XLSX parsed client-side)
-// and processes it server-side:
-//   1. Validates the month & row schema (Zod)
-//   2. Looks up each employee_code against employee_onboarding
-//   3. Validates per-row business rules (salary limits, days worked, etc.)
-//   4. Writes payroll_uploads + payroll_upload_rows
-//   5. Returns a detailed result including per-row errors and warnings
-//
-// Request body: UploadPayrollPayload (see payroll.validation.ts)
-//
-// Response:
-//   201 — { upload_id, status, total_rows, processed_rows, failed_rows,
-//            error_summary, warning_summary }
-//   422 — { error: 'Validation failed', detail: [...] }
-//
+// app/api/employer-dashboard/payroll/upload/route.ts
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadPayrollSchema, type PayrollRow } from '@/lib/validations/payroll-validation';

@@ -1,18 +1,3 @@
-// app/api/employer-dashboard/reports/route.ts
-//
-// GET /api/employer-dashboard/reports
-//
-// Returns aggregated analytics for the authenticated employer:
-//   - Advance summary (totals, fees, by method) for the selected period
-//   - Employee summary (enrollment, utilization)
-//   - Risk score + rating from employer_onboarding
-//   - Previous-period totals (for % change badges)
-//   - Monthly trend (last 6 months for the bar chart)
-//
-// Query params (all optional):
-//   ?period=this_week|this_month|last_month|this_quarter|this_year  (default: this_month)
-//   ?month=YYYY-MM     (if set, overrides period to that calendar month)
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ReportsQuerySchema } from '@/lib/validations/employer-reports';
