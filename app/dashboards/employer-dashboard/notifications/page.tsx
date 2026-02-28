@@ -27,7 +27,7 @@ export default function NotificationsPage() {
             });
 
             return () => {
-                pusherClient.unsubscribe(`employer-${user.id}`);
+                pusherClient!.unsubscribe(`employer-${user.id}`);
             };
         }
     }, [user?.id]);
