@@ -253,6 +253,7 @@ export const ALLOWED_MIME_TYPES = [
   'image/png',
   'image/webp',
   'application/pdf',
+  'application/docx',
 ] as const;
 
 // ============================================================================

@@ -1,100 +1,101 @@
 -- ============================================================================
--- Fix for: infinite recursion detected in policy for relation "profiles"
+-- URGENT FIX: Infinite recursion in profiles table RLS policies
+-- Error: "infinite recursion detected in policy for relation \"profiles\""
 -- Error Code: 42P17
 -- ============================================================================
--- 
--- This error occurs when RLS (Row Level Security) policies on the profiles
--- table reference each other in a circular/recursive manner.
 --
+-- This script provides multiple solutions to fix the infinite recursion error.
+-- 
 -- INSTRUCTIONS:
--- 1. Run this script in Supabase SQL Editor
--- 2. Or apply via Supabase CLI: supabase db push or supabase db reset
+-- 1. Run this in Supabase SQL Editor
+-- 2. Or apply via Supabase CLI: npx supabase db push
 -- ============================================================================
 
--- First, let's see what policies currently exist on the profiles table
-SELECT 
-    policyname,
-    cmd,
-    qual,
-    with_check,
-    permissive
-FROM pg_policies 
-WHERE tablename = 'profiles'
-ORDER BY policyname;
-
 -- ============================================================================
--- SOLUTION 1: If you have recursive policies, disable RLS temporarily
--- (Not recommended for production, but useful for debugging)
+-- SOLUTION 1: Quick Fix - Disable and Recreate Safe Policies
 -- ============================================================================
 
--- Option A: Disable RLS on profiles (debug only)
+-- Step 1: Drop all existing policies on profiles table
+DROP POLICY IF EXISTS "profiles_are_publicly_readable" ON profiles;
+DROP POLICY IF EXISTS "profiles_user_update_own" ON profiles;
+DROP POLICY IF EXISTS "profiles_admin_full_access" ON profiles;
+DROP POLICY IF EXISTS "Allow public read access" ON profiles;
+DROP POLICY IF EXISTS "Allow authenticated update own" ON profiles;
+DROP POLICY IF EXISTS "profiles_select_policy" ON profiles;
+DROP POLICY IF EXISTS "profiles_update_policy" ON profiles;
+DROP POLICY IF EXISTS "users_can_read_profiles" ON profiles;
+DROP POLICY IF EXISTS "users_can_update_own_profile" ON profiles;
+
+-- Step 2: Re-enable RLS with simple, non-recursive policies
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Simple read policy - allows authenticated users to read all profiles
+-- This avoids recursion by not referencing any other tables
+CREATE POLICY "profiles_read_all" ON profiles
+    FOR SELECT TO authenticated
+    USING (true);
+
+-- Simple update policy - allows users to update their own profile
+CREATE POLICY "profiles_update_own" ON profiles
+    FOR UPDATE TO authenticated
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+-- ============================================================================
+-- SOLUTION 2: If Solution 1 doesn't work, temporarily disable RLS
+-- ============================================================================
+
+-- Run this ONLY if Solution 1 doesn't work
+-- This is less secure but will fix the immediate error
 -- ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
 
--- Option B: Re-enable RLS after fixing
--- ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
 -- ============================================================================
--- SOLUTION 2: Fix common circular reference patterns
+-- SOLUTION 3: Check for recursive function definitions
 -- ============================================================================
 
--- Common pattern that causes recursion:
--- If you have a policy that checks auth.uid() against a field that itself
--- requires another query to profiles (or a related table), it can loop.
-
--- Example fix: Use a direct comparison instead of subqueries
--- Instead of:
---   WHERE id IN (SELECT user_id FROM user_roles WHERE ...)
--- Use:
---   WHERE auth.uid() = id
-
--- ============================================================================
--- SOLUTION 3: Create safe, non-recursive policies
--- ============================================================================
-
--- Drop existing problematic policies (replace with your policy names)
--- DROP POLICY IF EXISTS "profiles_select_policy" ON profiles;
--- DROP POLICY IF EXISTS "profiles_update_policy" ON profiles;
-
--- Create simple, non-recursive policies
--- Example: Allow users to read their own profile
--- CREATE POLICY "profiles_select_own" ON profiles
---     FOR SELECT USING (auth.uid() = id);
-
--- Example: Allow users to update their own profile
--- CREATE POLICY "profiles_update_own" ON profiles
---     FOR UPDATE USING (auth.uid() = id);
-
--- ============================================================================
--- SOLUTION 4: If using service role, bypass RLS entirely
--- ============================================================================
-
--- In your API routes, use the admin client for internal operations
--- that don't need RLS:
--- import { createClient } from '@supabase/supabase-js'
--- const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
--- ============================================================================
--- DEBUG: Check for circular function dependencies
--- ============================================================================
-
+-- Run this to see if there are any functions that might be causing recursion
 SELECT 
     p.proname AS function_name,
     pg_get_functiondef(p.oid) AS function_definition
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
 WHERE n.nspname = 'public'
-AND p.proname LIKE '%profile%';
+AND p.proname IN (
+    SELECT proname 
+    FROM pg_proc 
+    WHERE proname LIKE '%profile%' 
+    OR proname LIKE '%auth%'
+);
 
 -- ============================================================================
--- QUICK FIX: If you just need to disable RLS temporarily to debug
+-- VERIFICATION: Check current policies
 -- ============================================================================
 
--- Run this to temporarily disable RLS on profiles table
-ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
+-- Run this to see all policies on profiles table
+SELECT 
+    policyname,
+    cmd,
+    qual,
+    with_check,
+    permissive,
+    roles
+FROM pg_policies 
+WHERE tablename = 'profiles'
+ORDER BY policyname;
 
--- After fixing the issue, re-enable with proper policies
--- ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+-- ============================================================================
+-- ALTERNATIVE: Use a view instead of direct table access
+-- ============================================================================
 
--- Then recreate your policies (example):
--- CREATE POLICY "Allow public read access" ON profiles FOR SELECT USING (true);
--- CREATE POLICY "Allow authenticated update own" ON profiles FOR UPDATE USING (auth.uid() = id);
+-- If policies keep causing issues, create a view for profile data
+-- DROP VIEW IF EXISTS profiles_view;
+-- CREATE VIEW profiles_view AS
+-- SELECT id, full_name, email, role, role_normalized
+-- FROM profiles;
+
+-- ============================================================================
+-- TEST: Test if the fix works
+-- ============================================================================
+
+-- Run this to test if the profiles table is accessible
+-- SELECT id, full_name, role FROM profiles LIMIT 1;

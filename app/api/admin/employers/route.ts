@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -222,7 +221,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       id,
       user_id,
       company_name,
-      company_code,
       industry,
       sector,
       country,
