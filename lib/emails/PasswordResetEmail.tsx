@@ -72,10 +72,10 @@ export default function PasswordResetEmail({ fullName, email, resetUrl }: Passwo
 
           {/* Security info */}
           <Section style={s.infoSection}>
-            <Text style={s.infoLabel}>⚠️ Didn't request this?</Text>
+            <Text style={s.infoLabel}>⚠️ Didn&apos;t request this?</Text>
             <Text style={s.infoText}>
-              If you didn't request a password reset, you can safely ignore this email — your password
-              will remain unchanged. If you're concerned about unauthorised access, contact us immediately at{' '}
+              If you didn&apos;t request a password reset, you can safely ignore this email — your password
+              will remain unchanged. If you&apos;re concerned about unauthorised access, contact us immediately at{' '}
               <Link href="mailto:security@eaziwage.com" style={s.link}>security@eaziwage.com</Link>.
             </Text>
           </Section>

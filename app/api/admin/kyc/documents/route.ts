@@ -3,7 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { DocumentStatusEnum, isAdminRole } from '@/lib/validations/kyc-validation';
+import { DocumentStatusEnum, isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 
 function createAdminClient() {
   const env = getEnv();
@@ -40,7 +40,10 @@ export async function GET(req: NextRequest) {
       .filter((role): role is string => typeof role === 'string' && role.length > 0)
       .map((role) => role.toLowerCase());
 
-    if (!roles.some((role) => isAdminRole(role as any))) {
+    if (!roles.some((role) => {
+      const parsed = UserRoleEnum.safeParse(role);
+      return parsed.success && isAdminRole(parsed.data);
+    })) {
       return NextResponse.json({ error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' }, { status: 403 });
     }
 
@@ -103,4 +106,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error', code: 'SERVER_ERROR' }, { status: 500 });
   }
 }
+
 

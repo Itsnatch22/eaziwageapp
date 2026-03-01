@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link          from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { createBrowserClient }    from '@supabase/ssr';
+import { createBrowserClient } from '@supabase/ssr';
 import {
   LayoutDashboard, Users, Building2, CreditCard, BarChart3, Settings, LogOut,
   Sun, Moon, Bell, Menu, X, ChevronRight, Shield, CheckCircle2, Wifi,
@@ -404,13 +404,23 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   const [isLoadingUser, setIsLoadingUser] = useState(true);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // CRITICAL FIX: Simplified user fetching with single source of truth
+  // FIX: Handle RLS infinite recursion error gracefully
+  // Error: "infinite recursion detected in policy for relation \"profiles\""
+  // Solution: Try browser client first, fallback to auth metadata on error
   // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchUser = async () => {
       try {
+        // Use browser client for authentication check
         const supabase = createBrowserClient(SUPABASE_URL, SUPABASE_ANON);
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+        if (authError) {
+          console.error('[AdminLayout] Auth error:', authError);
+          setIsLoadingUser(false);
+          return;
+        }
 
         if (!authUser) {
           console.warn('[AdminLayout] No authenticated user found');
@@ -418,48 +428,56 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
           return;
         }
 
-        // Fetch from system_admins table (single source of truth for admins)
-        const { data: adminProfile, error: adminError } = await supabase
-          .from('system_admins')
-          .select('id, email, full_name, role_normalized')
-          .eq('email', authUser.email)
-          .maybeSingle();
-
-        if (adminError) {
-          console.error('[AdminLayout] Error fetching admin profile:', adminError);
+        // Try to fetch from profiles table
+        let profile = null;
+        let profileError = null;
+        
+        try {
+          const result = await supabase
+            .from('profiles')
+            .select('id, full_name, email, role_normalized, role')
+            .eq('id', authUser.id)
+            .maybeSingle();
+          
+          profile = result.data;
+          profileError = result.error;
+        } catch (profileErr: any) {
+          // Check if it's the infinite recursion error
+          if (profileErr?.message?.includes('infinite recursion') || 
+              profileErr?.code === '42P17') {
+            console.warn('[AdminLayout] RLS infinite recursion detected, using auth metadata fallback');
+            profileError = null; // Clear error since we're handling it gracefully
+          } else {
+            throw profileErr; // Re-throw other errors
+          }
         }
-
-        if (adminProfile && adminProfile.role_normalized === 'admin') {
-          setUser({
-            id: adminProfile.id,
-            full_name: adminProfile.full_name || authUser.email?.split('@')[0] || 'Admin',
-            email: adminProfile.email,
-            role: 'admin',
-          });
-          setIsLoadingUser(false);
-          return;
-        }
-
-        // Fallback: fetch from profiles table (for backwards compatibility)
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, role_normalized, role')
-          .eq('id', authUser.id)
-          .maybeSingle();
 
         if (profileError) {
-          console.error('[AdminLayout] Error fetching profile:', profileError);
+          console.error('[AdminLayout] Error fetching profile:', profileError.message);
         }
+
+        // Build role candidates from available sources
+        const roleCandidates = [
+          profile?.role_normalized,
+          profile?.role,
+          authUser.app_metadata?.role,
+          authUser.user_metadata?.role
+        ].filter((r): r is string => typeof r === 'string' && r.length > 0)
+         .map(r => r.toLowerCase());
+
+        const isAdmin = roleCandidates.some(r => 
+          ['admin', 'super_admin', 'compliance', 'employer_admin'].includes(r)
+        );
 
         if (profile) {
           setUser({
             id: profile.id,
-            full_name: profile.full_name || authUser.email?.split('@')[0] || 'Admin',
+            full_name: profile.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Admin',
             email: profile.email || authUser.email || '',
             role: profile.role_normalized || profile.role || 'admin',
           });
         } else {
-          // Last resort: use auth user metadata
+          // Fallback: use auth user metadata when profiles table fails
           setUser({
             id: authUser.id,
             full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Admin',
@@ -468,9 +486,13 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
           });
         }
 
+        if (!isAdmin) {
+          console.warn('[AdminLayout] User is not an admin. Role candidates:', roleCandidates);
+        }
+
         setIsLoadingUser(false);
       } catch (error) {
-        console.error('[AdminLayout] Error in fetchUser:', error);
+        console.error('[AdminLayout] Unexpected error in fetchUser:', error instanceof Error ? error.message : error);
         setIsLoadingUser(false);
       }
     };

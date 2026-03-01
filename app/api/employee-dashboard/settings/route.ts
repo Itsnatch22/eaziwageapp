@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
 
-  const updates: any = { updated_at: new Date().toISOString() };
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   Object.assign(updates, parsed.data);
 
   const { error } = await supabase
@@ -57,9 +57,10 @@ export async function POST(request: Request) {
     selfie: 'selfie',
   };
 
+  const employeeData = (profile?.employee || {}) as Record<string, unknown>;
   const kycDocuments = Object.entries(docMap).map(([docType, field]) => ({
     document_type: docType,
-    status: (profile?.employee as any)?.[field] ? ('submitted' as const) : null,
+    status: employeeData[field] ? ('submitted' as const) : null,
   }));
 
   return Response.json({

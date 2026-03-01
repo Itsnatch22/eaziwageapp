@@ -6,8 +6,6 @@ import {
   Heading,
   Hr,
   Html,
-  Img,
-  Link,
   Preview,
   Section,
   Text,
@@ -69,7 +67,7 @@ export const DocumentApprovedEmail = ({
             </Section>
 
             <Text style={footerText}>
-              If you have any questions, please don't hesitate to contact our support team.
+              If you have any questions, please don&pos;t hesitate to contact our support team.
             </Text>
           </Section>
 
@@ -196,7 +194,7 @@ export const DocumentSubmittedEmail = ({
   return (
     <Html>
       <Head />
-      <Preview>We've received your {documentType} document</Preview>
+      <Preview>We&apos;ve received your {documentType} document</Preview>
       <Body style={main}>
         <Container style={container}>
           <Section style={header}>
@@ -207,7 +205,7 @@ export const DocumentSubmittedEmail = ({
             <Text style={paragraph}>Hi {employeeName},</Text>
             
             <Text style={paragraph}>
-              Thank you for submitting your <strong>{documentType}</strong> document. We've received it successfully and our compliance team will review it shortly.
+              Thank you for submitting your <strong>{documentType}</strong> document. We&apos;ve received it successfully and our compliance team will review it shortly.
             </Text>
 
             <Section style={statusCard}>
@@ -234,7 +232,7 @@ export const DocumentSubmittedEmail = ({
             </Text>
             <ul style={list}>
               <li style={listItem}>Our team will review your document within 1-2 business days</li>
-              <li style={listItem}>You'll receive an email notification once the review is complete</li>
+              <li style={listItem}>You&apos;ll receive an email notification once the review is complete</li>
               <li style={listItem}>You can track the status in your dashboard at any time</li>
             </ul>
 

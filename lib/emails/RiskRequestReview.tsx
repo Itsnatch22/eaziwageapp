@@ -31,7 +31,7 @@ export default function RiskReviewRequestEmail({
     <Html>
       <Head />
       <Preview>
-        Risk review request received for {companyName} — we'll be in touch within 3–5 business days.
+        Risk review request received for {companyName} — we&apos;ll be in touch within 3–5 business days.
       </Preview>
       <Tailwind>
         <Body className="bg-slate-50 font-sans">
@@ -60,7 +60,7 @@ export default function RiskReviewRequestEmail({
                 Hi <strong>{contactPerson}</strong>,
               </Text>
               <Text className="text-slate-600">
-                We've received your request for a manual risk score review for{' '}
+                We&apos;ve received your request for a manual risk score review for{' '}
                 <strong>{companyName}</strong>. Our risk team will assess your full company
                 profile and update your score if the new information warrants it.
               </Text>
@@ -108,7 +108,7 @@ export default function RiskReviewRequestEmail({
                   ② We may reach out for additional documentation or clarification
                 </Text>
                 <Text className="text-emerald-700 text-sm m-0">
-                  ③ You'll receive an email once the review is complete and your score is updated
+                  ③ You&apos;ll receive an email once the review is complete and your score is updated
                 </Text>
               </Section>
 

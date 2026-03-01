@@ -833,7 +833,7 @@ export default function RiskInsightsPage() {
               </h3>
               <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
                 <p>
-                  Your risk score is calculated using EaziWage's Risk Classification, Scoring & Framework 
+                  Your risk score is calculated using EaziWage&apos;s Risk Classification, Scoring & Framework 
                   (REV1, approved October 25, 2025). The framework uses a weighted formula across five dimensions:
                 </p>
                 <ul className="list-disc list-inside space-y-1 ml-2">

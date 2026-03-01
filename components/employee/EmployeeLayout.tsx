@@ -233,3 +233,4 @@ export const EmployeePageLayoutBase = ({ children, className }: EmployeePageLayo
 );
 
 export default EmployeePageLayout;
+

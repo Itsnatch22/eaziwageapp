@@ -83,7 +83,7 @@ export const AdminVerificationEmail = ({
             • This is an admin account with elevated privileges
           </Text>
           <Text style={securityText}>
-            • If you didn't request this account, please ignore this email
+            • If you didn&apos;t request this account, please ignore this email
           </Text>
           <Text style={securityText}>
             • Never share your admin credentials with anyone

@@ -356,13 +356,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   const [employerDetail, setEmployerDetail] = useState<Employer | null>(null);
   const [employees,      setEmployees]      = useState<Employee[]>([]);
 
-  useEffect(() => {
-    if (isOpen && employer?.id) {
-      fetchEmployerDetail();
-    }
-  }, [isOpen, employer?.id]);
-
-  const fetchEmployerDetail = async () => {
+  const fetchEmployerDetail = useCallback(async () => {
     if (!employer) return;
 
     setLoading(true);
@@ -386,7 +380,13 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [employer]);
+
+  useEffect(() => {
+    if (isOpen && employer?.id) {
+      fetchEmployerDetail();
+    }
+  }, [isOpen, employer?.id, fetchEmployerDetail]);
 
   const handleStatusChange = async (newStatus: EmployerStatus) => {
     if (!employer) return;
@@ -956,7 +956,7 @@ export default function AdminEmployers() {
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <Input
-                placeholder="Search by company name, email, or code..."
+                placeholder="Search by company name or email"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="pl-12 h-11 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 rounded-xl"
@@ -1134,4 +1134,5 @@ export default function AdminEmployers() {
     </AdminPortalLayout>
   );
 }
+
 

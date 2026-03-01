@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = employeeOnboardingSchema.safeParse(coerced);
   if (!parsed.success) {
-    const detail = parsed.error.issues.map((e: { path: any[]; message: any; }) => ({
+    const detail = parsed.error.issues.map((e) => ({
       field: e.path.join('.'),
       msg: e.message,
     }));

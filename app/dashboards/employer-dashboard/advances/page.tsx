@@ -87,11 +87,11 @@ export default function EmployerAdvancesPage() {
 
   const fetchAdvances = async () => {
     const res = await fetch('/api/employer-dashboard/advances');
-    const data = await res.json();
+    const data: unknown = await res.json();
     if (!res.ok) {
-      throw new Error(data?.error || 'Failed to load advances');
+      throw new Error((data as { error?: string })?.error || 'Failed to load advances');
     }
-    setAdvances(Array.isArray(data) ? data : []);
+    setAdvances(Array.isArray(data) ? (data as AdvanceItem[]) : []);
   };
 
   useEffect(() => {
@@ -102,18 +102,18 @@ export default function EmployerAdvancesPage() {
           fetch('/api/employer-dashboard/profile'),
         ]);
 
-        const advancesData = await advancesRes.json();
-        const employerData = await employerRes.json();
+        const advancesData: unknown = await advancesRes.json();
+        const employerData: any = await employerRes.json();
 
-        if (!advancesRes.ok) throw new Error(advancesData?.error || 'Failed to load advances');
-        setAdvances(Array.isArray(advancesData) ? advancesData : []);
+        if (!advancesRes.ok) throw new Error((advancesData as { error?: string })?.error || 'Failed to load advances');
+        setAdvances(Array.isArray(advancesData) ? (advancesData as AdvanceItem[]) : []);
         setEmployer(
           employerData?.profile?.company_name
             ? { company_name: employerData.profile.company_name }
             : null,
         );
-      } catch (error: any) {
-        toast.error(error?.message || 'Failed to load advances');
+      } catch (error: unknown) {
+        toast.error((error as Error)?.message || 'Failed to load advances');
       } finally {
         setLoading(false);
       }
@@ -129,13 +129,13 @@ export default function EmployerAdvancesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const data = await res.json();
+      const data: any = await res.json();
       if (!res.ok) throw new Error(data?.error || data?.message || 'Action failed');
 
       toast.success(action === 'approve' ? 'Advance approved' : 'Advance rejected');
       await fetchAdvances();
-    } catch (error: any) {
-      toast.error(error?.message || 'Action failed');
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || 'Action failed');
     } finally {
       setActingId(null);
     }
@@ -350,3 +350,5 @@ export default function EmployerAdvancesPage() {
     </EmployerPortalLayout>
   );
 }
+
+

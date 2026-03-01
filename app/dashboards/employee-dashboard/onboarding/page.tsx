@@ -102,7 +102,7 @@ const ALL_COUNTRIES = [
 const TERMS_CONTENT = `Last Updated: October 2025
 
 1. ACCEPTANCE OF TERMS
-By accessing and using EaziWage's earned wage access services, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
+By accessing and using EaziWage&apos;s earned wage access services, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
 
 2. ELIGIBILITY
 To use our services, you must:
@@ -788,7 +788,7 @@ export default function Onboarding() {
                 <FileUploader label="Tax Certificate" description="TIN certificate or compliance document" onUpload={(file) => handleFileUpload(file, 'tax_certificate')} uploadedFile={uploadedFiles.tax_certificate} uploading={uploadingFile === 'tax_certificate'} testId="upload-tax-cert" />
               </div>
               <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                Don't have your TIN yet?{' '}
+                don&apos;t have your TIN yet?{' '}
                 <button type="button" onClick={nextStep} className="text-primary font-medium hover:underline">Skip this step</button> and add it later.
               </p>
             </div>
@@ -1065,3 +1065,4 @@ export default function Onboarding() {
     </div>
   );
 }
+

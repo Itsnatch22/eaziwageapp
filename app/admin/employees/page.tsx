@@ -402,13 +402,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
   const [riskOverride,   setRiskOverride]   = useState<RiskOverride>({ score: 3, reason: '' });
   const [showRiskModal,  setShowRiskModal]  = useState(false);
 
-  useEffect(() => {
-    if (isOpen && employee?.id) {
-      fetchEmployeeDetail();
-    }
-  }, [isOpen, employee?.id]);
-
-  const fetchEmployeeDetail = async () => {
+  const fetchEmployeeDetail = useCallback(async () => {
     if (!employee) return;
 
     setLoading(true);
@@ -432,7 +426,13 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [employee]);
+
+  useEffect(() => {
+    if (isOpen && employee?.id) {
+      fetchEmployeeDetail();
+    }
+  }, [isOpen, employee?.id, fetchEmployeeDetail]);;
 
   const handleStatusChange = async (newStatus: EmployeeStatus) => {
     if (!employee) return;
@@ -1540,3 +1540,4 @@ export default function AdminEmployees() {
     </AdminPortalLayout>
   );
 }
+

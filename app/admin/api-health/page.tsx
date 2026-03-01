@@ -92,7 +92,6 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status }) => {
   };
 
   const config = statusConfig[status];
-  const Icon   = config.icon;
 
   return (
     <div
@@ -397,3 +396,4 @@ export default function AdminAPIHealth() {
     </AdminPortalLayout>
   );
 }
+

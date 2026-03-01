@@ -99,6 +99,7 @@ async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean
 
 /**
  * Increments the failed-login counter for a profile.
+ * Updates whichever table the user exists in (profiles OR system_admins).
  * If the counter reaches MAX_FAILED_ATTEMPTS, stamps locked_until and
  * fires a security alert email.
  */
@@ -106,27 +107,44 @@ async function recordFailedAttempt(
   profileId: string,
   fullName:  string,
   email:     string,
+  isAdmin:   boolean,
   ctx:       LoginContext,
 ): Promise<void> {
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('failed_login_attempts')
-    .eq('id', profileId)
-    .single<{ failed_login_attempts: number }>();
+  // Read current count from the correct table
+  let currentAttempts = 0;
 
-  const attempts = (profile?.failed_login_attempts ?? 0) + 1;
-  const shouldLock = attempts >= MAX_FAILED_ATTEMPTS;
+  if (isAdmin) {
+    const { data } = await supabaseAdmin
+      .from('system_admins')
+      .select('failed_login_attempts')
+      .eq('id', profileId)
+      .single<{ failed_login_attempts: number }>();
+    currentAttempts = data?.failed_login_attempts ?? 0;
+  } else {
+    const { data } = await supabaseAdmin
+      .from('profiles')
+      .select('failed_login_attempts')
+      .eq('id', profileId)
+      .single<{ failed_login_attempts: number }>();
+    currentAttempts = data?.failed_login_attempts ?? 0;
+  }
+
+  const attempts    = currentAttempts + 1;
+  const shouldLock  = attempts >= MAX_FAILED_ATTEMPTS;
   const lockedUntil = shouldLock
     ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000).toISOString()
     : null;
 
-  await supabaseAdmin
-    .from('profiles')
-    .update({
-      failed_login_attempts: attempts,
-      ...(shouldLock && { locked_until: lockedUntil }),
-    })
-    .eq('id', profileId);
+  const updatePayload = {
+    failed_login_attempts: attempts,
+    ...(shouldLock && { locked_until: lockedUntil }),
+  };
+
+  if (isAdmin) {
+    await supabaseAdmin.from('system_admins').update(updatePayload).eq('id', profileId);
+  } else {
+    await supabaseAdmin.from('profiles').update(updatePayload).eq('id', profileId);
+  }
 
   if (shouldLock) {
     await sendAccountLockedEmail(email, fullName, LOCKOUT_MINUTES, ctx);
@@ -136,11 +154,13 @@ async function recordFailedAttempt(
 /**
  * Resets the failed-login counter and clears any lock on successful auth.
  */
-async function clearFailedAttempts(profileId: string): Promise<void> {
-  await supabaseAdmin
-    .from('profiles')
-    .update({ failed_login_attempts: 0, locked_until: null })
-    .eq('id', profileId);
+async function clearFailedAttempts(profileId: string, isAdmin: boolean): Promise<void> {
+  const updatePayload = { failed_login_attempts: 0, locked_until: null };
+  if (isAdmin) {
+    await supabaseAdmin.from('system_admins').update(updatePayload).eq('id', profileId);
+  } else {
+    await supabaseAdmin.from('profiles').update(updatePayload).eq('id', profileId);
+  }
 }
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
@@ -148,7 +168,6 @@ async function clearFailedAttempts(profileId: string): Promise<void> {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip        = getClientIp(req);
   const userAgent = getUserAgent(req);
-  let isAdmin   = false;
 
   // ── 1. Rate limiting ────────────────────────────────────────────────────────
   const rateResult = await checkRateLimit(rateLimiter, `login:${ip}`);
@@ -187,106 +206,75 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 4. Env-based Admin Check ────────────────────────────────────────────────
-  const adminEmails = (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const isEnvAdmin = adminEmails.includes(input.email.toLowerCase()) && input.password === env.ADMIN_PASSWORD;
+  // ── 4. Determine if this is an env-defined admin ────────────────────────────
+  // We resolve this early so the rest of the flow can branch cleanly.
+  const adminEmails  = (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+  const isEnvAdmin   = adminEmails.includes(input.email.toLowerCase());
+  // NOTE: password is only checked during Supabase signInWithPassword below —
+  // we do NOT short-circuit on env password here to avoid timing differences.
 
-  // ── 5. Look up profile ───────────────────────────────────────────────────────
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('id, full_name, role_normalized, role, email_verified, locked_until, failed_login_attempts, is_admin')
-    .eq('email', input.email)
-    .maybeSingle<{
-      id:                    string;
-      full_name:             string;
-      role_normalized:       string | null;
-      role:                  string;
-      email_verified:        boolean;
-      locked_until:          string | null;
-      failed_login_attempts: number;
-      is_admin:              boolean;
-    }>();
+  // ── 5. Look up the user record from the appropriate table ───────────────────
+  //
+  // Strategy:
+  //   • Admins  → system_admins (no RLS issue, service-role bypasses anyway)
+  //   • Others  → profiles
+  //
+  // We query system_admins first for env-admins to avoid touching the profiles
+  // table at all for that path (eliminates any RLS recursion risk for admins).
 
-  // ── 6. Handle Admin Login ───────────────────────────────────────────────────
+  type AdminRecord = {
+    id:                    string;
+    full_name:             string | null;
+    email:                 string;
+    locked_until:          string | null;
+    failed_login_attempts: number;
+  };
+
+  type ProfileRecord = {
+    id:                    string;
+    full_name:             string;
+    role:                  string;
+    role_normalized:       string | null;
+    email_verified:        boolean;
+    locked_until:          string | null;
+    failed_login_attempts: number;
+    is_admin:              boolean;
+  };
+
+  let adminRecord:   AdminRecord   | null = null;
+  let profileRecord: ProfileRecord | null = null;
+
   if (isEnvAdmin) {
-    // 1. Ensure a Supabase Auth user exists for this admin email
-    const { data: authUser } = await supabaseAdmin.auth.admin.listUsers();
-    let user = authUser.users.find(u => u.email === input.email);
-    
-    if (!user) {
-      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email: input.email,
-        password: input.password,
-        email_confirm: true,
-        user_metadata: { role: 'admin', is_admin: true }
-      });
-      if (createError) {
-        console.error('[admin-auth] Failed to create admin auth user:', createError);
-        return NextResponse.json({ error: 'Failed to initialize admin account.' }, { status: 500 });
-      }
-      user = newUser.user;
+    const { data, error } = await supabaseAdmin
+      .from('system_admins')
+      .select('id, full_name, email, locked_until, failed_login_attempts')
+      .eq('email', input.email)
+      .maybeSingle<AdminRecord>();
+
+    if (error) {
+      console.error('[login] system_admins query error:', error);
     }
+    adminRecord = data ?? null;
 
-    // 2. Ensure profile exists and has is_admin=true
-    if (!profile) {
-      await supabaseAdmin.from('profiles').insert({
-        id: user.id,
-        email: input.email,
-        full_name: 'System Admin',
-        role: 'admin',
-        role_normalized: 'admin',
-        is_admin: true,
-        email_verified: true
-      });
-    } else if (!profile.is_admin) {
-      await supabaseAdmin.from('profiles').update({ is_admin: true, role: 'admin', role_normalized: 'admin' }).eq('id', profile.id);
+    // Auto-provision: if env lists this admin but no system_admins row exists yet,
+    // create one after we verify the Supabase auth succeeds (see step 8 below).
+  } else {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, role, role_normalized, email_verified, locked_until, failed_login_attempts, is_admin')
+      .eq('email', input.email)
+      .maybeSingle<ProfileRecord>();
+
+    if (error) {
+      console.error('[login] profiles query error:', error);
     }
-
-    // 3. Sign in to get session
-    const res = NextResponse.next();
-    const supabaseAuth = createServerClient(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() { return req.cookies.getAll(); },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              res.cookies.set(name, value, options),
-            );
-          },
-        },
-      },
-    );
-
-    const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
-      email:    input.email,
-      password: input.password,
-    });
-
-    if (authError || !authData.session) {
-      return NextResponse.json({ error: 'Admin authentication failed.' }, { status: 401 });
-    }
-
-    const successResponse = NextResponse.json(
-      {
-        message: 'Signed in as Admin successfully.',
-        role:    'admin',
-        userId:  authData.user.id,
-      },
-      { status: 200, headers: rateResult.headers },
-    );
-
-    res.cookies.getAll().forEach(({ name, value, ...options }) => {
-      successResponse.cookies.set(name, value, options);
-    });
-
-    return successResponse;
+    profileRecord = data ?? null;
   }
 
-  // ── 7. Standard Account lockout check ────────────────────────────────────────
-  if (profile?.locked_until) {
-    const lockExpiry = new Date(profile.locked_until);
+  // ── 6. Account lockout check ────────────────────────────────────────────────
+  const lockedUntilStr = isEnvAdmin ? adminRecord?.locked_until : profileRecord?.locked_until;
+  if (lockedUntilStr) {
+    const lockExpiry = new Date(lockedUntilStr);
     if (lockExpiry > new Date()) {
       const minutesLeft = Math.ceil((lockExpiry.getTime() - Date.now()) / 60_000);
       return NextResponse.json(
@@ -298,7 +286,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // ── 6. Supabase sign-in ──────────────────────────────────────────────────────
+  // ── 7. Supabase sign-in ──────────────────────────────────────────────────────
   const res = NextResponse.next();
   const supabaseAuth = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -320,17 +308,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     password: input.password,
   });
 
-  // ── 7. Handle auth failure ───────────────────────────────────────────────────
+  // ── 8. Handle auth failure ───────────────────────────────────────────────────
   if (authError || !authData.session) {
-    const loginCtx: LoginContext = {
-      ip,
-      userAgent,
-      timestamp: new Date(),
-    };
+    const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
+    const recordId   = isEnvAdmin ? adminRecord?.id   : profileRecord?.id;
+    const recordName = isEnvAdmin ? (adminRecord?.full_name ?? input.email) : (profileRecord?.full_name ?? input.email);
 
-    // Record failed attempt
-    if (profile) {
-      await recordFailedAttempt(profile.id, profile.full_name, input.email, loginCtx);
+    if (recordId) {
+      await recordFailedAttempt(recordId, recordName, input.email, isEnvAdmin, loginCtx);
     }
 
     return NextResponse.json(
@@ -339,10 +324,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { user, session } = authData;
+  const { user } = authData;
 
-  // ── 8. Verify email confirmation (skip for admins) ───────────────────────────
-  if (!isAdmin && profile && !profile.email_verified) {
+  // ── 9. Auto-provision system_admins row if missing ───────────────────────────
+  // At this point auth succeeded, so the password is correct.
+  if (isEnvAdmin && !adminRecord) {
+    const { error: insertError } = await supabaseAdmin
+      .from('system_admins')
+      .insert({
+        id:        user.id,
+        email:     input.email,
+        full_name: user.user_metadata?.full_name ?? 'System Admin',
+      });
+
+    if (insertError && insertError.code !== '23505') {
+      // 23505 = unique_violation (row already exists — race condition), safe to ignore
+      console.error('[login] Failed to auto-provision system_admins row:', insertError);
+    }
+
+    // Re-fetch so we have the row for subsequent logic
+    const { data } = await supabaseAdmin
+      .from('system_admins')
+      .select('id, full_name, email, locked_until, failed_login_attempts')
+      .eq('email', input.email)
+      .maybeSingle<AdminRecord>();
+    adminRecord = data ?? null;
+  }
+
+  // ── 10. Email verification check (non-admins only) ──────────────────────────
+  if (!isEnvAdmin && profileRecord && !profileRecord.email_verified) {
     return NextResponse.json(
       {
         error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
@@ -352,57 +362,58 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 9. Reset failed attempts on success ─────────────────────────────────────
-  if (profile) {
-    await clearFailedAttempts(profile.id);
+  // ── 11. Reset failed attempts on success ─────────────────────────────────────
+  const successId = isEnvAdmin ? (adminRecord?.id ?? user.id) : profileRecord?.id;
+  if (successId) {
+    await clearFailedAttempts(successId, isEnvAdmin);
   }
 
-  // ── 10. Security alert — new device / location ───────────────────────────────
-  if (profile) {
+  // ── 12. Security alert & login event (non-admins only for now) ───────────────
+  if (!isEnvAdmin && profileRecord) {
     const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
 
     const { data: lastLogin } = await supabaseAdmin
       .from('login_events')
       .select('user_agent')
-      .eq('user_id', profile.id)
+      .eq('user_id', profileRecord.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .single<{ user_agent: string }>();
 
     const isNewDevice = !lastLogin || lastLogin.user_agent !== userAgent;
 
-    // Fire-and-forget
-    sendLoginNotification(input.email, profile.full_name, loginCtx, isNewDevice).catch(
+    sendLoginNotification(input.email, profileRecord.full_name, loginCtx, isNewDevice).catch(
       (err) => console.error('[security-alert] sendLoginNotification failed:', err),
     );
 
-    // Persist the login event
     void (async () => {
       const { error } = await supabaseAdmin.from('login_events').insert({
-        user_id: profile.id,
+        user_id:    profileRecord.id,
         ip_address: ip,
         user_agent: userAgent,
         created_at: new Date().toISOString(),
       });
-
-      if (error) {
-        console.error('[security-alert] Failed to record login event:', error);
-      }
+      if (error) console.error('[security-alert] Failed to record login event:', error);
     })();
   }
 
-  // ── 11. Determine role for response ──────────────────────────────────────────
+  // ── 13. Determine role for response ──────────────────────────────────────────
   let responseRole: string;
-  
-  if (isAdmin) {
+
+  if (isEnvAdmin) {
     responseRole = 'admin';
-  } else if (profile) {
-    responseRole = profile.role_normalized || profile.role;
+  } else if (profileRecord) {
+    // is_admin flag on profiles also grants admin role
+    responseRole = profileRecord.is_admin
+      ? 'admin'
+      : (profileRecord.role_normalized || profileRecord.role || 'employee');
   } else {
+    // Profile missing for a non-admin user (orphaned auth user)
+    console.warn(`[login] No profile found for authenticated user ${user.email} (${user.id})`);
     responseRole = user.user_metadata?.role ?? 'employee';
   }
 
-  // ── 12. Build success response ───────────────────────────────────────────────
+  // ── 14. Build success response ───────────────────────────────────────────────
   const successResponse = NextResponse.json(
     {
       message: 'Signed in successfully.',

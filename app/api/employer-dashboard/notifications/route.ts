@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({ notifications: notifications || [] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Notifications error:", error);
     return NextResponse.json(
       { error: error.message || "An unexpected error occurred." },
@@ -74,3 +74,4 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "Error updating notifications" }, { status: 500 });
     }
 }
+

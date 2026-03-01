@@ -73,7 +73,7 @@ export async function hasMxRecords(domain: string): Promise<boolean> {
   try {
     const addresses = await resolveMx(domain);
     return addresses && addresses.length > 0;
-  } catch (err) {
+  } catch (err: { address?: string } | any) {
     // DNS lookup failed - domain doesn't exist or no MX records
     return false;
   }

@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { isAdminRole } from '@/lib/validations/kyc-validation';
+import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -186,7 +186,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .map((r) => r.toLowerCase());
 
   console.log('[DEBUG /api/admin/employers] user.id:', user.id, '| roleCandidates:', roleCandidates);
-  if (!roleCandidates.some((r) => isAdminRole(r as any))) {
+  if (!roleCandidates.some((r) => {
+    const parsed = UserRoleEnum.safeParse(r);
+    return parsed.success && isAdminRole(parsed.data);
+  })) {
     console.warn('[/api/admin/employers] FORBIDDEN — roleCandidates did not pass isAdminRole. Values:', roleCandidates);
     return NextResponse.json(
       {
@@ -275,9 +278,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .in('employer_id', employerIds);
 
   // Map risk factors by employer_id
-  const riskFactorsByEmployer = new Map<string, any>();
+  const riskFactorsByEmployer = new Map<string, RiskFactors & { employer_id: string; scored_at: string | null }>();
   (riskFactorsData ?? []).forEach((rf) => {
-    riskFactorsByEmployer.set(rf.employer_id, rf);
+    riskFactorsByEmployer.set(rf.employer_id, rf as RiskFactors & { employer_id: string; scored_at: string | null });
   });
 
   // ── Fetch Employee & Advance Data ─────────────────────────────────────────
@@ -340,7 +343,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return {
       id: row.id,
       company_name: row.company_name ?? 'Unknown company',
-      employer_code: row.company_code ?? `EMP-${row.id.slice(0, 8).toUpperCase()}`,
       industry: row.industry ?? '',
       sector: row.sector ?? '',
       country: row.country ?? '',
@@ -410,7 +412,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return (
         e.company_name.toLowerCase().includes(searchFilter) ||
         e.contact_email.toLowerCase().includes(searchFilter) ||
-        e.employer_code.toLowerCase().includes(searchFilter) ||
         (e.contact_person ?? '').toLowerCase().includes(searchFilter) ||
         (e.industry ?? '').toLowerCase().includes(searchFilter)
       );

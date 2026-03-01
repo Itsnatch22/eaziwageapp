@@ -533,3 +533,4 @@ export const EmployerPortalLayout = ({ children, employer }: EmployerPortalLayou
 };
 
 export default EmployerPortalLayout;
+

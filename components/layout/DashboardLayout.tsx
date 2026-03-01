@@ -55,10 +55,16 @@ export const DashboardLayout = ({ children, role }: DashboardLayoutProps) => {
     try {
       const storedUser = window.localStorage.getItem('eaziwage_user');
       if (storedUser) {
-        setUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        // Use a microtask to avoid synchronous setState during effect execution
+        Promise.resolve().then(() => {
+          setUser(parsed);
+        });
       }
     } catch {
-      setUser({});
+      Promise.resolve().then(() => {
+        setUser({});
+      });
     }
   }, []);
 
@@ -186,3 +192,4 @@ export const DashboardLayout = ({ children, role }: DashboardLayoutProps) => {
 };
 
 export default DashboardLayout;
+

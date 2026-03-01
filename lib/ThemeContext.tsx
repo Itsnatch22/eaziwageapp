@@ -40,3 +40,4 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
 };
 
 export default ThemeProvider;
+

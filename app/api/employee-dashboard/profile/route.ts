@@ -1,13 +1,14 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { SupabaseClient, User } from '@supabase/supabase-js';
 
 const profileUpdateSchema = z.object({
     full_name: z.string().min(2, 'Full name must be at least 2 characters').optional(),
     phone: z.string().regex(/^\+?[\d\s\-\(\)]{10,}$/, 'Invalid phone number format').optional(),
 });
 
-async function getFullProfile( supabase: any, userId: string, user: any){
+async function getFullProfile( supabase: SupabaseClient, userId: string, user: User){
     let { data: profile } = await supabase
     .from('profiles')
     .select('*')
@@ -52,9 +53,10 @@ async function getFullProfile( supabase: any, userId: string, user: any){
         selfie: 'selfie',
     };
 
+    const employeeData = (employee || {}) as Record<string, unknown>;
     const kycDocuments = Object.entries(docMap).map(([docType,field]) => ({
         document_type: docType,
-        status: (employee as any)?.[field] ? ('submitted' as const) : null,
+        status: employeeData[field] ? ('submitted' as const) : null,
     }));
 
     return {
@@ -133,7 +135,7 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
-    const updates: any = { updated_at: new Date().toISOString() };
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (parsed.data.full_name) updates.full_name = parsed.data.full_name;
     if (parsed.data.phone) updates.phone = parsed.data.phone;
 

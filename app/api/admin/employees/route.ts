@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { EmployeeSchema, isAdminRole } from '@/lib/validations/kyc-validation';
+import { EmployeeSchema, isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 
 const QueryParamsSchema = z.object({
   employer_id: z.string().uuid().optional(),
@@ -82,7 +82,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .filter((role): role is string => typeof role === 'string' && role.length > 0)
       .map((role) => role.toLowerCase());
 
-    const isAdmin = candidateRoles.some((role) => isAdminRole(role as any));
+    const isAdmin = candidateRoles.some((role) => {
+      const parsed = UserRoleEnum.safeParse(role);
+      return parsed.success && isAdminRole(parsed.data);
+    });
     if (!isAdmin) {
       return NextResponse.json(
         { error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' },

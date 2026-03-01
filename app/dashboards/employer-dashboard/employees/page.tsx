@@ -150,6 +150,27 @@ const FilterButton: React.FC<{ active: boolean; onClick: () => void; children: R
   </button>
 );
 
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: any[];
+  totalEmployees: number;
+}
+
+const CustomTooltip = ({ active, payload, totalEmployees }: CustomTooltipProps) => {
+  if (active && payload?.length) {
+    const d = payload[0].payload;
+    return (
+      <div className="bg-white dark:bg-slate-800 px-3 py-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{d.name}</p>
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          {d.value} employees ({totalEmployees > 0 ? ((d.value / totalEmployees) * 100).toFixed(1) : 0}%)
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 const DepartmentPieChart: React.FC<{
   data: Record<string, number>;
   totalEmployees: number;
@@ -159,21 +180,6 @@ const DepartmentPieChart: React.FC<{
   const chartData = Object.entries(data).map(([name, value], i) => ({
     name, value: Number(value), color: CHART_COLORS[i % CHART_COLORS.length],
   }));
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload?.length) {
-      const d = payload[0].payload;
-      return (
-        <div className="bg-white dark:bg-slate-800 px-3 py-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">{d.name}</p>
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            {d.value} employees ({totalEmployees > 0 ? ((d.value / totalEmployees) * 100).toFixed(1) : 0}%)
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div className="flex items-center gap-6" data-testid="department-pie-chart">
@@ -185,7 +191,7 @@ const DepartmentPieChart: React.FC<{
                 <Cell key={`cell-${i}`} fill={entry.color} className="hover:opacity-80 transition-opacity cursor-pointer" />
               ))}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip totalEmployees={totalEmployees} />} />
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">

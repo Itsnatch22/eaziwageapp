@@ -16,9 +16,7 @@ export async function proxy(req: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             req.cookies.set(name, value)
           );
-          res = NextResponse.next({
-            request: req,
-          });
+          res = NextResponse.next({ request: req });
           cookiesToSet.forEach(({ name, value, options }) =>
             res.cookies.set(name, value, options)
           );
@@ -27,7 +25,7 @@ export async function proxy(req: NextRequest) {
     }
   );
 
-  // Secure check
+  // Secure check — always use getUser(), never trust the session alone
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -46,93 +44,117 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/dashboards/employer-dashboard") ||
     pathname.startsWith("/dashboards/employee-dashboard");
 
-  // Block unauthenticated from dashboards
+  // Block unauthenticated users from protected routes
   if (!user && isDashboard) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
   if (user) {
-  // First check profiles table
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, is_admin")
-    .eq("id", user.id)
-    .single();
+    // ── Role resolution ──────────────────────────────────────────────────────
+    //
+    // Strategy (avoids RLS recursion):
+    //   1. Check system_admins first — admins skip the profiles table entirely.
+    //   2. Fall back to profiles for employers/employees.
+    //   3. If neither table has a record, the auth user is orphaned — sign out.
+    //
+    // Using the anon client here is safe because:
+    //   • system_admins RLS: "SELECT allowed for own row" (id = auth.uid())
+    //   • profiles RLS must NOT reference profiles itself — see SQL migration below
+    //
+    // The service-role client is intentionally NOT used in middleware because
+    // middleware runs on every request and we want RLS as a second layer.
 
-  // If no profile, check system_admins table
-  let role: string;
-  let isAdmin = false;
+    let role: string | null = null;
 
-  if (!profile) {
-    const { data: adminProfile } = await supabase
+    // 1. Check system_admins
+    const { data: adminRow, error: adminError } = await supabase
       .from("system_admins")
-      .select("email")
-      .eq("id", user.email)
-      .maybeSingle();
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle<{ id: string }>();
 
-    if (!adminProfile) {
-      // Neither table has this user - orphaned auth user
-      console.warn(`[middleware] User ${user.email} has no profile or system_admin record - signing out`);
+    if (adminError) {
+      console.error(`[middleware] system_admins query error for ${user.id}:`, adminError);
+    }
+
+    if (adminRow) {
+      role = "admin";
+    } else {
+      // 2. Check profiles
+      // NOTE: profiles RLS must use a simple policy (e.g. id = auth.uid())
+      // without any sub-SELECT on profiles itself — otherwise infinite recursion occurs.
+      const { data: profileRow, error: profileError } = await supabase
+        .from("profiles")
+        .select("role, role_normalized, is_admin")
+        .eq("id", user.id)
+        .maybeSingle<{ role: string; role_normalized: string | null; is_admin: boolean }>();
+
+      if (profileError) {
+        console.error(`[middleware] profiles query error for ${user.id}:`, profileError);
+      }
+
+      if (profileRow) {
+        role = profileRow.is_admin
+          ? "admin"
+          : (profileRow.role_normalized || profileRow.role);
+      }
+    }
+
+    // 3. Orphaned auth user — no record in either table
+    if (!role) {
+      console.warn(
+        `[middleware] User ${user.email} (${user.id}) has no profile or system_admin record — signing out`
+      );
       await supabase.auth.signOut();
       return NextResponse.redirect(new URL("/", req.url));
     }
 
-    // User exists in system_admins
-    role = "admin";
-    isAdmin = true;
-  } else {
-    // User exists in profiles
-    role = profile.is_admin ? "admin" : profile.role;
-    isAdmin = profile.is_admin;
-  }
+    console.log(`[middleware] Path: ${pathname}, Role: ${role}, User: ${user.id}`);
 
-  // Log for debug
-  console.log(`[middleware] Path: ${pathname}, Role: ${role}`);
+    // ── Redirect logged-in users away from public pages ──────────────────────
+    if (isPublic && pathname !== "/verify-email") {
+      let dest: string;
+      if (role === "admin")         dest = "/admin";
+      else if (role === "employer") dest = "/dashboards/employer-dashboard";
+      else if (role === "employee") dest = "/dashboards/employee-dashboard";
+      else {
+        // Unknown role — sign out to prevent an infinite redirect loop
+        console.warn(`[middleware] Unknown role "${role}" for user ${user.id} — signing out`);
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL("/", req.url));
+      }
 
-  // Redirect away from login/register if already logged in
-  if (isPublic && pathname !== "/verify-email") {
-    let dest = "/";
-    if (role === "admin") dest = "/admin";
-    else if (role === "employer") dest = "/dashboards/employer-dashboard";
-    else if (role === "employee") dest = "/dashboards/employee-dashboard";
-    else {
-      console.warn(`[middleware] Unknown role ${role} - signing out`);
-      await supabase.auth.signOut();
-      return NextResponse.redirect(new URL("/", req.url));
+      if (dest !== pathname) {
+        return NextResponse.redirect(new URL(dest, req.url));
+      }
     }
 
-    // Prevent self-redirect loop
-    if (dest !== pathname) {
+    // ── Protect admin routes ─────────────────────────────────────────────────
+    if (pathname.startsWith("/admin") && role !== "admin") {
+      const dest = role === "employer"
+        ? "/dashboards/employer-dashboard"
+        : "/dashboards/employee-dashboard";
+      return NextResponse.redirect(new URL(dest, req.url));
+    }
+
+    // ── Protect employer dashboard ───────────────────────────────────────────
+    if (
+      pathname.startsWith("/dashboards/employer-dashboard") &&
+      role !== "employer"
+    ) {
+      const dest = role === "admin" ? "/admin" : "/dashboards/employee-dashboard";
+      return NextResponse.redirect(new URL(dest, req.url));
+    }
+
+    // ── Protect employee dashboard ───────────────────────────────────────────
+    if (
+      pathname.startsWith("/dashboards/employee-dashboard") &&
+      role !== "employee"
+    ) {
+      const dest = role === "admin" ? "/admin" : "/dashboards/employer-dashboard";
       return NextResponse.redirect(new URL(dest, req.url));
     }
   }
-
-  // Protect admin routes
-  if (pathname.startsWith("/admin") && role !== "admin") {
-    let dest = "/";
-    if (role === "employer") dest = "/dashboards/employer-dashboard";
-    else if (role === "employee") dest = "/dashboards/employee-dashboard";
-    if (dest !== pathname) {
-      return NextResponse.redirect(new URL(dest, req.url));
-    }
-  }
-
-  // Protect employer dashboard
-  if (pathname.startsWith("/dashboards/employer-dashboard") && role !== "employer") {
-    let dest = role === "admin" ? "/admin" : "/dashboards/employee-dashboard";
-    if (dest !== pathname) {
-      return NextResponse.redirect(new URL(dest, req.url));
-    }
-  }
-
-  // Protect employee dashboard
-  if (pathname.startsWith("/dashboards/employee-dashboard") && role !== "employee") {
-    let dest = role === "admin" ? "/admin" : "/dashboards/employer-dashboard";
-    if (dest !== pathname) {
-      return NextResponse.redirect(new URL(dest, req.url));
-    }
-  }
-}
 
   return res;
 }

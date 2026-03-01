@@ -47,7 +47,7 @@ export default function Transactions() {
     useEffect(() => {
         const fetchAdvances = async () => {
             try {
-                const response = await fetch('/api/employee/advances');
+                const response = await fetch('/api/employee-dashboard/transactions');
                 const data: unknown = await response.json();
                 setAdvances(Array.isArray(data) ? (data as Advance[]) : []);
             } catch (error) {
@@ -194,7 +194,7 @@ export default function Transactions() {
               </div>
               <p className="text-slate-600 dark:text-slate-400 font-semibold text-sm">No transactions found</p>
               <p className="text-xs text-slate-400 mt-1">Your transaction history will appear here</p>
-              <Link href="/employee/advances" className="mt-4">
+              <Link href="/dashboards/employee-dashboard/request-advance" className="mt-4">
                 <Button className="bg-linear-to-r from-primary to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-primary/25">
                   Request Your First Advance
                 </Button>
@@ -261,3 +261,4 @@ export default function Transactions() {
     </EmployeePageLayout>
   );
 }
+

@@ -318,11 +318,13 @@ export default function EmployerOnboarding() {
 
   useEffect(() => {
     if (!userFullName && !userEmail) return;
-    setFormData((prev) => ({
-      ...prev,
-      contact_person: prev.contact_person || userFullName,
-      contact_email: prev.contact_email || userEmail,
-    }));
+    Promise.resolve().then(() => {
+      setFormData((prev) => ({
+        ...prev,
+        contact_person: prev.contact_person || userFullName,
+        contact_email: prev.contact_email || userEmail,
+      }));
+    });
   }, [userFullName, userEmail]);
 
   useEffect(() => {
@@ -337,11 +339,13 @@ export default function EmployerOnboarding() {
         const fallbackEmail = profile?.email || profile?.contact_email || "";
         if (!fallbackName && !fallbackEmail) return;
 
-        setFormData((prev) => ({
-          ...prev,
-          contact_person: prev.contact_person || fallbackName,
-          contact_email: prev.contact_email || fallbackEmail,
-        }));
+        Promise.resolve().then(() => {
+          setFormData((prev) => ({
+            ...prev,
+            contact_person: prev.contact_person || fallbackName,
+            contact_email: prev.contact_email || fallbackEmail,
+          }));
+        });
       } catch {
         // Non-fatal fallback only.
       }
@@ -960,3 +964,4 @@ export default function EmployerOnboarding() {
     </div>
   );
 }
+

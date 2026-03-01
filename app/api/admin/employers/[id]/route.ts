@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { isAdminRole } from '@/lib/validations/kyc-validation';
+import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
@@ -62,7 +62,10 @@ export async function GET(
     .filter((r): r is string => typeof r === 'string' && r.length > 0)
     .map((r) => r.toLowerCase());
 
-  if (!roleCandidates.some((r) => isAdminRole(r as any))) {
+  if (!roleCandidates.some((r) => {
+    const parsed = UserRoleEnum.safeParse(r);
+    return parsed.success && isAdminRole(parsed.data);
+  })) {
     return NextResponse.json(
       { error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' },
       { status: 403, headers: rateResult.headers }
@@ -76,7 +79,6 @@ export async function GET(
       id,
       user_id,
       company_name,
-      company_code,
       industry,
       country,
       registration_number,
@@ -124,7 +126,6 @@ export async function GET(
     {
       id: employer.id,
       company_name: employer.company_name ?? 'Unknown company',
-      employer_code: employer.company_code ?? `EMP-${employer.id.slice(0, 8).toUpperCase()}`,
       industry: employer.industry ?? '',
       country: employer.country ?? '',
       registration_number: employer.registration_number ?? null,

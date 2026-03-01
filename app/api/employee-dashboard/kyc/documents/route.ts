@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
     const documentType = parsedDocType.data;
 
     // Validate file type
-    if (!ALLOWED_MIME_TYPES.includes(file.type as any)) {
+    if (!ALLOWED_MIME_TYPES.includes(file.type as typeof ALLOWED_MIME_TYPES[number])) {
       return NextResponse.json(
         {
           error: 'Invalid file type. Upload JPEG, PNG, WEBP or PDF.',
@@ -306,7 +306,7 @@ export async function POST(req: NextRequest) {
             status: 'sent',
           });
         })
-        .catch((error: { message: any; }) => {
+        .catch((error: Error) => {
           console.error('[POST /kyc/documents] Email error:', error);
           logEmail({
             recipientId: user.id,

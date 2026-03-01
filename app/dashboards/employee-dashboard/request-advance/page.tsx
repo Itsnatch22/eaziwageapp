@@ -60,9 +60,16 @@ export default function RequestAdvance() {
     useEffect(() => {
         const fetchEmployee = async () => {
             try {
-                const res = await fetch('/api/employee-dashboard/profile');
+                const res = await fetch('/api/employee-dashboard/overview');
                 const data = await res.json();
-                const employeeData: EmployeeProfile = data?.employee || data?.data || data || {};
+                if (!res.ok) {
+                    toast.error(data.message || 'Failed to load employee data');
+                    return;
+                }
+                const employeeData: EmployeeProfile = {
+                    ...(data?.employee || {}),
+                    ...(data?.stats || {}),
+                };
                 setEmployee(employeeData);
                 const available = Math.min(employeeData.advance_limit || 0, employeeData.earned_wages || 0);
                 if (available > 0) setAmount(Math.min(100, available));
@@ -346,3 +353,4 @@ export default function RequestAdvance() {
     </EmployeePageLayout>
   );
 }
+

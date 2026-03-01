@@ -1,15 +1,13 @@
-//@ts-nocheck
 "use client"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  AlertTriangle, Shield, Plus, Search, Filter, Eye, X, Trash2,
-  CheckCircle2, XCircle, Clock, Edit, Settings, AlertCircle,
-  DollarSign, Users, Calendar, RefreshCw, Save, ChevronRight
+  AlertTriangle, Shield, Plus, Eye, X, Trash2,
+  CheckCircle2, Clock, Edit, AlertCircle,
+  DollarSign, RefreshCw, Save
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
@@ -18,13 +16,129 @@ import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+type IconSize = 'sm' | 'md' | 'lg';
+type GradientVariant = 'purple' | 'red' | 'amber' | 'green' | 'blue';
+type RuleType = 'amount_threshold' | 'frequency' | 'velocity' | 'pattern';
+type RuleSeverity = 'low' | 'medium' | 'high';
+type RuleAction = 'flag' | 'block' | 'notify';
+type FlagType = 'fraud' | 'suspicious' | 'other';
+type ReviewDecision = 'approve' | 'block' | 'escalate';
+type TabType = 'rules' | 'flagged';
+
+interface FraudRule {
+  id: string;
+  name: string;
+  type: RuleType;
+  description: string;
+  threshold: number;
+  threshold_display: string;
+  severity: RuleSeverity;
+  enabled: boolean;
+  action: RuleAction;
+  trigger_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface FlaggedTransaction {
+  id: string;
+  amount: number;
+  employee_name?: string;
+  employer_name?: string;
+  flag_type: FlagType;
+  flag_reason?: string;
+  flagged_at: string;
+  employee_id?: string;
+  employer_id?: string;
+  status?: 'pending' | 'reviewed' | 'approved' | 'blocked';
+}
+
+interface RuleFormData {
+  name: string;
+  type: RuleType;
+  description: string;
+  threshold: number;
+  severity: RuleSeverity;
+  enabled: boolean;
+  action: RuleAction;
+}
+
+interface FraudStats {
+  total_rules: number;
+  active_rules: number;
+  flagged_count: number;
+  high_risk: number;
+}
+
+// ============================================================================
+// Component Props Interfaces
+// ============================================================================
+
+interface GradientIconBoxProps {
+  icon: React.ComponentType<{ className?: string }>;
+  size?: IconSize;
+  variant?: GradientVariant;
+}
+
+interface MetricCardProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number;
+  subtext?: string;
+  variant?: GradientVariant;
+}
+
+interface RuleCardProps {
+  rule: FraudRule;
+  onToggle: (id: string) => void;
+  onEdit: (rule: FraudRule) => void;
+  onDelete: (id: string) => void;
+}
+
+interface FlaggedCardProps {
+  transaction: FlaggedTransaction;
+  onReview: (transaction: FlaggedTransaction) => void;
+}
+
+interface RuleModalProps {
+  rule?: FraudRule | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: RuleFormData) => void;
+}
+
+interface ReviewModalProps {
+  transaction: FlaggedTransaction | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onAction: (transactionId: string, decision: ReviewDecision, notes: string) => void;
+}
+
+// ============================================================================
+// Components
+// ============================================================================
 
 // Gradient Icon Box
-const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'red' }) => {
-  const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12', lg: 'w-14 h-14' };
-  const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6', lg: 'w-7 h-7' };
-  const variants = {
+const GradientIconBox: React.FC<GradientIconBoxProps> = ({ 
+  icon: Icon, 
+  size = 'md', 
+  variant = 'red' 
+}) => {
+  const sizes: Record<IconSize, string> = { 
+    sm: 'w-10 h-10', 
+    md: 'w-12 h-12', 
+    lg: 'w-14 h-14' 
+  };
+  const iconSizes: Record<IconSize, string> = { 
+    sm: 'w-5 h-5', 
+    md: 'w-6 h-6', 
+    lg: 'w-7 h-7' 
+  };
+  const variants: Record<GradientVariant, string> = {
     purple: 'from-purple-600 to-indigo-600',
     red: 'from-red-500 to-rose-600',
     amber: 'from-amber-500 to-orange-500',
@@ -43,7 +157,13 @@ const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'red' }) => {
 };
 
 // Metric Card
-const MetricCard = ({ icon, label, value, subtext, variant = 'red' }) => (
+const MetricCard: React.FC<MetricCardProps> = ({ 
+  icon, 
+  label, 
+  value, 
+  subtext, 
+  variant = 'red' 
+}) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30">
     <div className="flex items-start justify-between">
       <GradientIconBox icon={icon} size="md" variant={variant} />
@@ -57,8 +177,8 @@ const MetricCard = ({ icon, label, value, subtext, variant = 'red' }) => (
 );
 
 // Rule Card
-const RuleCard = ({ rule, onToggle, onEdit, onDelete }) => {
-  const typeIcons = {
+const RuleCard: React.FC<RuleCardProps> = ({ rule, onToggle, onEdit, onDelete }) => {
+  const typeIcons: Record<RuleType, React.ComponentType<{ className?: string }>> = {
     amount_threshold: DollarSign,
     frequency: Clock,
     velocity: AlertTriangle,
@@ -113,7 +233,7 @@ const RuleCard = ({ rule, onToggle, onEdit, onDelete }) => {
 };
 
 // Flagged Transaction Card
-const FlaggedCard = ({ transaction, onReview }) => (
+const FlaggedCard: React.FC<FlaggedCardProps> = ({ transaction, onReview }) => (
   <div className="bg-white/60 dark:bg-slate-800/40 rounded-xl p-4 border border-red-200 dark:border-red-700/30">
     <div className="flex items-start gap-4">
       <div className="w-10 h-10 bg-red-100 dark:bg-red-500/20 rounded-xl flex items-center justify-center">
@@ -137,7 +257,7 @@ const FlaggedCard = ({ transaction, onReview }) => (
         </p>
         <p className="text-xs text-slate-400 mt-1">{formatDateTime(transaction.flagged_at)}</p>
         {transaction.flag_reason && (
-          <p className="text-xs text-red-600 dark:text-red-400 mt-2 italic">"{transaction.flag_reason}"</p>
+          <p className="text-xs text-red-600 dark:text-red-400 mt-2 italic">&quot;{transaction.flag_reason}&quot;</p>
         )}
       </div>
 
@@ -151,8 +271,8 @@ const FlaggedCard = ({ transaction, onReview }) => (
 );
 
 // Create/Edit Rule Modal
-const RuleModal = ({ rule, isOpen, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
+const RuleModal: React.FC<RuleModalProps> = ({ rule, isOpen, onClose, onSave }) => {
+  const [formData, setFormData] = useState<RuleFormData>({
     name: '',
     type: 'amount_threshold',
     description: '',
@@ -163,19 +283,29 @@ const RuleModal = ({ rule, isOpen, onClose, onSave }) => {
   });
 
   useEffect(() => {
-    if (rule) {
-      setFormData(rule);
-    } else {
-      setFormData({
-        name: '',
-        type: 'amount_threshold',
-        description: '',
-        threshold: 50000,
-        severity: 'medium',
-        enabled: true,
-        action: 'flag'
-      });
-    }
+    Promise.resolve().then(() => {
+      if (rule) {
+        setFormData({
+          name: rule.name,
+          type: rule.type,
+          description: rule.description,
+          threshold: rule.threshold,
+          severity: rule.severity,
+          enabled: rule.enabled,
+          action: rule.action
+        });
+      } else {
+        setFormData({
+          name: '',
+          type: 'amount_threshold',
+          description: '',
+          threshold: 50000,
+          severity: 'medium',
+          enabled: true,
+          action: 'flag'
+        });
+      }
+    });
   }, [rule, isOpen]);
 
   if (!isOpen) return null;
@@ -203,7 +333,7 @@ const RuleModal = ({ rule, isOpen, onClose, onSave }) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Rule Type</Label>
-              <Select value={formData.type} onValueChange={(v) => setFormData(prev => ({ ...prev, type: v }))}>
+              <Select value={formData.type} onValueChange={(v) => setFormData(prev => ({ ...prev, type: v as RuleType }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -218,7 +348,7 @@ const RuleModal = ({ rule, isOpen, onClose, onSave }) => {
 
             <div className="space-y-2">
               <Label>Severity</Label>
-              <Select value={formData.severity} onValueChange={(v) => setFormData(prev => ({ ...prev, severity: v }))}>
+              <Select value={formData.severity} onValueChange={(v) => setFormData(prev => ({ ...prev, severity: v as RuleSeverity }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -257,7 +387,7 @@ const RuleModal = ({ rule, isOpen, onClose, onSave }) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Action When Triggered</Label>
-              <Select value={formData.action} onValueChange={(v) => setFormData(prev => ({ ...prev, action: v }))}>
+              <Select value={formData.action} onValueChange={(v) => setFormData(prev => ({ ...prev, action: v as RuleAction }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -296,8 +426,8 @@ const RuleModal = ({ rule, isOpen, onClose, onSave }) => {
 };
 
 // Review Modal
-const ReviewModal = ({ transaction, isOpen, onClose, onAction }) => {
-  const [decision, setDecision] = useState('');
+const ReviewModal: React.FC<ReviewModalProps> = ({ transaction, isOpen, onClose, onAction }) => {
+  const [decision, setDecision] = useState<ReviewDecision | ''>('');
   const [notes, setNotes] = useState('');
 
   if (!isOpen || !transaction) return null;
@@ -333,14 +463,14 @@ const ReviewModal = ({ transaction, isOpen, onClose, onAction }) => {
             {transaction.flag_reason && (
               <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <p className="text-slate-500 text-sm">Flag Reason</p>
-                <p className="text-red-600 dark:text-red-400 italic mt-1">"{transaction.flag_reason}"</p>
+                <p className="text-red-600 dark:text-red-400 italic mt-1">&quot;{transaction.flag_reason}&quot;</p>
               </div>
             )}
           </div>
 
           <div className="space-y-2">
             <Label>Decision</Label>
-            <Select value={decision} onValueChange={setDecision}>
+            <Select value={decision} onValueChange={(v) => setDecision(v as ReviewDecision)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select decision..." />
               </SelectTrigger>
@@ -366,7 +496,12 @@ const ReviewModal = ({ transaction, isOpen, onClose, onAction }) => {
           <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
           <Button 
             className="flex-1 bg-purple-600 hover:bg-purple-700 text-white" 
-            onClick={() => { onAction(transaction.id, decision, notes); onClose(); }}
+            onClick={() => { 
+              if (decision) {
+                onAction(transaction.id, decision as ReviewDecision, notes); 
+                onClose(); 
+              }
+            }}
             disabled={!decision}
           >
             Submit Decision
@@ -377,17 +512,21 @@ const ReviewModal = ({ transaction, isOpen, onClose, onAction }) => {
   );
 };
 
+// ============================================================================
+// Main Component
+// ============================================================================
+
 export default function FraudDetection() {
-  const [activeTab, setActiveTab] = useState('rules');
-  const [rules, setRules] = useState([]);
-  const [flaggedTransactions, setFlaggedTransactions] = useState([]);
+  const [activeTab, setActiveTab] = useState<TabType>('rules');
+  const [rules, setRules] = useState<FraudRule[]>([]);
+  const [flaggedTransactions, setFlaggedTransactions] = useState<FlaggedTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRuleModal, setShowRuleModal] = useState(false);
-  const [editingRule, setEditingRule] = useState(null);
-  const [reviewTransaction, setReviewTransaction] = useState(null);
+  const [editingRule, setEditingRule] = useState<FraudRule | null>(null);
+  const [reviewTransaction, setReviewTransaction] = useState<FlaggedTransaction | null>(null);
 
   // Fetch fraud rules from backend
-  const fetchRules = async () => {
+  const fetchRules = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/fraud-rules`, {
         headers: { 'Content-Type': 'application/json' }
@@ -399,9 +538,9 @@ export default function FraudDetection() {
     } catch (err) {
       console.error('Failed to fetch fraud rules:', err);
     }
-  };
+  }, []);
 
-  const fetchFlaggedTransactions = async () => {
+  const fetchFlaggedTransactions = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/advances/flagged`, {
         headers: { 'Content-Type': 'application/json' }
@@ -413,19 +552,21 @@ export default function FraudDetection() {
     } catch (err) {
       console.error('Failed to fetch flagged transactions:', err);
     }
-  };
+  }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     await Promise.all([fetchRules(), fetchFlaggedTransactions()]);
     setLoading(false);
-  };
+  }, [fetchRules, fetchFlaggedTransactions]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    Promise.resolve().then(() => {
+      fetchData();
+    });
+  }, [fetchData]);
 
-  const handleToggleRule = async (ruleId) => {
+  const handleToggleRule = async (ruleId: string) => {
     try {
       const response = await fetch(`/api/admin/fraud-rules/${ruleId}/toggle`, {
         method: 'PATCH',
@@ -443,7 +584,7 @@ export default function FraudDetection() {
     }
   };
 
-  const handleDeleteRule = async (ruleId) => {
+  const handleDeleteRule = async (ruleId: string) => {
     try {
       const response = await fetch(`/api/admin/fraud-rules/${ruleId}`, {
         method: 'DELETE',
@@ -458,7 +599,7 @@ export default function FraudDetection() {
     }
   };
 
-  const handleSaveRule = async (ruleData) => {
+  const handleSaveRule = async (ruleData: RuleFormData) => {
     try {
       
       if (editingRule) {
@@ -498,7 +639,7 @@ export default function FraudDetection() {
     setEditingRule(null);
   };
 
-  const handleReviewAction = async (transactionId, decision, notes) => {
+  const handleReviewAction = async (transactionId: string, decision: ReviewDecision, notes: string) => {
     try {
       await fetch(`/api/admin/advances/${transactionId}/review`, {
         method: 'PATCH',
@@ -516,7 +657,7 @@ export default function FraudDetection() {
   };
 
   // Stats
-  const stats = {
+  const stats: FraudStats = {
     total_rules: rules.length,
     active_rules: rules.filter(r => r.enabled).length,
     flagged_count: flaggedTransactions.length,

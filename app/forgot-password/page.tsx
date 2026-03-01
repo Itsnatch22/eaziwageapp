@@ -128,7 +128,7 @@ export default function ForgotPasswordPage() {
             you'll receive a password reset link shortly.
           </p>
           <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
-            The link expires in 1 hour. Check your spam folder if you don't see it.
+            The link expires in 1 hour. Check your spam folder if you don&apos;t see it.
           </p>
 
           <div className="flex flex-col gap-3">
@@ -304,3 +304,4 @@ export default function ForgotPasswordPage() {
     </>
   );
 }
+

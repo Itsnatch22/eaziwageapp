@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       documents: updatedDocuments,
       fileUrl,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Upload error:", error);
     return NextResponse.json(
       { error: error.message || "An unexpected error occurred." },
@@ -102,3 +102,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

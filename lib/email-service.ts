@@ -1,5 +1,4 @@
 import { Resend } from 'resend';
-import { render } from '@react-email/render';
 import {
   DocumentApprovedEmail,
   DocumentRejectedEmail,
@@ -32,7 +31,7 @@ export interface SendKYCNotificationParams {
 export async function sendEmail(options: EmailOptions) {
   try {
     const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'KYC System <noreply@contact.eaziwage.com>',
+      from: process.env.EMAIL_FROM || 'KYC System <noreply@eaziwage.com>',
       to: options.to,
       subject: options.subject,
       react: options.react,
@@ -80,7 +79,7 @@ export async function sendKYCNotification(params: SendKYCNotificationParams) {
     documentStatus,
     documentNumber,
     reviewerNotes,
-    dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://yourapp.com/dashboard',
+    dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.eaziwage.com/dashboard',
   } = params;
 
   const documentLabel = getDocumentLabel(documentType);
@@ -210,7 +209,7 @@ export async function sendTestEmail(recipientEmail: string) {
       employeeName: 'Test User',
       documentType: 'National ID',
       approvedDate: new Date().toLocaleDateString(),
-      dashboardUrl: 'https://yourapp.com/dashboard',
+      dashboardUrl: 'https://app.eaziwage.com/dashboard',
     }),
   });
 }

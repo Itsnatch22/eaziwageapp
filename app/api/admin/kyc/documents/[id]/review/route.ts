@@ -3,7 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { DocumentReviewSchema, isAdminRole } from '@/lib/validations/kyc-validation';
+import { DocumentReviewSchema, isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { logEmail, sendKYCNotification } from '@/lib/email-service';
 
 function createAdminClient() {
@@ -41,7 +41,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       .filter((role): role is string => typeof role === 'string' && role.length > 0)
       .map((role) => role.toLowerCase());
 
-    if (!roles.some((role) => isAdminRole(role as any))) {
+    if (!roles.some((role) => {
+      const parsed = UserRoleEnum.safeParse(role);
+      return parsed.success && isAdminRole(parsed.data);
+    })) {
       return NextResponse.json({ error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' }, { status: 403 });
     }
 

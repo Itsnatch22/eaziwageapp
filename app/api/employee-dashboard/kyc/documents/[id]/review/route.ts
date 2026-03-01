@@ -6,6 +6,7 @@ import {
   DocumentReviewSchema,
   KYCDocumentSchema,
   isAdminRole,
+  UserRoleEnum,
 } from '@/lib/validations/kyc-validation';
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
 
@@ -55,7 +56,8 @@ export async function PATCH(
       .eq('id', user.id)
       .maybeSingle<{ role: string | null; full_name: string | null; email: string | null }>();
 
-    const isAdmin = isAdminRole(profile?.role as any);
+    const parsedRole = UserRoleEnum.safeParse(profile?.role);
+    const isAdmin = parsedRole.success && isAdminRole(parsedRole.data);
     if (!isAdmin) {
       return NextResponse.json(
         { error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' },

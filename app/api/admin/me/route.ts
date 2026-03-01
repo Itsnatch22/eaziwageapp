@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
-import { isAdminRole } from '@/lib/validations/kyc-validation';
+import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 export async function GET(_req: NextRequest): Promise<NextResponse> {
@@ -44,7 +44,11 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     app_metadata_role: user.app_metadata?.role ?? null,
     user_metadata_role: user.user_metadata?.role ?? null,
     role_candidates: roleCandidates,
-    is_admin: roleCandidates.some((r) => isAdminRole(r as any)),
+    is_admin: roleCandidates.some((role) => {
+      const parsed = UserRoleEnum.safeParse(role);
+      return parsed.success && isAdminRole(parsed.data);
+    }),
     allowed_roles: ['admin', 'super_admin', 'compliance', 'employer_admin'],
   });
 }
+
