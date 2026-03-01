@@ -167,7 +167,7 @@ const FileUploader = ({
               <Check className="w-5 h-5 text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[180px]">
+              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-45">
                 {uploadedFile.name || "Document uploaded"}
               </p>
               <p className="text-xs text-slate-500">Click to replace</p>
@@ -278,6 +278,12 @@ export default function EmployerOnboarding() {
 
   const [countriesOfOperation, setCountriesOfOperation] = useState<string[]>([]);
   const user = useAuthStore((state) => state.user);
+  const userFullName =
+    user?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    "";
+  const userEmail = user?.email || user?.user_metadata?.email || "";
 
   const [beneficialOwners, setBeneficialOwners] = useState([
     { full_name: "", id_number: "", nationality: "", ownership_percentage: 0, is_pep: false },
@@ -304,11 +310,48 @@ export default function EmployerOnboarding() {
     monthly_payroll_amount: "",
     bank_name: "",
     bank_account_number: "",
-    contact_person: user?.full_name || "",
-    contact_email: user?.email || "",
+    contact_person: userFullName,
+    contact_email: userEmail,
     contact_phone: "",
     contact_position: "",
   });
+
+  useEffect(() => {
+    if (!userFullName && !userEmail) return;
+    Promise.resolve().then(() => {
+      setFormData((prev) => ({
+        ...prev,
+        contact_person: prev.contact_person || userFullName,
+        contact_email: prev.contact_email || userEmail,
+      }));
+    });
+  }, [userFullName, userEmail]);
+
+  useEffect(() => {
+    const fetchProfileFallback = async () => {
+      if (userFullName && userEmail) return;
+      try {
+        const res = await fetch("/api/employer-dashboard/profile");
+        const data = await res.json();
+        if (!res.ok) return;
+        const profile = data?.profile || {};
+        const fallbackName = profile?.full_name || profile?.contact_person || "";
+        const fallbackEmail = profile?.email || profile?.contact_email || "";
+        if (!fallbackName && !fallbackEmail) return;
+
+        Promise.resolve().then(() => {
+          setFormData((prev) => ({
+            ...prev,
+            contact_person: prev.contact_person || fallbackName,
+            contact_email: prev.contact_email || fallbackEmail,
+          }));
+        });
+      } catch {
+        // Non-fatal fallback only.
+      }
+    };
+    fetchProfileFallback();
+  }, [userFullName, userEmail]);
 
   // ── Fetch sectors on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -449,7 +492,7 @@ export default function EmployerOnboarding() {
               <Building2 className="w-10 h-10 text-white" />
             </div>
             <h2 className="font-heading text-3xl font-bold text-slate-900 dark:text-white mb-4">
-              Welcome to EaziWage Employer Portal
+              Welcome to EaziWage Employer Portal {userFullName ? `, ${userFullName.split(" ")[0]}` : ""}!
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-300 mb-8 max-w-lg mx-auto">
               Complete your company's due diligence onboarding to offer earned wage access to your employees.
@@ -688,7 +731,7 @@ export default function EmployerOnboarding() {
               {/* Countries of Operation */}
               <div className="flex flex-col gap-2">
                 <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Countries of Operation *</Label>
-                <div className="flex flex-wrap gap-2 p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/50 min-h-[56px]">
+                <div className="flex flex-wrap gap-2 p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/50 min-h-14">
                   {COUNTRIES.map((c) => {
                     const selected = countriesOfOperation.includes(c.code);
                     return (
@@ -921,3 +964,4 @@ export default function EmployerOnboarding() {
     </div>
   );
 }
+

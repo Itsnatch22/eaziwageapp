@@ -17,11 +17,12 @@ type VariantColor = 'green' | 'slate' | 'black';
 type APIStatus = 'healthy' | 'degraded' | 'down';
 
 interface DashboardStats {
-  employers: { total: number; active: number };
-  employees: { total: number; active: number };
+  employers: { total: number; active: number; trend?: string; trendUp?: boolean };
+  employees: { total: number; active: number; trend?: string; trendUp?: boolean };
   advances: { total_count: number; pending_count: number; total_disbursed: number; total_fees: number };
   kyc_pending: { employers: number; employees: number };
   pending_reviews: number;
+  pending_reconciliation: number;
   monthly: { disbursed: number; advance_count: number; fees: number };
   risk: { avg_employer_score: number };
   api_health: Record<string, { status: APIStatus; latency_ms: number; uptime_percent: number }>;
@@ -165,8 +166,8 @@ export default function AdminDashboard() {
 
         {/* Metrics */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard icon={Building2} label="Total Employers" value={stats?.employers.total || 0} subtext={`${stats?.employers.active || 0} active`} trend="+12%" trendUp variant="green" />
-          <MetricCard icon={Users} label="Total Employees" value={stats?.employees.total || 0} subtext={`${stats?.employees.active || 0} active`} trend="+18%" trendUp variant="slate" />
+          <MetricCard icon={Building2} label="Total Employers" value={stats?.employers.total || 0} subtext={`${stats?.employers.active || 0} active`} trend={stats?.employers.trend} trendUp={stats?.employers.trendUp} variant="green" />
+          <MetricCard icon={Users} label="Total Employees" value={stats?.employees.total || 0} subtext={`${stats?.employees.active || 0} active`} trend={stats?.employees.trend} trendUp={stats?.employees.trendUp} variant="slate" />
           <MetricCard icon={CreditCard} label="Total Advances" value={stats?.advances.total_count || 0} subtext={`${stats?.advances.pending_count || 0} pending`} variant="green" />
           <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats?.advances.total_disbursed || 0)} subtext={`Fees: ${formatCurrency(stats?.advances.total_fees || 0)}`} variant="slate" />
         </div>
@@ -227,8 +228,8 @@ export default function AdminDashboard() {
           {[
             { link: '/admin/employers?status=pending', icon: CheckCircle2, label: 'Verify Employers', count: stats?.kyc_pending.employers || 0, variant: 'slate' as const },
             { link: '/admin/kyc-review', icon: FileText, label: 'Review KYC', count: stats?.kyc_pending.employees || 0, variant: 'slate' as const },
-            { link: '/admin/risk-scoring', icon: Shield, label: 'Risk Scoring', count: null, variant: 'green' as const },
-            { link: '/admin/reconciliation', icon: BarChart3, label: 'Reconciliation', count: null, variant: 'green' as const },
+            { link: '/admin/risk-scoring', icon: Shield, label: 'Risk Scoring', count: stats?.pending_reviews ?? null, variant: 'green' as const },
+            { link: '/admin/reconciliation', icon: BarChart3, label: 'Reconciliation', count: stats?.pending_reconciliation ?? null, variant: 'green' as const },
           ].map((item, i) => (
             <Link key={i} href={item.link} className="group">
               <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:border-green-300 dark:hover:border-green-600/30 transition-all hover:shadow-lg hover:shadow-green-500/10">

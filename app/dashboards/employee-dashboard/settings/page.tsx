@@ -300,13 +300,13 @@ const ContactSupportModal = ({ isOpen, onClose }: ContactSupportModalProps) => {
             </div>
           </a>
           
-          <a href="https://wa.me/254700123456" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors">
+          <a href="https://wa.me/254723154900" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors">
             <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
               <MessageCircle className="w-6 h-6 text-white" />
             </div>
             <div>
               <p className="font-semibold text-slate-900 dark:text-white">WhatsApp</p>
-              <p className="text-sm text-primary">+254 700 123 456</p>
+              <p className="text-sm text-primary">+254 723 154 900</p>
             </div>
           </a>
         </div>
@@ -333,7 +333,7 @@ const HelpCenterSection = ({ isExpanded, onToggle }: HelpCenterSectionProps) => 
     },
     {
       q: "What are the fees?",
-      a: "Our fees range from 3.5% to 6.5% depending on your employer's plan. The exact fee is shown before you confirm any transaction. There are no hidden charges or interest."
+      a: "Our fees range from 3.5% to 6.5% depending on your employer&apos;s plan. The exact fee is shown before you confirm any transaction. There are no hidden charges or interest."
     },
     {
       q: "How much can I access?",
@@ -395,7 +395,7 @@ TERMS OF SERVICE
 Last Updated: February 2026
 
 1. ACCEPTANCE OF TERMS
-By accessing and using EaziWage's services, you agree to be bound by these Terms of Service.
+By accessing and using EaziWage&apos;s services, you agree to be bound by these Terms of Service.
 
 2. SERVICES
 EaziWage provides earned wage access services, allowing you to access a portion of your earned wages before your scheduled payday.
@@ -407,7 +407,7 @@ You must be at least 18 years old and employed by a participating employer to us
 Our service fees range from 3.5% to 6.5% per transaction. The exact fee is displayed before you confirm each advance request.
 
 5. REPAYMENT
-All advances are automatically deducted from your next salary payment through your employer's payroll system.
+All advances are automatically deducted from your next salary payment through your employer&apos;s payroll system.
 
 6. USER RESPONSIBILITIES
 You agree to provide accurate information and maintain the security of your account credentials.
@@ -711,7 +711,7 @@ export default function Settings() {
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const [user, setUser] = useState<{ full_name?: string }>({});
 
 
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -733,6 +733,15 @@ export default function Settings() {
   ];
 
   useEffect(() => {
+    try {
+      const storedUser = window.localStorage.getItem('user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch {
+      setUser({});
+    }
+
     const fetchProfile = async () => {
       try {
         const res = await fetch('/api/profile');
@@ -820,7 +829,7 @@ export default function Settings() {
 
     const handleEmployeeSettingsSave = async (field: string, value: string) => {
         try {
-            const res = await fetch('/api/employer-dashboard/employee-settings', {
+            const res = await fetch('/api/employee-dashboard/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ [field]: value }),
@@ -1197,3 +1206,4 @@ export default function Settings() {
     </EmployeePageLayout>
   );
 }
+

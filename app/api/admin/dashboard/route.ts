@@ -59,6 +59,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .select('id', { count: 'exact', head: true })
       .in('kyc_status', ['submitted', 'pending']);
 
+    // ── 5b. Fetch trends ──────────────────────────────────────────────────────
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const { count: employerThisMonth } = await supabase
+      .from('employers')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', startOfMonth);
+    
+    const employerTrendValue = employerTotal ? Math.round(((employerThisMonth || 0) / employerTotal) * 100) : 0;
+    const employerTrend = `+${employerTrendValue}%`;
+
+    const { count: employeeThisMonth } = await supabase
+      .from('employees')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', startOfMonth);
+    
+    const employeeTrendValue = employeeTotal ? Math.round(((employeeThisMonth || 0) / employeeTotal) * 100) : 0;
+    const employeeTrend = `+${employeeTrendValue}%`;
+
     // ── 6. Fetch advance stats ────────────────────────────────────────────────
     const { count: advanceTotal } = await supabase
       .from('advances')
@@ -77,9 +97,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const totalDisbursed = (advanceAmounts || []).reduce((sum, a) => sum + (a.amount || 0), 0);
     const totalFees      = (advanceAmounts || []).reduce((sum, a) => sum + (a.fee_amount || 0), 0);
 
+    const { count: pendingReconciliation } = await supabase
+      .from('advances')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'disbursed');
+
     // ── 7. Monthly stats ───────────────────────────────────────────────────────
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
     const { data: monthlyAdvances } = await supabase
       .from('advances')
@@ -100,13 +123,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ? employerRisks.reduce((sum, e) => sum + (e.risk_score || 0), 0) / employerRisks.length
       : 3.5;
 
-    // ── 9. Mock API health (replace with actual monitoring) ───────────────────
-    const apiHealth = {
-      mpesa_integration: { status: 'healthy', latency_ms: 120, uptime_percent: 99.8 },
-      airtel_money:      { status: 'healthy', latency_ms: 135, uptime_percent: 99.5 },
-      bank_integration:  { status: 'healthy', latency_ms: 200, uptime_percent: 98.9 },
-      payroll_sync:      { status: 'healthy', latency_ms: 180, uptime_percent: 99.2 },
-    };
+    const { count: riskFactorsCount } = await supabase
+      .from('employer_risk_factors')
+      .select('employer_id', { count: 'exact', head: true });
+    
+    const pendingReviews = Math.max(0, (employerTotal || 0) - (riskFactorsCount || 0));
+
+    // ── 9. Fetch API health 
+    const { data: apiHealthData } = await supabase
+      .from('api_health')
+      .select('name, status, latency_ms, uptime_percent');
+
+    const apiHealth = apiHealthData || [];
+
+    const apiHealthStats = apiHealth.reduce((stats: Record<string, any>, health: any) => {
+      if (health.name) {
+        stats[health.name] = {
+          name: health.name,
+          status: health.status,
+          latency_ms: health.latency_ms,
+          uptime_percent: health.uptime_percent,
+        };
+      }
+      return stats;
+    }, {});
+
 
     // ── 10. Build response ─────────────────────────────────────────────────────
     return NextResponse.json(
@@ -114,10 +155,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         employers: {
           total:  employerTotal || 0,
           active: employerActive || 0,
+          trend: employerTrend,
+          trendUp: employerTrendValue >= 0,
         },
         employees: {
           total:  employeeTotal || 0,
           active: employeeActive || 0,
+          trend: employeeTrend,
+          trendUp: employeeTrendValue >= 0,
         },
         advances: {
           total_count:     advanceTotal || 0,
@@ -129,7 +174,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           employers: employerPending || 0,
           employees: employeeKYCPending || 0,
         },
-        pending_reviews: 0, // TODO: Implement risk review queue
+        pending_reviews: pendingReviews,
+        pending_reconciliation: pendingReconciliation || 0,
         monthly: {
           disbursed:     monthlyDisbursed,
           advance_count: (monthlyAdvances || []).length,
@@ -138,7 +184,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         risk: {
           avg_employer_score: avgEmployerScore,
         },
-        api_health: apiHealth,
+        api_health: apiHealthStats,
       },
       { status: 200, headers: rateResult.headers },
     );

@@ -326,7 +326,7 @@ export default function RegisterPage() {
     }
     if (accountType === 'employee' && noCompanyFound) {
       if (!referralName.trim() || !referralEmail.trim() || !referralPhone.trim()) {
-        setError("Please provide your employer's contact details so we can onboard them");
+        setError("Please provide your employer&apos;s contact details so we can onboard them");
         return;
       }
     }
@@ -374,7 +374,11 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push(accountType === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard');
+      const destination =
+        data.role === 'employer'
+          ? '/dashboards/employer-dashboard'
+          : '/dashboards/employee-dashboard';
+      router.replace(destination);
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -576,7 +580,7 @@ export default function RegisterPage() {
                             <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
                             <div>
                               <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Company not on EaziWage yet</p>
-                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Provide your employer's details and we'll reach out to onboard them.</p>
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Provide your employer&apos;s details and we'll reach out to onboard them.</p>
                             </div>
                           </div>
                         </div>
@@ -713,4 +717,5 @@ export default function RegisterPage() {
     </>
   );
 }
+
 

@@ -71,8 +71,8 @@ export default function RiskRequest({
                 Hi <strong>{contactPerson}</strong>,
               </Text>
               <Text className="text-slate-600">
-                We've received your request for a manual risk score review for{' '}
-                <strong>{companyName}</strong>. Our risk team will assess your company's profile and
+                We&apos;ve received your request for a manual risk score review for{' '}
+                <strong>{companyName}</strong>. Our risk team will assess your company&apos;s profile and
                 update your score if warranted.
               </Text>
 
@@ -126,7 +126,7 @@ export default function RiskRequest({
                   ② We may reach out for additional documentation
                 </Text>
                 <Text className="text-emerald-700 text-sm m-0">
-                  ③ You'll be notified by email once the review is complete
+                  ③ You&apos;ll be notified by email once the review is complete
                 </Text>
               </Section>
 

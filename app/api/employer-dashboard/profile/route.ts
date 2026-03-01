@@ -1,13 +1,7 @@
-// app/api/profile/route.ts
-//
-// GET — Returns the authenticated employer's lightweight profile.
-//       Used by nav/layout components that just need company_name, id, etc.
-//       For the full risk-scored profile use GET /api/employer/employer-data.
-//
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export async function GET() {
   const supabase = await createClient();

@@ -118,7 +118,7 @@ const DashboardHeader = ({ user, employee }: DashboardHeaderProps) => {
       <header className="relative z-10 max-w-md mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/employee/settings" className="shrink-0">
+            <Link href="/dashboards/employee-dashboard/settings" className="shrink-0">
               {user?.profile_picture_url ? (
                 <img 
                   src={`${process.env.REACT_APP_BACKEND_URL}${user.profile_picture_url}`} 
@@ -302,7 +302,7 @@ export default function EmployeeDashboardPage() {
     useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/employee/dashboard', {
+        const response = await fetch('/api/employee-dashboard/overview', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -310,16 +310,16 @@ export default function EmployeeDashboardPage() {
         });
         const data = await response.json();
         if (!response.ok) {
-          if (response.status === 404) {
+          if (response.status === 404 && data.code === 'profile_not_found') {
             setError('profile_not_found');
           } else {
             setError(data?.message || 'Failed to load dashboard');
           }
           return;
         }
-        const statsData: DashboardStats = data?.stats || data?.data?.stats || data?.data || {};
-        const employeeData: EmployeeSummary | null = data?.employee || data?.data?.employee || null;
-        const userData = data?.user || data?.profile || null;
+        const statsData: DashboardStats = data?.stats || {};
+        const employeeData: EmployeeSummary | null = data?.employee || null;
+        const userData = data?.user || null;
         setStats(statsData);
         setEmployee(employeeData);
         if (userData?.full_name) {
@@ -431,7 +431,7 @@ export default function EmployeeDashboardPage() {
           </div>
 
           {/* Request Button */}
-	          <Link href="/employee/advances" className="block">
+	          <Link href="/dashboards/employee-dashboard/request-advance" className="block">
             <Button 
 	              className="w-full h-12 rounded-xl bg-linear-to-r from-primary to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-primary/25 btn-glow hover:shadow-xl transition-shadow"
               disabled={!canRequestAdvance} 
@@ -534,7 +534,7 @@ export default function EmployeeDashboardPage() {
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden" data-testid="recent-activity">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50 dark:border-slate-700/30">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">Recent Activity</h3>
-	            <Link href="/employee/transactions" className="text-xs font-semibold text-primary flex items-center gap-1">
+	            <Link href="/dashboards/employee-dashboard/transactions" className="text-xs font-semibold text-primary flex items-center gap-1">
               View All <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
@@ -585,3 +585,4 @@ export default function EmployeeDashboardPage() {
     </EmployeePageLayout>
   );
 }
+

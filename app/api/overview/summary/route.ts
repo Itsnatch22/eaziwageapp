@@ -41,7 +41,7 @@ export async function GET() {
     .eq('organization_id', profile.organization_id)
     .in('status', ['pending', 'approved']);
 
-  const totalExposure = exposureData?.reduce((sum: number, a: any) => sum + Number(a.amount), 0) || 0;
+  const totalExposure = (exposureData ?? []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
 
   // Utilization Rate (MTD)
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -52,7 +52,7 @@ export async function GET() {
     .eq('status', 'approved')
     .gte('requested_at', startOfMonth);
 
-  const mtdDisbursed = mtdData?.reduce((sum: number, a: any) => sum + Number(a.amount), 0) || 0;
+  const mtdDisbursed = (mtdData ?? []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
   const utilization = org?.liquidity_pool ? Math.round((mtdDisbursed / Number(org.liquidity_pool)) * 100) : 0;
 
   return NextResponse.json({

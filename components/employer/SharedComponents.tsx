@@ -125,3 +125,4 @@ export const formatCurrencyWithSymbol = ({amount, currencyCode = 'KES'}: FormatC
   const currency = currencies.find(c => c.code === currencyCode) || currencies[0];
   return `${currency.symbol} ${amount?.toLocaleString() || 0}`;
 };
+

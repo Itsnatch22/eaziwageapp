@@ -106,8 +106,22 @@ interface DocumentItemProps {
     onView: () => void;
     onReupload: () => void;
 }
-const DocumentItem = ({ icon: Icon, label, fileName, status, onView, onReupload }: DocumentItemProps) => (
-  <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+const DocumentItem = ({ icon: Icon, label, fileName, status, onView, onReupload, accept = ".pdf,.jpg,.jpeg,.png", isUploading = false }: DocumentItemProps & { accept?: string, isUploading?: boolean }) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  return (
+  <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl relative overflow-hidden">
+    <input
+      type="file"
+      className="hidden"
+      ref={fileInputRef}
+      accept={accept}
+      onChange={(e) => {
+        if (e.target.files?.[0]) {
+          onReupload(e.target.files[0]);
+        }
+      }}
+    />
     <div className="flex items-center gap-4">
       <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
         <Icon className="w-5 h-5 text-white" />
@@ -131,12 +145,18 @@ const DocumentItem = ({ icon: Icon, label, fileName, status, onView, onReupload 
           <Eye className="w-4 h-4" />
         </Button>
       )}
-      <Button variant="ghost" size="sm" onClick={onReupload}>
-        <Upload className="w-4 h-4" />
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={() => fileInputRef.current?.click()}
+        disabled={isUploading}
+      >
+        {isUploading ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /> : <Upload className="w-4 h-4" />}
       </Button>
     </div>
   </div>
-);
+  );
+};
 
 interface FAQItemProps{
     question: string;
@@ -191,8 +211,82 @@ export default function EmployerSettings() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('company');
+    const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
 
-    const [settings, setSettings] = useState({
+    const handleFileUpload = async (file: File, docKey: string) => {
+      setUploadingDoc(docKey);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("documentType", docKey);
+
+        const res = await fetch("/api/employer-dashboard/settings/documents", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to upload document");
+        }
+
+        const data = await res.json();
+        
+        // Update local state with new Document properties
+        setEmployer((prev: any) => ({
+          ...prev,
+          documents: {
+            ...prev?.documents,
+            [docKey]: data.fileUrl,
+          },
+        }));
+
+        toast.success(`${docKey.replace(/_/g, ' ')} uploaded successfully!`);
+      } catch (err: any) {
+        console.error("Upload error:", err);
+        toast.error(err.message || "Failed to upload document");
+      } finally {
+        setUploadingDoc(null);
+      }
+    };
+
+    const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+    const [updatingPassword, setUpdatingPassword] = useState(false);
+
+    const handlePasswordUpdate = async () => {
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        toast.error("Passwords do not match");
+        return;
+      }
+      if (passwordForm.newPassword.length < 8) {
+        toast.error("Password must be at least 8 characters");
+        return;
+      }
+
+      setUpdatingPassword(true);
+      try {
+        const res = await fetch("/api/employer-dashboard/security/password", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newPassword: passwordForm.newPassword }),
+        });
+        
+        if (res.ok) {
+          toast.success("Password updated successfully");
+          setPasswordForm({ newPassword: '', confirmPassword: '' });
+        } else {
+          const data = await res.json();
+          toast.error(data.error || "Failed to update password");
+        }
+      } catch (err) {
+        console.error("Password update error:", err);
+        toast.error("Failed to update password");
+      } finally {
+        setUpdatingPassword(false);
+      }
+    };
+
+    const [profile, setProfile] = useState({
     maxAdvancePercentage: 50,
     minAdvanceAmount: 500,
     maxAdvanceAmount: 50000,
@@ -223,9 +317,9 @@ export default function EmployerSettings() {
               throw new Error(`Failed to fetch employer profile: ${res.status}`);
             }
             const payload = await res.json();
-            const employerData = payload?.profile ?? payload ?? {};
+            const employerData = payload?.employer ?? payload ?? {};
             setEmployer(employerData);
-            setSettings(prev => ({
+            setProfile(prev => ({
                 ...prev,
                 companyName: employerData.company_name || '',
                 contactPerson: employerData.contact_person || '',
@@ -236,7 +330,16 @@ export default function EmployerSettings() {
                 city: employerData.city || '',
                 postalCode: employerData.postal_code || '',
                 countyRegion: employerData.county_region || '',
-                country: employerData.country || 'KE'
+                country: employerData.country || 'KE',
+                emailNotifications: employerData.email_notifications ?? true,
+                advanceAlerts: employerData.advance_alerts ?? true,
+                payrollReminders: employerData.payroll_reminders ?? true,
+                weeklyReports: employerData.weekly_reports ?? false,
+                maxAdvancePercentage: employerData.max_advance_percentage ?? 50,
+                minAdvanceAmount: employerData.min_advance_amount ?? 500,
+                maxAdvanceAmount: employerData.max_advance_amount ?? 50000,
+                advanceAccessDays: employerData.advance_access_days ?? [1, 25],
+                cooldownPeriod: employerData.cooldown_period ?? 7,
             }));
         } catch (err) {
             console.error("Failed to fetch employer data:", err);
@@ -250,22 +353,22 @@ export default function EmployerSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-        const res = await fetch("/api/employer-dashboard/settings", {
+        const res = await fetch("/api/employer-dashboard/profile", {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(settings),
+            body: JSON.stringify(profile),
         });
         if (res.ok) {
-            toast.success("Settings saved successfully");
+            toast.success("Profile saved successfully");
         } else {
             const data = await res.json();
-            toast.error(data.error || "Failed to save settings");
+            toast.error(data.error || "Failed to save profile");
         }
     } catch (err) {
-        console.error("Failed to save settings:", err);
-        toast.error("Failed to save settings");
+        console.error("Failed to save profile:", err);
+        toast.error("Failed to save profile");
     } finally {
         setSaving(false);
     }
@@ -389,7 +492,7 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Company Name</Label>
                       <Input
-                        value={settings.companyName}
+                        value={profile.companyName}
                         readOnly
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                         data-testid="company-name-input"
@@ -399,7 +502,7 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Payroll Cycle</Label>
                       <Input
-                        value={settings.payrollCycle === 'monthly' ? 'Monthly' : settings.payrollCycle === 'bi-weekly' ? 'Bi-Weekly' : settings.payrollCycle === 'weekly' ? 'Weekly' : settings.payrollCycle}
+                        value={profile.payrollCycle === 'monthly' ? 'Monthly' : profile.payrollCycle === 'bi-weekly' ? 'Bi-Weekly' : profile.payrollCycle === 'weekly' ? 'Weekly' : settings.payrollCycle}
                         readOnly
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed capitalize"
                         data-testid="payroll-cycle-select"
@@ -426,10 +529,10 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Physical Address</Label>
                       <Input
-                        value={settings.physicalAddress}
-                        onChange={(e) => setSettings(prev => ({ ...prev, physicalAddress: e.target.value }))}
+                        value={profile.physicalAddress}
+                        readOnly
                         placeholder="Street address, building name"
-                        className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                        className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                         data-testid="physical-address-input"
                       />
                     </div>
@@ -437,20 +540,20 @@ export default function EmployerSettings() {
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">City</Label>
                         <Input
-                          value={settings.city}
-                          onChange={(e) => setSettings(prev => ({ ...prev, city: e.target.value }))}
+                          value={profile.city}
+                          readOnly
                           placeholder="Nairobi"
-                          className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                          className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                           data-testid="city-input"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Postal Code</Label>
                         <Input
-                          value={settings.postalCode}
-                          onChange={(e) => setSettings(prev => ({ ...prev, postalCode: e.target.value }))}
+                          value={profile.postalCode}
+                          readOnly
                           placeholder="00100"
-                          className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                          className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                           data-testid="postal-code-input"
                         />
                       </div>
@@ -459,28 +562,25 @@ export default function EmployerSettings() {
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">County/Region</Label>
                         <Input
-                          value={settings.countyRegion}
-                          onChange={(e) => setSettings(prev => ({ ...prev, countyRegion: e.target.value }))}
-                          placeholder="Nairobi County"
-                          className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                          value={profile.countyRegion}
+                          readOnly
+                          placeholder="Your county or region"
+                          className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                           data-testid="county-input"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Country</Label>
-                        <Select value={settings.country} onValueChange={(v) => setSettings(prev => ({ ...prev, country: v }))}>
-                          <SelectTrigger className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700">
-                            <SelectValue placeholder="Select country" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="KE">Kenya</SelectItem>
-                            <SelectItem value="UG">Uganda</SelectItem>
-                            <SelectItem value="TZ">Tanzania</SelectItem>
-                            <SelectItem value="RW">Rwanda</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          value={profile.country === 'KE' ? 'Kenya' : profile.country === 'UG' ? 'Uganda' : profile.country === 'TZ' ? 'Tanzania' : profile.country === 'RW' ? 'Rwanda' : profile.country}
+                          readOnly
+                          placeholder="Country"
+                          className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
+                          data-testid="country-input"
+                        />
                       </div>
                     </div>
+                    <p className="text-xs text-slate-500">Contact support to change your business address</p>
                   </div>
                 </SettingsCard>
 
@@ -489,20 +589,20 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Contact Person</Label>
                       <Input
-                        value={settings.contactPerson}
-                        onChange={(e) => setSettings(prev => ({ ...prev, contactPerson: e.target.value }))}
+                        value={profile.contactPerson}
+                        readOnly
                         placeholder="Full name"
-                        className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                        className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                         data-testid="contact-person-input"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Phone Number</Label>
                       <Input
-                        value={settings.contactPhone}
-                        onChange={(e) => setSettings(prev => ({ ...prev, contactPhone: e.target.value }))}
+                        value={profile.contactPhone}
+                        readOnly
                         placeholder="+254 700 000 000"
-                        className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                        className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                         data-testid="contact-phone-input"
                       />
                     </div>
@@ -510,14 +610,15 @@ export default function EmployerSettings() {
                       <Label className="text-slate-700 dark:text-slate-300">Email Address</Label>
                       <Input
                         type="email"
-                        value={settings.contactEmail}
-                        onChange={(e) => setSettings(prev => ({ ...prev, contactEmail: e.target.value }))}
+                        value={profile.contactEmail}
+                        readOnly
                         placeholder="email@company.com"
-                        className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                        className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                         data-testid="contact-email-input"
                       />
                     </div>
                   </div>
+                  <p className="text-xs text-slate-500 mt-4">Contact support to change your primary contact information</p>
                 </SettingsCard>
 
                 {/* Verification Status */}
@@ -563,38 +664,56 @@ export default function EmployerSettings() {
                     <DocumentItem 
                       icon={FileText} 
                       label="Certificate of Incorporation" 
-                      fileName={employer?.documents?.certificate_of_incorporation ? "Uploaded" : null}
+                      fileName={employer?.documents?.certificate_of_incorporation ? "certificate_of_incorporation.pdf" : null}
                       status={employer?.documents?.certificate_of_incorporation ? "approved" : null}
+                      onReupload={(file) => handleFileUpload(file, 'certificate_of_incorporation')}
+                      isUploading={uploadingDoc === 'certificate_of_incorporation'}
+                      onView={() => employer?.documents?.certificate_of_incorporation && window.open(employer.documents.certificate_of_incorporation, '_blank')}
                     />
                     <DocumentItem 
                       icon={FileText} 
                       label="KRA PIN Certificate" 
-                      fileName={employer?.documents?.kra_pin_certificate ? "Uploaded" : null}
+                      fileName={employer?.documents?.kra_pin_certificate ? "kra_pin.pdf" : null}
                       status={employer?.documents?.kra_pin_certificate ? "approved" : null}
+                      onReupload={(file) => handleFileUpload(file, 'kra_pin_certificate')}
+                      isUploading={uploadingDoc === 'kra_pin_certificate'}
+                      onView={() => employer?.documents?.kra_pin_certificate && window.open(employer.documents.kra_pin_certificate, '_blank')}
                     />
                     <DocumentItem 
                       icon={FileText} 
                       label="CR12 Document" 
-                      fileName={employer?.documents?.cr12_document ? "Uploaded" : null}
+                      fileName={employer?.documents?.cr12_document ? "cr12_document.pdf" : null}
                       status={employer?.documents?.cr12_document ? "pending" : null}
+                      onReupload={(file) => handleFileUpload(file, 'cr12_document')}
+                      isUploading={uploadingDoc === 'cr12_document'}
+                      onView={() => employer?.documents?.cr12_document && window.open(employer.documents.cr12_document, '_blank')}
                     />
                     <DocumentItem 
                       icon={FileText} 
                       label="Business Permit" 
-                      fileName={employer?.documents?.business_permit ? "Uploaded" : null}
+                      fileName={employer?.documents?.business_permit ? "business_permit.pdf" : null}
                       status={employer?.documents?.business_permit ? "approved" : null}
+                      onReupload={(file) => handleFileUpload(file, 'business_permit')}
+                      isUploading={uploadingDoc === 'business_permit'}
+                      onView={() => employer?.documents?.business_permit && window.open(employer.documents.business_permit, '_blank')}
                     />
                     <DocumentItem 
                       icon={FileText} 
                       label="Audited Financials" 
-                      fileName={employer?.documents?.audited_financials ? "Uploaded" : null}
+                      fileName={employer?.documents?.audited_financials ? "audited_financials.pdf" : null}
                       status={employer?.documents?.audited_financials ? "pending" : null}
+                      onReupload={(file) => handleFileUpload(file, 'audited_financials')}
+                      isUploading={uploadingDoc === 'audited_financials'}
+                      onView={() => employer?.documents?.audited_financials && window.open(employer.documents.audited_financials, '_blank')}
                     />
                     <DocumentItem 
                       icon={FileText} 
                       label="Employment Contract Template" 
-                      fileName={employer?.documents?.employment_contract_template ? "Uploaded" : null}
+                      fileName={employer?.documents?.employment_contract_template ? "contract_template.pdf" : null}
                       status={employer?.documents?.employment_contract_template ? "approved" : null}
+                      onReupload={(file) => handleFileUpload(file, 'employment_contract_template')}
+                      isUploading={uploadingDoc === 'employment_contract_template'}
+                      onView={() => employer?.documents?.employment_contract_template && window.open(employer.documents.employment_contract_template, '_blank')}
                     />
                   </div>
                 </SettingsCard>
@@ -889,7 +1008,7 @@ export default function EmployerSettings() {
                         </div>
                         <div>
                           <p className="font-medium text-slate-900 dark:text-white">Phone Support</p>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">+254 700 123 456</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">+254 723 154 900</p>
                         </div>
                       </div>
                     </div>
@@ -947,9 +1066,11 @@ export default function EmployerSettings() {
                     </div>
                   </div>
                   <div className="mt-4 flex gap-2">
-                    <Button variant="outline" className="flex-1">
-                      <Download className="w-4 h-4 mr-2" /> Download PDF
-                    </Button>
+                    <a href="/Risk Scoring_&_Framework_REV1.pdf" download className="flex-1 block">
+                      <Button variant="outline" className="w-full">
+                        <Download className="w-4 h-4 mr-2" /> Download PDF
+                      </Button>
+                    </a>
                   </div>
                 </SettingsCard>
 
@@ -970,9 +1091,11 @@ export default function EmployerSettings() {
                     </div>
                   </div>
                   <div className="mt-4 flex gap-2">
-                    <Button variant="outline" className="flex-1">
-                      <Download className="w-4 h-4 mr-2" /> Download PDF
-                    </Button>
+                    <a href="/KYC_&_Due-diligence_Framework_REV1.pdf" download className="flex-1 block">
+                      <Button variant="outline" className="w-full">
+                        <Download className="w-4 h-4 mr-2" /> Download PDF
+                      </Button>
+                    </a>
                   </div>
                 </SettingsCard>
 
@@ -1001,29 +1124,40 @@ export default function EmployerSettings() {
                         data-testid="current-password" 
                       />
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">New Password</Label>
-                        <Input 
-                          type="password" 
-                          placeholder="Enter new password"
-                          className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
-                          data-testid="new-password" 
-                        />
+                    <div className="space-y-4">
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300">New Password</Label>
+                          <Input 
+                            type="password" 
+                            placeholder="Enter new password"
+                            value={passwordForm.newPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                            className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                            data-testid="new-password" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300">Confirm Password</Label>
+                          <Input 
+                            type="password" 
+                            placeholder="Confirm new password"
+                            value={passwordForm.confirmPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                            className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                            data-testid="confirm-password" 
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">Confirm Password</Label>
-                        <Input 
-                          type="password" 
-                          placeholder="Confirm new password"
-                          className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
-                          data-testid="confirm-password" 
-                        />
-                      </div>
+                      <Button 
+                        onClick={handlePasswordUpdate}
+                        disabled={updatingPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
+                        className="bg-primary text-white" 
+                        data-testid="update-password-btn"
+                      >
+                        {updatingPassword ? "Updating..." : "Update Password"}
+                      </Button>
                     </div>
-                    <Button className="bg-primary text-white" data-testid="update-password-btn">
-                      Update Password
-                    </Button>
                   </div>
                 </SettingsCard>
 
@@ -1041,12 +1175,6 @@ export default function EmployerSettings() {
                       description="View recent login attempts"
                       actionLabel="View"
                     />
-                    <SecurityItem 
-                      icon={Lock}
-                      label="API Access"
-                      description="Manage API keys for integrations"
-                      actionLabel="Manage"
-                    />
                   </div>
                 </SettingsCard>
               </>
@@ -1057,4 +1185,5 @@ export default function EmployerSettings() {
     </EmployerPortalLayout>
   );
 }
+
 

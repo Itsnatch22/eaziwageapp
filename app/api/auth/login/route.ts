@@ -9,7 +9,6 @@ import { sendAccountLockedEmail,
          sendLoginNotification }           from '@/lib/security-alerts';
 import type { LoginContext }               from '@/lib/security-alerts';
 
-// ─── Environment ──────────────────────────────────────────────────────────────
 
 const env = getEnv();
 
@@ -20,7 +19,6 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const RECAPTCHA_URL       = 'https://www.google.com/recaptcha/api/siteverify';
 const RECAPTCHA_MIN_SCORE = 0.5;
@@ -30,8 +28,6 @@ const MAX_FAILED_ATTEMPTS = 5;
 
 /** Lock duration in minutes — also passed to the alert email. */
 const LOCKOUT_MINUTES = 30;
-
-// ─── Zod Schema ───────────────────────────────────────────────────────────────
 
 const LoginSchema = z.object({
   email: z
@@ -71,16 +67,25 @@ async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean
     const params = new URLSearchParams({
       secret:   env.RECAPTCHA_SECRET_KEY,
       response: token,
-      remoteip,
     });
-    const res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
-    const data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+    if (remoteip && remoteip !== '0.0.0.0') params.set('remoteip', remoteip);
+
+    let res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+    let data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+
+    // Some proxy/edge IP values can fail verification. Retry once without remoteip.
+    if (!data.success && params.has('remoteip')) {
+      params.delete('remoteip');
+      res = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+      data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+    }
 
     if (!data.success) {
       console.warn('[reCAPTCHA] Login verification failed:', data['error-codes']);
       return false;
     }
-    const score = data.score ?? 0;
+    if (typeof data.score !== 'number') return true;
+    const score = data.score;
     if (score < RECAPTCHA_MIN_SCORE) {
       console.warn(`[reCAPTCHA] Login score too low: ${score}`);
       return false;
@@ -94,6 +99,7 @@ async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean
 
 /**
  * Increments the failed-login counter for a profile.
+ * Updates whichever table the user exists in (profiles OR system_admins).
  * If the counter reaches MAX_FAILED_ATTEMPTS, stamps locked_until and
  * fires a security alert email.
  */
@@ -101,27 +107,44 @@ async function recordFailedAttempt(
   profileId: string,
   fullName:  string,
   email:     string,
+  isAdmin:   boolean,
   ctx:       LoginContext,
 ): Promise<void> {
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('failed_login_attempts')
-    .eq('id', profileId)
-    .single<{ failed_login_attempts: number }>();
+  // Read current count from the correct table
+  let currentAttempts = 0;
 
-  const attempts = (profile?.failed_login_attempts ?? 0) + 1;
-  const shouldLock = attempts >= MAX_FAILED_ATTEMPTS;
+  if (isAdmin) {
+    const { data } = await supabaseAdmin
+      .from('system_admins')
+      .select('failed_login_attempts')
+      .eq('id', profileId)
+      .single<{ failed_login_attempts: number }>();
+    currentAttempts = data?.failed_login_attempts ?? 0;
+  } else {
+    const { data } = await supabaseAdmin
+      .from('profiles')
+      .select('failed_login_attempts')
+      .eq('id', profileId)
+      .single<{ failed_login_attempts: number }>();
+    currentAttempts = data?.failed_login_attempts ?? 0;
+  }
+
+  const attempts    = currentAttempts + 1;
+  const shouldLock  = attempts >= MAX_FAILED_ATTEMPTS;
   const lockedUntil = shouldLock
     ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000).toISOString()
     : null;
 
-  await supabaseAdmin
-    .from('profiles')
-    .update({
-      failed_login_attempts: attempts,
-      ...(shouldLock && { locked_until: lockedUntil }),
-    })
-    .eq('id', profileId);
+  const updatePayload = {
+    failed_login_attempts: attempts,
+    ...(shouldLock && { locked_until: lockedUntil }),
+  };
+
+  if (isAdmin) {
+    await supabaseAdmin.from('system_admins').update(updatePayload).eq('id', profileId);
+  } else {
+    await supabaseAdmin.from('profiles').update(updatePayload).eq('id', profileId);
+  }
 
   if (shouldLock) {
     await sendAccountLockedEmail(email, fullName, LOCKOUT_MINUTES, ctx);
@@ -131,11 +154,13 @@ async function recordFailedAttempt(
 /**
  * Resets the failed-login counter and clears any lock on successful auth.
  */
-async function clearFailedAttempts(profileId: string): Promise<void> {
-  await supabaseAdmin
-    .from('profiles')
-    .update({ failed_login_attempts: 0, locked_until: null })
-    .eq('id', profileId);
+async function clearFailedAttempts(profileId: string, isAdmin: boolean): Promise<void> {
+  const updatePayload = { failed_login_attempts: 0, locked_until: null };
+  if (isAdmin) {
+    await supabaseAdmin.from('system_admins').update(updatePayload).eq('id', profileId);
+  } else {
+    await supabaseAdmin.from('profiles').update(updatePayload).eq('id', profileId);
+  }
 }
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
@@ -145,7 +170,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const userAgent = getUserAgent(req);
 
   // ── 1. Rate limiting ────────────────────────────────────────────────────────
-  // Keyed per-IP; the per-account lock (below) provides a second layer.
   const rateResult = await checkRateLimit(rateLimiter, `login:${ip}`);
   if (!rateResult.success) {
     return NextResponse.json(
@@ -182,25 +206,75 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 4. Look up profile (to check account lock before attempting auth) ────────
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('id, full_name, role, email_verified, locked_until, failed_login_attempts')
-    .eq('email', input.email)
-    .single<{
-      id:                    string;
-      full_name:             string;
-      role:                  string;
-      email_verified:        boolean;
-      locked_until:          string | null;
-      failed_login_attempts: number;
-    }>();
+  // ── 4. Determine if this is an env-defined admin ────────────────────────────
+  // We resolve this early so the rest of the flow can branch cleanly.
+  const adminEmails  = (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+  const isEnvAdmin   = adminEmails.includes(input.email.toLowerCase());
+  // NOTE: password is only checked during Supabase signInWithPassword below —
+  // we do NOT short-circuit on env password here to avoid timing differences.
 
-  // ── 5. Account lockout check ─────────────────────────────────────────────────
-  // We intentionally run this even if the profile lookup "failed" to prevent
-  // timing-based user enumeration — the auth attempt below will fail regardless.
-  if (profile?.locked_until) {
-    const lockExpiry = new Date(profile.locked_until);
+  // ── 5. Look up the user record from the appropriate table ───────────────────
+  //
+  // Strategy:
+  //   • Admins  → system_admins (no RLS issue, service-role bypasses anyway)
+  //   • Others  → profiles
+  //
+  // We query system_admins first for env-admins to avoid touching the profiles
+  // table at all for that path (eliminates any RLS recursion risk for admins).
+
+  type AdminRecord = {
+    id:                    string;
+    full_name:             string | null;
+    email:                 string;
+    locked_until:          string | null;
+    failed_login_attempts: number;
+  };
+
+  type ProfileRecord = {
+    id:                    string;
+    full_name:             string;
+    role:                  string;
+    role_normalized:       string | null;
+    email_verified:        boolean;
+    locked_until:          string | null;
+    failed_login_attempts: number;
+    is_admin:              boolean;
+  };
+
+  let adminRecord:   AdminRecord   | null = null;
+  let profileRecord: ProfileRecord | null = null;
+
+  if (isEnvAdmin) {
+    const { data, error } = await supabaseAdmin
+      .from('system_admins')
+      .select('id, full_name, email, locked_until, failed_login_attempts')
+      .eq('email', input.email)
+      .maybeSingle<AdminRecord>();
+
+    if (error) {
+      console.error('[login] system_admins query error:', error);
+    }
+    adminRecord = data ?? null;
+
+    // Auto-provision: if env lists this admin but no system_admins row exists yet,
+    // create one after we verify the Supabase auth succeeds (see step 8 below).
+  } else {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, role, role_normalized, email_verified, locked_until, failed_login_attempts, is_admin')
+      .eq('email', input.email)
+      .maybeSingle<ProfileRecord>();
+
+    if (error) {
+      console.error('[login] profiles query error:', error);
+    }
+    profileRecord = data ?? null;
+  }
+
+  // ── 6. Account lockout check ────────────────────────────────────────────────
+  const lockedUntilStr = isEnvAdmin ? adminRecord?.locked_until : profileRecord?.locked_until;
+  if (lockedUntilStr) {
+    const lockExpiry = new Date(lockedUntilStr);
     if (lockExpiry > new Date()) {
       const minutesLeft = Math.ceil((lockExpiry.getTime() - Date.now()) / 60_000);
       return NextResponse.json(
@@ -212,15 +286,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // ── 6. Supabase sign-in ──────────────────────────────────────────────────────
-  // Use the anon client for sign-in so Supabase applies the correct RLS context.
-  // Session cookies are then set on the response via the SSR client.
+  // ── 7. Supabase sign-in ──────────────────────────────────────────────────────
   const res = NextResponse.next();
   const supabaseAuth = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    // We use the service key here only to call signInWithPassword — the
-    // resulting session is still scoped to the authenticated user.
-    env.SUPABASE_SERVICE_ROLE_KEY,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return req.cookies.getAll(); },
@@ -238,30 +308,51 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     password: input.password,
   });
 
-  // ── 7. Handle auth failure ───────────────────────────────────────────────────
+  // ── 8. Handle auth failure ───────────────────────────────────────────────────
   if (authError || !authData.session) {
-    const loginCtx: LoginContext = {
-      ip,
-      userAgent,
-      timestamp: new Date(),
-    };
+    const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
+    const recordId   = isEnvAdmin ? adminRecord?.id   : profileRecord?.id;
+    const recordName = isEnvAdmin ? (adminRecord?.full_name ?? input.email) : (profileRecord?.full_name ?? input.email);
 
-    // Record failed attempt and potentially lock the account
-    if (profile) {
-      await recordFailedAttempt(profile.id, profile.full_name, input.email, loginCtx);
+    if (recordId) {
+      await recordFailedAttempt(recordId, recordName, input.email, isEnvAdmin, loginCtx);
     }
 
-    // Generic message to prevent user enumeration
     return NextResponse.json(
       { error: 'Incorrect email or password. Please try again.' },
       { status: 401, headers: rateResult.headers },
     );
   }
 
-  const { user, session } = authData;
+  const { user } = authData;
 
-  // ── 8. Verify email confirmation ─────────────────────────────────────────────
-  if (profile && !profile.email_verified) {
+  // ── 9. Auto-provision system_admins row if missing ───────────────────────────
+  // At this point auth succeeded, so the password is correct.
+  if (isEnvAdmin && !adminRecord) {
+    const { error: insertError } = await supabaseAdmin
+      .from('system_admins')
+      .insert({
+        id:        user.id,
+        email:     input.email,
+        full_name: user.user_metadata?.full_name ?? 'System Admin',
+      });
+
+    if (insertError && insertError.code !== '23505') {
+      // 23505 = unique_violation (row already exists — race condition), safe to ignore
+      console.error('[login] Failed to auto-provision system_admins row:', insertError);
+    }
+
+    // Re-fetch so we have the row for subsequent logic
+    const { data } = await supabaseAdmin
+      .from('system_admins')
+      .select('id, full_name, email, locked_until, failed_login_attempts')
+      .eq('email', input.email)
+      .maybeSingle<AdminRecord>();
+    adminRecord = data ?? null;
+  }
+
+  // ── 10. Email verification check (non-admins only) ──────────────────────────
+  if (!isEnvAdmin && profileRecord && !profileRecord.email_verified) {
     return NextResponse.json(
       {
         error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
@@ -271,57 +362,67 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 9. Reset failed attempts on success ─────────────────────────────────────
-  if (profile) {
-    await clearFailedAttempts(profile.id);
+  // ── 11. Reset failed attempts on success ─────────────────────────────────────
+  const successId = isEnvAdmin ? (adminRecord?.id ?? user.id) : profileRecord?.id;
+  if (successId) {
+    await clearFailedAttempts(successId, isEnvAdmin);
   }
 
-  // ── 10. Security alert — new device / location ───────────────────────────────
-  // We detect "new device" heuristically by checking if the last-seen user-agent
-  // differs. For production you'd want a proper device-fingerprint table.
-  if (profile) {
+  // ── 12. Security alert & login event (non-admins only for now) ───────────────
+  if (!isEnvAdmin && profileRecord) {
     const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
 
     const { data: lastLogin } = await supabaseAdmin
       .from('login_events')
       .select('user_agent')
-      .eq('user_id', profile.id)
+      .eq('user_id', profileRecord.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .single<{ user_agent: string }>();
 
     const isNewDevice = !lastLogin || lastLogin.user_agent !== userAgent;
 
-    // Fire-and-forget — don't block the response
-    sendLoginNotification(input.email, profile.full_name, loginCtx, isNewDevice).catch(
+    sendLoginNotification(input.email, profileRecord.full_name, loginCtx, isNewDevice).catch(
       (err) => console.error('[security-alert] sendLoginNotification failed:', err),
     );
 
-    // Persist the login event
-    supabaseAdmin.from('login_events').insert({
-  user_id: profile.id,
-  ip_address: ip,
-  user_agent: userAgent,
-  created_at: new Date().toISOString(),
-}).match((error: unknown) => {
-  console.error('[security-alert] Failed to record login event:', error);
-});
-
+    void (async () => {
+      const { error } = await supabaseAdmin.from('login_events').insert({
+        user_id:    profileRecord.id,
+        ip_address: ip,
+        user_agent: userAgent,
+        created_at: new Date().toISOString(),
+      });
+      if (error) console.error('[security-alert] Failed to record login event:', error);
+    })();
   }
 
-  // ── 11. Build success response ────────────────────────────────────────────────
-  // Session cookies were already written to `res` by the SSR client above.
-  // Return minimal data — the client should NOT store tokens in localStorage.
+  // ── 13. Determine role for response ──────────────────────────────────────────
+  let responseRole: string;
+
+  if (isEnvAdmin) {
+    responseRole = 'admin';
+  } else if (profileRecord) {
+    // is_admin flag on profiles also grants admin role
+    responseRole = profileRecord.is_admin
+      ? 'admin'
+      : (profileRecord.role_normalized || profileRecord.role || 'employee');
+  } else {
+    // Profile missing for a non-admin user (orphaned auth user)
+    console.warn(`[login] No profile found for authenticated user ${user.email} (${user.id})`);
+    responseRole = user.user_metadata?.role ?? 'employee';
+  }
+
+  // ── 14. Build success response ───────────────────────────────────────────────
   const successResponse = NextResponse.json(
     {
       message: 'Signed in successfully.',
-      role:    profile?.role ?? user.user_metadata?.role ?? 'employee',
+      role:    responseRole,
       userId:  user.id,
     },
     { status: 200, headers: rateResult.headers },
   );
 
-  // Copy cookies from the auth SSR response onto the JSON response
   res.cookies.getAll().forEach(({ name, value, ...options }) => {
     successResponse.cookies.set(name, value, options);
   });

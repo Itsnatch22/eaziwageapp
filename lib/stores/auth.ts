@@ -1,4 +1,4 @@
-import { createClient } from "../client";
+import { createClient } from "../supabase/client";
 import { useEffect, useState } from "react";
 
 interface AuthState {
@@ -36,37 +36,41 @@ export function useAuthStore<T>(selector: (state: AuthState) => T): T {
 
 // Client-side initialization
 if (typeof window !== 'undefined') {
-  const supabase = createClient();
+  const initializeAuth = async () => {
+    const supabase = createClient();
 
-  const syncUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+    const syncUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const enhancedUser = {
+            ...user,
+            full_name: user.user_metadata?.full_name || user.user_metadata?.name || "",
+          };
+          setState({ user: enhancedUser, loading: false });
+        } else {
+          setState({ user: null, loading: false });
+        }
+      } catch (error) {
+        console.error('Error syncing user:', error);
+        setState({ user: null, loading: false });
+      }
+    };
+
+    syncUser();
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
         const enhancedUser = {
-          ...user,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || "",
+          ...session.user,
+          full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || "",
         };
         setState({ user: enhancedUser, loading: false });
       } else {
         setState({ user: null, loading: false });
       }
-    } catch (error) {
-      console.error('Error syncing user:', error);
-      setState({ user: null, loading: false });
-    }
+    });
   };
 
-  syncUser();
-
-  supabase.auth.onAuthStateChange((_event, session) => {
-    if (session?.user) {
-      const enhancedUser = {
-        ...session.user,
-        full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || "",
-      };
-      setState({ user: enhancedUser, loading: false });
-    } else {
-      setState({ user: null, loading: false });
-    }
-  });
+  initializeAuth();
 }

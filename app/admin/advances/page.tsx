@@ -311,13 +311,13 @@ export function FilterButton({ onClick, count = 0, active, children }: FilterBut
 export function AdvanceDetailModal({
   advance,
   onClose,
-  isOpen,
   onApprove,
   onReject,
   onDisburse,
+  isOpen,
+  loading = false,
 }: AdvanceDetailModalProps) {
-  const [loading, setLoading] = useState(false);
-  if (!advance) return null;
+  if (!isOpen || !advance) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -456,7 +456,7 @@ export default function AdminAdvances(){
       } else {
         toast.error('Failed to fetch advances');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while fetching advances');
     } finally {
       setLoading(false);
@@ -482,7 +482,7 @@ export default function AdminAdvances(){
         const err = await res.json();
         toast.error(err.message || 'Failed to approve advance');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while approving the advance');
     } finally {
       setActionLoading(false);
@@ -505,7 +505,7 @@ export default function AdminAdvances(){
         const err = await res.json();
         toast.error(err.message || 'Failed to disburse advance');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while disburseing the advance');
     } finally {
       setActionLoading(false);
@@ -527,7 +527,7 @@ export default function AdminAdvances(){
         const err = await res.json();
         toast.error(err.message || 'Failed to reject advance');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while rejecting the advance');
     } finally {
       setActionLoading(false);
@@ -689,3 +689,4 @@ export default function AdminAdvances(){
     </AdminPortalLayout>
   );
 }
+

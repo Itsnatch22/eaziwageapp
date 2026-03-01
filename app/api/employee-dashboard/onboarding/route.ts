@@ -1,13 +1,9 @@
-// app/api/employee-dashboard/onboarding/route.ts
-//
-// POST — Submit full employee KYC application
-// GET  — Fetch the current user's existing application (for resume / status check)
-//
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { employeeOnboardingSchema } from '@/lib/validations/employee-validation';
 import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
+import pusherServer from '@/lib/pusher-server';
 
 export const runtime = 'nodejs';
 
@@ -43,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = employeeOnboardingSchema.safeParse(coerced);
   if (!parsed.success) {
-    const detail = parsed.error.issues.map((e: { path: any[]; message: any; }) => ({
+    const detail = parsed.error.issues.map((e) => ({
       field: e.path.join('.'),
       msg: e.message,
     }));
@@ -55,7 +51,7 @@ export async function POST(req: NextRequest) {
   // ── Verify the employer exists and is approved ────────────────────────────
   const { data: employer, error: employerError } = await supabase
     .from('employer_onboarding')
-    .select('id, company_name, status')
+    .select('id, company_name, status, user_id')
     .eq('id', data.employer_id)
     .eq('status', 'approved')
     .maybeSingle();
@@ -165,11 +161,92 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Get user profile for the email ───────────────────────────────────────
-  // user.email comes directly from Supabase Auth
   const employeeName =
     (user.user_metadata?.full_name as string | undefined) ??
     user.email?.split('@')[0] ??
     'there';
+
+  // ── Sync to employees table for admin visibility ─────────────────────────
+  try {
+    await supabase
+      .from('employees')
+      .upsert({
+        user_id: user.id,
+        employer_id,
+        employee_code: employee_code || null,
+        full_name: employeeName,
+        email: user.email,
+        phone: user.user_metadata?.phone || null,
+        job_title,
+        department: department || null,
+        monthly_salary,
+        status: 'pending',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+
+    // Sync documents to employee_kyc_documents
+    const docSyncs = [];
+    if (id_front) docSyncs.push({ user_id: user.id, document_type: 'id_front', document_url: id_front, status: 'pending' });
+    if (id_back) docSyncs.push({ user_id: user.id, document_type: 'id_back', document_url: id_back, status: 'pending' });
+    if (address_proof) docSyncs.push({ user_id: user.id, document_type: 'address_proof', document_url: address_proof, status: 'pending' });
+    if (tax_certificate) docSyncs.push({ user_id: user.id, document_type: 'tax_certificate', document_url: tax_certificate, status: 'pending' });
+    if (payslip_1) docSyncs.push({ user_id: user.id, document_type: 'payslip_1', document_url: payslip_1, status: 'pending' });
+    if (payslip_2) docSyncs.push({ user_id: user.id, document_type: 'payslip_2', document_url: payslip_2, status: 'pending' });
+    if (bank_statement) docSyncs.push({ user_id: user.id, document_type: 'bank_statement', document_url: bank_statement, status: 'pending' });
+    if (employment_contract) docSyncs.push({ user_id: user.id, document_type: 'employment_contract', document_url: employment_contract, status: 'pending' });
+
+    if (docSyncs.length > 0) {
+      await supabase.from('employee_kyc_documents').upsert(docSyncs, { onConflict: 'user_id,document_type' });
+    }
+  } catch (err) {
+    console.error('[onboarding/sync-employees]', err);
+  }
+
+  // ── Create Notifications ──────────────────────────────────────────────────
+  try {
+    // 1. Employer Notification
+    if (employer.user_id) {
+      const { data: empNotif, error: empNotifError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: employer.user_id,
+          type: 'employee',
+          title: 'New Employee Registration',
+          message: `${employeeName} has submitted their KYC application.`,
+          read: false,
+        })
+        .select()
+        .single();
+
+      if (!empNotifError && empNotif) {
+        await pusherServer.trigger(`employer-${employer.user_id}`, 'new-notification', empNotif);
+      }
+    }
+
+    // 2. Admin Notification
+    const { data: adminNotif, error: adminNotifError } = await supabase
+      .from('admin_notifications')
+      .insert({
+        type: 'review_request',
+        title: 'New KYC Application',
+        message: `${employeeName} from ${employer.company_name} has submitted a new KYC application for review.`,
+        read: false,
+        metadata: {
+          employee_id: user.id,
+          employer_id: employer.id,
+          company_name: employer.company_name,
+        },
+      })
+      .select()
+      .single();
+
+    if (!adminNotifError && adminNotif) {
+      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
+    }
+  } catch (notifErr) {
+    console.error('[onboarding/notifications]', notifErr);
+    // Non-fatal, continue to email
+  }
 
   // ── Send confirmation email ───────────────────────────────────────────────
   await resend.emails

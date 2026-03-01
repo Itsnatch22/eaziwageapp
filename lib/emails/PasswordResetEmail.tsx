@@ -14,7 +14,7 @@ interface PasswordResetEmailProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com';
 
 const C = {
   green:      '#16a34a',
@@ -72,10 +72,10 @@ export default function PasswordResetEmail({ fullName, email, resetUrl }: Passwo
 
           {/* Security info */}
           <Section style={s.infoSection}>
-            <Text style={s.infoLabel}>⚠️ Didn't request this?</Text>
+            <Text style={s.infoLabel}>⚠️ Didn&apos;t request this?</Text>
             <Text style={s.infoText}>
-              If you didn't request a password reset, you can safely ignore this email — your password
-              will remain unchanged. If you're concerned about unauthorised access, contact us immediately at{' '}
+              If you didn&apos;t request a password reset, you can safely ignore this email — your password
+              will remain unchanged. If you&apos;re concerned about unauthorised access, contact us immediately at{' '}
               <Link href="mailto:security@eaziwage.com" style={s.link}>security@eaziwage.com</Link>.
             </Text>
           </Section>
@@ -110,7 +110,7 @@ export default function PasswordResetEmail({ fullName, email, resetUrl }: Passwo
 PasswordResetEmail.PreviewProps = {
   fullName: 'Jane Wanjiku',
   email:    'jane@acme.co.ke',
-  resetUrl: 'https://eaziwage.com/reset-password?token=abc123',
+  resetUrl: 'https://app.eaziwage.com/reset-password?token=abc123',
 } satisfies PasswordResetEmailProps;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────

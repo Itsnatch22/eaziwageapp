@@ -11,10 +11,12 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
 import { logout } from '@/actions/auth';
-import React,{ useState, useRef, useEffect }from 'react';
+import React,{ useState, useRef, useEffect, useCallback }from 'react';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
+import pusherClient from '@/lib/pusher-client';
+import { toast } from 'sonner';
 
 export const EmployerBackground = () => (
   <>
@@ -123,15 +125,49 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const user = useAuthStore((state: { user: any; }) => state.user);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [profileIdentity, setProfileIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
-  const fullName = user?.full_name?.trim() || 'User';
-  const userEmail = user?.email || 'No email';
+  const authName =
+    user?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    '';
+  const authEmail = user?.email || user?.user_metadata?.email || '';
+  const fullName =
+    authName?.trim() ||
+    profileIdentity?.full_name?.trim() ||
+    profileIdentity?.email?.split('@')[0] ||
+    'User';
+  const userEmail = authEmail || profileIdentity?.email || 'No email';
   const initials = fullName
     .split(' ')
     .filter(Boolean)
     .map((n: string) => n[0])
     .join('')
     .toUpperCase() || 'U';
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    const fetchIdentity = async () => {
+      try {
+        const res = await fetch('/api/employer-dashboard/profile');
+        const data = await res.json();
+        if (!res.ok) return;
+        const profile = data?.profile || {};
+        setProfileIdentity({
+          full_name: profile?.full_name || profile?.contact_person || '',
+          email: profile?.email || profile?.contact_email || '',
+        });
+      } catch {
+        // Non-fatal; auth store is primary source.
+      }
+    };
+    fetchIdentity();
+  }, []);
 
   const navItems = [
     { href: '/dashboards/employer-dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -247,12 +283,16 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-11 h-11 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
                 <span className="text-white font-bold text-sm">
-                  {initials}
+                  {isHydrated ? initials : 'U'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{fullName}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{userEmail}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                  {isHydrated ? fullName : 'User'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {isHydrated ? userEmail : 'No email'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -291,8 +331,42 @@ interface TopHeaderProps {
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [greeting, setGreeting] = useState('Welcome');
+  const [notifications, setNotifications] = useState<any[]>([]);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
+  const user = useAuthStore((state: any) => state.user);
 
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch('/api/employer-dashboard/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+      }
+    } catch (err) {
+      console.error('Failed to load notifications', err);
+    }
+  }, []);
+
+  // Fetch real notifications
+  useEffect(() => {
+    fetchNotifications();
+
+    if (user?.id && pusherClient) {
+      const channel = pusherClient.subscribe(`employer-${user.id}`);
+      channel.bind('new-notification', (data: any) => {
+        toast(data.title, {
+          description: data.message,
+          icon: <Bell className="w-5 h-5 text-primary" />
+        });
+        fetchNotifications();
+      });
+
+      return () => {
+        pusherClient!.unsubscribe(`employer-${user.id}`);
+      };
+    }
+  }, [user?.id, fetchNotifications]);
   // Close notifications when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: { target: any; }) => {
@@ -304,20 +378,18 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getGreeting = () => {
+  useEffect(() => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
-
-  // Sample notifications
-  const notifications = [
-    { id: 1, type: 'advance', title: 'New Advance Request', message: 'John Kamau requested KES 15,000 advance', time: '2 hours ago', read: false },
-    { id: 2, type: 'system', title: 'Payroll Due', message: 'Monthly payroll submission is due in 3 days', time: '5 hours ago', read: false },
-    { id: 3, type: 'employee', title: 'KYC Completed', message: 'Sarah Mwangi completed KYC verification', time: '1 day ago', read: true },
-    { id: 4, type: 'advance', title: 'Advance Disbursed', message: '45 advances disbursed successfully', time: '2 days ago', read: true },
-  ];
+    if (hour < 12) {
+      setGreeting('Good Morning');
+      return;
+    }
+    if (hour < 17) {
+      setGreeting('Good Afternoon');
+      return;
+    }
+    setGreeting('Good Evening');
+  }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -335,7 +407,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{getGreeting()}</p>
+	              <p className="text-sm text-slate-500 dark:text-slate-400">{greeting}</p>
               <h1 className="text-lg font-bold text-slate-900 dark:text-white">
                 {employer?.company_name || 'Company Portal'}
               </h1>
@@ -417,7 +489,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
                   </div>
                   <div className="p-3 border-t border-slate-200/50 dark:border-slate-700/30">
                     <Link 
-                      href="/employer/notifications"
+                      href="/dashboards/employer-dashboard/notifications"
                       className="block w-full text-center text-sm font-medium text-primary hover:text-primary/80 py-2 rounded-xl hover:bg-primary/5 transition-colors"
                       onClick={() => setShowNotifications(false)}
                     >
@@ -461,3 +533,4 @@ export const EmployerPortalLayout = ({ children, employer }: EmployerPortalLayou
 };
 
 export default EmployerPortalLayout;
+

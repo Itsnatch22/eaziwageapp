@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { getEnv } from '@/env';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { UserRoleEnum, isAdminRole } from '@/lib/validations/kyc-validation';
+import pusherServer from '@/lib/pusher-server';
+
+export const runtime = 'nodejs';
+
+function createAdminClient() {
+  const env = getEnv();
+  return createSupabaseClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+async function verifyAdmin() {
+  const supabase = await createRouteHandlerClient();
+  const adminSupabase = createAdminClient();
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { error: 'Unauthorized', status: 401 };
+
+  const { data: profile } = await adminSupabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const roles = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
+    .filter((role): role is string => typeof role === 'string' && role.length > 0)
+    .map((role) => role.toLowerCase());
+
+  if (!roles.some((role) => {
+    const parsed = UserRoleEnum.safeParse(role);
+    return parsed.success && isAdminRole(parsed.data);
+  })) {
+    return { error: 'Forbidden. Admin access required.', status: 403 };
+  }
+
+  return { user, adminSupabase };
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const auth = await verifyAdmin();
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const { adminSupabase, user: adminUser } = auth;
+  const requestId = params.id;
+
+  const { status, response, internal_notes, type } = await req.json();
+
+  if (type === 'risk_score') {
+    const { data: request, error: updateError } = await adminSupabase
+      .from('risk_review_requests')
+      .update({
+        status,
+        internal_notes,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: adminUser.id
+      })
+      .eq('id', requestId)
+      .select('*, employer_onboarding(user_id)')
+      .single();
+
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+
+    // Trigger Pusher for employer
+    if (request.employer_onboarding?.user_id) {
+        await pusherServer.trigger(
+            `user-${request.employer_onboarding.user_id}`,
+            'risk-review-update',
+            { id: requestId, status, message: response }
+        );
+    }
+
+    return NextResponse.json({ message: 'Risk review updated', data: request });
+
+  } else if (type === 'kyc_review') {
+    const { data: document, error: updateError } = await adminSupabase
+      .from('employee_kyc_documents')
+      .update({
+        status,
+        reviewer_notes: response || internal_notes,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: adminUser.id
+      })
+      .eq('id', requestId)
+      .select('*')
+      .single();
+
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+
+    // Trigger Pusher for employee
+    await pusherServer.trigger(
+        `user-${document.user_id}`,
+        'kyc-update',
+        { id: requestId, status, message: response }
+    );
+
+    return NextResponse.json({ message: 'KYC status updated', data: document });
+  }
+
+  return NextResponse.json({ error: 'Invalid request type' }, { status: 400 });
+}

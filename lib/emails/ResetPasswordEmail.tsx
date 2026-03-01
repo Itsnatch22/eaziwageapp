@@ -91,7 +91,7 @@ export function ResetPasswordEmail({
               {/* Security notice */}
               <Section className="rounded-xl border border-green-100 bg-green-50 px-6 py-5">
                 <Text className="m-0 text-sm font-semibold text-green-800">
-                  Wasn't you?
+                  Wasn&apos;t you?
                 </Text>
                 <Text className="mt-2 m-0 text-sm leading-6 text-green-700">
                   If you did not make this change, your account may be compromised.
@@ -123,7 +123,7 @@ export function ResetPasswordEmail({
                 © {new Date().getFullYear()} EaziWage · This is an automated security notification.
               </Text>
               <Text className="mt-1 m-0 text-center text-xs text-slate-400">
-                You're receiving this because a password change was made on your account.
+                You&apos;re receiving this because a password change was made on your account.
               </Text>
             </Section>
 

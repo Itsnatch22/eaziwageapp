@@ -7,10 +7,10 @@ import {
   CheckCircle2, Clock,
   RefreshCw, FileText
 } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { AdminPortalLayout } from '../../components/admin/AdminLayout';
-import { formatCurrency, cn } from '../../lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { AdminPortalLayout } from '@/components/admin/AdminLayout';
+import { formatCurrency, cn } from '@/lib/utils';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -283,3 +283,4 @@ export default function AdminReconciliation() {
     </AdminPortalLayout>
   );
 }
+

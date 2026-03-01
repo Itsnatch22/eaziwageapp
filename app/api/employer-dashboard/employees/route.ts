@@ -1,19 +1,5 @@
-// app/api/employees/route.ts
-//
-// GET /api/employees
-//
-// Returns all employees linked to the authenticated employer, with:
-//   - EWA settings joined in per employee
-//   - Extended workforce stats computed server-side (no separate endpoint needed)
-//
-// Query params (all optional):
-//   ?status=approved|pending|rejected
-//   ?department=Engineering
-//   ?country=KE
-//   ?search=john
-//   ?from=2024-01-01&to=2024-12-31   (filters by employee submitted_at)
-//
-import { createClient } from '@/lib/client';
+
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
@@ -59,10 +45,6 @@ export async function GET(req: NextRequest) {
   const fromDate         = searchParams.get('from') ?? '';
   const toDate           = searchParams.get('to') ?? '';
 
-  // ── Fetch all employees for this employer ─────────────────────────────────
-  // We pull everything and filter in JS so we can compute stats over the
-  // full set while returning a filtered list. For large datasets this query
-  // can be paginated later.
   let query = supabase
     .from('employee_onboarding')
     .select(`

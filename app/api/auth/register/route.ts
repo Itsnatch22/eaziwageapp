@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient }               from '@supabase/supabase-js';
+import { createServerClient }         from '@supabase/ssr';
 import { Resend }                    from 'resend';
 import { z }                         from 'zod';
 import { render }                    from '@react-email/render';
@@ -9,6 +10,7 @@ import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { validateEmail }             from '@/lib/email-validation';
 import { createToken }               from '@/lib/token';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
+import pusherServer from '@/lib/pusher-server';
 
 // ─── Environment ──────────────────────────────────────────────────────────────
 
@@ -24,7 +26,7 @@ const supabase = createClient(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FROM_EMAIL   = 'EaziWage <noreply@contact.eaziwage.com>';
+const FROM_EMAIL   = 'EaziWage <noreply@eaziwage.com>';
 const BASE_URL     = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const RECAPTCHA_MIN_SCORE = 0.5;
@@ -90,18 +92,26 @@ async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean
     const params = new URLSearchParams({
       secret:   env.RECAPTCHA_SECRET_KEY,
       response: token,
-      remoteip,
     });
+    if (remoteip && remoteip !== '0.0.0.0') params.set('remoteip', remoteip);
 
-    const res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
-    const data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+    let res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+    let data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+
+    // Some proxy/edge IP values can fail verification. Retry once without remoteip.
+    if (!data.success && params.has('remoteip')) {
+      params.delete('remoteip');
+      res = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
+      data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
+    }
 
     if (!data.success) {
       console.warn('[reCAPTCHA] Verification failed:', data['error-codes']);
       return false;
     }
 
-    const score = data.score ?? 0;
+    if (typeof data.score !== 'number') return true;
+    const score = data.score;
     if (score < RECAPTCHA_MIN_SCORE) {
       console.warn(`[reCAPTCHA] Score too low: ${score}`);
       return false;
@@ -251,11 +261,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 6. Employee-specific: validate company_code exists (if provided) ─────────
+  let employerUserId: string | null = null;
   if (input.role === 'employee' && input.company_code) {
+    // Check if the company code exists in the approved employers table
+    // Using ilike for case-insensitive matching in case some codes are lowercase
     const { data: employer, error: empError } = await supabase
       .from('employers')
-      .select('id, status')
-      .eq('company_code', input.company_code.toUpperCase())
+      .select('id, status, user_id')
+      .ilike('employer_code', input.company_code)
       .single();
 
     if (empError || !employer) {
@@ -271,13 +284,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 422, headers: rateResult.headers },
       );
     }
+    employerUserId = employer.user_id;
   }
 
   // ── 7. Create Supabase Auth user ────────────────────────────────────────────
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email:             input.email,
     password:          input.password,
-    email_confirm:     false,   // We handle verification ourselves
+    email_confirm:     true,
     user_metadata: {
       full_name:          input.full_name,
       role:               input.role,
@@ -312,9 +326,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       phone:              input.phone,
       phone_country_code: input.phone_country_code,
       role:               input.role,
+      role_normalized:    input.role,
       company_code:       input.role === 'employee' ? (input.company_code || null) : null,
       company_name:       input.role === 'employer' ? input.company_name : null,
-      email_verified:     false,
+      email_verified:     true,
       created_at:         new Date().toISOString(),
     });
 
@@ -370,15 +385,98 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // ── 12. Success ──────────────────────────────────────────────────────────────
-  return NextResponse.json(
+  // ── 12. Create authenticated session for immediate dashboard access ─────────
+  const authRes = NextResponse.next();
+  const authClient = createServerClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
-      message:  'Account created successfully. Please check your email to verify your account.',
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            authRes.cookies.set(name, value, options);
+          });
+        },
+      },
+    },
+  );
+
+  const { error: signInError } = await authClient.auth.signInWithPassword({
+    email: input.email,
+    password: input.password,
+  });
+
+  if (signInError) {
+    console.error('[auth] auto-signin error:', signInError);
+    return NextResponse.json(
+      { error: 'Account created, but automatic sign-in failed. Please sign in manually.' },
+      { status: 500, headers: rateResult.headers },
+    );
+  }
+
+  const successResponse = NextResponse.json(
+    {
+      message: 'Account created successfully.',
       userId,
-      role:     input.role,
+      role: input.role,
     },
     { status: 201, headers: rateResult.headers },
   );
+
+  authRes.cookies.getAll().forEach(({ name, value, ...options }) => {
+    successResponse.cookies.set(name, value, options);
+  });
+
+  // ── 13. Create Real-time Notifications ──────────────────────────────────────
+  try {
+    // 1. Admin Notification
+    const { data: adminNotif, error: adminNotifError } = await supabase
+      .from('admin_notifications')
+      .insert({
+        type: input.role === 'employer' ? 'employer_kyc' : 'employee',
+        title: `New ${input.role.charAt(0).toUpperCase() + input.role.slice(1)} Registration`,
+        message: `${input.full_name} has registered as a ${input.role}.`,
+        read: false,
+        metadata: {
+          user_id: userId,
+          role: input.role,
+          company_name: input.company_name,
+        },
+      })
+      .select()
+      .single();
+
+    if (!adminNotifError && adminNotif) {
+      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
+    }
+
+    // 2. Employer Notification (if employee registers with company code)
+    if (input.role === 'employee' && employerUserId) {
+      const { data: empNotif, error: empNotifError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: employerUserId,
+          type: 'employee',
+          title: 'New Employee Registered',
+          message: `${input.full_name} has registered and linked to your company.`,
+          read: false,
+        })
+        .select()
+        .single();
+
+      if (!empNotifError && empNotif) {
+        await pusherServer.trigger(`employer-${employerUserId}`, 'new-notification', empNotif);
+      }
+    }
+  } catch (notifErr) {
+    console.error('[register/notifications]', notifErr);
+    // Non-fatal
+  }
+
+  return successResponse;
 }
 
 // Reject non-POST methods cleanly

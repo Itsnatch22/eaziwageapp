@@ -188,7 +188,7 @@ export default function VerifyEmailPage() {
             <p className="text-base font-medium text-slate-600 dark:text-slate-300">
               Verifying your email…
             </p>
-            <p className="mt-2 text-sm text-slate-400">Please don't close this tab</p>
+            <p className="mt-2 text-sm text-slate-400">Please don&apos;t close this tab</p>
           </div>
         );
 
@@ -207,7 +207,7 @@ export default function VerifyEmailPage() {
               Email verified!
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
-              Your EaziWage account is now fully active. You're being redirected in{' '}
+              Your EaziWage account is now fully active. you&apos;re being redirected in{' '}
               <Countdown seconds={AUTO_REDIRECT_SECS} onComplete={() => router.replace(dashboardUrl)} />.
             </p>
             <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
@@ -420,7 +420,7 @@ export default function VerifyEmailPage() {
               <span className="font-semibold text-slate-700 dark:text-slate-300">{resendEmail}</span>.
             </p>
             <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
-              The link expires in 24 hours. Check your spam folder if you don't see it.
+              The link expires in 24 hours. Check your spam folder if you don&apos;t see it.
             </p>
             <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-400 hover:underline">
               Back to Sign In

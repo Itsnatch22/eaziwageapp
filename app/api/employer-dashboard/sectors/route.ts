@@ -1,7 +1,7 @@
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
-export const runtime = 'chrome';
+export const runtime = 'nodejs';
 
 export async function GET() {
   const supabase = await createClient();

@@ -61,6 +61,12 @@ interface Stats {
   total_employees: number;
 }
 
+interface EmployersApiResponse {
+  data: Employer[];
+  stats: Stats;
+  countries: string[];
+}
+
 type TabKey = 'overview' | 'employees' | 'advances' | 'actions';
 
 type VariantColor = 'green' | 'slate' | 'black';
@@ -350,13 +356,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   const [employerDetail, setEmployerDetail] = useState<Employer | null>(null);
   const [employees,      setEmployees]      = useState<Employee[]>([]);
 
-  useEffect(() => {
-    if (isOpen && employer?.id) {
-      fetchEmployerDetail();
-    }
-  }, [isOpen, employer?.id]);
-
-  const fetchEmployerDetail = async () => {
+  const fetchEmployerDetail = useCallback(async () => {
     if (!employer) return;
 
     setLoading(true);
@@ -371,7 +371,8 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
       // GET /api/admin/employees?employer_id=:id
       const empRes = await fetch(`/api/admin/employees?employer_id=${employer.id}`);
       if (empRes.ok) {
-        const empData: Employee[] = await empRes.json();
+        const empPayload = await empRes.json();
+        const empData: Employee[] = Array.isArray(empPayload) ? empPayload : (empPayload.data ?? []);
         setEmployees(empData.filter(e => e.employer_id === employer.id));
       }
     } catch (err) {
@@ -379,7 +380,13 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [employer]);
+
+  useEffect(() => {
+    if (isOpen && employer?.id) {
+      fetchEmployerDetail();
+    }
+  }, [isOpen, employer?.id, fetchEmployerDetail]);
 
   const handleStatusChange = async (newStatus: EmployerStatus) => {
     if (!employer) return;
@@ -760,8 +767,16 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
 
 export default function AdminEmployers() {
   const [employers,         setEmployers]         = useState<Employer[]>([]);
+  const [stats,             setStats]             = useState<Stats>({
+    total: 0,
+    active: 0,
+    pending: 0,
+    total_employees: 0,
+  });
+  const [countries,         setCountries]         = useState<string[]>([]);
   const [loading,           setLoading]           = useState(true);
   const [searchTerm,        setSearchTerm]        = useState('');
+  const [debouncedSearch,   setDebouncedSearch]   = useState('');
   const [statusFilter,      setStatusFilter]      = useState<EmployerStatus | ''>('');
   const [countryFilter,     setCountryFilter]     = useState('');
   const [selectedEmployer,  setSelectedEmployer]  = useState<Employer | null>(null);
@@ -770,15 +785,40 @@ export default function AdminEmployers() {
   const [selectedIds,       setSelectedIds]       = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
   // ── Fetch employers ───────────────────────────────────────────────────────
   const fetchEmployers = useCallback(async () => {
     setLoading(true);
     try {
-      // GET /api/admin/employers
-      const res = await fetch('/api/admin/employers');
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (statusFilter) params.set('status', statusFilter);
+      if (countryFilter) params.set('country', countryFilter);
+
+      const res = await fetch(`/api/admin/employers${params.toString() ? `?${params.toString()}` : ''}`);
       if (res.ok) {
-        const data: Employer[] = await res.json();
-        setEmployers(data);
+        const payload = await res.json();
+
+        if (Array.isArray(payload)) {
+          const data = payload as Employer[];
+          setEmployers(data);
+          setStats({
+            total: data.length,
+            active: data.filter((e) => e.status === 'approved').length,
+            pending: data.filter((e) => e.status === 'pending').length,
+            total_employees: data.reduce((sum, e) => sum + e.employee_count, 0),
+          });
+          setCountries([...new Set(data.map((e) => e.country).filter(Boolean))]);
+        } else {
+          const data = payload as EmployersApiResponse;
+          setEmployers(data.data || []);
+          setStats(data.stats || { total: 0, active: 0, pending: 0, total_employees: 0 });
+          setCountries(data.countries || []);
+        }
       } else {
         toast.error('Failed to fetch employers.');
       }
@@ -787,11 +827,15 @@ export default function AdminEmployers() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [countryFilter, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     fetchEmployers();
   }, [fetchEmployers]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [debouncedSearch, statusFilter, countryFilter]);
 
   // ── Quick action handler ───────────────────────────────────────────────────
   const handleQuickAction = async (newStatus: EmployerStatus) => {
@@ -820,10 +864,10 @@ export default function AdminEmployers() {
 
   // ── Bulk selection ─────────────────────────────────────────────────────────
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredEmployers.length) {
+    if (selectedIds.size === employers.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredEmployers.map(e => e.id)));
+      setSelectedIds(new Set(employers.map(e => e.id)));
     }
   };
 
@@ -868,32 +912,7 @@ export default function AdminEmployers() {
   };
 
   // ── Filter ─────────────────────────────────────────────────────────────────
-  const filteredEmployers = employers.filter(e => {
-    if (statusFilter && e.status !== statusFilter) return false;
-    if (countryFilter && e.country !== countryFilter) return false;
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      return (
-        e.company_name.toLowerCase().includes(search) ||
-        e.contact_email.toLowerCase().includes(search) ||
-        e.employer_code.toLowerCase().includes(search)
-      );
-    }
-    return true;
-  });
-
-  // ── Stats ──────────────────────────────────────────────────────────────────
-  const stats: Stats = {
-    total:           employers.length,
-    active:          employers.filter(e => e.status === 'approved').length,
-    pending:         employers.filter(e => e.status === 'pending').length,
-    total_employees: employers.reduce((sum, e) => sum + e.employee_count, 0),
-  };
-
-  // ── Unique countries ───────────────────────────────────────────────────────
-  const countries = [...new Set(employers.map(e => e.country))].filter(Boolean);
-
-  return (
+    return (
     <AdminPortalLayout>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-employers-page">
         {/* Header */}
@@ -937,7 +956,7 @@ export default function AdminEmployers() {
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <Input
-                placeholder="Search by company name, email, or code..."
+                placeholder="Search by company name or email"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="pl-12 h-11 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 rounded-xl"
@@ -957,6 +976,9 @@ export default function AdminEmployers() {
               </FilterButton>
               <FilterButton active={statusFilter === 'suspended'} onClick={() => setStatusFilter('suspended')}>
                 Suspended
+              </FilterButton>
+              <FilterButton active={statusFilter === 'rejected'} onClick={() => setStatusFilter('rejected')}>
+                Rejected
               </FilterButton>
               
               <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2" />
@@ -1030,7 +1052,7 @@ export default function AdminEmployers() {
             <div className="flex items-center justify-center py-16">
               <div className="w-12 h-12 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
             </div>
-          ) : filteredEmployers.length === 0 ? (
+          ) : employers.length === 0 ? (
             <div className="text-center py-16 px-4">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Building2 className="w-8 h-8 text-green-600" />
@@ -1048,7 +1070,7 @@ export default function AdminEmployers() {
               <div className="hidden lg:flex items-center gap-4 px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 <input
                   type="checkbox"
-                  checked={selectedIds.size === filteredEmployers.length && filteredEmployers.length > 0}
+                  checked={selectedIds.size === employers.length && employers.length > 0}
                   onChange={toggleSelectAll}
                   className="w-4 h-4 rounded border-slate-300 text-green-600 focus:ring-green-500 cursor-pointer"
                 />
@@ -1061,7 +1083,7 @@ export default function AdminEmployers() {
                 <div className="w-20" />
               </div>
               
-              {filteredEmployers.map(employer => (
+              {employers.map(employer => (
                 <EmployerRow 
                   key={employer.id} 
                   employer={employer}
@@ -1082,9 +1104,9 @@ export default function AdminEmployers() {
         </div>
 
         {/* Summary */}
-        {filteredEmployers.length > 0 && (
+        {employers.length > 0 && (
           <div className="text-sm text-slate-500 dark:text-slate-400">
-            Showing {filteredEmployers.length} of {employers.length} employers
+            Showing {employers.length} of {stats.total} employers
           </div>
         )}
       </div>
@@ -1112,3 +1134,5 @@ export default function AdminEmployers() {
     </AdminPortalLayout>
   );
 }
+
+

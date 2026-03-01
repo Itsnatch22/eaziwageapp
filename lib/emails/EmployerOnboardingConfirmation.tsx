@@ -28,7 +28,7 @@ export default function EmployerOnboardingConfirmation({
     <Html>
       <Head />
       <Preview>
-        Your EaziWage employer application has been received — we'll be in touch within 2–3 business
+        Your EaziWage employer application has been received — we&apos;ll be in touch within 2–3 business
         days.
       </Preview>
       <Tailwind>
@@ -63,7 +63,7 @@ export default function EmployerOnboardingConfirmation({
               </Text>
               <Text className="text-slate-600">
                 Thank you for submitting your employer onboarding application for{' '}
-                <strong>{companyName}</strong>. We've received all your details and our compliance
+                <strong>{companyName}</strong>. We&apos;ve received all your details and our compliance
                 team will review your application.
               </Text>
 
@@ -77,7 +77,7 @@ export default function EmployerOnboardingConfirmation({
                   ② We may reach out for additional documents if needed
                 </Text>
                 <Text className="text-emerald-700 text-sm m-0">
-                  ③ Upon approval you'll receive access to your employer dashboard
+                  ③ Upon approval you&apos;ll receive access to your employer dashboard
                 </Text>
               </Section>
 
@@ -93,7 +93,7 @@ export default function EmployerOnboardingConfirmation({
 
               <Text className="text-xs text-slate-400 m-0">
                 This email was sent to {contactEmail} because you submitted an employer onboarding
-                application on EaziWage. If this wasn't you, please ignore this email.
+                application on EaziWage. If this wasn&apos;t you, please ignore this email.
               </Text>
             </Section>
 

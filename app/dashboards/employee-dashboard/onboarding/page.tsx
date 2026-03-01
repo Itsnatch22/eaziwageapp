@@ -102,7 +102,7 @@ const ALL_COUNTRIES = [
 const TERMS_CONTENT = `Last Updated: October 2025
 
 1. ACCEPTANCE OF TERMS
-By accessing and using EaziWage's earned wage access services, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
+By accessing and using EaziWage&apos;s earned wage access services, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
 
 2. ELIGIBILITY
 To use our services, you must:
@@ -328,8 +328,9 @@ const FileUploader = ({
 
 export default function Onboarding() {
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, mounted } = useTheme();
   const user = useAuthStore((state: { user: any; }) => state.user); // ✅ replaced localStorage
+  const [identity, setIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -377,6 +378,33 @@ export default function Onboarding() {
     postal_code: '',
     start_date: '',
   });
+
+  const welcomeName =
+    user?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    user?.email?.split('@')[0] ||
+    identity?.full_name ||
+    identity?.email?.split('@')[0] ||
+    'there';
+
+  useEffect(() => {
+    const fetchIdentity = async () => {
+      try {
+        const res = await fetch('/api/employee-dashboard/profile');
+        const data = await res.json();
+        if (!res.ok) return;
+        const profile = data?.profile || {};
+        setIdentity({
+          full_name: profile?.full_name || '',
+          email: profile?.email || '',
+        });
+      } catch {
+        // Non-fatal fallback only.
+      }
+    };
+    fetchIdentity();
+  }, []);
 
   // ── Fetch approved employers on mount ────────────────────────────────────
   useEffect(() => {
@@ -550,7 +578,7 @@ export default function Onboarding() {
               <Sparkles className="w-10 h-10 text-white" />
             </div>
             <h2 className="font-heading text-3xl font-bold text-slate-900 dark:text-white mb-4">
-              Welcome to EaziWage, {user?.full_name?.split(' ')[0] || 'there'}!
+              Welcome to EaziWage, {welcomeName.split(' ')[0] || 'there'}!
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-300 mb-8 max-w-md mx-auto">
               Let's get you verified to access your earned wages instantly. This comprehensive KYC process takes about 5–10 minutes.
@@ -760,7 +788,7 @@ export default function Onboarding() {
                 <FileUploader label="Tax Certificate" description="TIN certificate or compliance document" onUpload={(file) => handleFileUpload(file, 'tax_certificate')} uploadedFile={uploadedFiles.tax_certificate} uploading={uploadingFile === 'tax_certificate'} testId="upload-tax-cert" />
               </div>
               <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                Don't have your TIN yet?{' '}
+                don&apos;t have your TIN yet?{' '}
                 <button type="button" onClick={nextStep} className="text-primary font-medium hover:underline">Skip this step</button> and add it later.
               </p>
             </div>
@@ -979,8 +1007,8 @@ export default function Onboarding() {
             </div>
             <span className="font-heading font-bold text-2xl text-slate-900 dark:text-white">EaziWage</span>
           </Link>
-          <button onClick={toggleTheme} className="absolute right-4 sm:right-6 lg:right-8 p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all" data-testid="theme-toggle">
-            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+<button onClick={toggleTheme} className="absolute right-4 sm:right-6 lg:right-8 p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all" data-testid="theme-toggle">
+            {mounted && theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
         </div>
       </header>
@@ -1037,3 +1065,4 @@ export default function Onboarding() {
     </div>
   );
 }
+

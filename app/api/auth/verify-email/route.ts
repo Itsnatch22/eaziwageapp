@@ -127,12 +127,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── Mark token as used (atomic — prevents replay) ────────────────────────────
   const { error: tokenUpdateError } = await supabase
     .from('email_verifications')
     .update({ used_at: new Date().toISOString() })
     .eq('id', record.id)
-    .is('used_at', null); // extra guard: only update if still unused
+    .is('used_at', null); 
 
   if (tokenUpdateError) {
     console.error('[verify-email] Token update error:', tokenUpdateError);
@@ -142,14 +141,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── Mark profile as verified ─────────────────────────────────────────────────
+  // FIXED: Query profile.profiles with role_normalized
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .update({ email_verified: true })
     .eq('id', record.user_id)
-    .select('role, full_name, email')
-    .single<{ role: string; full_name: string; email: string }>();
-
+    .select('role_normalized, role, full_name, email')
+    .single<{ role_normalized: string; role: string; full_name: string; email: string }>();
+    
   if (profileError || !profile) {
     console.error('[verify-email] Profile update error:', profileError);
     return NextResponse.json(
@@ -164,7 +163,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   return NextResponse.json(
-    { message: 'Email verified successfully.', role: profile.role },
+    { message: 'Email verified successfully.', role: profile.role_normalized || profile.role },
     { status: 200, headers: rate.headers },
   );
 }

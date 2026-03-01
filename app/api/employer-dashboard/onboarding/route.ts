@@ -1,9 +1,10 @@
 // app/api/employer-dashboard/onboarding/route.ts
-import { createClient } from '@/lib/client';
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { onboardingSubmitSchema, stepUpdateSchema } from '@/lib/validations/employer-onboarding';
 import EmployerOnboardingConfirmation from '@/lib/emails/EmployerOnboardingConfirmation';
+import pusherServer from '@/lib/pusher-server';
 
 export const runtime = 'nodejs';
 
@@ -136,6 +137,27 @@ export async function POST(req: NextRequest) {
         contactEmail: fields.contact_email,
       }),
     });
+
+    // ── Create Admin Notification ────────────────────────────────────────
+    const { data: adminNotif, error: adminNotifError } = await supabase
+      .from('admin_notifications')
+      .insert({
+        type: 'employer_kyc',
+        title: 'Employer Onboarding Submitted',
+        message: `${fields.company_name} has submitted their onboarding application for review.`,
+        read: false,
+        metadata: {
+          user_id: user.id,
+          onboarding_id: onboardingId,
+          company_name: fields.company_name,
+        },
+      })
+      .select()
+      .single();
+
+    if (!adminNotifError && adminNotif) {
+      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
+    }
 
     return NextResponse.json(
       { message: 'Application submitted successfully.', onboarding_id: onboardingId },

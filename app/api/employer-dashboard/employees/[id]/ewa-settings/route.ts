@@ -1,11 +1,5 @@
-// app/api/employees/[id]/ewa-settings/route.ts
-//
-// PUT /api/employees/[id]/ewa-settings
-//
-// Upserts EWA settings for a specific employee.
-// The employer must own the employee (employee linked to their employer_id).
-//
-import { createClient } from '@/lib/client';
+
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ewaSettingsSchema } from '@/lib/validations/employee-validation';
 
@@ -13,9 +7,10 @@ export const runtime = 'edge';
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const supabase = await createClient();
+  const { id } = await params;
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const {
@@ -27,7 +22,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const employeeId = params.id;
+  const employeeId = id;
 
   // ── Resolve employer ──────────────────────────────────────────────────────
   const { data: employer, error: employerError } = await supabase

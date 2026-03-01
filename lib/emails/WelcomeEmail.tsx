@@ -19,14 +19,14 @@ import * as React from 'react';
 interface WelcomeEmailProps {
   fullName: string;
   email: string;
-  role: 'employee' | 'employer';
+  role: 'employee' | 'employer' | 'admin';
   verificationUrl: string;
   companyName?: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 const COLORS = {
   green:       '#16a34a',
@@ -169,7 +169,7 @@ export default function WelcomeEmail({
           <Section style={styles.footer}>
             <Text style={styles.footerText}>
               Need help?{' '}
-              <Link href={`${BASE_URL}/support`} style={styles.footerLink}>Visit our support centre</Link>
+              <Link href={`${BASE_URL}/contact`} style={styles.footerLink}>Visit our support centre</Link>
               {' '}or email us at{' '}
               <Link href="mailto:support@eaziwage.com" style={styles.footerLink}>
                 support@eaziwage.com
@@ -178,16 +178,16 @@ export default function WelcomeEmail({
             <Text style={styles.footerMuted}>
               © 2026 EaziWage. All rights reserved.
               <br />
-              You received this email because you registered at eaziwage.com.
+              You received this email because you registered at with us.
             </Text>
             <Text style={styles.footerMuted}>
               <Link href={`${BASE_URL}/unsubscribe?email=${encodeURIComponent(email)}`} style={styles.footerLink}>
                 Unsubscribe
               </Link>
               {' · '}
-              <Link href={`${BASE_URL}/privacy`} style={styles.footerLink}>Privacy Policy</Link>
+              <Link href={`${BASE_URL}/privacy.pdf`} style={styles.footerLink}>Privacy Policy</Link>
               {' · '}
-              <Link href={`${BASE_URL}/terms`} style={styles.footerLink}>Terms</Link>
+              <Link href={`${BASE_URL}/terms.pdf`} style={styles.footerLink}>Terms</Link>
             </Text>
           </Section>
 
@@ -407,6 +407,6 @@ WelcomeEmail.PreviewProps = {
   fullName:        'Jane Wanjiku',
   email:           'jane@acmecorp.co.ke',
   role:            'employee' as const,
-  verificationUrl: 'https://eaziwage.com/verify-email?token=abc123',
+  verificationUrl: 'https://app.eaziwage.com/verify-email?token=abc123',
   companyName:     'Acme Corporation',
 } satisfies WelcomeEmailProps;

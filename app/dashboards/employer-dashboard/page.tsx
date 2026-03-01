@@ -1,80 +1,98 @@
 // @ts-nocheck
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { 
-  Users, TrendingUp, Clock, ArrowRight, CreditCard, Building2, Upload, 
-  BarChart3, AlertCircle, CheckCircle2, ArrowUpRight, ChevronRight,
-  Wallet, Zap, Calendar, DollarSign, Activity, PieChart
+import {
+  Users, TrendingUp, Clock, ArrowRight, CreditCard, Building2, Upload,
+  BarChart3, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownRight,
+  ChevronRight, Wallet, Calendar, DollarSign, Activity, RefreshCw,
+  FileText, Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
 
-interface DashboardStats {
-  total_employees?: number;
-  active_employees?: number;
-  monthly_advances_disbursed?: number;
-  total_advances_disbursed?: number;
-  avg_fee_rate?: number;
-  monthly_payroll?: number;
-  avg_advance_amount?: number;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface EmployerProfile {
+  id: string;
+  company_name: string;
+  status: string;
+  industry: string | null;
+  payroll_cycle: string | null;
+  risk_score: number | null;
+  risk_rating: string | null;
+  contact_person: string | null;
 }
 
-interface EmployerData {
-  company_name?: string;
-  status?: string;
-  industry?: string;
-  payroll_cycle?: string;
-  risk_score?: number;
+interface PeriodData {
+  advances: {
+    total: number; disbursed: number; pending: number; rejected: number;
+    total_amount: number; total_fees: number; avg_amount: number;
+    by_method: { mobile_money: number; bank_transfer: number };
+  };
+  employees: { total: number; active: number; with_advances: number; utilization_rate: number };
+  monthly_trend: Array<{ label: string; amount: number; count: number }>;
 }
 
-// Animated Counter Component
-const AnimatedCounter = ({ value, prefix = '', suffix = '' }: { value: number | string; prefix?: string; suffix?: string }) => {
-  const [displayValue, setDisplayValue] = useState(0);
-  const animationRef = useRef<number | null>(null);
-  
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Computes a period-over-period change badge.
+ * Returns `{ label: "+12.5%", trendUp: true }` or undefined if no comparison.
+ */
+function computeTrend(
+  current: number,
+  previous: number,
+): { label: string; trendUp: boolean } | undefined {
+  if (previous === 0 && current === 0) return undefined;
+  if (previous === 0) return { label: '▲ New', trendUp: true };
+  const pct = ((current - previous) / previous) * 100;
+  const sign = pct >= 0 ? '+' : '';
+  return { label: `${sign}${pct.toFixed(1)}%`, trendUp: pct >= 0 };
+}
+
+// ─── Animated Counter ─────────────────────────────────────────────────────────
+
+const AnimatedCounter = ({ value, prefix = '', suffix = '' }: { value: number; prefix?: string; suffix?: string }) => {
+  const [display, setDisplay] = useState(0);
+  const rafRef = useRef<number | null>(null);
   useEffect(() => {
-    const numValue = typeof value === 'number' ? value : parseFloat(value) || 0;
-    const startTime = performance.now();
-    const duration = 1200;
-    
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const easeOut = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(Math.round(numValue * easeOut));
-      if (progress < 1) animationRef.current = requestAnimationFrame(animate);
+    const start = performance.now();
+    const dur = 1200;
+    const animate = (now: number) => {
+      const t = Math.min((now - start) / dur, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(value * ease));
+      if (t < 1) rafRef.current = requestAnimationFrame(animate);
     };
-    
-    animationRef.current = requestAnimationFrame(animate);
-    return () => { if (animationRef.current) cancelAnimationFrame(animationRef.current); };
+    rafRef.current = requestAnimationFrame(animate);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [value]);
-  
-  return <span>{prefix}{displayValue.toLocaleString()}{suffix}</span>;
+  return <span>{prefix}{display.toLocaleString()}{suffix}</span>;
 };
 
-// Main Stats Card
-const MainStatsCard = ({ stats, employer }: { stats: DashboardStats | null; employer: EmployerData | null }) => {
-  const totalEmployees = stats?.total_employees || 0;
-  const activeEmployees = stats?.active_employees || 0;
-  const percentage = totalEmployees > 0 ? Math.round((activeEmployees / totalEmployees) * 100) : 0;
-  const circumference = 2 * Math.PI * 44;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+// ─── Main Stats Card ──────────────────────────────────────────────────────────
+
+const MainStatsCard = ({ employer, curr }: { employer: EmployerProfile | null; curr: PeriodData | null }) => {
+  const total  = curr?.employees.total  ?? 0;
+  const active = curr?.employees.active ?? 0;
+  const pct    = total > 0 ? Math.round((active / total) * 100) : 0;
+  const circ   = 2 * Math.PI * 44;
+  const offset = circ - (pct / 100) * circ;
 
   return (
     <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-slate-200/50 dark:border-slate-700/30">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400">Company Overview</h2>
-          <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{employer?.company_name}</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{employer?.company_name ?? '—'}</p>
         </div>
         <div className={cn(
           "px-3 py-1.5 rounded-full text-xs font-semibold",
-          employer?.status === 'approved' 
+          employer?.status === 'approved'
             ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
             : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
         )}>
@@ -86,13 +104,13 @@ const MainStatsCard = ({ stats, employer }: { stats: DashboardStats | null; empl
       <div className="relative w-40 h-40 mx-auto mb-6">
         <div className="absolute inset-2 rounded-full bg-primary/10 blur-xl" />
         <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="6" 
+          <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="6"
             className="text-slate-200 dark:text-slate-800/60" />
-          <circle cx="50" cy="50" r="44" fill="none" stroke="url(#employerGradient)" strokeWidth="6" 
-            strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+          <circle cx="50" cy="50" r="44" fill="none" stroke="url(#empGrad)" strokeWidth="6"
+            strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset}
             className="transition-all duration-1000 ease-out" />
           <defs>
-            <linearGradient id="employerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id="empGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#0df259" />
               <stop offset="100%" stopColor="#10b981" />
             </linearGradient>
@@ -100,21 +118,20 @@ const MainStatsCard = ({ stats, employer }: { stats: DashboardStats | null; empl
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-3xl font-bold text-slate-900 dark:text-white">
-            <AnimatedCounter value={totalEmployees} />
+            <AnimatedCounter value={total} />
           </span>
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Employees</span>
         </div>
       </div>
 
-      {/* Quick Stats Row */}
       <div className="flex items-center justify-center gap-8">
         <div className="text-center">
-          <span className="text-2xl font-bold text-primary">{activeEmployees}</span>
+          <span className="text-2xl font-bold text-primary">{active}</span>
           <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">Active</span>
         </div>
         <div className="w-px h-10 bg-slate-200 dark:bg-slate-700" />
         <div className="text-center">
-          <span className="text-2xl font-bold text-slate-900 dark:text-white">{percentage}%</span>
+          <span className="text-2xl font-bold text-slate-900 dark:text-white">{pct}%</span>
           <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">Utilization</span>
         </div>
       </div>
@@ -122,18 +139,28 @@ const MainStatsCard = ({ stats, employer }: { stats: DashboardStats | null; empl
   );
 };
 
-// Metric Card with gradient icon (matches website)
-const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }: { icon: any; label: string; value: any; subtext: string; trend?: string; trendUp?: boolean }) => (
+// ─── Metric Card ─────────────────────────────────────────────────────────────
+
+const MetricCard = ({
+  icon: Icon, label, value, subtext, trend,
+}: {
+  icon: any; label: string; value: any; subtext?: string;
+  trend?: { label: string; trendUp: boolean };
+}) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:shadow-lg transition-all duration-300 group">
     <div className="flex items-start justify-between mb-3">
       <GradientIconBox icon={Icon} size="md" />
       {trend && (
         <div className={cn(
           "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full",
-          trendUp ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600" : "bg-red-100 dark:bg-red-500/20 text-red-600"
+          trend.trendUp
+            ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+            : "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400"
         )}>
-          <ArrowUpRight className={cn("w-3 h-3", !trendUp && "rotate-180")} />
-          {trend}
+          {trend.trendUp
+            ? <ArrowUpRight className="w-3 h-3" />
+            : <ArrowDownRight className="w-3 h-3" />}
+          {trend.label}
         </div>
       )}
     </div>
@@ -143,7 +170,8 @@ const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }: { ico
   </div>
 );
 
-// Quick Action Card with gradient icon (matches website)
+// ─── Quick Action Card ────────────────────────────────────────────────────────
+
 const QuickActionCard = ({ icon: Icon, title, description, href }: { icon: any; title: string; description: string; href: string }) => (
   <Link href={href} className="block group">
     <div className="relative overflow-hidden rounded-2xl p-5 border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/30">
@@ -157,13 +185,14 @@ const QuickActionCard = ({ icon: Icon, title, description, href }: { icon: any; 
   </Link>
 );
 
-// Status Item with gradient icon (matches website)
+// ─── Status Item ──────────────────────────────────────────────────────────────
+
 const StatusItem = ({ icon: Icon, label, value, status }: { icon: any; label: string; value: any; status: 'success' | 'warning' | 'default' }) => (
   <div className="flex items-center gap-4 p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
     <div className={cn(
       "w-10 h-10 rounded-xl flex items-center justify-center shadow-md",
-      status === 'success' ? 'bg-linear-to-br from-emerald-500 to-emerald-600' : 
-      status === 'warning' ? 'bg-linear-to-br from-amber-500 to-amber-600' : 
+      status === 'success' ? 'bg-linear-to-br from-emerald-500 to-emerald-600' :
+      status === 'warning' ? 'bg-linear-to-br from-amber-500 to-amber-600' :
       'bg-linear-to-br from-primary to-emerald-600'
     )}>
       <Icon className="w-5 h-5 text-white" />
@@ -175,34 +204,98 @@ const StatusItem = ({ icon: Icon, label, value, status }: { icon: any; label: st
   </div>
 );
 
+// ─── Mini Stat Row ────────────────────────────────────────────────────────────
+
+const MiniStatRow = ({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) => (
+  <div className="flex justify-between items-center py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
+    <span className="text-sm text-slate-500 dark:text-slate-400">{label}</span>
+    <span className={cn("text-sm font-semibold", accent ? "text-primary" : "text-slate-900 dark:text-white")}>{value}</span>
+  </div>
+);
+
+// ─── Mini Bar Sparkline ───────────────────────────────────────────────────────
+
+const Sparkline = ({ trend }: { trend: Array<{ label: string; amount: number }> }) => {
+  const max = Math.max(...trend.map(t => t.amount), 1);
+  return (
+    <div className="flex items-end gap-1 h-12">
+      {trend.map((t, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+          <div
+            className="w-full rounded-t-sm bg-linear-to-t from-primary/60 to-primary transition-all duration-700"
+            style={{ height: `${Math.max((t.amount / max) * 40, t.amount > 0 ? 3 : 1)}px` }}
+            title={`${t.label}: ${formatCurrency(t.amount)}`}
+          />
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function EmployerDashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [employer, setEmployer] = useState<EmployerData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [employer, setEmployer] = useState<EmployerProfile | null>(null);
+  const [curr,     setCurr]     = useState<PeriodData | null>(null);
+  const [prev,     setPrev]     = useState<PeriodData | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [statsRes, employerRes] = await Promise.all([
-          dashboardApi.getEmployerDashboard(),
-          employerApi.getMe()
-        ]);
-        setStats(statsRes.data);
-        setEmployer(employerRes.data);
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          setError('profile_not_found');
-        } else {
-          setError('Failed to load dashboard data');
-        }
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Fetch employer profile
+      const profRes = await fetch('/api/employer-dashboard/profile');
+      if (profRes.status === 404) {
+        setError('profile_not_found');
+        return;
       }
-    };
-    fetchData();
-  }, []);
+      if (!profRes.ok) throw new Error(`profile ${profRes.status}`);
+      const profJson = await profRes.json();
+      const profile: EmployerProfile = profJson.profile;
+
+      // Redirect to onboarding if no company name or still draft
+      const incomplete = !profile.company_name || String(profile.status).toLowerCase() === 'draft';
+      if (incomplete) {
+        router.replace('/dashboards/employer-dashboard/onboarding');
+        return;
+      }
+
+      setEmployer(profile);
+
+      // 2. Fetch this month + last month reports in parallel
+      const [currRes, prevRes] = await Promise.all([
+        fetch('/api/employer-dashboard/reports?period=this_month'),
+        fetch('/api/employer-dashboard/reports?period=last_month'),
+      ]);
+
+      if (currRes.ok) {
+        const j = await currRes.json();
+        if (j.data) setCurr(j.data);
+      }
+      if (prevRes.ok) {
+        const j = await prevRes.json();
+        if (j.data) setPrev(j.data);
+      }
+    } catch (err: any) {
+      setError('Failed to load dashboard.');
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // ── Derived trends (current vs previous period) ──────────────────────────
+
+  const disbursedTrend   = computeTrend(curr?.advances.total_amount ?? 0, prev?.advances.total_amount ?? 0);
+  const feesTrend        = computeTrend(curr?.advances.total_fees   ?? 0, prev?.advances.total_fees   ?? 0);
+  const avgAdvanceTrend  = computeTrend(curr?.advances.avg_amount   ?? 0, prev?.advances.avg_amount   ?? 0);
+  const utilizationTrend = computeTrend(curr?.employees.utilization_rate ?? 0, prev?.employees.utilization_rate ?? 0);
+
+  // ── Loading & error states ────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -235,11 +328,25 @@ export default function EmployerDashboard() {
     );
   }
 
-  const isPending = employer?.status === 'pending';
+  if (error) {
+    return (
+      <EmployerPortalLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <p className="text-red-500 font-semibold">{error}</p>
+          <Button onClick={load} className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" /> Retry
+          </Button>
+        </div>
+      </EmployerPortalLayout>
+    );
+  }
+
+  const isPending = employer?.status === 'pending' || employer?.status === 'submitted';
 
   return (
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-6">
+
         {/* Verification Alert */}
         {isPending && (
           <div className="bg-linear-to-r from-amber-500/10 to-orange-500/10 dark:from-amber-500/20 dark:to-orange-500/20 backdrop-blur-sm rounded-2xl p-4 flex items-center gap-4 border border-amber-500/20" data-testid="verification-alert">
@@ -249,111 +356,169 @@ export default function EmployerDashboard() {
             <div className="flex-1">
               <h3 className="font-semibold text-amber-900 dark:text-amber-200">Verification in Progress</h3>
               <p className="text-sm text-amber-700 dark:text-amber-300/80 mt-0.5">
-                Your company profile is being reviewed. This usually takes 1-2 business days.
+                Your company profile is being reviewed. This usually takes 1–2 business days.
               </p>
             </div>
           </div>
         )}
 
-        {/* Top Section - Main Stats + Metrics */}
+        {/* ── Top Section: Main Stats + Metrics ─────────────────────────────── */}
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Main Stats Card */}
-          <MainStatsCard stats={stats} employer={employer} />
+          <MainStatsCard employer={employer} curr={curr} />
 
-          {/* Metrics Grid */}
           <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
-            <MetricCard 
+            <MetricCard
               icon={DollarSign}
-              label="Advances This Month"
-              value={formatCurrency(stats?.monthly_advances_disbursed || stats?.total_advances_disbursed || 0)}
-              subtext="This month's disbursements"
-              trend="+12.5%"
-              trendUp={true}
+              label="Disbursed This Month"
+              value={formatCurrency(curr?.advances.total_amount ?? 0)}
+              subtext="vs last month"
+              trend={disbursedTrend}
             />
-            <MetricCard 
-              icon={TrendingUp}
-              label="Avg. Fee Rate"
-              value={`${(stats?.avg_fee_rate || 4.5).toFixed(1)}%`}
-              subtext="Based on risk score"
-            />
-            <MetricCard 
+            <MetricCard
               icon={Wallet}
-              label="Monthly Payroll"
-              value={formatCurrency(stats?.monthly_payroll || 0)}
-              subtext="This month's total"
-              trend="+8.2%"
-              trendUp={true}
+              label="Fees Collected"
+              value={formatCurrency(curr?.advances.total_fees ?? 0)}
+              subtext="vs last month"
+              trend={feesTrend}
             />
-            <MetricCard 
+            <MetricCard
               icon={Activity}
               label="Avg. Advance"
-              value={formatCurrency(stats?.avg_advance_amount || 5000)}
-              subtext="Per employee"
-              trend="-2.1%"
-              trendUp={false}
+              value={formatCurrency(curr?.advances.avg_amount ?? 0)}
+              subtext="per disbursement"
+              trend={avgAdvanceTrend}
+            />
+            <MetricCard
+              icon={TrendingUp}
+              label="Utilization Rate"
+              value={`${curr?.employees.utilization_rate ?? 0}%`}
+              subtext="employees using advances"
+              trend={utilizationTrend}
             />
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* ── Advances + Employees Overview ─────────────────────────────────── */}
+        <div className="grid lg:grid-cols-3 gap-6">
+
+          {/* Advances snapshot */}
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <GradientIconBox icon={CreditCard} size="md" />
+                <h2 className="font-bold text-slate-900 dark:text-white">Advances</h2>
+              </div>
+              <Link href="/dashboards/employer-dashboard/advances" className="text-xs font-medium text-primary flex items-center gap-1 hover:gap-1.5 transition-all">
+                View all <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+            <MiniStatRow label="Total requests"  value={curr?.advances.total    ?? 0} />
+            <MiniStatRow label="Disbursed"        value={curr?.advances.disbursed ?? 0} accent />
+            <MiniStatRow label="Pending"          value={curr?.advances.pending   ?? 0} />
+            <MiniStatRow label="Rejected"         value={curr?.advances.rejected  ?? 0} />
+            <MiniStatRow label="Mobile Money"     value={curr?.advances.by_method.mobile_money  ?? 0} />
+            <MiniStatRow label="Bank Transfer"    value={curr?.advances.by_method.bank_transfer ?? 0} />
+          </div>
+
+          {/* Employees snapshot */}
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <GradientIconBox icon={Users} size="md" />
+                <h2 className="font-bold text-slate-900 dark:text-white">Employees</h2>
+              </div>
+              <Link href="/dashboards/employer-dashboard/employees" className="text-xs font-medium text-primary flex items-center gap-1 hover:gap-1.5 transition-all">
+                View all <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+            <MiniStatRow label="Total enrolled"     value={curr?.employees.total         ?? 0} />
+            <MiniStatRow label="Active"              value={curr?.employees.active         ?? 0} accent />
+            <MiniStatRow label="Used advances"       value={curr?.employees.with_advances  ?? 0} />
+            <MiniStatRow label="Utilization rate"   value={`${curr?.employees.utilization_rate ?? 0}%`} accent />
+
+            {/* Sparkline of monthly trend */}
+            {curr?.monthly_trend && curr.monthly_trend.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <p className="text-xs text-slate-400 mb-2">Monthly disbursements (6 mo.)</p>
+                <Sparkline trend={curr.monthly_trend} />
+              </div>
+            )}
+          </div>
+
+          {/* Reports quick-access + payroll */}
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30 flex flex-col gap-4">
+            <div className="flex items-center gap-3 mb-1">
+              <GradientIconBox icon={BarChart3} size="md" />
+              <h2 className="font-bold text-slate-900 dark:text-white">Quick Access</h2>
+            </div>
+
+            {[
+              { icon: BarChart3, label: 'Reports & Analytics', sub: 'Period breakdowns & CSVs',  href: '/dashboards/employer-dashboard/reports' },
+              { icon: Upload,    label: 'Upload Payroll',       sub: 'Sync earnings data',        href: '/dashboards/employer-dashboard/payroll' },
+              { icon: FileText,  label: 'Payroll History',      sub: 'Past payroll uploads',      href: '/dashboards/employer-dashboard/payroll/history' },
+              { icon: Zap,       label: 'Risk Insights',        sub: 'Score & fee breakdown',     href: '/dashboards/employer-dashboard/risk-insights' },
+            ].map(({ icon: Ic, label, sub, href }) => (
+              <Link key={href} href={href} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <Ic className="w-4.5 h-4.5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{label}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{sub}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary transition-colors shrink-0" />
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Quick Actions ─────────────────────────────────────────────────── */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h2>
-            <Link href="/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
+            <Link href="/dashboards/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
               Upload Payroll <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <QuickActionCard 
-              icon={Users}
-              title="Manage Employees"
-              description="Add, edit, or view profiles"
-              href="/employer-dashboard/employees"
-            />
-            <QuickActionCard 
-              icon={Upload}
-              title="Upload Payroll"
-              description="Update earnings data"
-              href="/employer-dashboard/payroll"
-            />
-            <QuickActionCard 
-              icon={CreditCard}
-              title="View Advances"
-              description="Track wage advances"
-              href="/employer-dashboard/advances"
-            />
-            <QuickActionCard 
-              icon={BarChart3}
-              title="Reports"
-              description="Analytics and insights"
-              href="/employer-dashboard/reports"
-            />
+            <QuickActionCard icon={Users}    title="Manage Employees" description="Add, edit, or view profiles"   href="/dashboards/employer-dashboard/employees" />
+            <QuickActionCard icon={Upload}   title="Upload Payroll"   description="Update earnings data"          href="/dashboards/employer-dashboard/payroll" />
+            <QuickActionCard icon={CreditCard} title="View Advances"  description="Track wage advances"           href="/dashboards/employer-dashboard/advances" />
+            <QuickActionCard icon={BarChart3} title="Reports"         description="Analytics and insights"        href="/dashboards/employer-dashboard/reports" />
           </div>
         </div>
 
-        {/* Bottom Section - Company Status + Risk */}
+        {/* ── Company Status + Risk ─────────────────────────────────────────── */}
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Company Status */}
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-5">Company Status</h2>
             <div className="space-y-3">
-              <StatusItem 
+              <StatusItem
                 icon={CheckCircle2}
                 label="Verification Status"
                 value={employer?.status === 'approved' ? 'Fully Verified' : 'Under Review'}
                 status={employer?.status === 'approved' ? 'success' : 'warning'}
               />
-              <StatusItem 
+              <StatusItem
                 icon={Building2}
                 label="Industry"
-                value={employer?.industry?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || 'Not Set'}
+                value={employer?.industry?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Not Set'}
                 status="default"
               />
-              <StatusItem 
+              <StatusItem
                 icon={Calendar}
                 label="Payroll Cycle"
-                value={employer?.payroll_cycle?.charAt(0).toUpperCase() + employer?.payroll_cycle?.slice(1) || 'Monthly'}
+                value={employer?.payroll_cycle
+                  ? employer.payroll_cycle.charAt(0).toUpperCase() + employer.payroll_cycle.slice(1)
+                  : 'Monthly'}
                 status="default"
+              />
+              <StatusItem
+                icon={Clock}
+                label="Risk Rating"
+                value={employer?.risk_rating ? `Rating ${employer.risk_rating}` : 'Not Rated Yet'}
+                status={employer?.risk_rating === 'A' ? 'success' : employer?.risk_rating === 'D' ? 'warning' : 'default'}
               />
             </div>
           </div>
@@ -365,30 +530,31 @@ export default function EmployerDashboard() {
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">Risk Assessment</h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Your company's risk profile</p>
               </div>
-              <div className={cn(
-                "px-4 py-2 rounded-xl font-semibold text-sm",
-                (employer?.risk_score || 3.5) >= 4 ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' :
-                (employer?.risk_score || 3.5) >= 3 ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' :
-                (employer?.risk_score || 3.5) >= 2.6 ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' :
-                'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300'
-              )}>
-                {(employer?.risk_score || 3.5) >= 4 ? 'Low Risk' :
-                 (employer?.risk_score || 3.5) >= 3 ? 'Medium Risk' :
-                 (employer?.risk_score || 3.5) >= 2.6 ? 'High Risk' : 'Very High Risk'}
-              </div>
+              {(() => {
+                const rs = employer?.risk_score ?? 3.5;
+                const label = rs >= 4 ? 'Low Risk' : rs >= 3 ? 'Medium Risk' : rs >= 2.6 ? 'High Risk' : 'Very High Risk';
+                const cls   = rs >= 4
+                  ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                  : rs >= 3
+                  ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                  : rs >= 2.6
+                  ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                  : 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300';
+                return <div className={cn("px-4 py-2 rounded-xl font-semibold text-sm", cls)}>{label}</div>;
+              })()}
             </div>
-            
+
             <div className="flex items-center gap-6">
-              <div className="relative w-24 h-24">
+              <div className="relative w-24 h-24 shrink-0">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" 
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8"
                     className="text-white/50 dark:text-slate-700/50" />
-                  <circle cx="50" cy="50" r="40" fill="none" stroke="url(#riskGradient)" strokeWidth="8" 
-                    strokeLinecap="round" strokeDasharray={2 * Math.PI * 40} 
-                    strokeDashoffset={2 * Math.PI * 40 * (1 - ((employer?.risk_score || 3.5) / 5))}
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="url(#riskGrad)" strokeWidth="8"
+                    strokeLinecap="round" strokeDasharray={2 * Math.PI * 40}
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - ((employer?.risk_score ?? 3.5) / 5))}
                     className="transition-all duration-1000" />
                   <defs>
-                    <linearGradient id="riskGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <linearGradient id="riskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                       <stop offset="0%" stopColor="#0df259" />
                       <stop offset="100%" stopColor="#10b981" />
                     </linearGradient>
@@ -396,21 +562,22 @@ export default function EmployerDashboard() {
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {(employer?.risk_score || 3.5).toFixed(1)}
+                    {(employer?.risk_score ?? 3.5).toFixed(1)}
                   </span>
                 </div>
               </div>
               <div className="flex-1">
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  Your risk score determines the fee rates applied to employee advances. A lower risk score means better rates for your employees.
+                  Your risk score determines the fee rates applied to employee advances. A higher score means better rates.
                 </p>
-                <Link href="/employer/risk-insights" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:gap-2 transition-all">
+                <Link href="/dashboards/employer-dashboard/risk-insights" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:gap-2 transition-all">
                   View Details <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>
             </div>
           </div>
         </div>
+
       </div>
     </EmployerPortalLayout>
   );

@@ -63,14 +63,14 @@ export default function EmployeeKycConfirmation({
               <Text className="text-slate-600">
                 Your identity verification application for{' '}
                 <strong>EaziWage</strong> (via <strong>{companyName}</strong>) has been received.
-                Our compliance team will review your documents within 1–2 business days.
+                Our compliance team will review your documents within 2-3 business days.
               </Text>
 
               {/* What's next */}
               <Section className="bg-emerald-50 rounded-xl px-6 py-4 my-6">
                 <Text className="font-semibold text-emerald-800 m-0 mb-2">What happens next?</Text>
                 <Text className="text-emerald-700 text-sm m-0">
-                  ① Our team verifies your submitted documents <strong>(1–2 business days)</strong>
+                  ① Our team verifies your submitted documents <strong>(2-3 business days)</strong>
                 </Text>
                 <Text className="text-emerald-700 text-sm m-0">
                   ② We may contact you if additional information is needed
@@ -90,7 +90,7 @@ export default function EmployeeKycConfirmation({
               <Hr className="border-slate-200 my-6" />
 
               <Text className="text-xs text-slate-400 m-0">
-                This email was sent to {employeeEmail}. If this wasn't you, please ignore this
+                This email was sent to {employeeEmail}. If this wasn&apos;t you, please ignore this
                 email or contact us immediately.
               </Text>
             </Section>

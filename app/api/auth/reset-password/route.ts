@@ -193,7 +193,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         fullName:   profile.full_name ?? 'there',
         ip,
         userAgent:  req.headers.get('user-agent') ?? 'Unknown device',
-        resetUrl:   `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwageapp.vercel.app'}/forgot-password`,
+        resetUrl:   `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com'}/forgot-password`,
       }),
     });
 

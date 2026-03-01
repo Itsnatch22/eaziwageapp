@@ -370,7 +370,7 @@ export default function ResetPasswordPage() {
               Your password has been changed successfully. Redirecting to sign in in{' '}
               <Countdown
                 seconds={AUTO_REDIRECT_SECS}
-                onComplete={() => router.replace('/login')}
+                onComplete={() => router.replace('/')}
               />
             </p>
             <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
@@ -379,7 +379,7 @@ export default function ResetPasswordPage() {
 
             <Button
               type="button"
-              onClick={() => router.replace('/login')}
+              onClick={() => router.replace('/')}
               className="w-full h-12 rounded-xl bg-linear-to-r from-green-700 to-green-500 hover:from-green-800 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
             >
               <span className="flex items-center gap-2">
@@ -504,3 +504,4 @@ export default function ResetPasswordPage() {
     </>
   );
 }
+

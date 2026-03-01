@@ -1,0 +1,325 @@
+// app/api/employer-dashboard/risk-insights/route.ts
+//
+// GET /api/employer-dashboard/risk-insights
+//
+// Returns the authenticated employer's full risk profile following the
+// EaziWage Risk Classification, Scoring & Framework (REV1 - Oct 25, 2025)
+//
+// Returns:
+//   {
+//     id, company_name, contact_person, contact_email,
+//     industry, sector, city, country, status,
+//     risk_score: number,          // 0–5 composite (CRSemployer)
+//     risk_rating: 'A'|'B'|'C'|'D',
+//     risk_factors: {
+//       legal_compliance:  { registration_status, tax_compliance, ewa_agreement },
+//       financial_health:  { audited_financials, liquidity_ratio, payroll_sustainability },
+//       operational:       { employee_count, churn_rate, payroll_integration },
+//       sector_exposure:   { industry_risk, regulatory_exposure },
+//       aml_transparency:  { beneficial_ownership, pep_screening },
+//     },
+//     risk_scored_at: string | null,
+//     has_pending_review: boolean,
+//   }
+//
+// The page derives feePercentage client-side via calculateFeePercentage(risk_score).
+//
+import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
+
+export const runtime = 'nodejs';
+
+const CATEGORY_WEIGHTS = {
+  legal_compliance:  0.20,  // 20%
+  financial_health:  0.35,  // 35% (core risk driver)
+  operational:       0.20,  // 20%
+  sector_exposure:   0.15,  // 15%
+  aml_transparency:  0.10,  // 10%
+} as const;
+
+// Sub-factor weights within each category (from PDF Table 4)
+const SUB_FACTOR_WEIGHTS = {
+  legal_compliance: {
+    registration_status: 0.10,  // 10% of total
+    tax_compliance:      0.07,  // 7% of total
+    ewa_agreement:       0.03,  // 3% of total
+  },
+  financial_health: {
+    audited_financials:     0.15,  // 15% of total
+    liquidity_ratio:        0.10,  // 10% of total
+    payroll_sustainability: 0.10,  // 10% of total
+  },
+  operational: {
+    employee_count:      0.05,  // 5% of total
+    churn_rate:          0.05,  // 5% of total
+    payroll_integration: 0.10,  // 10% of total
+  },
+  sector_exposure: {
+    industry_risk:       0.10,  // 10% of total
+    regulatory_exposure: 0.05,  // 5% of total
+  },
+  aml_transparency: {
+    beneficial_ownership: 0.05,  // 5% of total
+    pep_screening:        0.05,  // 5% of total
+  },
+} as const;
+
+// Default scores for new employers (all 3s → rating B at 3.0)
+const DEFAULT_RISK_FACTORS = {
+  legal_compliance: { 
+    registration_status: 3, 
+    tax_compliance: 3, 
+    ewa_agreement: 3 
+  },
+  financial_health: { 
+    audited_financials: 3, 
+    liquidity_ratio: 3, 
+    payroll_sustainability: 3 
+  },
+  operational: { 
+    employee_count: 3, 
+    churn_rate: 3, 
+    payroll_integration: 3 
+  },
+  sector_exposure: { 
+    industry_risk: 3, 
+    regulatory_exposure: 3 
+  },
+  aml_transparency: { 
+    beneficial_ownership: 3, 
+    pep_screening: 3 
+  },
+} as const;
+
+// ─── Risk Calculation Functions (from PDF Section 4) ──────────────────────────
+
+/**
+ * Calculate Composite Risk Score (CRS) using weighted formula from PDF:
+ * 
+ * CRS_employer = Σ(Score_i × Weight_i) / Σ Weight_i
+ * 
+ * where each Score_i is 0–5 and Weight_i is the percentage weight
+ */
+function calculateCompositeRiskScore(
+  riskFactors: {
+    readonly legal_compliance: {
+      readonly registration_status: number;
+      readonly tax_compliance: number;
+      readonly ewa_agreement: number;
+    };
+    readonly financial_health: {
+      readonly audited_financials: number;
+      readonly liquidity_ratio: number;
+      readonly payroll_sustainability: number;
+    };
+    readonly operational: {
+      readonly employee_count: number;
+      readonly churn_rate: number;
+      readonly payroll_integration: number;
+    };
+    readonly sector_exposure: {
+      readonly industry_risk: number;
+      readonly regulatory_exposure: number;
+    };
+    readonly aml_transparency: {
+      readonly beneficial_ownership: number;
+      readonly pep_screening: number;
+    };
+  }
+): number {
+  let totalWeightedScore = 0;
+  let totalWeight = 0;
+
+  // Legal & Compliance (20%)
+  totalWeightedScore += riskFactors.legal_compliance.registration_status * SUB_FACTOR_WEIGHTS.legal_compliance.registration_status;
+  totalWeightedScore += riskFactors.legal_compliance.tax_compliance * SUB_FACTOR_WEIGHTS.legal_compliance.tax_compliance;
+  totalWeightedScore += riskFactors.legal_compliance.ewa_agreement * SUB_FACTOR_WEIGHTS.legal_compliance.ewa_agreement;
+  totalWeight += CATEGORY_WEIGHTS.legal_compliance;
+
+  // Financial Health (35% - core risk driver)
+  totalWeightedScore += riskFactors.financial_health.audited_financials * SUB_FACTOR_WEIGHTS.financial_health.audited_financials;
+  totalWeightedScore += riskFactors.financial_health.liquidity_ratio * SUB_FACTOR_WEIGHTS.financial_health.liquidity_ratio;
+  totalWeightedScore += riskFactors.financial_health.payroll_sustainability * SUB_FACTOR_WEIGHTS.financial_health.payroll_sustainability;
+  totalWeight += CATEGORY_WEIGHTS.financial_health;
+
+  // Operational Dynamics (20%)
+  totalWeightedScore += riskFactors.operational.employee_count * SUB_FACTOR_WEIGHTS.operational.employee_count;
+  totalWeightedScore += riskFactors.operational.churn_rate * SUB_FACTOR_WEIGHTS.operational.churn_rate;
+  totalWeightedScore += riskFactors.operational.payroll_integration * SUB_FACTOR_WEIGHTS.operational.payroll_integration;
+  totalWeight += CATEGORY_WEIGHTS.operational;
+
+  // Sector & Regulatory (15%)
+  totalWeightedScore += riskFactors.sector_exposure.industry_risk * SUB_FACTOR_WEIGHTS.sector_exposure.industry_risk;
+  totalWeightedScore += riskFactors.sector_exposure.regulatory_exposure * SUB_FACTOR_WEIGHTS.sector_exposure.regulatory_exposure;
+  totalWeight += CATEGORY_WEIGHTS.sector_exposure;
+
+  // AML / Ownership (10%)
+  totalWeightedScore += riskFactors.aml_transparency.beneficial_ownership * SUB_FACTOR_WEIGHTS.aml_transparency.beneficial_ownership;
+  totalWeightedScore += riskFactors.aml_transparency.pep_screening * SUB_FACTOR_WEIGHTS.aml_transparency.pep_screening;
+  totalWeight += CATEGORY_WEIGHTS.aml_transparency;
+
+  // Final CRS = weighted sum / total weight (should equal 1.0)
+  const crs = totalWeightedScore / totalWeight;
+  
+  // Ensure score is within valid range [0, 5]
+  return Math.max(0, Math.min(5, crs));
+}
+
+/**
+ * Determine risk rating based on CRS thresholds from PDF Table 6:
+ * A: 4.0–5.0 (Low Risk)
+ * B: 3.0–3.9 (Medium Risk)
+ * C: 2.6–2.9 (High Risk)
+ * D: 0.0–2.5 (Very High Risk - Cannot advance wages)
+ */
+function getRiskRating(crs: number): 'A' | 'B' | 'C' | 'D' {
+  if (crs >= 4.0) return 'A';
+  if (crs >= 3.0) return 'B';
+  if (crs >= 2.6) return 'C';
+  return 'D';
+}
+
+// ─── API Handler ──────────────────────────────────────────────────────────────
+
+export async function GET() {
+  const supabase = await createClient();
+
+  // ── Authentication ──────────────────────────────────────────────────────────
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { data: employer, error: empError } = await supabase
+    .from('employer_onboarding')
+    .select(
+      `id, company_name, industry, sector, city, country, employee_count,
+       status, risk_score, risk_rating, contact_person, contact_email,
+       payroll_cycle, annual_revenue_range, submitted_at, created_at`,
+    )
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (empError) {
+    console.error('[risk-insights] employer fetch:', empError.message);
+    return NextResponse.json({ error: empError.message }, { status: 500 });
+  }
+
+  if (!employer) {
+    return NextResponse.json(
+      { 
+        error: 'No employer profile found. Please complete onboarding first.',
+        suggestion: 'Complete the employer onboarding process to access risk insights.'
+      },
+      { status: 404 },
+    );
+  }
+
+  // ── Fetch Risk Factors (Per-category sub-factor scores) ────────────────────
+  const { data: rf, error: rfError } = await supabase
+    .from('employer_risk_factors')
+    .select(
+      `registration_status, tax_compliance, ewa_agreement,
+       audited_financials, liquidity_ratio, payroll_sustainability,
+       employee_count, churn_rate, payroll_integration,
+       industry_risk, regulatory_exposure,
+       beneficial_ownership, pep_screening,
+       composite_score, scored_at, notes`,
+    )
+    .eq('employer_id', employer.id)
+    .maybeSingle();
+
+  if (rfError) {
+    // Non-fatal: fall back to defaults for new employers
+    console.warn('[risk-insights] risk_factors fetch:', rfError.message);
+  }
+
+  // ── Map DB columns → nested risk_factors structure ─────────────────────────
+  const risk_factors = rf
+    ? {
+        legal_compliance: {
+          registration_status: Number(rf.registration_status),
+          tax_compliance:      Number(rf.tax_compliance),
+          ewa_agreement:       Number(rf.ewa_agreement),
+        },
+        financial_health: {
+          audited_financials:     Number(rf.audited_financials),
+          liquidity_ratio:        Number(rf.liquidity_ratio),
+          payroll_sustainability: Number(rf.payroll_sustainability),
+        },
+        operational: {
+          employee_count:      Number(rf.employee_count),
+          churn_rate:          Number(rf.churn_rate),
+          payroll_integration: Number(rf.payroll_integration),
+        },
+        sector_exposure: {
+          industry_risk:       Number(rf.industry_risk),
+          regulatory_exposure: Number(rf.regulatory_exposure),
+        },
+        aml_transparency: {
+          beneficial_ownership: Number(rf.beneficial_ownership),
+          pep_screening:        Number(rf.pep_screening),
+        },
+      }
+    : DEFAULT_RISK_FACTORS;
+
+  // ── Calculate CRS if not already computed (fallback) ───────────────────────
+  // Prefer synced employer_onboarding values; recalculate if missing
+  let computedCRS = Number(employer.risk_score ?? rf?.composite_score ?? 0);
+  let computedRating = employer.risk_rating;
+
+  if (!computedCRS || computedCRS === 0) {
+    computedCRS = calculateCompositeRiskScore(risk_factors);
+    computedRating = getRiskRating(computedCRS);
+    
+    console.log('[risk-insights] Computed CRS:', computedCRS, 'Rating:', computedRating);
+  }
+
+  // ── Check for Pending Review Requests ───────────────────────────────────────
+  const { data: pendingReview } = await supabase
+    .from('risk_review_requests')
+    .select('id, requested_at, reason')
+    .eq('employer_id', employer.id)
+    .eq('status', 'pending')
+    .limit(1)
+    .maybeSingle();
+
+  // ── Construct Response ──────────────────────────────────────────────────────
+  return NextResponse.json({
+    // Identity & Profile
+    id:                   employer.id,
+    company_name:         employer.company_name,
+    industry:             employer.industry,
+    sector:               employer.sector,
+    city:                 employer.city,
+    country:              employer.country,
+    employee_count:       employer.employee_count,
+    status:               employer.status,
+    contact_person:       employer.contact_person,
+    contact_email:        employer.contact_email,
+    payroll_cycle:        employer.payroll_cycle,
+    annual_revenue_range: employer.annual_revenue_range,
+    submitted_at:         employer.submitted_at,
+
+    // Risk Scoring (Framework Compliant)
+    risk_score:  computedCRS,
+    risk_rating: computedRating ?? 'B',
+    risk_factors,
+
+    // Category Weights (for client-side display)
+    category_weights: CATEGORY_WEIGHTS,
+    sub_factor_weights: SUB_FACTOR_WEIGHTS,
+
+    // Metadata
+    risk_scored_at:     rf?.scored_at ?? null,
+    risk_notes:         rf?.notes     ?? null,
+    has_pending_review: !!pendingReview,
+    pending_review:     pendingReview ?? null,
+
+    // Framework Version
+    framework_version: 'REV1',
+    framework_date: '2025-10-25',
+  });
+}
