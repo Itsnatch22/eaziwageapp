@@ -155,7 +155,7 @@ if (!['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress']
       console.error('[status] Upsert error:', upsertError);
       return NextResponse.json({ error: 'Failed to sync employer record.' }, { status: 500 });
     }
-  } else if ((onboardingRecord.status as string) === 'approved' && newStatus !== 'verified') {
+  } else if ((onboardingRecord.status as string) === 'verified') {
     // If it was approved and now it's something else, we might want to remove it from the 'employers' table 
     // or update its status there too. Usually 'employers' table contains active/active-ish ones.
     // For now, let's just keep the status in sync in the employers table if it exists.

@@ -20,7 +20,6 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PAYROLL_CYCLES } from "@/lib/utils";
 import { toast } from "sonner";
-import { useTheme } from "@/lib/ThemeContext";
 import { useAuthStore } from "@/lib/stores/auth"; // keep your existing store
 
 // ─── Static data ──────────────────────────────────────────────────────────────
@@ -252,7 +251,6 @@ async function apiUpdateStep(step: number) {
 
 export default function EmployerOnboarding() {
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [sectors, setSectors] = useState<{ id: string; name: string; industry: string }[]>([]);
@@ -902,9 +900,6 @@ export default function EmployerOnboarding() {
             </div>
             <span className="font-heading font-bold text-2xl text-slate-900 dark:text-white">EaziWage</span>
           </Link>
-          <button onClick={toggleTheme} className="absolute right-4 p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all" data-testid="theme-toggle">
-            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
         </div>
       </header>
 
