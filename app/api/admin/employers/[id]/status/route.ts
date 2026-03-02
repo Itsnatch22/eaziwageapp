@@ -7,7 +7,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
-type AdminEmployerStatus = 'verified' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
+type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
 
 export async function PATCH(
   req: NextRequest,
@@ -98,7 +98,7 @@ if (!['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress']
   }
 
   // Handle 'approved' status logic
-  if (newStatus === 'verified') {
+  if (newStatus === 'approved') {
     const {
       user_id,
       company_name,
@@ -155,7 +155,7 @@ if (!['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress']
       console.error('[status] Upsert error:', upsertError);
       return NextResponse.json({ error: 'Failed to sync employer record.' }, { status: 500 });
     }
-  } else if ((onboardingRecord.status as string) === 'verified') {
+  } else if ((onboardingRecord.status as string) === 'approved') {
     // If it was approved and now it's something else, we might want to remove it from the 'employers' table 
     // or update its status there too. Usually 'employers' table contains active/active-ish ones.
     // For now, let's just keep the status in sync in the employers table if it exists.

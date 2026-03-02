@@ -1,3 +1,4 @@
+// app/api/employee-dashboard/kyc/documents/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
@@ -16,24 +17,15 @@ export const runtime = 'nodejs';
 
 const BUCKET = 'employee-kyc-documents';
 
-/**
- * Create admin Supabase client with service role
- */
 function createAdminClient() {
   const env = getEnv();
   return createSupabaseClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      auth: { autoRefreshToken: false, persistSession: false },
-    }
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 }
 
-/**
- * GET /api/employee-dashboard/kyc/documents
- * List KYC documents with optional filtering
- */
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
@@ -137,52 +129,36 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/**
- * POST /api/employee-dashboard/kyc/documents
- * Upload a new KYC document
- */
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
-    // Authenticate user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    // Get user profile
+    // Get profile (safe)
     const { data: profile } = await adminSupabase
       .from('profiles')
       .select('full_name, email')
       .eq('id', user.id)
-      .single<{ full_name: string | null; email: string | null }>();
+      .maybeSingle();
 
-    // Parse form data
-    const form = await req.formData().catch(() => null);
-    if (!form) {
-      return NextResponse.json(
-        { error: 'Invalid form data', code: 'INVALID_FORM' },
-        { status: 400 }
-      );
-    }
-
+    // Parse FormData
+    const form = await req.formData();
     const file = form.get('file') as File | null;
     const rawDocType = form.get('document_type') as string | null;
     const documentNumber = (form.get('document_number') as string | null)?.trim() || null;
 
-    // Validate file presence
     if (!file) {
       return NextResponse.json(
-        { error: 'No file provided', code: 'FILE_REQUIRED' },
+        { 
+          error: 'No file provided', 
+          code: 'FILE_REQUIRED',
+          keys: Array.from(form.keys()) 
+        }, 
         { status: 400 }
       );
     }
@@ -192,72 +168,53 @@ export async function POST(req: NextRequest) {
     if (!parsedDocType.success) {
       return NextResponse.json(
         {
-          error: `Invalid document_type. Allowed: ${DocumentTypeEnum.options.join(', ')}`,
+          error: `Invalid document_type: "${rawDocType}". Allowed: ${DocumentTypeEnum.options.join(', ')}`,
           code: 'INVALID_DOC_TYPE',
+          details: parsedDocType.error.format()
         },
         { status: 400 }
       );
     }
     const documentType = parsedDocType.data;
 
-    // Validate file type
-    if (!ALLOWED_MIME_TYPES.includes(file.type as typeof ALLOWED_MIME_TYPES[number])) {
+    // Validate MIME type (image/jpeg is explicitly allowed)
+    if (!ALLOWED_MIME_TYPES.includes(file.type as any)) {
       return NextResponse.json(
-        {
-          error: 'Invalid file type. Upload JPEG, PNG, WEBP or PDF.',
-          code: 'INVALID_FILE_TYPE',
-        },
+        { error: 'Invalid file type. Allowed: JPEG, PNG, WEBP, PDF', code: 'INVALID_FILE_TYPE' },
         { status: 422 }
       );
     }
 
-    // Validate file size
+    // Validate size
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          error: 'File size must be under 5 MB.',
-          code: 'FILE_TOO_LARGE',
-        },
-        { status: 422 }
-      );
+      return NextResponse.json({ error: 'File size must be under 5 MB.', code: 'FILE_TOO_LARGE' }, { status: 422 });
     }
 
-    // Generate storage path
+    // Upload
     const ext = file.name.split('.').pop() ?? 'bin';
     const timestamp = Date.now();
     const storagePath = `${user.id}/${documentType}/${timestamp}.${ext}`;
 
-    // Upload to Supabase Storage
     const arrayBuffer = await file.arrayBuffer();
     const { error: uploadError } = await adminSupabase.storage
       .from(BUCKET)
-      .upload(storagePath, arrayBuffer, {
-        contentType: file.type,
-        upsert: true,
-      });
+      .upload(storagePath, arrayBuffer, { contentType: file.type, upsert: true });
 
     if (uploadError) {
-      console.error('[POST /kyc/documents] Upload error:', uploadError);
-      return NextResponse.json(
-        { error: 'Failed to upload file. Please try again.', code: 'UPLOAD_ERROR' },
-        { status: 500 }
-      );
+      console.error('[KYC Upload] Storage error:', uploadError);
+      return NextResponse.json({ error: 'Upload failed', code: 'UPLOAD_ERROR' }, { status: 500 });
     }
 
-    // Generate signed URL (valid for 1 year)
-    const { data: signedData, error: signedError } = await adminSupabase.storage
+    // Signed URL (1 year)
+    const { data: signedData } = await adminSupabase.storage
       .from(BUCKET)
       .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
 
-    if (signedError || !signedData) {
-      console.error('[POST /kyc/documents] Signed URL error:', signedError);
-      return NextResponse.json(
-        { error: 'Uploaded but could not generate URL.', code: 'SIGNED_URL_ERROR' },
-        { status: 500 }
-      );
+    if (!signedData) {
+      return NextResponse.json({ error: 'Could not generate URL', code: 'SIGNED_URL_ERROR' }, { status: 500 });
     }
 
-    // Save document metadata to database
+    // Save metadata
     const { data: savedDoc, error: saveError } = await adminSupabase
       .from('employee_kyc_documents')
       .upsert(
@@ -268,9 +225,6 @@ export async function POST(req: NextRequest) {
           storage_path: storagePath,
           document_number: documentNumber,
           status: 'pending',
-          reviewer_notes: null,
-          reviewed_at: null,
-          reviewed_by: null,
         },
         { onConflict: 'user_id,document_type' }
       )
@@ -278,17 +232,23 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (saveError) {
-      console.error('[POST /kyc/documents] Save error:', saveError);
-      return NextResponse.json(
-        { error: 'Failed to save KYC document metadata.', code: 'SAVE_ERROR' },
-        { status: 500 }
-      );
+      console.error('[KYC Upload] DB error:', saveError);
+      return NextResponse.json({ error: 'Failed to save document metadata', code: 'SAVE_ERROR', details: saveError }, { status: 500 });
     }
 
-    // Validate saved document
-    const validatedDoc = KYCDocumentSchema.parse(savedDoc);
+    const parsedResult = KYCDocumentSchema.safeParse(savedDoc);
+    if (!parsedResult.success) {
+        console.error('[KYC Upload] Schema validation failed:', parsedResult.error.format());
+        // Return the doc anyway but maybe log the mismatch
+        return NextResponse.json({ 
+            ...savedDoc, 
+            warning: 'Schema validation mismatch',
+            errors: parsedResult.error.format() 
+        }, { status: 201 });
+    }
 
-    // Send email notification (async, don't block response)
+    const validatedDoc = parsedResult.data;
+
     if (profile?.email) {
       sendKYCNotification({
         recipientEmail: profile.email,
@@ -380,11 +340,15 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(validatedDoc, { status: 201 });
-  } catch (error) {
-    console.error('[POST /kyc/documents] Unexpected error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', code: 'SERVER_ERROR' },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error('[KYC POST] Full error object:', JSON.stringify(err, null, 2));
+    console.error('[KYC POST] Error message:', err?.message);
+    console.error('[KYC POST] Error stack:', err?.stack);
+    
+    return NextResponse.json({ 
+        error: err?.message || 'Internal server error', 
+        code: 'SERVER_ERROR',
+        details: process.env.NODE_ENV === 'development' ? err : undefined
+    }, { status: 500 });
   }
 }

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient }        from '@supabase/ssr';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 import { getEnv }                      from '@/env';
 import { apiLimiter, checkRateLimit }  from '@/lib/rate-limit';
+import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+import pusherServer from '@/lib/pusher-server';
 
 // ─── Environment ──────────────────────────────────────────────────────────────
 
@@ -188,5 +192,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({ message: 'Notifications marked as read' }, { status: 200 });
 }
 
+export async function DELETE(req: NextRequest) {
+    const ip = getClientIp(req);
+    const rateResult = await checkRateLimit(apiLimiter, `admin-notif-delete:${ip}`);
+    if (!rateResult.success) return NextResponse.json({ error: 'Too many requests.' }, { status: 429 });
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
+
+    try {
+        const supabase = await createRouteHandlerClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+        const env = getEnv();
+        const adminSupabase = createSupabaseClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+            auth: { autoRefreshToken: false, persistSession: false },
+        });
+
+        // Verify Admin
+        const { data: profile } = await adminSupabase.from('profiles').select('role').eq('id', user.id).single();
+        if (!profile || !isAdminRole(profile.role as any)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+        const { error } = await adminSupabase.from('admin_notifications').delete().eq('id', id);
+        if (error) throw error;
+
+        // Trigger real-time deletion
+        await pusherServer.trigger('admin-notifications', 'notification-deleted', { id });
+
+        return NextResponse.json({ success: true });
+    } catch (err) {
+        return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    }
+}
+
 export async function PUT()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
-export async function DELETE() { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }

@@ -34,22 +34,22 @@ const RECAPTCHA_MIN_SCORE = 0.5;
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
 
 const EmployerReferralSchema = z.object({
-  employer_name:  z.string().min(2,  'Employer name must be at least 2 characters').max(120),
+  employer_name:  z.string().min(2,  'Employer name must be at least 2 characters').max(20),
   employer_email: z.string().email('Invalid employer email address'),
-  employer_phone: z.string().min(10, 'Employer phone number appears too short').max(20),
+  employer_phone: z.string().min(10, 'Employer phone number appears too short').max(20, 'Employer phone number appears too long'),
 });
 
 const RegisterSchema = z.object({
   full_name:          z
     .string()
     .min(2,   'Full name must be at least 2 characters')
-    .max(100, 'Full name must be under 100 characters')
+    .max(20, 'Full name must be under 20 characters')
     .regex(/^[\p{L}\s'-]+$/u, 'Full name contains invalid characters'),
 
   email: z
     .string()
     .email('Invalid email address')
-    .max(254),
+    .max(30, 'Email must be under 30 characters'),
 
   phone: z
     .string()
@@ -199,7 +199,7 @@ async function sendReferralNotification(
 }
 
 /**
- * Generates a random alphanumeric employer code, e.g. EW-A7B8C9
+ * Generates a random alphanumeric employer code, e.g. A7B8C9
  */
 function generateEmployerCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid O, 0, I, 1 for clarity
@@ -207,7 +207,7 @@ function generateEmployerCode(): string {
   for (let i = 0; i < 6; i++) {
     random += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return `EW-${random}`;
+  return random;
 }
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
@@ -273,26 +273,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 422 },
       );
     }
-    // Generate a unique employer code for new employers
-    generatedEmployerCode = generateEmployerCode();
   }
 
   // ── 6. Employee-specific: validate company_code exists (if provided) ─────────
   let employerUserId: string | null = null;
   if (input.role === 'employee' && input.company_code) {
-    // Check if the company code exists in the approved employers table (or profiles table)
-    // Using ilike for case-insensitive matching in case some codes are lowercase
+    // Check if the company code exists in the approved employers table (or onboarding)
     const { data: employer, error: empError } = await supabase
       .from('employers')
-      .select('id, status, user_id')
+      .select('id, status, user_id, employer_code')
       .ilike('employer_code', input.company_code)
       .single();
 
     if (empError || !employer) {
-      // Fallback: check the profiles table too (for newly registered but not yet "employer" approved ones)
+      // Fallback: check the profiles table too (for newly registered ones)
       const { data: profileEmp, error: profileEmpError } = await supabase
         .from('profiles')
-        .select('id, role')
+        .select('id, role, company_code')
         .eq('role', 'employer')
         .ilike('company_code', input.company_code)
         .single();
@@ -303,22 +300,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           { status: 422, headers: rateResult.headers },
         );
       }
-      // Not yet approved?
-      // Actually we might want to allow linking if the code is valid even if not yet approved
-      // for some onboarding flows, but let's stick to approved if the system requires it.
-      return NextResponse.json(
-        { error: 'This company is not yet approved on EaziWage.' },
-        { status: 422, headers: rateResult.headers },
-      );
-    }
 
-    if (employer.status !== 'approved') {
-      return NextResponse.json(
-        { error: 'This company is not yet approved on EaziWage.' },
-        { status: 422, headers: rateResult.headers },
-      );
+      // Check onboarding status
+      const { data: onboarding } = await supabase
+        .from('employer_onboarding')
+        .select('status, user_id')
+        .eq('user_id', profileEmp.id)
+        .maybeSingle();
+
+      if (onboarding?.status !== 'approved') {
+        return NextResponse.json(
+          { error: 'This company is not yet approved on EaziWage.' },
+          { status: 422, headers: rateResult.headers },
+        );
+      }
+      employerUserId = onboarding.user_id;
+    } else {
+        if (employer.status !== 'approved') {
+            return NextResponse.json(
+              { error: 'This company is not yet approved on EaziWage.' },
+              { status: 422, headers: rateResult.headers },
+            );
+        }
+        employerUserId = employer.user_id;
     }
-    employerUserId = employer.user_id;
   }
 
   // ── 7. Create Supabase Auth user ────────────────────────────────────────────
@@ -350,7 +355,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const userId = authData.user.id;
 
-  // ── 8. Insert profile row ────────────────────────────────────────────────────
+  // ── 8. Generate Employer Code if applicable ────────────────────────────────
+  if (input.role === 'employer') {
+    generatedEmployerCode = generateEmployerCode();
+  }
+
+  // ── 9. Insert profile row ────────────────────────────────────────────────────
   const { error: profileError } = await supabase
     .from('profiles')
     .insert({
@@ -377,7 +387,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 9. Create email verification token ──────────────────────────────────────
+  // ── 10. Create email verification token ──────────────────────────────────────
   const { token, tokenHash } = createToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
 
@@ -397,10 +407,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const verificationUrl = `${BASE_URL}/verify-email?token=${token}`;
 
-  // ── 10. Send welcome email ───────────────────────────────────────────────────
+  // ── 11. Send welcome email ───────────────────────────────────────────────────
   await sendWelcomeEmail(input, verificationUrl);
 
-  // ── 11. Handle employer referral ────────────────────────────────────────────
+  // ── 12. Handle employer referral ────────────────────────────────────────────
   if (input.employer_referral) {
     // Persist referral for the sales team
     await supabase.from('employer_referrals').insert({
@@ -419,7 +429,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // ── 12. Create authenticated session for immediate dashboard access ─────────
+  // ── 13. Create authenticated session for immediate dashboard access ─────────
   const authRes = NextResponse.next();
   const authClient = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -464,7 +474,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     successResponse.cookies.set(name, value, options);
   });
 
-  // ── 13. Create Real-time Notifications ──────────────────────────────────────
+  // ── 14. Create Real-time Notifications ──────────────────────────────────────
   try {
     // 1. Admin Notification
     const { data: adminNotif, error: adminNotifError } = await supabase

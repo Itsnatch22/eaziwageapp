@@ -36,9 +36,9 @@ export async function POST(req: NextRequest) {
     const fileName = `${documentType}_${Date.now()}.${fileExt}`;
     const filePath = `${user.id}/${fileName}`;
 
-    // Upload to Supabase Storage (assuming a bucket named 'employer_documents')
+    // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("employer_documents")
+      .from("employer-documents")
       .upload(filePath, fileBuffer, {
         contentType: file.type,
         upsert: true,
@@ -54,15 +54,15 @@ export async function POST(req: NextRequest) {
 
     // Get the public URL for the uploaded file
     const { data: publicUrlData } = supabase.storage
-      .from("employer_documents")
+      .from("employer-documents")
       .getPublicUrl(filePath);
 
     const fileUrl = publicUrlData.publicUrl;
 
-    // Fetch existing documents to update the JSON object
+    // Fetch existing profile to ensure it exists
     const { data: existingProfile, error: profileError } = await supabase
       .from("employer_onboarding")
-      .select("id, documents")
+      .select("id")
       .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
@@ -74,24 +74,54 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update the documents JSON object
-    const updatedDocuments = {
-      ...(existingProfile.documents || {}),
-      [documentType]: fileUrl, // Store the URL or path
-    };
+    // Map documentType to the correct column name
+    const validDocumentTypes = [
+      'certificate_of_incorporation',
+      'business_registration',
+      'tax_compliance_certificate',
+      'cr12_document',
+      'kra_pin_certificate',
+      'business_permit',
+      'audited_financials',
+      'bank_statement',
+      'proof_of_address',
+      'proof_of_bank_account',
+      'employment_contract_template'
+    ];
 
+    if (!validDocumentTypes.includes(documentType)) {
+      return NextResponse.json(
+        { error: `Invalid document type. Must be one of: ${validDocumentTypes.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // Update the specific document column
     const { error: updateError } = await supabase
-      .from("employer_onboarding")
-      .update({ documents: updatedDocuments })
-      .eq("id", existingProfile.id);
+      .from('employer_onboarding')
+      .update({ [documentType]: fileUrl })
+      .eq('id', existingProfile.id);
 
     if (updateError) {
       throw updateError;
     }
 
+    // Trigger notification to Admin
+    const { notifyAdmins } = await import('@/lib/notifications');
+    await notifyAdmins({
+        type: 'employer_kyc',
+        title: 'New KYC Document Uploaded',
+        message: `${documentType.replace(/_/g, ' ')} uploaded by employer.`,
+        metadata: {
+            employer_id: existingProfile.id,
+            document_type: documentType,
+            file_url: fileUrl
+        }
+    });
+
     return NextResponse.json({
       message: "Document uploaded successfully",
-      documents: updatedDocuments,
+      documentType,
       fileUrl,
     });
   } catch (error: unknown) {

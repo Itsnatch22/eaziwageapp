@@ -35,6 +35,9 @@ export const DocumentTypeEnum = z.enum([
   'bank_statement',
   'payslip',
   'employment_letter',
+  'employment_contract',
+  'tax_certificate',
+  'utility_bill',
   'selfie',
 ]);
 export type DocumentType = z.infer<typeof DocumentTypeEnum>;
@@ -140,12 +143,14 @@ export const DocumentUploadSchema = z.object({
       (file) =>
         [
           'image/jpeg',
+          'image/jpg',
           'image/png',
           'image/webp',
           'application/pdf',
+          'application/docx',
         ].includes(file.type),
       {
-        message: 'File must be JPEG, PNG, WEBP, or PDF',
+        message: 'File must be JPEG, PNG, WEBP, PDF or DOCX',
       }
     ),
   document_type: DocumentTypeEnum,
@@ -226,6 +231,9 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   bank_statement: 'Bank Statement',
   payslip: 'Payslip',
   employment_letter: 'Employment Letter',
+  employment_contract: 'Employment Contract',
+  tax_certificate: 'Tax Compliance Certificate',
+  utility_bill: 'Utility Bill (Proof of Address)',
   selfie: 'Selfie/Photo',
 };
 
@@ -250,6 +258,7 @@ export const STATUS_CONFIG = {
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export const ALLOWED_MIME_TYPES = [
   'image/jpeg',
+  'image/jpg',
   'image/png',
   'image/webp',
   'application/pdf',

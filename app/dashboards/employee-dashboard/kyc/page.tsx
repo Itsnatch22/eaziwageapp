@@ -87,7 +87,7 @@ export default function EmployeeKYC() {
             fetchDocuments();
         } else {
             const errorData = await response.json();
-            toast.error(errorData.message || 'Failed to upload document');
+            toast.error(errorData.error || 'Failed to upload document');
             }
         } catch (error) {
         toast.error('An error occurred while uploading the document');

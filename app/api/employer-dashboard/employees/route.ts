@@ -1,4 +1,3 @@
-
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -72,8 +71,8 @@ export async function GET(req: NextRequest) {
         max_advance_amount,
         cooldown_period
       ),
-      user:user_id (
-        raw_user_meta_data
+      profile:profiles(id=user_id) (
+        full_name
       )
     `)
     .eq('employer_id', employer.id)
@@ -95,12 +94,9 @@ export async function GET(req: NextRequest) {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const allEmployees = (rawEmployees ?? []).map((e: any) => {
-    // Pull full_name from auth user metadata
-    // user is returned as an array, so get the first element
-    const userRecord = Array.isArray(e.user) ? e.user[0] : e.user;
-    const meta = (userRecord as { raw_user_meta_data?: { full_name?: string } } | null)
-      ?.raw_user_meta_data;
-    const full_name: string = meta?.full_name ?? '';
+    // Pull full_name from profiles
+    const profileRecord = Array.isArray(e.profile) ? e.profile[0] : e.profile;
+    const full_name: string = profileRecord?.full_name ?? '';
 
     // Compute tenure in months from start_date
     const startDate = e.start_date ? new Date(e.start_date) : null;

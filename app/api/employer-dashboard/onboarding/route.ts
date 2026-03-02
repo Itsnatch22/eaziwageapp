@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
         proof_of_bank_account: proof_of_bank_account || null,
         employment_contract_template: employment_contract_template || null,
         // Workflow
-        status: 'risk_review_in_progress',
+        status: 'submitted',
         risk_score: 0,
         current_step: 7,
         terms_accepted_at: new Date().toISOString(),

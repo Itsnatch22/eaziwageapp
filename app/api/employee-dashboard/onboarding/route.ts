@@ -49,14 +49,29 @@ export async function POST(req: NextRequest) {
   const data = parsed.data;
 
   // ── Verify the employer exists and is approved ────────────────────────────
-  const { data: employer, error: employerError } = await supabase
+  const { data: onboardingEmp } = await supabase
     .from('employer_onboarding')
     .select('id, company_name, status, user_id')
     .eq('id', data.employer_id)
     .eq('status', 'approved')
     .maybeSingle();
 
-  if (employerError || !employer) {
+  let employer = onboardingEmp;
+
+  if (!employer) {
+    const { data: syncedEmp } = await supabase
+      .from('employers')
+      .select('id, company_name, status, user_id')
+      .eq('id', data.employer_id)
+      .eq('status', 'approved')
+      .maybeSingle();
+    
+    if (syncedEmp) {
+        employer = syncedEmp;
+    }
+  }
+
+  if (!employer) {
     return NextResponse.json(
       { error: 'Selected employer is not registered or not yet approved on EaziWage.' },
       { status: 422 },
@@ -186,12 +201,12 @@ export async function POST(req: NextRequest) {
 
     // Sync documents to employee_kyc_documents
     const docSyncs = [];
-    if (id_front) docSyncs.push({ user_id: user.id, document_type: 'id_front', document_url: id_front, status: 'pending' });
-    if (id_back) docSyncs.push({ user_id: user.id, document_type: 'id_back', document_url: id_back, status: 'pending' });
-    if (address_proof) docSyncs.push({ user_id: user.id, document_type: 'address_proof', document_url: address_proof, status: 'pending' });
+    const idDocType = data.id_type === 'passport' ? 'passport' : 'national_id';
+    
+    if (id_front) docSyncs.push({ user_id: user.id, document_type: idDocType, document_url: id_front, status: 'pending' });
+    if (address_proof) docSyncs.push({ user_id: user.id, document_type: 'utility_bill', document_url: address_proof, status: 'pending' });
     if (tax_certificate) docSyncs.push({ user_id: user.id, document_type: 'tax_certificate', document_url: tax_certificate, status: 'pending' });
-    if (payslip_1) docSyncs.push({ user_id: user.id, document_type: 'payslip_1', document_url: payslip_1, status: 'pending' });
-    if (payslip_2) docSyncs.push({ user_id: user.id, document_type: 'payslip_2', document_url: payslip_2, status: 'pending' });
+    if (payslip_1) docSyncs.push({ user_id: user.id, document_type: 'payslip', document_url: payslip_1, status: 'pending' });
     if (bank_statement) docSyncs.push({ user_id: user.id, document_type: 'bank_statement', document_url: bank_statement, status: 'pending' });
     if (employment_contract) docSyncs.push({ user_id: user.id, document_type: 'employment_contract', document_url: employment_contract, status: 'pending' });
 

@@ -1,247 +1,85 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link          from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import {
   LayoutDashboard, Users, Building2, CreditCard, BarChart3, Settings, LogOut,
   Sun, Moon, Bell, Menu, X, ChevronRight, Shield, CheckCircle2, Wifi,
-  AlertTriangle, HelpCircle, Loader2,
+  AlertTriangle, HelpCircle, Loader2, Trash2
 } from 'lucide-react';
 import { cn }        from '@/lib/utils';
+import pusherClient from '@/lib/pusher-client';
+import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface NavItem {
-  href:  string;
-  label: string;
-  icon:  React.ComponentType<{ className?: string }>;
-}
-
-interface Notification {
-  id:      string;
-  type:    'review_request' | 'employer_kyc' | 'flagged_advance';
-  title:   string;
-  message: string;
-  read:    boolean;
-}
-
-interface AdminUser {
+interface UserProfile {
   id:        string;
-  full_name: string;
   email:     string;
+  full_name: string | null;
   role:      string;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const SUPABASE_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '';
-const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-
-// ─── Background Component ─────────────────────────────────────────────────────
-
-function AdminBackground() {
-  return (
-    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-      <div className="absolute inset-0 bg-linear-to-br from-slate-50 via-slate-100 to-green-50/20 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-      <div className="absolute inset-0 opacity-30 dark:opacity-20">
-        <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="admin-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-              <path d="M0 32V0h32" fill="none" stroke="currentColor" strokeOpacity="0.1" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#admin-grid)" className="text-slate-900 dark:text-white" />
-        </svg>
-      </div>
-      <div className="absolute top-0 right-0 w-96 h-96 bg-linear-to-br from-green-500/8 to-green-600/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-linear-to-tr from-green-600/8 to-green-500/10 rounded-full blur-3xl" />
-    </div>
-  );
+interface Notification {
+  id:         string;
+  type:       'review_request' | 'employer_kyc' | 'flagged_advance' | 'system_alert';
+  title:      string;
+  message:    string;
+  read:       boolean;
+  created_at: string;
+  metadata?:  Record<string, unknown>;
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
-interface SidebarProps {
-  isOpen:  boolean;
-  onClose: () => void;
-  user:    AdminUser | null;
-  isLoadingUser: boolean;
-}
-
-function AdminSidebar({ isOpen, onClose, user, isLoadingUser }: SidebarProps) {
-  const router   = useRouter();
-  const pathname = usePathname();
-
-  const navItems: NavItem[] = [
-    { href: '/admin',                   label: 'Dashboard',        icon: LayoutDashboard },
-    { href: '/admin/employers',         label: 'Employers',        icon: Building2       },
-    { href: '/admin/employees',         label: 'Employees',        icon: Users           },
-    { href: '/admin/advances',          label: 'Advances',         icon: CreditCard      },
-    { href: '/admin/reconciliation',    label: 'Reconciliation',   icon: BarChart3       },
-    { href: '/admin/kyc-review',        label: 'KYC Review',       icon: CheckCircle2    },
-    { href: '/admin/risk-scoring',      label: 'Risk Scoring',     icon: Shield          },
-    { href: '/admin/fraud-detection',   label: 'Fraud Detection',  icon: AlertTriangle   },
-    { href: '/admin/review-management', label: 'Review Requests',  icon: HelpCircle      },
-    { href: '/admin/api-health',        label: 'API Health',       icon: Wifi            },
-  ];
-
-  const isActive = (href: string): boolean => {
-    if (href === '/admin') return pathname === '/admin';
-    return pathname?.startsWith(href) ?? false;
-  };
-
-  const handleLogout = async () => {
-    const supabase = createBrowserClient(SUPABASE_URL, SUPABASE_ANON);
-    await supabase.auth.signOut();
-    router.replace('/');
-  };
-
-  const initials = user?.full_name
-    ?.split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase() ?? 'A';
-
-  return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          'fixed left-0 top-0 h-screen w-72 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl flex flex-col z-50 transition-transform duration-300 lg:translate-x-0 border-r border-slate-200/50 dark:border-slate-700/50',
-          isOpen ? 'translate-x-0' : '-translate-x-full',
-        )}
-      >
-        {/* Header */}
-        <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50">
-          <Link href="/admin" className="flex items-center gap-3" onClick={onClose}>
-            <div className="w-11 h-11 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center shadow-lg shadow-green-600/25">
-              <span className="text-white font-bold text-lg">E</span>
-            </div>
-            <div>
-              <span className="font-bold text-lg text-slate-900 dark:text-white block tracking-tight">
-                EaziWage
-              </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">
-                Admin Portal
-              </span>
-            </div>
-          </Link>
-          <button
-            onClick={onClose}
-            className="absolute top-6 right-4 p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
-            aria-label="Close sidebar"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-            {navItems.map((item) => {
-              const Icon   = item.icon;
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group',
-                    active
-                      ? 'bg-green-600 text-white shadow-lg shadow-green-600/25'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50',
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'w-9 h-9 rounded-xl flex items-center justify-center transition-all',
-                      active ? 'bg-white/20' : 'bg-linear-to-br from-green-600 to-green-700',
-                    )}
-                  >
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-                  <span className="font-medium">{item.label}</span>
-                  {active && <ChevronRight className="w-4 h-4 ml-auto" />}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* User section */}
-          <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 shrink-0">
-            {isLoadingUser ? (
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 bg-slate-200 dark:bg-slate-700 rounded-xl animate-pulse" />
-                <div className="flex-1">
-                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded mb-2 animate-pulse" />
-                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3 animate-pulse" />
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center shadow-md">
-                  <span className="text-white font-bold">{initials}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                    {user?.full_name || 'Admin User'}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                    {user?.email || 'Loading...'}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleLogout}
-                className="flex-1 h-10 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2"
-                aria-label="Logout"
-              >
-                <LogOut className="w-4 h-4" />
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </>
-  );
-}
-
-// ─── Header ───────────────────────────────────────────────────────────────────
+// ─── Header Component ─────────────────────────────────────────────────────────
 
 interface HeaderProps {
   onMenuClick: () => void;
-  user: AdminUser | null;
+  user:        UserProfile | null;
   isLoadingUser: boolean;
 }
 
 function AdminHeader({ onMenuClick, user, isLoadingUser }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const notificationsRef = useRef<HTMLDivElement>(null);
 
-  const [notifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'review_request',
-      title: 'New Review Request',
-      message: 'Employee needs review for advance approval',
-      read: false,
-    },
-  ]);
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load admin notifications', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+
+    if (pusherClient) {
+      const channel = pusherClient.subscribe('admin-notifications');
+      
+      channel.bind('new-notification', (data: any) => {
+        setNotifications(prev => [data, ...prev].slice(0, 50));
+        toast(data.title, {
+          description: data.message,
+          icon: <Bell className="w-5 h-5 text-green-600" />
+        });
+      });
+
+      channel.bind('notification-deleted', (data: { id: string }) => {
+        setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
+      });
+
+      return () => {
+        pusherClient.unsubscribe('admin-notifications');
+      };
+    }
+  }, [fetchNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -254,6 +92,39 @@ function AdminHeader({ onMenuClick, user, isLoadingUser }: HeaderProps) {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showNotifications]);
+
+  const handleMarkAllRead = async () => {
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+
+    try {
+      const res = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notification_ids: unreadIds })
+      });
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      }
+    } catch (err) {
+      console.error('Failed to mark notifications as read', err);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+        const res = await fetch(`/api/admin/notifications?id=${id}`, {
+            method: 'DELETE'
+        });
+        if (res.ok) {
+            setNotifications(prev => prev.filter(n => String(n.id) !== String(id)));
+            toast.success('Notification deleted');
+        }
+    } catch (err) {
+        toast.error('Failed to delete notification');
+    }
+  };
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
@@ -313,11 +184,16 @@ function AdminHeader({ onMenuClick, user, isLoadingUser }: HeaderProps) {
                 <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-hidden z-50">
                   <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/30 flex items-center justify-between">
                     <h3 className="font-bold text-slate-900 dark:text-white">Notifications</h3>
-                    {unreadCount > 0 && (
-                      <span className="text-xs font-medium px-2 py-1 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300 rounded-full">
-                        {unreadCount} new
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {unreadCount > 0 && (
+                        <button 
+                            onClick={handleMarkAllRead}
+                            className="text-[10px] uppercase tracking-wider font-bold text-green-600 hover:text-green-700 transition-colors"
+                        >
+                            Mark All Read
+                        </button>
+                        )}
+                    </div>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.length === 0 ? (
@@ -329,30 +205,40 @@ function AdminHeader({ onMenuClick, user, isLoadingUser }: HeaderProps) {
                         <div
                           key={notif.id}
                           className={cn(
-                            'p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors',
+                            'p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors relative group',
                             !notif.read && 'bg-green-50/30 dark:bg-green-900/10',
                           )}
                         >
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-start gap-3 pr-8">
                             <div
                               className={cn(
                                 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
                                 notif.type === 'review_request'  && 'bg-green-100 dark:bg-green-900/30',
                                 notif.type === 'employer_kyc'    && 'bg-amber-100 dark:bg-amber-500/20',
                                 notif.type === 'flagged_advance' && 'bg-red-100   dark:bg-red-500/20',
+                                (notif.type as string) === 'new_employer' && 'bg-blue-100 dark:bg-blue-500/20',
                               )}
                             >
                               {notif.type === 'review_request'  && <Shield        className="w-4 h-4 text-green-600 dark:text-green-400" />}
                               {notif.type === 'employer_kyc'    && <Building2     className="w-4 h-4 text-amber-600" />}
                               {notif.type === 'flagged_advance' && <AlertTriangle className="w-4 h-4 text-red-600" />}
+                              {(notif.type as string) === 'new_employer' && <Users className="w-4 h-4 text-blue-600" />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-slate-900 dark:text-white">
+                              <p className={cn("text-sm font-medium", !notif.read ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400")}>
                                 {notif.title}
                               </p>
                               <p className="text-xs text-slate-500 mt-0.5 truncate">{notif.message}</p>
                             </div>
                           </div>
+
+                          <button 
+                                onClick={(e) => handleDelete(e, notif.id)}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
+                                title="Delete notification"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
                         </div>
                       ))
                     )}
@@ -374,133 +260,168 @@ function AdminHeader({ onMenuClick, user, isLoadingUser }: HeaderProps) {
   );
 }
 
-// ─── Layout ───────────────────────────────────────────────────────────────────
+// ─── Sidebar Component ────────────────────────────────────────────────────────
 
-export interface AdminPortalLayoutProps {
+function AdminSidebar({ isOpen, onClose, pathname }: { isOpen: boolean; onClose: () => void; pathname: string }) {
+  const menuItems = [
+    { label: 'Overview',       href: '/admin',                  icon: LayoutDashboard },
+    { label: 'Review Requests', href: '/admin/review-requests',  icon: Shield },
+    { label: 'Employers',      href: '/admin/employers',        icon: Building2 },
+    { label: 'Employees',      href: '/admin/employees',        icon: Users },
+    { label: 'Advances',       href: '/admin/advances',         icon: CreditCard },
+    { label: 'KYC Review',     href: '/admin/kyc-review',       icon: CheckCircle2 },
+    { label: 'Reconciliation', href: '/admin/reconciliation',   icon: BarChart3 },
+    { label: 'Notifications',  href: '/admin/notifications',    icon: Bell },
+    { label: 'System Health',  href: '/admin/api-health',       icon: Wifi },
+    { label: 'Settings',       href: '/admin/settings',         icon: Settings },
+  ];
+
+  return (
+    <>
+      {/* Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          'fixed left-0 top-0 h-full w-64 z-50 transition-transform duration-300 transform bg-white dark:bg-slate-900 border-r border-slate-200/50 dark:border-slate-700/50',
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        )}
+      >
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50">
+            <Link href="/admin" className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-600/20">
+                <span className="text-white font-bold text-lg">E</span>
+              </div>
+              <span className="font-bold text-xl text-slate-900 dark:text-white">Admin Hub</span>
+            </Link>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+            {menuItems.map((item) => {
+              const active = pathname === item.href || (pathname === '/admin' && item.href === '/admin');
+              const Icon   = item.icon;
+
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => onClose()}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all group',
+                    active
+                      ? 'bg-green-600 text-white shadow-lg shadow-green-600/20'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+                  )}
+                >
+                  <Icon className={cn('w-5 h-5', !active && 'group-hover:scale-110 transition-transform')} />
+                  <span className="font-medium">{item.label}</span>
+                  {active && <ChevronRight className="w-4 h-4 ml-auto" />}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50">
+            <button
+              onClick={() => logout()}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="font-medium">Sign Out</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ─── Main Portal Layout ───────────────────────────────────────────────────────
+
+interface AdminPortalLayoutProps {
   children: React.ReactNode;
 }
 
 export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user,        setUser]        = useState<AdminUser | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [user, setUser]               = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading]     = useState(true);
+  
+  const pathname = usePathname();
+  const router   = useRouter();
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // FIX: Handle RLS infinite recursion error gracefully
-  // Error: "infinite recursion detected in policy for relation \"profiles\""
-  // Solution: Try browser client first, fallback to auth metadata on error
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Load User & Check Auth
   useEffect(() => {
-    const fetchUser = async () => {
+    async function loadUser() {
       try {
-        // Use browser client for authentication check
-        const supabase = createBrowserClient(SUPABASE_URL, SUPABASE_ANON);
-        
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-
-        if (authError) {
-          console.error('[AdminLayout] Auth error:', authError);
-          setIsLoadingUser(false);
-          return;
-        }
-
-        if (!authUser) {
-          console.warn('[AdminLayout] No authenticated user found');
-          setIsLoadingUser(false);
-          return;
-        }
-
-        // Try to fetch from profiles table
-        let profile = null;
-        let profileError = null;
-        
-        try {
-          const result = await supabase
-            .from('profiles')
-            .select('id, full_name, email, role_normalized, role')
-            .eq('id', authUser.id)
-            .maybeSingle();
-          
-          profile = result.data;
-          profileError = result.error;
-        } catch (profileErr: any) {
-          // Check if it's the infinite recursion error
-          if (profileErr?.message?.includes('infinite recursion') || 
-              profileErr?.code === '42P17') {
-            console.warn('[AdminLayout] RLS infinite recursion detected, using auth metadata fallback');
-            profileError = null; // Clear error since we're handling it gracefully
-          } else {
-            throw profileErr; // Re-throw other errors
-          }
-        }
-
-        if (profileError) {
-          console.error('[AdminLayout] Error fetching profile:', profileError.message);
-        }
-
-        // Build role candidates from available sources
-        const roleCandidates = [
-          profile?.role_normalized,
-          profile?.role,
-          authUser.app_metadata?.role,
-          authUser.user_metadata?.role
-        ].filter((r): r is string => typeof r === 'string' && r.length > 0)
-         .map(r => r.toLowerCase());
-
-        const isAdmin = roleCandidates.some(r => 
-          ['admin', 'super_admin', 'compliance', 'employer_admin'].includes(r)
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         );
+        const { data: { session } } = await supabase.auth.getSession();
 
-        if (profile) {
-          setUser({
-            id: profile.id,
-            full_name: profile.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Admin',
-            email: profile.email || authUser.email || '',
-            role: profile.role_normalized || profile.role || 'admin',
-          });
-        } else {
-          // Fallback: use auth user metadata when profiles table fails
-          setUser({
-            id: authUser.id,
-            full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Admin',
-            email: authUser.email || '',
-            role: authUser.user_metadata?.role || 'admin',
-          });
+        if (!session) {
+          router.replace('/');
+          return;
         }
 
-        if (!isAdmin) {
-          console.warn('[AdminLayout] User is not an admin. Role candidates:', roleCandidates);
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, role')
+          .eq('id', session.user.id)
+          .single();
+
+        const role = profile?.role as any;
+        if (!role || !['admin', 'super_admin', 'compliance', 'employer_admin'].includes(role)) {
+          // Redirect to appropriate dashboard based on role
+          if (role === 'employer') {
+            router.replace('/dashboards/employer-dashboard');
+          } else {
+            router.replace('/dashboards/employee-dashboard');
+          }
+          return;
         }
 
-        setIsLoadingUser(false);
-      } catch (error) {
-        console.error('[AdminLayout] Unexpected error in fetchUser:', error instanceof Error ? error.message : error);
-        setIsLoadingUser(false);
+        setUser(profile as UserProfile);
+      } catch (err) {
+        console.error('Failed to load user profile:', err);
+      } finally {
+        setIsLoading(false);
       }
-    };
-
-    fetchUser();
-  }, []);
+    }
+    loadUser();
+  }, [router]);
 
   return (
-    <div className="min-h-screen">
-      <AdminBackground />
-      <AdminSidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
-        user={user} 
-        isLoadingUser={isLoadingUser}
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      {/* Sidebar */}
+      <AdminSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        pathname={pathname}
       />
 
-      <div className="lg:ml-72 min-h-screen flex flex-col">
-        <AdminHeader 
-          onMenuClick={() => setSidebarOpen(true)} 
-          user={user} 
-          isLoadingUser={isLoadingUser}
+      {/* Main Content */}
+      <div className="lg:ml-64 transition-all duration-300">
+        <AdminHeader
+          onMenuClick={() => setSidebarOpen(true)}
+          user={user}
+          isLoadingUser={isLoading}
         />
-        <main className="flex-1 p-4 lg:p-8">
-          {isLoadingUser ? (
-            <div className="flex items-center justify-center h-64">
+
+        <main className="p-4 lg:p-8">
+          {isLoading ? (
+            <div className="flex items-center justify-center min-h-[60vh]">
               <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
             </div>
           ) : (

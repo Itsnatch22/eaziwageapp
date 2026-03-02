@@ -200,7 +200,7 @@ const STEPS = [
 
 type IdType = 'national_id' | 'passport';
 
-type UploadDocumentType =
+type OnboardingDocKey =
   | 'id_front'
   | 'id_back'
   | 'address_proof'
@@ -210,12 +210,24 @@ type UploadDocumentType =
   | 'bank_statement'
   | 'employment_contract';
 
+// Map internal keys to API DocumentTypeEnum values
+const DOC_KEY_TO_TYPE: Record<OnboardingDocKey, string> = {
+    id_front: 'national_id',
+    id_back: 'national_id',
+    address_proof: 'utility_bill',
+    tax_certificate: 'tax_certificate',
+    payslip_1: 'payslip',
+    payslip_2: 'payslip',
+    bank_statement: 'bank_statement',
+    employment_contract: 'employment_contract',
+};
+
 interface UploadedDocument {
   name: string;
   url: string;
 }
 
-type UploadedFilesState = Record<UploadDocumentType, UploadedDocument | null>;
+type UploadedFilesState = Record<OnboardingDocKey, UploadedDocument | null>;
 
 interface OnboardingFormData {
   employer_id: string;
@@ -341,7 +353,7 @@ export default function Onboarding() {
   const [showPrivacyContent, setShowPrivacyContent] = useState(false);
   const [idType, setIdType] = useState<IdType>('national_id');
 
-  const [uploadingFile, setUploadingFile] = useState<UploadDocumentType | null>(null);
+  const [uploadingFile, setUploadingFile] = useState<OnboardingDocKey | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFilesState>({
     id_front: null,
     id_back: null,
@@ -450,23 +462,23 @@ export default function Onboarding() {
   };
 
   // ── File upload ───────────────────────────────────────────────────────────
-  const handleFileUpload = async (file: File, documentType: UploadDocumentType) => {
-    setUploadingFile(documentType);
+  const handleFileUpload = async (file: File, docKey: OnboardingDocKey) => {
+    setUploadingFile(docKey);
     try {
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('document_type', documentType);
+      fd.append('document_type', DOC_KEY_TO_TYPE[docKey]);
 
       const res = await fetch('/api/employee-dashboard/kyc/documents', {
         method: 'POST',
         body: fd,
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? data.message ?? 'Upload failed');
+      if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
 
       setUploadedFiles((prev) => ({
         ...prev,
-        [documentType]: {
+        [docKey]: {
           name: file.name,
           url: data.document_url,
         },
@@ -486,7 +498,7 @@ export default function Onboarding() {
     try {
       // Collect uploaded URLs
       const docUrls: Record<string, string> = {};
-      (Object.entries(uploadedFiles) as [UploadDocumentType, UploadedDocument | null][]).forEach(
+      (Object.entries(uploadedFiles) as [OnboardingDocKey, UploadedDocument | null][]).forEach(
         ([key, val]) => { if (val?.url) docUrls[key] = val.url; }
       );
 
