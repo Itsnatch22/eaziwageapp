@@ -39,8 +39,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ notifications: notifications || [] });
   } catch (error: unknown) {
     console.error("Notifications error:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
     return NextResponse.json(
-      { error: error.message || "An unexpected error occurred." },
+      { error: errorMessage },
       { status: 500 }
     );
   }
