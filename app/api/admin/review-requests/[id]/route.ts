@@ -43,12 +43,12 @@ async function verifyAdmin() {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: requestId } = await params;
   const auth = await verifyAdmin();
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const { adminSupabase, user: adminUser } = auth;
-  const requestId = params.id;
 
   const { status, response, internal_notes, type } = await req.json();
 
