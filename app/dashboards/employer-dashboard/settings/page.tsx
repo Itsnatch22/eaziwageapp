@@ -317,7 +317,7 @@ export default function EmployerSettings() {
               throw new Error(`Failed to fetch employer profile: ${res.status}`);
             }
             const payload = await res.json();
-            const employerData = payload?.employer ?? payload ?? {};
+            const employerData = payload?.profile ?? payload?.employer ?? payload ?? {};
             setEmployer(employerData);
             setProfile(prev => ({
                 ...prev,
@@ -516,7 +516,7 @@ export default function EmployerSettings() {
                     <Label className="text-slate-700 dark:text-slate-300 text-sm">Employer Code</Label>
                     <div className="flex items-center gap-3 mt-2">
                       <code className="px-4 py-2 bg-white dark:bg-slate-800 rounded-lg font-mono text-lg font-bold text-primary border border-primary/30">
-                        {employer?.employer_code || `EW-${employer?.id?.slice(0, 8).toUpperCase() || 'XXXXXXXX'}`}
+                        {employer?.company_code || `EW-${employer?.id?.slice(0, 8).toUpperCase() || 'XXXXXXXX'}`}
                       </code>
                       <span className="text-xs text-slate-500 dark:text-slate-400">Unique identifier assigned upon registration</span>
                     </div>

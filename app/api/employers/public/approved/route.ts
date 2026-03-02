@@ -33,27 +33,63 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
-    const { data, error } = await supabase
+    // 1. Fetch from 'employers' table (synced approved employers)
+    const { data: employersData, error: employersError } = await supabase
       .from('employers')
-      .select('id, company_name, employer_code')
-      .eq('status', 'approved')
-      .order('company_name', { ascending: true });
+      .select('id, company_name, employer_code, user_id')
+      .eq('status', 'approved');
 
-    if (error) {
-      console.error('[public-approved-employers] Query failed:', error);
+    // 2. Fetch from 'employer_onboarding' table (source of truth for status)
+    const { data: onboardingData, error: onboardingError } = await supabase
+      .from('employer_onboarding')
+      .select('id, company_name, status, user_id')
+      .eq('status', 'approved');
+
+    if (employersError || onboardingError) {
+      console.error('[public-approved-employers] Query failed:', employersError || onboardingError);
       return NextResponse.json(
         { error: 'Failed to load approved employers.' },
         { status: 500, headers: rateResult.headers },
       );
     }
 
-    const employers = (data ?? [])
-      .filter((row): row is EmployerRow => Boolean(row?.id && row?.employer_code))
-      .map((row) => ({
-        id: row.id,
-        company_name: row.company_name ?? row.employer_code ?? 'Unknown company',
-        company_code: row.employer_code ?? '',
-      }));
+    // Collect all user IDs to fetch company codes from profiles
+    const userIds = new Set<string>();
+    employersData?.forEach(e => { if (e.user_id) userIds.add(e.user_id); });
+    onboardingData?.forEach(e => { if (e.user_id) userIds.add(e.user_id); });
+
+    // 3. Fetch company_code from profiles
+    const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, company_code')
+        .in('id', Array.from(userIds));
+    
+    const codeMap = new Map(profilesData?.map(p => [p.id, p.company_code]) ?? []);
+
+    // Combine and deduplicate
+    const companyMap = new Map<string, { id: string; company_name: string; company_code: string }>();
+
+    onboardingData?.forEach((row) => {
+        const code = codeMap.get(row.user_id) || `EW-${row.id.slice(0, 8).toUpperCase()}`;
+        companyMap.set(row.id, {
+            id: row.id,
+            company_name: row.company_name ?? 'Unknown Company',
+            company_code: code
+        });
+    });
+
+    employersData?.forEach((row) => {
+        const code = row.employer_code || codeMap.get(row.user_id) || `EW-${row.id.slice(0, 8).toUpperCase()}`;
+        companyMap.set(row.id, {
+            id: row.id,
+            company_name: row.company_name ?? 'Unknown Company',
+            company_code: code
+        });
+    });
+
+    const employers = Array.from(companyMap.values()).sort((a, b) => 
+        a.company_name.localeCompare(b.company_name)
+    );
 
     return NextResponse.json(employers, { status: 200, headers: rateResult.headers });
   } catch (error) {

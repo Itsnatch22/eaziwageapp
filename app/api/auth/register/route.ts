@@ -198,6 +198,18 @@ async function sendReferralNotification(
   }
 }
 
+/**
+ * Generates a random alphanumeric employer code, e.g. EW-A7B8C9
+ */
+function generateEmployerCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid O, 0, I, 1 for clarity
+  let random = '';
+  for (let i = 0; i < 6; i++) {
+    random += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `EW-${random}`;
+}
+
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -253,17 +265,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 5. Employer-specific: validate company_name present ─────────────────────
-  if (input.role === 'employer' && !input.company_name.trim()) {
-    return NextResponse.json(
-      { error: 'Company name is required for employer accounts' },
-      { status: 422 },
-    );
+  let generatedEmployerCode: string | null = null;
+  if (input.role === 'employer') {
+    if (!input.company_name.trim()) {
+      return NextResponse.json(
+        { error: 'Company name is required for employer accounts' },
+        { status: 422 },
+      );
+    }
+    // Generate a unique employer code for new employers
+    generatedEmployerCode = generateEmployerCode();
   }
 
   // ── 6. Employee-specific: validate company_code exists (if provided) ─────────
   let employerUserId: string | null = null;
   if (input.role === 'employee' && input.company_code) {
-    // Check if the company code exists in the approved employers table
+    // Check if the company code exists in the approved employers table (or profiles table)
     // Using ilike for case-insensitive matching in case some codes are lowercase
     const { data: employer, error: empError } = await supabase
       .from('employers')
@@ -272,8 +289,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .single();
 
     if (empError || !employer) {
+      // Fallback: check the profiles table too (for newly registered but not yet "employer" approved ones)
+      const { data: profileEmp, error: profileEmpError } = await supabase
+        .from('profiles')
+        .select('id, role')
+        .eq('role', 'employer')
+        .ilike('company_code', input.company_code)
+        .single();
+
+      if (profileEmpError || !profileEmp) {
+        return NextResponse.json(
+          { error: 'Company code not found. Please search again or continue without a code.' },
+          { status: 422, headers: rateResult.headers },
+        );
+      }
+      // Not yet approved?
+      // Actually we might want to allow linking if the code is valid even if not yet approved
+      // for some onboarding flows, but let's stick to approved if the system requires it.
       return NextResponse.json(
-        { error: 'Company code not found. Please search again or continue without a code.' },
+        { error: 'This company is not yet approved on EaziWage.' },
         { status: 422, headers: rateResult.headers },
       );
     }
@@ -327,7 +361,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       phone_country_code: input.phone_country_code,
       role:               input.role,
       role_normalized:    input.role,
-      company_code:       input.role === 'employee' ? (input.company_code || null) : null,
+      company_code:       input.role === 'employee' ? (input.company_code || null) : generatedEmployerCode,
       company_name:       input.role === 'employer' ? input.company_name : null,
       email_verified:     true,
       created_at:         new Date().toISOString(),

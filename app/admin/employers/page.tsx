@@ -631,18 +631,27 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
             </div>
           ) : activeTab === 'actions' ? (
             <div className="space-y-4">
-              <h3 className="font-semibold text-slate-900 dark:text-white">Account Actions</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-slate-900 dark:text-white">Account Actions</h3>
+                <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                  Current Status: <span className="capitalize text-primary">{data.status}</span>
+                </span>
+              </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <button
                   onClick={() => handleStatusChange('approved')}
-                  disabled={data.status === 'approved'}
                   className={cn(
-                    'p-4 rounded-xl border-2 text-left transition-all',
+                    'p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group',
                     data.status === 'approved'
-                      ? 'border-green-300 bg-green-50 dark:bg-green-500/10'
+                      ? 'border-green-500 bg-green-50 dark:bg-green-500/10'
                       : 'border-slate-200 dark:border-slate-700 hover:border-green-300',
                   )}
                 >
+                  {data.status === 'approved' && (
+                    <div className="absolute top-2 right-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    </div>
+                  )}
                   <CheckCircle2 className="w-6 h-6 text-green-600 mb-2" />
                   <p className="font-semibold text-slate-900 dark:text-white">Approve</p>
                   <p className="text-xs text-slate-500">Activate employer account</p>
@@ -650,44 +659,56 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
 
                 <button
                   onClick={() => handleStatusChange('suspended')}
-                  disabled={data.status === 'suspended'}
                   className={cn(
-                    'p-4 rounded-xl border-2 text-left transition-all',
+                    'p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group',
                     data.status === 'suspended'
-                      ? 'border-slate-400 bg-slate-100 dark:bg-slate-500/10'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-400',
+                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-orange-300',
                   )}
                 >
-                  <Ban className="w-6 h-6 text-slate-600 mb-2" />
+                  {data.status === 'suspended' && (
+                    <div className="absolute top-2 right-2">
+                        <Ban className="w-4 h-4 text-orange-600" />
+                    </div>
+                  )}
+                  <Ban className="w-6 h-6 text-orange-600 mb-2" />
                   <p className="font-semibold text-slate-900 dark:text-white">Suspend</p>
                   <p className="text-xs text-slate-500">Temporarily disable account</p>
                 </button>
 
                 <button
                   onClick={() => handleStatusChange('rejected')}
-                  disabled={data.status === 'rejected'}
                   className={cn(
-                    'p-4 rounded-xl border-2 text-left transition-all',
+                    'p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group',
                     data.status === 'rejected'
-                      ? 'border-slate-400 bg-slate-100'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-400',
+                      ? 'border-red-500 bg-red-50 dark:bg-red-500/10'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-red-300',
                   )}
                 >
-                  <XCircle className="w-6 h-6 text-slate-600 mb-2" />
+                  {data.status === 'rejected' && (
+                    <div className="absolute top-2 right-2">
+                        <XCircle className="w-4 h-4 text-red-600" />
+                    </div>
+                  )}
+                  <XCircle className="w-6 h-6 text-red-600 mb-2" />
                   <p className="font-semibold text-slate-900 dark:text-white">Reject</p>
                   <p className="text-xs text-slate-500">Deny employer application</p>
                 </button>
 
                 <button
                   onClick={() => handleStatusChange('pending')}
-                  disabled={data.status === 'pending'}
                   className={cn(
-                    'p-4 rounded-xl border-2 text-left transition-all',
+                    'p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group',
                     data.status === 'pending'
-                      ? 'border-slate-300 bg-slate-50 dark:bg-slate-500/10'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300',
+                      ? 'border-slate-500 bg-slate-50 dark:bg-slate-500/10'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-400',
                   )}
                 >
+                  {data.status === 'pending' && (
+                    <div className="absolute top-2 right-2">
+                        <Clock className="w-4 h-4 text-slate-600" />
+                    </div>
+                  )}
                   <Clock className="w-6 h-6 text-slate-600 mb-2" />
                   <p className="font-semibold text-slate-900 dark:text-white">Set Pending</p>
                   <p className="text-xs text-slate-500">Require re-verification</p>
@@ -747,14 +768,20 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
             <button
               key={label}
               onClick={() => onAction(status)}
-              disabled={employer.status === status}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors',
-                employer.status === status && 'opacity-50 cursor-not-allowed',
+                'w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors group',
+                employer.status === status && 'bg-slate-50 dark:bg-slate-800 border-l-4 border-primary',
               )}
             >
-              <Icon className={cn('w-4 h-4', color)} />
-              {label}
+              <div className="flex items-center gap-3">
+                <Icon className={cn('w-4 h-4', color)} />
+                <span className={cn(employer.status === status && 'font-bold text-primary')}>
+                    {label}
+                </span>
+              </div>
+              {employer.status === status && (
+                <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+              )}
             </button>
           ))}
         </div>

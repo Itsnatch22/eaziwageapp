@@ -5,7 +5,7 @@ import {
   Shield, Calculator, Building2, User, Search, Filter,
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Eye, MoreVertical, Download, RefreshCw, Info,
-  DollarSign, Users, FileText, ChevronDown, ChevronUp
+  DollarSign, Users, XCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,7 +40,7 @@ interface Employer {
   city?: string;
   contact_email: string;
   contact_person: string | null;
-  status: 'approved' | 'pending' | 'rejected' | 'suspended';
+  status: 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
   risk_score: number;
   risk_rating: 'A' | 'B' | 'C' | 'D';
   application_fee: number;
@@ -59,6 +59,7 @@ interface Stats {
   pending: number;
   suspended: number;
   rejected: number;
+  risk_review: number;
   total_employees: number;
   risk_distribution: {
     low_risk: number;
@@ -66,6 +67,7 @@ interface Stats {
     high_risk: number;
     very_high_risk: number;
   };
+  risk_stats: number[]; // For histogram or distribution chart
   avg_risk_score: number;
   avg_application_fee: number;
   needs_risk_assessment: number;
@@ -186,7 +188,7 @@ const RiskRatingBadge = ({ rating, size = 'sm', showLabel = false }: RiskRatingB
 };
 
 interface StatusBadgeProps {
-  status: 'approved' | 'pending' | 'rejected' | 'suspended';
+  status: 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
 }
 
 const StatusBadge = ({ status }: StatusBadgeProps) => {
@@ -195,6 +197,7 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
     pending: { label: 'Pending', color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' },
     rejected: { label: 'Rejected', color: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' },
     suspended: { label: 'Suspended', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
+    risk_review_in_progress: { label: 'Risk Review', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' },
   };
 
   const { label, color } = config[status];
@@ -203,6 +206,220 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
     <span className={cn("px-2 py-1 rounded-full text-xs font-medium", color)}>
       {label}
     </span>
+  );
+};
+
+// ─── Risk Assessment Modal ───────────────────────────────────────────────────
+
+interface RiskAssessmentModalProps {
+  employer: Employer | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  framework: ApiResponse['framework'] | null;
+}
+
+const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }: RiskAssessmentModalProps) => {
+  const [loading, setLoading] = useState(false);
+  const [factors, setFactors] = useState({
+    registration_status: 3,
+    tax_compliance: 3,
+    ewa_agreement: 3,
+    audited_financials: 3,
+    liquidity_ratio: 3,
+    payroll_sustainability: 3,
+    employee_count: 3,
+    churn_rate: 3,
+    payroll_integration: 3,
+    industry_risk: 3,
+    regulatory_exposure: 3,
+    beneficial_ownership: 3,
+    pep_screening: 3,
+  });
+
+  const categories = [
+    {
+      label: 'Legal & Compliance (20%)',
+      factors: [
+        { id: 'registration_status', label: 'Registration Status', weight: 0.10 },
+        { id: 'tax_compliance', label: 'Tax Compliance', weight: 0.07 },
+        { id: 'ewa_agreement', label: 'EWA Agreement', weight: 0.03 },
+      ]
+    },
+    {
+      label: 'Financial Health (35%)',
+      factors: [
+        { id: 'audited_financials', label: 'Audited Financials', weight: 0.15 },
+        { id: 'liquidity_ratio', label: 'Liquidity Ratio', weight: 0.10 },
+        { id: 'payroll_sustainability', label: 'Payroll Sustainability', weight: 0.10 },
+      ]
+    },
+    {
+      label: 'Operational Dynamics (20%)',
+      factors: [
+        { id: 'employee_count', label: 'Employee Count', weight: 0.05 },
+        { id: 'churn_rate', label: 'Churn Rate', weight: 0.05 },
+        { id: 'payroll_integration', label: 'Payroll Integration', weight: 0.10 },
+      ]
+    },
+    {
+      label: 'Sector & Regulatory (15%)',
+      factors: [
+        { id: 'industry_risk', label: 'Industry Risk', weight: 0.10 },
+        { id: 'regulatory_exposure', label: 'Regulatory Exposure', weight: 0.05 },
+      ]
+    },
+    {
+      label: 'AML / Transparency (10%)',
+      factors: [
+        { id: 'beneficial_ownership', label: 'Beneficial Ownership', weight: 0.05 },
+        { id: 'pep_screening', label: 'PEP Screening', weight: 0.05 },
+      ]
+    }
+  ];
+
+  const calculateScore = () => {
+    let total = 0;
+    categories.forEach(cat => {
+      cat.factors.forEach(f => {
+        total += (factors[f.id as keyof typeof factors] || 3) * f.weight;
+      });
+    });
+    return Math.max(0, Math.min(5, total));
+  };
+
+  const getRating = (score: number) => {
+    if (score >= 4.0) return 'A';
+    if (score >= 3.0) return 'B';
+    if (score >= 2.6) return 'C';
+    return 'D';
+  };
+
+  const calculateFee = (score: number) => {
+    const bf = framework?.base_fee ?? 3.5;
+    const rf = framework?.risk_factor ?? 3.0;
+    return bf + (rf * (1 - score / 5));
+  };
+
+  const currentScore = calculateScore();
+  const currentRating = getRating(currentScore);
+  const currentFee = calculateFee(currentScore);
+
+  const handleSubmit = async () => {
+    if (!employer) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/employers/${employer.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          risk_score: currentScore,
+          risk_rating: currentRating,
+          status: 'approved' // Automatically approve if we are scoring it? Or keep as is? User said "after scoring by admin"
+        })
+      });
+
+      if (!res.ok) throw new Error('Update failed');
+      
+      toast.success('Risk assessment saved successfully');
+      onSuccess();
+      onClose();
+    } catch (error) {
+      toast.error('Failed to save assessment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !employer) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="bg-linear-to-r from-purple-600 to-indigo-600 p-6 text-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-xl font-bold">Risk Assessment</h2>
+              <p className="text-purple-100 text-sm mt-1">{employer.company_name} ({employer.employer_code})</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-white hover:bg-white/10">
+              <XCircle className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 grid md:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            {categories.map((cat, idx) => (
+              <div key={idx} className="space-y-3">
+                <h3 className="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wider">{cat.label}</h3>
+                <div className="space-y-4">
+                  {cat.factors.map(f => (
+                    <div key={f.id} className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <label className="font-medium text-slate-700 dark:text-slate-300">{f.label}</label>
+                        <span className="text-slate-500 font-bold">{factors[f.id as keyof typeof factors]}/5</span>
+                      </div>
+                      <input 
+                        type="range" min="1" max="5" step="0.5"
+                        value={factors[f.id as keyof typeof factors]}
+                        onChange={(e) => setFactors({...factors, [f.id]: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 space-y-6 sticky top-0">
+              <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Calculator className="w-5 h-5 text-purple-600" />
+                Assessment Results
+              </h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                  <p className="text-xs text-slate-500 mb-1 uppercase font-bold">Composite Score</p>
+                  <p className="text-3xl font-black text-purple-600">{currentScore.toFixed(2)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Weighted Sum</p>
+                </div>
+                <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center justify-center">
+                  <p className="text-xs text-slate-500 mb-2 uppercase font-bold">Risk Rating</p>
+                  <RiskRatingBadge rating={currentRating} size="md" />
+                </div>
+              </div>
+
+              <div className="p-4 bg-linear-to-br from-purple-600/10 to-indigo-600/10 rounded-xl border border-purple-200 dark:border-purple-800/30">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fee Impact</span>
+                  <span className="text-lg font-bold text-purple-600">{currentFee.toFixed(2)}%</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                  <div className="h-full bg-purple-600 transition-all duration-500" style={{ width: `${(currentFee / 6.5) * 100}%` }} />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2">
+                  Fee formula: {framework?.base_fee}% + ({framework?.risk_factor}% × (1 - Score/5))
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-4">
+                <Button 
+                  className="w-full h-12 bg-linear-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : 'Complete Assessment'}
+                </Button>
+                <Button variant="ghost" className="w-full" onClick={onClose}>Cancel</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -215,6 +432,10 @@ export default function AdminEmployersPage() {
   const [filters, setFilters] = useState<ApiResponse['filters'] | null>(null);
   const [framework, setFramework] = useState<ApiResponse['framework'] | null>(null);
   
+  // Modal state
+  const [selectedEmployer, setSelectedEmployer] = useState<Employer | null>(null);
+  const [showAssessment, setShowAssessment] = useState(false);
+
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -292,6 +513,11 @@ export default function AdminEmployersPage() {
     return 0;
   });
 
+  const handleAssessRisk = (employer: Employer) => {
+    setSelectedEmployer(employer);
+    setShowAssessment(true);
+  };
+
   if (loading) {
     return (
       <AdminPortalLayout>
@@ -312,15 +538,15 @@ export default function AdminEmployersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
-              Employer Management
+              Risk Scoring & Management
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">
-              Monitor and manage employer risk profiles
+              Analyze and assess employer risk profiles based on EaziWage Framework
             </p>
           </div>
           <div className="flex items-center gap-2">
             {framework && (
-              <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
+              <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium">
                 Framework {framework.version} ({framework.date})
               </span>
             )}
@@ -328,7 +554,7 @@ export default function AdminEmployersPage() {
               variant="outline"
               size="sm"
               onClick={fetchEmployers}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
@@ -343,28 +569,28 @@ export default function AdminEmployersPage() {
               icon={Building2}
               label="Total Employers"
               value={stats.total}
-              subtext={`${stats.active} active, ${stats.pending} pending`}
+              subtext={`${stats.active} approved, ${stats.risk_review || 0} in review`}
               variant="purple"
             />
             <MetricCard
               icon={Users}
               label="Total Employees"
               value={stats.total_employees.toLocaleString()}
-              subtext="Across all employers"
+              subtext="Across all platforms"
               variant="blue"
             />
             <MetricCard
               icon={Shield}
               label="Avg Risk Score"
               value={stats.avg_risk_score.toFixed(2)}
-              subtext="Out of 5.0"
+              subtext="Composite rating index"
               variant="green"
             />
             <MetricCard
               icon={DollarSign}
-              label="Avg Application Fee"
+              label="Avg Fee Rate"
               value={`${stats.avg_application_fee.toFixed(2)}%`}
-              subtext={`Base: ${framework?.base_fee}% + Risk Factor`}
+              subtext="Based on current risk"
               variant="amber"
             />
           </div>
@@ -373,11 +599,13 @@ export default function AdminEmployersPage() {
         {/* Risk Distribution */}
         {stats && (
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
-            <div className="flex items-center gap-3 mb-4">
-              <GradientIconBox icon={Shield} size="md" variant="purple" />
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/20 rounded-xl flex items-center justify-center">
+                <Shield className="w-5 h-5 text-purple-600" />
+              </div>
               <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white">Risk Distribution</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Employer risk ratings breakdown</p>
+                <h3 className="font-bold text-slate-900 dark:text-white">Risk Rating Distribution</h3>
+                <p className="text-sm text-slate-500">Portfolio health overview</p>
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -388,7 +616,7 @@ export default function AdminEmployersPage() {
                 <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
                   {stats.risk_distribution.low_risk}
                 </p>
-                <p className="text-xs text-emerald-600 dark:text-emerald-400">Low Risk</p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Low Risk</p>
               </div>
               <div className="text-center p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200/50 dark:border-blue-500/30">
                 <div className="flex items-center justify-center mb-2">
@@ -397,7 +625,7 @@ export default function AdminEmployersPage() {
                 <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
                   {stats.risk_distribution.medium_risk}
                 </p>
-                <p className="text-xs text-blue-600 dark:text-blue-400">Medium Risk</p>
+                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">Medium Risk</p>
               </div>
               <div className="text-center p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200/50 dark:border-amber-500/30">
                 <div className="flex items-center justify-center mb-2">
@@ -406,7 +634,7 @@ export default function AdminEmployersPage() {
                 <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
                   {stats.risk_distribution.high_risk}
                 </p>
-                <p className="text-xs text-amber-600 dark:text-amber-400">High Risk</p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">High Risk</p>
               </div>
               <div className="text-center p-4 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200/50 dark:border-red-500/30">
                 <div className="flex items-center justify-center mb-2">
@@ -415,18 +643,24 @@ export default function AdminEmployersPage() {
                 <p className="text-2xl font-bold text-red-700 dark:text-red-300">
                   {stats.risk_distribution.very_high_risk}
                 </p>
-                <p className="text-xs text-red-600 dark:text-red-400">Very High Risk</p>
+                <p className="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase tracking-wider">Very High Risk</p>
               </div>
             </div>
 
             {stats.needs_risk_assessment > 0 && (
-              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-500/10 rounded-lg border border-amber-200 dark:border-amber-500/30">
-                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm font-medium">
-                    {stats.needs_risk_assessment} employer{stats.needs_risk_assessment > 1 ? 's' : ''} need{stats.needs_risk_assessment === 1 ? 's' : ''} risk assessment
-                  </span>
+              <div className="mt-6 p-4 bg-linear-to-r from-amber-500/10 to-orange-500/10 rounded-xl border border-amber-500/20 flex items-center justify-between">
+                <div className="flex items-center gap-3 text-amber-800 dark:text-amber-200">
+                  <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <AlertTriangle className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold">Action Required</span>
+                    <p className="text-xs opacity-80">{stats.needs_risk_assessment} employers are awaiting risk assessment</p>
+                  </div>
                 </div>
+                <Button size="sm" variant="outline" className="bg-white/50 border-amber-500/20 text-amber-800 hover:bg-amber-500 hover:text-white transition-all">
+                  View List
+                </Button>
               </div>
             )}
           </div>
@@ -442,28 +676,30 @@ export default function AdminEmployersPage() {
                 placeholder="Search employers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl"
               />
             </div>
             
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
                 {filters?.statuses.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                    {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
             <Select value={riskRatingFilter} onValueChange={setRiskRatingFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
                 <SelectValue placeholder="All Risk Ratings" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All Risk Ratings</SelectItem>
                 {filters?.risk_ratings.map((rating) => (
                   <SelectItem key={rating} value={rating}>
                     Rating {rating}
@@ -473,10 +709,11 @@ export default function AdminEmployersPage() {
             </Select>
 
             <Select value={countryFilter} onValueChange={setCountryFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
                 <SelectValue placeholder="All Countries" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All Countries</SelectItem>
                 {filters?.countries.map((country) => (
                   <SelectItem key={country} value={country}>
                     {country}
@@ -488,70 +725,62 @@ export default function AdminEmployersPage() {
         </div>
 
         {/* Employers Table */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50/50 dark:bg-slate-800/50">
+                <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 border-0">
                   <TableHead 
-                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 h-12"
                     onClick={() => handleSort('company_name')}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
                       Company
                       {sortField === 'company_name' && (
-                        sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                        sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
                     </div>
                   </TableHead>
-                  <TableHead>Industry</TableHead>
-                  <TableHead>Country</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Country</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
                   <TableHead 
                     className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
                     onClick={() => handleSort('risk_score')}
                   >
-                    <div className="flex items-center gap-2">
-                      Risk Score
+                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
+                      Score
                       {sortField === 'risk_score' && (
-                        sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                        sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
                     </div>
                   </TableHead>
-                  <TableHead>Risk Rating</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Rating</TableHead>
                   <TableHead 
                     className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
                     onClick={() => handleSort('application_fee')}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
                       App Fee
                       {sortField === 'application_fee' && (
-                        sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                        sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
                     </div>
                   </TableHead>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
-                    onClick={() => handleSort('employee_count')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Employees
-                      {sortField === 'employee_count' && (
-                        sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                      )}
-                    </div>
-                  </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedEmployers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
-                      <div className="flex flex-col items-center gap-2">
-                        <Building2 className="w-12 h-12 text-slate-300" />
-                        <p className="text-slate-500">No employers found</p>
-                        <p className="text-sm text-slate-400">Try adjusting your filters</p>
+                    <TableCell colSpan={7} className="text-center py-20">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center">
+                          <Building2 className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white">No employers found</p>
+                          <p className="text-sm text-slate-400">Try adjusting your filters or search criteria</p>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -559,21 +788,22 @@ export default function AdminEmployersPage() {
                   sortedEmployers.map((employer) => (
                     <TableRow 
                       key={employer.id}
-                      className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 cursor-pointer"
-                      onClick={() => window.location.href = `/admin/employers/${employer.id}`}
+                      className="hover:bg-purple-50/30 dark:hover:bg-purple-500/5 group border-slate-100 dark:border-slate-800"
                     >
                       <TableCell>
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-white">
-                            {employer.company_name}
-                          </p>
-                          <p className="text-xs text-slate-500">{employer.employer_code}</p>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-linear-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xs shadow-md shadow-purple-600/20">
+                            {employer.company_name.substring(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">
+                              {employer.company_name}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-mono">{employer.employer_code}</p>
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
-                        {employer.industry || '-'}
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400 font-medium">
                         {employer.country || '-'}
                       </TableCell>
                       <TableCell>
@@ -582,39 +812,38 @@ export default function AdminEmployersPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className={cn(
-                            "font-medium",
+                            "font-black text-sm",
                             employer.risk_score >= 4.0 ? "text-emerald-600" :
                             employer.risk_score >= 3.0 ? "text-blue-600" :
-                            employer.risk_score >= 2.6 ? "text-amber-600" : "text-red-600"
+                            employer.risk_score >= 2.6 ? "text-amber-600" : 
+                            (employer.risk_score === 0 ? "text-slate-400" : "text-red-600")
                           )}>
-                            {employer.risk_score.toFixed(2)}
+                            {employer.risk_score > 0 ? employer.risk_score.toFixed(2) : '-'}
                           </span>
-                          {!employer.has_risk_factors && (
-                            <div title="Needs assessment">
-                              <AlertTriangle className="w-3 h-3 text-amber-500" />
+                          {(!employer.has_risk_factors || employer.status === 'risk_review_in_progress') && (
+                            <div className="animate-pulse" title="Assessment needed">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                             </div>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <RiskRatingBadge rating={employer.risk_rating} showLabel />
+                        {employer.risk_score > 0 ? (
+                            <RiskRatingBadge rating={employer.risk_rating} showLabel />
+                        ) : (
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">In Progress</span>
+                        )}
                       </TableCell>
-                      <TableCell className="font-medium text-purple-600">
-                        {employer.application_fee.toFixed(2)}%
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
-                        {employer.employee_count}
+                      <TableCell className="font-bold text-purple-600 text-sm">
+                        {employer.risk_score > 0 ? `${employer.application_fee.toFixed(2)}%` : '-'}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.location.href = `/admin/employers/${employer.id}`;
-                          }}
+                          className="h-9 px-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all font-bold text-xs rounded-lg shadow-sm"
+                          onClick={() => handleAssessRisk(employer)}
                         >
-                          <Eye className="w-4 h-4" />
+                          <Shield className="w-3.5 h-3.5 mr-2" />
+                          Assess Risk
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -627,19 +856,36 @@ export default function AdminEmployersPage() {
 
         {/* Framework Info Footer */}
         {framework && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 border border-blue-200/50 dark:border-blue-800/30">
-            <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-800 dark:text-blue-200">
-                <p className="font-medium mb-1">Risk Scoring Framework {framework.version}</p>
-                <p className="text-xs">
-                  Application fees are calculated using: Base Fee ({framework.base_fee}%) + Risk Factor ({framework.risk_factor}%) × (1 - Risk Score/5)
+          <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
+                <Info className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="text-sm">
+                <p className="font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">Framework & Regulatory Notice ({framework.version})</p>
+                <p className="text-slate-600 dark:text-slate-400 leading-relaxed max-w-4xl">
+                  Risk scores are dynamic and weighted across five core categories. The fee impact is automatically calculated using the framework standard: 
+                  <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded mx-1 text-purple-600">
+                    Base({framework.base_fee}%) + Risk({framework.risk_factor}%) × (1 - Score/5)
+                  </span>. 
+                  Assessments should be reviewed quarterly or upon significant operational changes.
                 </p>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      <RiskAssessmentModal 
+        employer={selectedEmployer}
+        isOpen={showAssessment}
+        onClose={() => {
+          setShowAssessment(false);
+          setSelectedEmployer(null);
+        }}
+        onSuccess={fetchEmployers}
+        framework={framework}
+      />
     </AdminPortalLayout>
   );
 }

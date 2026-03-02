@@ -7,7 +7,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
-type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
+type AdminEmployerStatus = 'verified' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
 
 export async function PATCH(
   req: NextRequest,
@@ -72,7 +72,7 @@ export async function PATCH(
 
   const { status: newStatus } = (await req.json()) as { status: AdminEmployerStatus };
 
-  if (!['approved', 'pending', 'rejected', 'suspended'].includes(newStatus)) {
+if (!['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'].includes(newStatus)) {
     return NextResponse.json({ error: 'Invalid status provided.' }, { status: 400 });
   }
 
@@ -97,15 +97,19 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update employer status.' }, { status: 500 });
   }
 
-  // If approved, create a new record in the employers table
-  if (newStatus === 'approved' && onboardingRecord.status !== 'approved') {
+  // Handle 'approved' status logic
+  if (newStatus === 'verified') {
     const {
+      user_id,
       company_name,
       industry,
       country,
       registration_number,
       tax_id,
       physical_address,
+      city,
+      postal_code,
+      county_region,
       contact_person,
       contact_email,
       contact_phone,
@@ -113,36 +117,57 @@ export async function PATCH(
       risk_score,
     } = onboardingRecord;
 
-    const { error: insertError } = await adminSupabase.from('employers').insert([
+    // Fetch employer code from profiles
+    const { data: userProfile } = await adminSupabase
+        .from('profiles')
+        .select('company_code')
+        .eq('id', user_id)
+        .single();
+    
+    const employerCode = userProfile?.company_code || `EW-${id.slice(0, 8).toUpperCase()}`;
+
+    // Use upsert to allow re-approval/updating existing record
+    const { error: upsertError } = await adminSupabase.from('employers').upsert([
       {
         id,
+        user_id,
+        employer_code: employerCode,
         company_name,
         industry,
         country,
         registration_number,
         tax_id,
         address: physical_address,
+        city,
+        postal_code,
+        county_region,
         contact_person,
         contact_email,
         contact_phone,
         payroll_cycle,
         status: 'approved',
-        risk_score,
-        employee_count: 0,
-        total_advances: 0,
-        monthly_payroll: 0,
+        risk_score: risk_score || onboardingRecord.risk_score || 0,
+        updated_at: new Date().toISOString()
       },
-    ]);
+    ], { onConflict: 'id' });
 
-    if (insertError) {
-      // Rollback the status update if the insert fails
-      await adminSupabase
-        .from('employer_onboarding')
-        .update({ status: onboardingRecord.status })
+    if (upsertError) {
+      console.error('[status] Upsert error:', upsertError);
+      return NextResponse.json({ error: 'Failed to sync employer record.' }, { status: 500 });
+    }
+  } else if ((onboardingRecord.status as string) === 'approved' && newStatus !== 'verified') {
+    // If it was approved and now it's something else, we might want to remove it from the 'employers' table 
+    // or update its status there too. Usually 'employers' table contains active/active-ish ones.
+    // For now, let's just keep the status in sync in the employers table if it exists.
+    const { error: syncError } = await adminSupabase
+        .from('employers')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', id);
-      return NextResponse.json({ error: 'Failed to create employer record.' }, { status: 500 });
+    
+    if (syncError) {
+        console.warn('[status] Sync warning:', syncError.message);
     }
   }
 
-  return NextResponse.json({ message: 'Employer status updated successfully.' });
+  return NextResponse.json({ message: `Employer status updated to ${newStatus} successfully.` });
 }

@@ -83,6 +83,17 @@ const MainStatsCard = ({ employer, curr }: { employer: EmployerProfile | null; c
   const circ   = 2 * Math.PI * 44;
   const offset = circ - (pct / 100) * circ;
 
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    approved: { label: 'Verified',       color: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
+    rejected: { label: 'Rejected',       color: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300' },
+    suspended: { label: 'Suspended',     color: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' },
+    risk_review_in_progress: { label: 'Review Pending', color: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' },
+    submitted: { label: 'In Review',     color: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' },
+    pending: { label: 'Action Needed', color: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' },
+  };
+
+  const status = statusConfig[employer?.status || ''] || { label: employer?.status || 'Not Started', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' };
+
   return (
     <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-slate-200/50 dark:border-slate-700/30">
       <div className="flex items-center justify-between mb-6">
@@ -90,13 +101,8 @@ const MainStatsCard = ({ employer, curr }: { employer: EmployerProfile | null; c
           <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400">Company Overview</h2>
           <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{employer?.company_name ?? '—'}</p>
         </div>
-        <div className={cn(
-          "px-3 py-1.5 rounded-full text-xs font-semibold",
-          employer?.status === 'approved'
-            ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-            : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
-        )}>
-          {employer?.status === 'approved' ? 'Verified' : 'Pending'}
+        <div className={cn("px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider", status.color)}>
+          {status.label}
         </div>
       </div>
 
@@ -341,7 +347,7 @@ export default function EmployerDashboard() {
     );
   }
 
-  const isPending = employer?.status === 'pending' || employer?.status === 'submitted';
+  const isPending = employer?.status === 'pending' || employer?.status === 'submitted' || employer?.status === 'risk_review_in_progress';
 
   return (
     <EmployerPortalLayout employer={employer}>
@@ -354,9 +360,13 @@ export default function EmployerDashboard() {
               <AlertCircle className="w-6 h-6 text-amber-600" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-amber-900 dark:text-amber-200">Verification in Progress</h3>
+              <h3 className="font-semibold text-amber-900 dark:text-amber-200">
+                {employer?.status === 'risk_review_in_progress' ? 'Risk Review in Progress' : 'Verification in Progress'}
+              </h3>
               <p className="text-sm text-amber-700 dark:text-amber-300/80 mt-0.5">
-                Your company profile is being reviewed. This usually takes 1–2 business days.
+                {employer?.status === 'risk_review_in_progress' 
+                  ? 'Our compliance team is currently assessing your company risk profile. This usually takes 1–2 business days.'
+                  : 'Your company profile is being reviewed. This usually takes 1–2 business days.'}
               </p>
             </div>
           </div>
@@ -517,8 +527,10 @@ export default function EmployerDashboard() {
               <StatusItem
                 icon={Clock}
                 label="Risk Rating"
-                value={employer?.risk_rating ? `Rating ${employer.risk_rating}` : 'Not Rated Yet'}
-                status={employer?.risk_rating === 'A' ? 'success' : employer?.risk_rating === 'D' ? 'warning' : 'default'}
+                value={employer?.status === 'risk_review_in_progress' || (employer?.risk_score === 0) 
+                  ? 'Risk review in progress' 
+                  : employer?.risk_rating ? `Rating ${employer.risk_rating}` : 'Not Rated Yet'}
+                status={employer?.risk_rating === 'A' ? 'success' : (employer?.status === 'risk_review_in_progress' || employer?.risk_score === 0) ? 'warning' : employer?.risk_rating === 'D' ? 'warning' : 'default'}
               />
             </div>
           </div>
@@ -531,6 +543,9 @@ export default function EmployerDashboard() {
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Your company's risk profile</p>
               </div>
               {(() => {
+                if (employer?.status === 'risk_review_in_progress' || employer?.risk_score === 0) {
+                    return <div className="px-4 py-2 rounded-xl font-semibold text-sm bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">Review in Progress</div>;
+                }
                 const rs = employer?.risk_score ?? 3.5;
                 const label = rs >= 4 ? 'Low Risk' : rs >= 3 ? 'Medium Risk' : rs >= 2.6 ? 'High Risk' : 'Very High Risk';
                 const cls   = rs >= 4
@@ -551,7 +566,7 @@ export default function EmployerDashboard() {
                     className="text-white/50 dark:text-slate-700/50" />
                   <circle cx="50" cy="50" r="40" fill="none" stroke="url(#riskGrad)" strokeWidth="8"
                     strokeLinecap="round" strokeDasharray={2 * Math.PI * 40}
-                    strokeDashoffset={2 * Math.PI * 40 * (1 - ((employer?.risk_score ?? 3.5) / 5))}
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - ((employer?.risk_score ?? (employer?.status === 'risk_review_in_progress' ? 0 : 3.5)) / 5))}
                     className="transition-all duration-1000" />
                   <defs>
                     <linearGradient id="riskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -562,13 +577,15 @@ export default function EmployerDashboard() {
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {(employer?.risk_score ?? 3.5).toFixed(1)}
+                    {(employer?.risk_score ?? (employer?.status === 'risk_review_in_progress' ? 0 : 3.5)).toFixed(1)}
                   </span>
                 </div>
               </div>
               <div className="flex-1">
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  Your risk score determines the fee rates applied to employee advances. A higher score means better rates.
+                  {employer?.status === 'risk_review_in_progress' || employer?.risk_score === 0
+                    ? 'Your risk profile is currently being assessed by our team. You will be notified once the review is complete.'
+                    : 'Your risk score determines the fee rates applied to employee advances. A higher score means better rates.'}
                 </p>
                 <Link href="/dashboards/employer-dashboard/risk-insights" className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:gap-2 transition-all">
                   View Details <ChevronRight className="w-4 h-4" />

@@ -8,7 +8,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
+type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
 
 interface RiskFactors {
   registration_status: number;
@@ -64,8 +64,8 @@ const SUB_FACTOR_WEIGHTS = {
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
-function toAdminStatus(status: string | null | undefined): AdminEmployerStatus {
-  if (status === 'approved' || status === 'rejected' || status === 'suspended') return status;
+function toAdminStatus(status: string | null | undefined): string {
+  if (status === 'approved' || status === 'rejected' || status === 'suspended' || status === 'risk_review_in_progress') return status;
   return 'pending';
 }
 
@@ -238,7 +238,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       updated_at
     `
     )
-    .in('status', ['submitted', 'approved', 'rejected', 'suspended'])
+    .in('status', ['submitted', 'approved', 'rejected', 'suspended', 'risk_review_in_progress'])
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -250,7 +250,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const employerIds = (onboardingRows ?? []).map((row) => row.id);
+  const userIds = (onboardingRows ?? []).map((row) => row.user_id).filter(Boolean);
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+  // ── Fetch Employer Codes from Profiles ─────────────────────────────────────
+  const { data: profileCodes } = await adminSupabase
+    .from('profiles')
+    .select('id, company_code')
+    .in('id', userIds);
+  
+  const codesByUserId = new Map(profileCodes?.map(p => [p.id, p.company_code]) ?? []);
 
   // ── Fetch Risk Factors for All Employers ──────────────────────────────────
   const { data: riskFactorsData } = await adminSupabase
@@ -341,6 +350,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return {
       id: row.id,
       company_name: row.company_name ?? 'Unknown company',
+      employer_code: codesByUserId.get(row.user_id) || `EW-${row.id.slice(0, 8).toUpperCase()}`,
       industry: row.industry ?? '',
       sector: row.sector ?? '',
       country: row.country ?? '',
@@ -373,7 +383,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const stats = {
     total: result.length,
     active: result.filter((e) => e.status === 'approved').length,
-    pending: result.filter((e) => e.status === 'pending').length,
+    pending: result.filter((e) => e.status === 'pending' || e.status === 'submitted').length,
+    risk_review: result.filter((e) => e.status === 'risk_review_in_progress').length,
     suspended: result.filter((e) => e.status === 'suspended').length,
     rejected: result.filter((e) => e.status === 'rejected').length,
     total_employees: result.reduce((sum, e) => sum + e.employee_count, 0),
@@ -395,7 +406,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       : 0,
     
     // Employers needing risk assessment
-    needs_risk_assessment: result.filter((e) => !e.has_risk_factors).length,
+    needs_risk_assessment: result.filter((e) => !e.has_risk_factors || e.status === 'risk_review_in_progress').length,
   };
 
   const countries = [...new Set(result.map((e) => e.country).filter(Boolean))].sort();
@@ -426,7 +437,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         countries,
         industries,
         risk_ratings: ['A', 'B', 'C', 'D'],
-        statuses: ['approved', 'pending', 'rejected', 'suspended'],
+        statuses: ['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'],
       },
       framework: {
         version: 'REV1',

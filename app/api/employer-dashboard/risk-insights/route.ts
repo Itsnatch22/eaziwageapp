@@ -315,7 +315,7 @@ export async function GET() {
     // Metadata
     risk_scored_at:     rf?.scored_at ?? null,
     risk_notes:         rf?.notes     ?? null,
-    has_pending_review: !!pendingReview,
+    has_pending_review: !!pendingReview || employer.status === 'risk_review_in_progress',
     pending_review:     pendingReview ?? null,
 
     // Framework Version
