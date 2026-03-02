@@ -35,10 +35,10 @@ export async function PUT(req: NextRequest) {
 
   } catch (error: unknown) {
     console.error("Password update error:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
     return NextResponse.json(
-      { error: error.message || "An unexpected error occurred." },
+      { error: errorMessage },
       { status: 500 }
     );
   }
 }
-
