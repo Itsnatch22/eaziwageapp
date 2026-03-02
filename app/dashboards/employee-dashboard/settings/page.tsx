@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useTheme } from '@/lib/ThemeContext';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { logout } from '@/actions/auth';
@@ -706,7 +705,6 @@ interface ProfileData {
 
 export default function Settings() {
     const router = useRouter();
-    const { theme, toggleTheme } = useTheme();
     const [profile, setProfile] = useState<ProfileData | null>(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -1133,20 +1131,6 @@ export default function Settings() {
               </div>
               <ToggleSwitch id="notifications" checked={notificationsEnabled} onChange={() => setNotificationsEnabled(!notificationsEnabled)} />
             </div>
-            <button 
-              onClick={toggleTheme}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-              data-testid="theme-toggle"
-            >
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                {theme === 'dark' ? <Moon className="w-5 h-5 text-white" /> : <Sun className="w-5 h-5 text-white" />}
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">Appearance</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{theme} mode</p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-slate-400" />
-            </button>
           </div>
         </div>
 

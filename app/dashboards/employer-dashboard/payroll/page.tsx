@@ -1,11 +1,11 @@
-// @ts-nocheck
+//@ts-nocheck
 "use client"
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Upload, Download, Calendar, FileText, CheckCircle2, Clock, AlertCircle,
   TrendingUp, Users, DollarSign, BarChart3, ChevronRight, Eye, Wifi,
   CreditCard, Link2, RefreshCw, X, Copy, Check, XCircle, AlertTriangle,
-  Plug, ChevronDown, Info,
+  Plug, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,8 +84,15 @@ function relativeTime(iso: string): string {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }) => (
+interface MetricCardProps {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  subtext?: string;
+  trend?: string;
+  trendUp?: boolean;
+}
+const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }: MetricCardProps) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30">
     <div className="flex items-start justify-between mb-3">
       <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
@@ -895,10 +902,10 @@ export default function EmployerPayroll() {
           </div>
         </div>
 
-        {/* Upload Section */}
+        {/* Upload Section 
         <div className="grid lg:grid-cols-2 gap-6">
 
-          {/* ── Upload Card ───────────────────────────────────────────────── */}
+          {/* ── Upload Card ───────────────────────────────────────────────── *
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center">
@@ -946,7 +953,7 @@ export default function EmployerPayroll() {
                 </label>
               </div>
 
-              {/* Upload result banner - sits right above the button */}
+              {/* Upload result banner - sits right above the button 
               {uploadResult && (
                 <UploadResultBanner result={uploadResult} onDismiss={() => setUploadResult(null)} />
               )}
@@ -966,7 +973,7 @@ export default function EmployerPayroll() {
             </div>
           </div>
 
-          {/* ── Upload Process Steps ──────────────────────────────────────── */}
+          {/* ── Upload Process Steps ──────────────────────────────────────── *
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <h2 className="font-bold text-slate-900 dark:text-white mb-6">Upload Process</h2>
             <div className="space-y-4">
@@ -1015,7 +1022,7 @@ export default function EmployerPayroll() {
               />
             </div>
 
-            {/* Info Banner */}
+            {/* Info Banner *
             <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200 dark:border-blue-500/20">
               <div className="flex gap-3">
                 <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
@@ -1029,6 +1036,7 @@ export default function EmployerPayroll() {
             </div>
           </div>
         </div>
+        */}
 
         {/* Payroll History */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">

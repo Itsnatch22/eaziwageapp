@@ -16,7 +16,6 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EMPLOYMENT_TYPES } from '@/lib/utils';
 import { toast } from 'sonner';
-import { useTheme } from '@/lib/ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/stores/auth';
@@ -328,7 +327,6 @@ const FileUploader = ({
 
 export default function Onboarding() {
   const router = useRouter();
-  const { theme, toggleTheme, mounted } = useTheme();
   const user = useAuthStore((state: { user: any; }) => state.user); // ✅ replaced localStorage
   const [identity, setIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
 
@@ -1007,9 +1005,6 @@ export default function Onboarding() {
             </div>
             <span className="font-heading font-bold text-2xl text-slate-900 dark:text-white">EaziWage</span>
           </Link>
-<button onClick={toggleTheme} className="absolute right-4 sm:right-6 lg:right-8 p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all" data-testid="theme-toggle">
-            {mounted && theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
         </div>
       </header>
 

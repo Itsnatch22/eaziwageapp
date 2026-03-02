@@ -1,10 +1,9 @@
 "use client"
 import { 
   LayoutDashboard, Users, CreditCard, BarChart3, Settings, LogOut, 
-  Sun, Moon, Bell, Menu, X, ChevronRight, Upload, HelpCircle, Shield
+  Bell, Menu, X, ChevronRight, Upload, HelpCircle, Shield
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { useTheme } from '../../lib/ThemeContext';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -123,7 +122,6 @@ interface SidebarNavProps {
 const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const location = usePathname();
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme();
   const user = useAuthStore((state: { user: any; }) => state.user);
   const [isHydrated, setIsHydrated] = useState(false);
   const [profileIdentity, setProfileIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
@@ -297,14 +295,6 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={toggleTheme}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
-                data-testid="theme-toggle"
-              >
-                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                {theme === 'dark' ? 'Light' : 'Dark'}
-              </button>
-              <button
                 onClick={logout}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors"
                 data-testid="sidebar-logout-btn"
@@ -329,7 +319,6 @@ interface TopHeaderProps {
     } | null;
 }
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
-  const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
   const [greeting, setGreeting] = useState('Welcome');
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -416,13 +405,6 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
 
           {/* Right side - Actions */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={toggleTheme}
-              className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden sm:flex"
-              data-testid="header-theme-toggle"
-            >
-              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
             
             {/* Notifications Bell with Dropdown */}
             <div className="relative" ref={notificationsRef}>

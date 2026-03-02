@@ -11,7 +11,6 @@ import {
 import { Button }           from '@/components/ui/button';
 import { Input }            from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useTheme }         from '@/lib/ThemeContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,7 +35,6 @@ const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme();
 
   const [email,          setEmail]          = useState('');
   const [pageState,      setPageState]      = useState<PageState>('idle');
@@ -174,13 +172,6 @@ export default function ForgotPasswordPage() {
         {/* Header */}
         <header className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-end">
-            <button
-              onClick={toggleTheme}
-              className="p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
           </div>
         </header>
 

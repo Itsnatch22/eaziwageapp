@@ -4,7 +4,6 @@ import {
   Home, Wallet, History, User, LogOut, Sun, Moon, Bell, ChevronRight
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { useTheme } from '../../lib/ThemeContext';
 import React from 'react'
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -97,7 +96,6 @@ export const EmployeeHeader = ({
     user,
     employee
 }: EmployeeHeaderProps) => {
-    const { theme, toggleTheme } = useTheme();
     const router = useRouter();
 
     const resolvedName =
@@ -163,13 +161,6 @@ export const EmployeeHeader = ({
         <div className="flex items-center gap-1">
           {rightContent || (
             <>
-              <button 
-                onClick={toggleTheme}
-                className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
-                data-testid="theme-toggle"
-              >
-                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </button>
               <button 
                 className="relative p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
                 data-testid="notifications-btn"

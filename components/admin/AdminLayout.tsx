@@ -10,7 +10,6 @@ import {
   AlertTriangle, HelpCircle, Loader2,
 } from 'lucide-react';
 import { cn }        from '@/lib/utils';
-import { useTheme }  from '@/lib/ThemeContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,7 +73,6 @@ interface SidebarProps {
 function AdminSidebar({ isOpen, onClose, user, isLoadingUser }: SidebarProps) {
   const router   = useRouter();
   const pathname = usePathname();
-  const { theme, toggleTheme } = useTheme();
 
   const navItems: NavItem[] = [
     { href: '/admin',                   label: 'Dashboard',        icon: LayoutDashboard },
@@ -208,13 +206,6 @@ function AdminSidebar({ isOpen, onClose, user, isLoadingUser }: SidebarProps) {
 
             <div className="flex gap-2">
               <button
-                onClick={toggleTheme}
-                className="flex-1 h-10 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-                aria-label="Toggle theme"
-              >
-                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </button>
-              <button
                 onClick={handleLogout}
                 className="flex-1 h-10 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2"
                 aria-label="Logout"
@@ -239,7 +230,6 @@ interface HeaderProps {
 }
 
 function AdminHeader({ onMenuClick, user, isLoadingUser }: HeaderProps) {
-  const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
 
@@ -304,14 +294,6 @@ function AdminHeader({ onMenuClick, user, isLoadingUser }: HeaderProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={toggleTheme}
-              className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden sm:flex"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
-
             {/* Notifications */}
             <div className="relative" ref={notificationsRef}>
               <button

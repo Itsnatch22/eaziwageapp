@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
-import ThemeProvider from "@/lib/ThemeContext";
 const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
   weight: ["400", "500", "600", "700"],
@@ -32,10 +31,8 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${ibmPlexMono.variable} ${playfairDisplay.variable} antialiased`}
       >
-        <ThemeProvider >
         {children}
         <Analytics />
-        </ThemeProvider>
       </body>
     </html>
   );
