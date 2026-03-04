@@ -19,6 +19,35 @@ function endOf(d: Date): Date {
 }
 
 type DateRange = { from: Date; to: Date; label: string };
+type EmployeeStatus = 'approved' | 'pending' | 'rejected' | 'inactive' | 'suspended' | string;
+type AdvanceStatus = 'disbursed' | 'approved' | 'pending' | 'rejected' | string;
+type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
+
+interface EmployeeRow {
+  id: string;
+  status: EmployeeStatus;
+}
+
+interface AdvanceRow {
+  id: string;
+  employee_id: string;
+  amount: number | string | null;
+  fee_amount: number | string | null;
+  status: AdvanceStatus;
+  disbursement_method: DisbursementMethod | null;
+  created_at: string;
+}
+
+interface PrevAdvanceRow {
+  amount: number | string | null;
+  fee_amount: number | string | null;
+  status: AdvanceStatus;
+}
+
+interface TrendRow {
+  amount: number | string | null;
+  created_at: string;
+}
 
 function getPeriodRange(period: string, monthParam?: string): DateRange {
   const now = new Date();
@@ -151,20 +180,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: empErr.message }, { status: 500 });
   }
 
-  const allEmployeeIds = (employeeRows ?? []).map((e: any) => e.id as string);
-  const activeCount    = (employeeRows ?? []).filter((e: any) => e.status === 'approved').length;
+  const typedEmployees = (employeeRows ?? []) as EmployeeRow[];
+  const allEmployeeIds = typedEmployees.map((e) => e.id);
+  const activeCount = typedEmployees.filter((e) => e.status === 'approved').length;
 
   // ── Fetch advances (current period) ────────────────────────────────────────
-  const advancesQuery = supabase
-    .from('advances')
-    .select('id, employee_id, amount, fee_amount, status, disbursement_method, created_at')
-    .gte('created_at', range.from.toISOString())
-    .lte('created_at', range.to.toISOString());
-
-  if (allEmployeeIds.length > 0) {
-    advancesQuery.in('employee_id', allEmployeeIds);
-  }
-
   const { data: advances, error: advErr } = allEmployeeIds.length > 0
     ? await supabase
         .from('advances')
@@ -172,7 +192,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .in('employee_id', allEmployeeIds)
         .gte('created_at', range.from.toISOString())
         .lte('created_at', range.to.toISOString())
-    : { data: [] as any[], error: null };
+    : { data: [] as AdvanceRow[], error: null };
 
   if (advErr) {
     return NextResponse.json({ error: advErr.message }, { status: 500 });
@@ -187,28 +207,28 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .in('status', ['disbursed', 'approved'])
         .gte('created_at', prevRange.from.toISOString())
         .lte('created_at', prevRange.to.toISOString())
-    : { data: [] as any[] };
+    : { data: [] as PrevAdvanceRow[] };
 
   // ── Compute advance summary ─────────────────────────────────────────────────
-  const all       = advances ?? [];
-  const disbursed = all.filter((a: any) => a.status === 'disbursed' || a.status === 'approved');
-  const pending   = all.filter((a: any) => a.status === 'pending');
-  const rejected  = all.filter((a: any) => a.status === 'rejected');
+  const all = (advances ?? []) as AdvanceRow[];
+  const disbursed = all.filter((a) => a.status === 'disbursed' || a.status === 'approved');
+  const pending = all.filter((a) => a.status === 'pending');
+  const rejected = all.filter((a) => a.status === 'rejected');
 
-  const totalAmount = disbursed.reduce((s: number, a: any) => s + Number(a.amount ?? 0), 0);
-  const totalFees   = disbursed.reduce((s: number, a: any) => s + Number(a.fee_amount ?? 0), 0);
-  const avgAmount   = disbursed.length > 0 ? totalAmount / disbursed.length : 0;
+  const totalAmount = disbursed.reduce((s, a) => s + Number(a.amount ?? 0), 0);
+  const totalFees = disbursed.reduce((s, a) => s + Number(a.fee_amount ?? 0), 0);
+  const avgAmount = disbursed.length > 0 ? totalAmount / disbursed.length : 0;
 
-  const byMobileMoney  = all.filter((a: any) => a.disbursement_method === 'mobile_money').length;
-  const byBankTransfer = all.filter((a: any) => a.disbursement_method === 'bank_transfer').length;
+  const byMobileMoney = all.filter((a) => a.disbursement_method === 'mobile_money').length;
+  const byBankTransfer = all.filter((a) => a.disbursement_method === 'bank_transfer').length;
 
   // ── Previous period totals ──────────────────────────────────────────────────
-  const prevAll = prevAdvances ?? [];
-  const prevTotalAmount = prevAll.reduce((s: number, a: any) => s + Number(a.amount ?? 0), 0);
-  const prevTotalFees   = prevAll.reduce((s: number, a: any) => s + Number(a.fee_amount ?? 0), 0);
+  const prevAll = (prevAdvances ?? []) as PrevAdvanceRow[];
+  const prevTotalAmount = prevAll.reduce((s, a) => s + Number(a.amount ?? 0), 0);
+  const prevTotalFees = prevAll.reduce((s, a) => s + Number(a.fee_amount ?? 0), 0);
 
   // ── Employee utilization ────────────────────────────────────────────────────
-  const uniqueEmployeesWithAdvances = new Set(all.map((a: any) => a.employee_id)).size;
+  const uniqueEmployeesWithAdvances = new Set(all.map((a) => a.employee_id)).size;
   const totalEmployees   = allEmployeeIds.length;
   const utilizationRate  = totalEmployees > 0
     ? Math.round((uniqueEmployeesWithAdvances / totalEmployees) * 1000) / 10
@@ -235,7 +255,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       buckets.set(key, { amount: 0, count: 0 });
     }
 
-    for (const row of trendRows ?? []) {
+    for (const row of (trendRows ?? []) as TrendRow[]) {
       const d   = new Date(row.created_at);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const b   = buckets.get(key);
@@ -258,6 +278,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       monthlyTrend.push({ label, amount: 0, count: 0 });
     }
   }
+
+  // ── Fetch Last Sync Log ───────────────────────────────────────────────────
+  const { data: lastSync } = await supabase
+    .from('payroll_sync_logs')
+    .select('status, records_received, records_valid, created_at')
+    .eq('employer_id', employerId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   // ── Build response ──────────────────────────────────────────────────────────
   return NextResponse.json({
@@ -293,6 +322,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         total_fees:   prevTotalFees,
       },
       monthly_trend: monthlyTrend,
+      last_sync: lastSync,
     },
   });
 }

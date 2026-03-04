@@ -71,7 +71,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .eq('status', 'approved')
       .gte('requested_at', startOfMonth);
 
-    const totalAccessed = approvedThisMonth?.reduce((sum: number, a: any) => sum + Number(a.amount), 0) || 0;
+    const totalAccessed = (approvedThisMonth ?? []).reduce((sum, a: { amount: number | string | null }) => sum + Number(a.amount), 0);
 
     if (totalAccessed + Number(advance.amount) > maxThisMonth) {
       return NextResponse.json({ error: 'Monthly limit reached. Employee must settle pending advances first.' }, { status: 400 });

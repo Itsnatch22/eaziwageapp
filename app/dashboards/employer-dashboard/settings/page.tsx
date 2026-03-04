@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 import React, { useState, useEffect } from "react"
 import { 
@@ -6,7 +5,7 @@ import {
   Shield, Clock, Save, AlertCircle, CheckCircle2,
   Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight,
   FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
-  MessageSquare, Phone, MapPin, Globe,
+  MessageSquare, Phone, MapPin, Globe, X, Loader2,
   LucideIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -206,12 +205,107 @@ const SecurityItem = ({ icon: Icon, label, description, actionLabel, onClick }: 
   </div>
 );
 
+interface BankChangeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: { bank_name: string; bank_account_number: string; reason: string }) => Promise<void>;
+  isSubmitting: boolean;
+}
+
+const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChangeModalProps) => {
+  const [formData, setFormData] = useState({ bank_name: '', bank_account_number: '', reason: '' });
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-100 dark:bg-amber-500/20 rounded-xl flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-amber-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Request Bank Change</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>New Bank Name</Label>
+            <Input 
+              placeholder="e.g. Standard Chartered"
+              value={formData.bank_name}
+              onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>New Account Number</Label>
+            <Input 
+              placeholder="e.g. 0100XXXXXXX"
+              value={formData.bank_account_number}
+              onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Reason for Change</Label>
+            <textarea 
+              className="w-full min-h-24 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="Briefly explain why you're changing bank details..."
+              value={formData.reason}
+              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+            />
+          </div>
+
+          <div className="p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20 mb-4">
+            <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+              <strong>Note:</strong> For security reasons, bank changes are manually reviewed. You may be contacted by our compliance team for verification.
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl">Cancel</Button>
+            <Button 
+              onClick={() => onSubmit(formData)} 
+              disabled={isSubmitting || !formData.bank_name || !formData.bank_account_number}
+              className="flex-1 bg-primary text-white rounded-xl shadow-lg shadow-primary/25"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : 'Submit Request'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function EmployerSettings() {
     const [employer, setEmployer] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('company');
     const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+    const [showBankModal, setShowBankModal] = useState(false);
+
+    const [settings, setSettings] = useState({
+      maxAdvancePercentage: 50,
+      minAdvanceAmount: 500,
+      maxAdvanceAmount: 50000,
+      advanceAccessDays: [1, 25] as [number, number],
+      cooldownPeriod: 7,
+      emailNotifications: true,
+      advanceAlerts: true,
+      payrollReminders: true,
+      weeklyReports: false,
+      payrollCycle: 'monthly'
+    });
 
     const handleFileUpload = async (file: File, docKey: string) => {
       setUploadingDoc(docKey);
@@ -233,7 +327,7 @@ export default function EmployerSettings() {
         const data = await res.json();
         
         // Update local state with new Document properties
-        setEmployer((prev: any) => ({
+        setEmployer((prev: EmployerProfile | null) => ({
           ...prev,
           documents: {
             ...prev?.documents,
@@ -242,9 +336,10 @@ export default function EmployerSettings() {
         }));
 
         toast.success(`${docKey.replace(/_/g, ' ')} uploaded successfully!`);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Upload error:", err);
-        toast.error(err.message || "Failed to upload document");
+        const message = err instanceof Error ? err.message : "Failed to upload document";
+        toast.error(message);
       } finally {
         setUploadingDoc(null);
       }
@@ -374,7 +469,7 @@ export default function EmployerSettings() {
     }
   };
 
-  const handleBankChangeRequest = async () => {
+  const handleBankChangeRequest = async (data: { bank_name: string; bank_account_number: string; reason: string }) => {
     setSaving(true);
     try {
         const res = await fetch("/api/employer-dashboard/settings/bank-change-request", {
@@ -382,13 +477,14 @@ export default function EmployerSettings() {
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(settings),
+            body: JSON.stringify(data),
         });
         if (res.ok) {
             toast.success("Bank change request sent successfully");
+            setShowBankModal(false);
         } else {
-            const data = await res.json();
-            toast.error(data.error || "Failed to send bank change request");
+            const errData = await res.json();
+            toast.error(errData.error || "Failed to send bank change request");
         }
     } catch (err) {
         console.error("Failed to send bank change request:", err);
@@ -1066,7 +1162,7 @@ export default function EmployerSettings() {
                     </div>
                   </div>
                   <div className="mt-4 flex gap-2">
-                    <a href="/Risk Scoring_&_Framework_REV1.pdf" download className="flex-1 block">
+                    <a href="/terms.pdf" download className="flex-1 block">
                       <Button variant="outline" className="w-full">
                         <Download className="w-4 h-4 mr-2" /> Download PDF
                       </Button>
@@ -1085,27 +1181,18 @@ export default function EmployerSettings() {
                       <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">How We Use Data</h4>
                       <p>To provide wage access services, verify identities, calculate risk scores, process payments, and comply with regulations.</p>
                       <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">Data Protection</h4>
-                      <p>All data is encrypted at rest and in transit. We comply with Kenya's Data Protection Act 2019 and international standards.</p>
+                      <p>All data is encrypted at rest and in transit. We comply with Kenya&apos;s Data Protection Act 2019 and international standards.</p>
                       <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">Data Sharing</h4>
                       <p>We do not sell data. Data may be shared with: payment processors, regulatory authorities (as required), and service providers under contract.</p>
                     </div>
                   </div>
                   <div className="mt-4 flex gap-2">
-                    <a href="/KYC_&_Due-diligence_Framework_REV1.pdf" download className="flex-1 block">
+                    <a href="/data.pdf" download className="flex-1 block">
                       <Button variant="outline" className="w-full">
                         <Download className="w-4 h-4 mr-2" /> Download PDF
                       </Button>
                     </a>
                   </div>
-                </SettingsCard>
-
-                <SettingsCard icon={Lock} title="Data Processing Agreement" description="For GDPR compliance">
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    As a data controller for your employees' information, you may require a Data Processing Agreement (DPA). Contact our legal team to request a signed DPA.
-                  </p>
-                  <Button variant="outline" className="mt-4">
-                    Request DPA
-                  </Button>
                 </SettingsCard>
               </>
             )}
@@ -1161,6 +1248,7 @@ export default function EmployerSettings() {
                   </div>
                 </SettingsCard>
 
+                {/*
                 <SettingsCard icon={Shield} title="Security Settings" description="Additional security options">
                   <div className="space-y-4">
                     <SecurityItem 
@@ -1177,6 +1265,7 @@ export default function EmployerSettings() {
                     />
                   </div>
                 </SettingsCard>
+                */}
               </>
             )}
           </div>

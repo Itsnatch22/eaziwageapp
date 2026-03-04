@@ -27,7 +27,7 @@ declare global {
     grecaptcha: {
       ready: (cb: () => void) => void;
       execute: (siteKey: string, options: { action: string }) => Promise<string>;
-      render: (container: string | HTMLElement, parameters: Record<string, any>) => number;
+      render: (container: string | HTMLElement, parameters: Record<string, unknown>) => number;
       reset: (widgetId?: number) => void;
     };
   }
@@ -243,7 +243,7 @@ export default function VerifyEmailPage() {
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
               This verification link has expired. Verification links are valid for 24 hours.
-              Enter your email below and we'll send you a fresh one.
+              Enter your email below and we&apos;ll send you a fresh one.
             </p>
 
             {resendError && (
@@ -307,7 +307,7 @@ export default function VerifyEmailPage() {
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
               This verification link is invalid or has already been used.
-              If you need a new link, sign in and we'll prompt you to resend it, or request one below.
+              If you need a new link, sign in and we&apos;ll prompt you to resend it, or request one below.
             </p>
 
             <div className="flex flex-col gap-3">
@@ -340,7 +340,7 @@ export default function VerifyEmailPage() {
                 Verify your email
               </h1>
               <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
-                Enter your email address and we'll send you a verification link to activate your account.
+                Enter your email address and we&apos;ll send you a verification link to activate your account.
               </p>
             </div>
 
@@ -416,7 +416,7 @@ export default function VerifyEmailPage() {
               Email sent!
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
-              We've sent a verification link to{' '}
+              We&apos;ve sent a verification link to{' '}
               <span className="font-semibold text-slate-700 dark:text-slate-300">{resendEmail}</span>.
             </p>
             <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">

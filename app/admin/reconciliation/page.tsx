@@ -1,4 +1,3 @@
-//@ts-nocheck
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -12,10 +11,16 @@ import { Input } from '@/components/ui/input';
 import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+type IconSize = 'sm' | 'md';
+type IconComponent = React.ComponentType<{ className?: string }>;
 
 // Gradient Icon Box
-const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'purple' }) => {
+interface GradientIconBoxProps {
+  icon: IconComponent;
+  size?: IconSize;
+  variant?: 'purple' | 'green' | 'amber';
+}
+const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'purple' }: GradientIconBoxProps) => {
   const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12' };
   const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6' };
   const variants = {
@@ -32,7 +37,10 @@ const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'purple' }) => {
 };
 
 // Status Badge
-const StatusBadge = ({ status }) => {
+interface StatusBadgeProps {
+  status: 'recouped' | 'pending' | 'overdue';
+}
+const StatusBadge = ({ status }: StatusBadgeProps) => {
   const styles = {
     recouped: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300',
     pending: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
@@ -46,7 +54,14 @@ const StatusBadge = ({ status }) => {
 };
 
 // Summary Card
-const SummaryCard = ({ icon, label, value, subvalue, variant }) => (
+interface SummaryCardProps {
+  icon: IconComponent;
+  label: string;
+  value: string | number;
+  subvalue?: string;
+  variant?: 'purple' | 'green' | 'amber';
+}
+const SummaryCard = ({ icon, label, value, subvalue, variant }: SummaryCardProps) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30">
     <div className="flex items-center gap-3 mb-3">
       <GradientIconBox icon={icon} size="sm" variant={variant} />
@@ -58,9 +73,30 @@ const SummaryCard = ({ icon, label, value, subvalue, variant }) => (
 );
 
 // Employer Reconciliation Row
-const EmployerReconRow = ({ employer, onExpand, expanded }) => {
+interface EmployerReconRowProps {
+  employer: {
+    employer_id: string;
+    employer_name: string;
+    total_advances: number;
+    total_amount: number;
+    total_fees: number;
+    pending_recoupment: number;
+    recouped: number;
+    recoupmentRate?: number;
+    advances?: {
+      id: string;
+      reference: string;
+      employee_name: string;
+      amount: number;
+      status: string;
+    }[];
+  };
+  onExpand: () => void;
+  expanded: boolean;
+}
+const EmployerReconRow = ({ employer, onExpand, expanded }: EmployerReconRowProps) => {
   const recoupmentRate = employer.total_amount > 0 
-    ? ((employer.recouped / (employer.total_amount + employer.total_fees)) * 100).toFixed(1)
+    ? (employer.recouped / (employer.total_amount + employer.total_fees)) * 100
     : 0;
 
   return (
@@ -90,7 +126,7 @@ const EmployerReconRow = ({ employer, onExpand, expanded }) => {
               "font-bold",
               recoupmentRate >= 80 ? "text-emerald-600" : recoupmentRate >= 50 ? "text-amber-600" : "text-red-600"
             )}>
-              {recoupmentRate}%
+              {recoupmentRate.toFixed(1)}%
             </p>
             <p className="text-xs text-slate-500">Rate</p>
           </div>
@@ -142,11 +178,36 @@ const EmployerReconRow = ({ employer, onExpand, expanded }) => {
   );
 };
 
+interface ReconciliationData {
+  summary: {
+    total_employers: number;
+    total_disbursed: number;
+    total_fees: number;
+    pending_recoupment: number;
+    total_recouped: number;
+  };
+  by_employer: {
+    employer_id: string;
+    employer_name: string;
+    total_advances: number;
+    total_amount: number;
+    total_fees: number;
+    pending_recoupment: number;
+    recouped: number;
+    advances?: {
+      id: string;
+      reference: string;
+      employee_name: string;
+      amount: number;
+      status: string;
+    }[];
+  }[];
+}
 export default function AdminReconciliation() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<ReconciliationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedEmployer, setExpandedEmployer] = useState(null);
+  const [expandedEmployer, setExpandedEmployer] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -170,8 +231,8 @@ export default function AdminReconciliation() {
     fetchData();
   }, []);
 
-  const filteredEmployers = data?.by_employer?.filter(e => 
-    e.employer_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredEmployers = data?.by_employer?.filter((e) => 
+    e.employer_name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   if (loading) {
@@ -275,7 +336,7 @@ export default function AdminReconciliation() {
           ))}
           {filteredEmployers.length === 0 && (
             <div className="text-center py-12 text-slate-500 dark:text-slate-400">
-              No employers found matching "{searchTerm}"
+              No employers found matching &ldquo;{searchTerm}&rdquo;
             </div>
           )}
         </div>

@@ -89,9 +89,10 @@ export async function GET() {
     }));
 
     return NextResponse.json({ integrations: shaped });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[payroll/connect] unexpected error', err);
-    return NextResponse.json({ error: err?.message ?? String(err) }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -218,8 +219,9 @@ export async function POST(req: NextRequest) {
       },
       { status: existing ? 200 : 201 },
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[payroll/connect] unexpected error', err);
-    return NextResponse.json({ error: err?.message ?? String(err) }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

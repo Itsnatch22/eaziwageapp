@@ -75,6 +75,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to load KYC documents', code: 'QUERY_ERROR' }, { status: 500 });
     }
 
+    // Also fetch employer onboarding applications
+    let empOnboardingQuery = adminSupabase
+      .from('employer_onboarding')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (status) empOnboardingQuery = empOnboardingQuery.eq('status', status);
+    
+    const { data: employerApps, error: empAppsError } = await empOnboardingQuery;
+
     const userIds = [...new Set((documents ?? []).map((d) => d.user_id).filter(Boolean))];
     const employeesByUserId: Record<string, { full_name: string; employee_code: string | null }> = {};
 
@@ -97,6 +107,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         documents: documents ?? [],
+        employerApplications: employerApps ?? [],
         employeesByUserId,
       },
       { status: 200 }

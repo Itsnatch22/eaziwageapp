@@ -14,6 +14,13 @@ const currencyLocaleMap: Record<string, string> = {
   UGX: 'en-UG',
 };
 
+const currencySymbolMap: Record<string, string> = {
+  KES: 'KSh',
+  RWF: 'RF',
+  TZS: 'TSh',
+  UGX: 'USh',
+};
+
 export function formatCurrency(
   amount: string | number | bigint,
   currency = 'KES'
@@ -22,14 +29,20 @@ export function formatCurrency(
 
   if (isNaN(numericAmount)) return '';
 
-  const locale = currencyLocaleMap[currency] || 'en';
+  const locale = currencyLocaleMap[currency] || 'en-KE';
 
+  // Some browsers don't support the specific locales well, 
+  // so we ensure the symbol is correct for the region
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(numericAmount);
+}
+
+export function getCurrencySymbol(currency: string = 'KES') {
+  return currencySymbolMap[currency] || currency;
 }
 
 export function formatDate(dateString: string | number | Date) {
@@ -52,10 +65,7 @@ export function formatDateTime(dateString: string | number | Date) {
   });
 }
 
-interface CalculateFeePercentageParams {
-  crsTotal: number;
-}
-export function calculateFeePercentage({crsTotal}: CalculateFeePercentageParams) {
+export function calculateFeePercentage(crsTotal: number) {
   const baseFee = 3.5;
   const riskAdjustment = 3.0;
   return baseFee + (riskAdjustment * (1 - crsTotal / 5));
@@ -90,11 +100,7 @@ export const DOCUMENT_TYPES = [
   { value: 'utility_bill', label: 'Utility Bill (Proof of Address)' },
 ];
 
-interface GetRiskRatingColorParams {
-  rating: string;
-}
-
-export function getRiskRatingColor({rating}: GetRiskRatingColorParams) {
+export function getRiskRatingColor(rating: string) {
   switch (rating?.toUpperCase()) {
     case 'A':
       return 'text-green-600 bg-green-50 border-green-200';
@@ -109,11 +115,7 @@ export function getRiskRatingColor({rating}: GetRiskRatingColorParams) {
   }
 }
 
-interface GetRiskRatingLabelParams {
-  rating: string;
-}
-
-export function getRiskRatingLabel({rating}: GetRiskRatingLabelParams) {
+export function getRiskRatingLabel(rating: string) {
   switch (rating?.toUpperCase()) {
     case 'A':
       return 'Low Risk';

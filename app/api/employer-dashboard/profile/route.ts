@@ -49,10 +49,23 @@ export async function GET() {
     return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
   }
 
+  const currencyMap: Record<string, string> = {
+    'Kenya': 'KES',
+    'Uganda': 'UGX',
+    'Tanzania': 'TZS',
+    'Rwanda': 'RWF',
+    'KE': 'KES',
+    'UG': 'UGX',
+    'TZ': 'TZS',
+    'RW': 'RWF',
+  };
+  const currency = currencyMap[onboarding.country] || 'KES';
+
   // Surface full_name as the contact person so EmployerPortalLayout is happy
   return NextResponse.json({
     profile: {
       ...onboarding,
+      currency,
       company_code: userProfile?.company_code || onboarding.id.slice(0, 8).toUpperCase(),
       full_name: onboarding.contact_person,
     },

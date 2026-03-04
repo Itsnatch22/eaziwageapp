@@ -3,12 +3,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Send, X, MessageSquare, Loader2, User, 
-  Trash2, MoreVertical, Search, Phone, Video
+  Trash2, Phone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 
@@ -52,18 +51,18 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
   useEffect(() => {
     fetchMessages();
 
-    if (pusherClient) {
-      const channel = pusherClient.subscribe(`user-${currentUserId}-messages`);
-      channel.bind('new-message', (data: Message) => {
-        if (data.sender_id === otherUserId || data.receiver_id === otherUserId) {
-          setMessages(prev => [...prev, data]);
-        }
-      });
+    if (!pusherClient) return;
+    
+    const channel = pusherClient.subscribe(`user-${currentUserId}-messages`);
+    channel.bind('new-message', (data: Message) => {
+      if (data.sender_id === otherUserId || data.receiver_id === otherUserId) {
+        setMessages(prev => [...prev, data]);
+      }
+    });
 
-      return () => {
-        pusherClient.unsubscribe(`user-${currentUserId}-messages`);
-      };
-    }
+    return () => {
+      pusherClient!.unsubscribe(`user-${currentUserId}-messages`);
+    };
   }, [currentUserId, otherUserId, fetchMessages]);
 
   useEffect(() => {
@@ -112,7 +111,7 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
   };
 
   return (
-    <div className="fixed bottom-4 right-4 w-80 sm:w-96 h-[500px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden z-50 animate-in slide-in-from-bottom-4 duration-300">
+    <div className="fixed bottom-4 right-4 w-80 sm:w-96 h-125 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden z-50 animate-in slide-in-from-bottom-4 duration-300">
       {/* Header */}
       <div className="p-4 bg-linear-to-r from-primary to-emerald-600 text-white flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">

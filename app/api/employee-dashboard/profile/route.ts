@@ -45,15 +45,28 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
         employee = newEmployee;
     }
 
+    // Fetch onboarding data to supplement employee profile
+    const { data: onboarding } = await supabase
+    .from('employee_onboarding')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+    const mergedEmployee = {
+        ...(employee || {}),
+        ...(onboarding || {}),
+        kyc_status: onboarding?.status || employee?.kyc_status || 'pending',
+    };
+
     const docMap: Record<string, string> = {
-        id_front: 'id_document_front',
+        id_front: 'id_front',
         address_proof: 'address_proof',
         payslip_1: 'payslip_1',
         employment_contract: 'employment_contract',
-        selfie: 'selfie',
+        face_id: 'face_id',
     };
 
-    const employeeData = (employee || {}) as Record<string, unknown>;
+    const employeeData = mergedEmployee as Record<string, unknown>;
     const kycDocuments = Object.entries(docMap).map(([docType,field]) => ({
         document_type: docType,
         status: employeeData[field] ? ('submitted' as const) : null,
@@ -61,7 +74,7 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
 
     return {
         ...profile,
-        employee: employee || {},
+        employee: mergedEmployee,
         kycDocuments,
     };
 }

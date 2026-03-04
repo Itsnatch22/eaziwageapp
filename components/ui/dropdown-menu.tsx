@@ -5,8 +5,18 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const DropdownMenu = ({ children }: React.PropsWithChildren) => <div>{children}</div>
-const DropdownMenuTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-  ({ className, ...props }, ref) => <button ref={ref} className={cn(className)} {...props} />
+const DropdownMenuTrigger = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }
+>(
+  ({ className, asChild, ...props }, ref) => (
+    <button
+      ref={ref}
+      className={cn(className)}
+      data-slot={asChild ? "dropdown-trigger-child" : "dropdown-trigger"}
+      {...props}
+    />
+  )
 )
 DropdownMenuTrigger.displayName = "DropdownMenuTrigger"
 
@@ -27,8 +37,22 @@ const DropdownMenuSubContent = React.forwardRef<HTMLDivElement, React.HTMLAttrib
 )
 DropdownMenuSubContent.displayName = "DropdownMenuSubContent"
 
-const DropdownMenuContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { sideOffset?: number }>(
-  ({ className, ...props }, ref) => <div ref={ref} className={cn("min-w-[8rem] rounded-md border p-1", className)} {...props} />
+const DropdownMenuContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { sideOffset?: number; align?: "start" | "center" | "end" }
+>(
+  ({ className, align, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(
+        "min-w-[8rem] rounded-md border p-1",
+        align === "end" && "ml-auto",
+        align === "center" && "mx-auto",
+        className
+      )}
+      {...props}
+    />
+  )
 )
 DropdownMenuContent.displayName = "DropdownMenuContent"
 

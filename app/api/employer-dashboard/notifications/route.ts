@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
+import pusherServer from "@/lib/pusher-server";
 
 
 export const runtime = "nodejs";

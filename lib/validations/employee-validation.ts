@@ -28,6 +28,7 @@ export type EWASettingsPayload = z.infer<typeof ewaSettingsSchema>;
 
 // ─── Employee document types ──────────────────────────────────────────────────
 export const employeeDocumentTypeSchema = z.enum([
+  'face_id',
   'id_front',
   'id_back',
   'address_proof',
@@ -77,6 +78,7 @@ export const employeeOnboardingSchema = z.object({
   bank_account: z.string().min(1, 'Bank account is required'),
   mobile_money_provider: z.string().min(1, 'Mobile money provider is required'),
   mobile_money_number: z.string().min(1, 'Mobile money number is required'),
+  face_id: z.string().url().optional(),
   id_front: z.string().url().optional(),
   id_back: z.string().url().optional(),
   address_proof: z.string().url().optional(),

@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { calculateFeePercentage } from '@/lib/utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { runFraudChecks } from '@/lib/fraud-engine';
 
 export const runtime = 'nodejs';
 
@@ -72,15 +73,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const requestedAmount = Number(parsed.data.amount);
+
+  // ── Run Fraud Checks ────────────────────────────────────────────────────────
+  const fraudResult = await runFraudChecks({
+    userId: user.id,
+    employeeId: employee.id,
+    employerId: employee.employer_id,
+    amount: requestedAmount,
+  });
+
+  if (fraudResult.isBlocked) {
+    return NextResponse.json(
+      { 
+        message: 'Your request has been flagged by our security system. Please contact support.', 
+        code: 'FRAUD_BLOCK' 
+      },
+      { status: 403 },
+    );
+  }
+
   const { data: employer } = await supabase
     .from('employer_onboarding')
     .select('risk_score')
     .eq('id', employee.employer_id)
     .maybeSingle();
 
-  const requestedAmount = Number(parsed.data.amount);
   const feePercentage = toMoney(
-    calculateFeePercentage({ crsTotal: Number(employer?.risk_score ?? 3) }),
+    calculateFeePercentage(Number(employer?.risk_score ?? 3)),
   );
   const feeAmount = toMoney((requestedAmount * feePercentage) / 100);
   const netAmount = toMoney(requestedAmount - feeAmount);
@@ -104,6 +124,14 @@ export async function POST(req: NextRequest) {
 
   if (insertError) {
     return NextResponse.json({ message: insertError.message }, { status: 500 });
+  }
+
+  // If alerts were generated, link them to the newly created transaction
+  if (fraudResult.alerts.length > 0 && inserted) {
+    await supabase
+      .from('fraud_alerts')
+      .update({ transaction_id: inserted.id })
+      .in('id', fraudResult.alerts.map(a => a.id));
   }
 
   return NextResponse.json(

@@ -3,6 +3,31 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
+interface EmployeeRow {
+  id: string;
+  user_id: string | null;
+  employee_code: string | null;
+}
+
+interface ProfileRow {
+  id: string;
+  full_name: string | null;
+}
+
+interface AdvanceRow {
+  id: string;
+  employee_id: string;
+  amount: number | string | null;
+  fee_amount: number | string | null;
+  fee_percentage: number | string | null;
+  net_amount: number | string | null;
+  disbursement_method: string | null;
+  status: string;
+  created_at: string;
+  requested_at: string | null;
+  approved_at: string | null;
+}
+
 export async function GET() {
   const supabase = await createRouteHandlerClient();
   const {
@@ -39,7 +64,8 @@ export async function GET() {
     return NextResponse.json({ error: employeesError.message }, { status: 500 });
   }
 
-  const employeeIds = (employeeRows ?? []).map((e: any) => e.id);
+  const typedEmployees = (employeeRows ?? []) as EmployeeRow[];
+  const employeeIds = typedEmployees.map((e) => e.id);
   if (employeeIds.length === 0) {
     return NextResponse.json([]);
   }
@@ -56,19 +82,19 @@ export async function GET() {
     return NextResponse.json({ error: advancesError.message }, { status: 500 });
   }
 
-  const employeeById = new Map<string, any>((employeeRows ?? []).map((e: any) => [e.id, e]));
-  const profileIds = (employeeRows ?? []).map((e: any) => e.user_id).filter(Boolean);
+  const employeeById = new Map<string, EmployeeRow>(typedEmployees.map((e) => [e.id, e]));
+  const profileIds = typedEmployees.map((e) => e.user_id).filter((id): id is string => Boolean(id));
 
-  let profilesByUserId = new Map<string, any>();
+  let profilesByUserId = new Map<string, ProfileRow>();
   if (profileIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, full_name')
       .in('id', profileIds);
-    profilesByUserId = new Map<string, any>((profiles ?? []).map((p: any) => [p.id, p]));
+    profilesByUserId = new Map<string, ProfileRow>(((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p]));
   }
 
-  const payload = (advances ?? []).map((a: any) => {
+  const payload = ((advances ?? []) as AdvanceRow[]).map((a) => {
     const employee = employeeById.get(a.employee_id);
     const profile = employee?.user_id ? profilesByUserId.get(employee.user_id) : null;
     return {

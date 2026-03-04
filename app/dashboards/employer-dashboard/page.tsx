@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
@@ -7,7 +6,7 @@ import {
   Users, TrendingUp, Clock, ArrowRight, CreditCard, Building2, Upload,
   BarChart3, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownRight,
   ChevronRight, Wallet, Calendar, DollarSign, Activity, RefreshCw,
-  FileText, Zap,
+  FileText, Zap, Landmark
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
@@ -25,6 +24,7 @@ interface EmployerProfile {
   risk_score: number | null;
   risk_rating: string | null;
   contact_person: string | null;
+  currency: string;
 }
 
 interface PeriodData {
@@ -35,14 +35,16 @@ interface PeriodData {
   };
   employees: { total: number; active: number; with_advances: number; utilization_rate: number };
   monthly_trend: Array<{ label: string; amount: number; count: number }>;
+  last_sync?: {
+    status: 'success' | 'failed' | 'partial';
+    records_received: number;
+    records_valid: number;
+    created_at: string;
+  } | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Computes a period-over-period change badge.
- * Returns `{ label: "+12.5%", trendUp: true }` or undefined if no comparison.
- */
 function computeTrend(
   current: number,
   previous: number,
@@ -106,7 +108,6 @@ const MainStatsCard = ({ employer, curr }: { employer: EmployerProfile | null; c
         </div>
       </div>
 
-      {/* Circular Progress */}
       <div className="relative w-40 h-40 mx-auto mb-6">
         <div className="absolute inset-2 rounded-full bg-primary/10 blur-xl" />
         <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
@@ -145,14 +146,7 @@ const MainStatsCard = ({ employer, curr }: { employer: EmployerProfile | null; c
   );
 };
 
-// ─── Metric Card ─────────────────────────────────────────────────────────────
-
-const MetricCard = ({
-  icon: Icon, label, value, subtext, trend,
-}: {
-  icon: any; label: string; value: any; subtext?: string;
-  trend?: { label: string; trendUp: boolean };
-}) => (
+const MetricCard = ({ icon: Icon, label, value, subtext, trend }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string | number; subtext?: string; trend?: { label: string; trendUp: boolean }; }) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:shadow-lg transition-all duration-300 group">
     <div className="flex items-start justify-between mb-3">
       <GradientIconBox icon={Icon} size="md" />
@@ -163,9 +157,7 @@ const MetricCard = ({
             ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
             : "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400"
         )}>
-          {trend.trendUp
-            ? <ArrowUpRight className="w-3 h-3" />
-            : <ArrowDownRight className="w-3 h-3" />}
+          {trend.trendUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
           {trend.label}
         </div>
       )}
@@ -176,9 +168,7 @@ const MetricCard = ({
   </div>
 );
 
-// ─── Quick Action Card ────────────────────────────────────────────────────────
-
-const QuickActionCard = ({ icon: Icon, title, description, href }: { icon: any; title: string; description: string; href: string }) => (
+const QuickActionCard = ({ icon: Icon, title, description, href }: { icon: React.ComponentType<{ className?: string }>; title: string; description: string; href: string }) => (
   <Link href={href} className="block group">
     <div className="relative overflow-hidden rounded-2xl p-5 border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/30">
       <div className="relative z-10">
@@ -191,9 +181,7 @@ const QuickActionCard = ({ icon: Icon, title, description, href }: { icon: any; 
   </Link>
 );
 
-// ─── Status Item ──────────────────────────────────────────────────────────────
-
-const StatusItem = ({ icon: Icon, label, value, status }: { icon: any; label: string; value: any; status: 'success' | 'warning' | 'default' }) => (
+const StatusItem = ({ icon: Icon, label, value, status }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string | number; status: 'success' | 'warning' | 'default' }) => (
   <div className="flex items-center gap-4 p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
     <div className={cn(
       "w-10 h-10 rounded-xl flex items-center justify-center shadow-md",
@@ -210,8 +198,6 @@ const StatusItem = ({ icon: Icon, label, value, status }: { icon: any; label: st
   </div>
 );
 
-// ─── Mini Stat Row ────────────────────────────────────────────────────────────
-
 const MiniStatRow = ({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) => (
   <div className="flex justify-between items-center py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
     <span className="text-sm text-slate-500 dark:text-slate-400">{label}</span>
@@ -219,9 +205,7 @@ const MiniStatRow = ({ label, value, accent = false }: { label: string; value: s
   </div>
 );
 
-// ─── Mini Bar Sparkline ───────────────────────────────────────────────────────
-
-const Sparkline = ({ trend }: { trend: Array<{ label: string; amount: number }> }) => {
+const Sparkline = ({ trend, currency = 'KES' }: { trend: Array<{ label: string; amount: number }>; currency?: string }) => {
   const max = Math.max(...trend.map(t => t.amount), 1);
   return (
     <div className="flex items-end gap-1 h-12">
@@ -230,10 +214,70 @@ const Sparkline = ({ trend }: { trend: Array<{ label: string; amount: number }> 
           <div
             className="w-full rounded-t-sm bg-linear-to-t from-primary/60 to-primary transition-all duration-700"
             style={{ height: `${Math.max((t.amount / max) * 40, t.amount > 0 ? 3 : 1)}px` }}
-            title={`${t.label}: ${formatCurrency(t.amount)}`}
+            title={`${t.label}: ${formatCurrency(t.amount, currency)}`}
           />
         </div>
       ))}
+    </div>
+  );
+};
+
+const PayrollHealthCard = ({ lastSync }: { lastSync: PeriodData['last_sync'] }) => {
+  const statusConfig = {
+    success: { label: 'Healthy', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+    failed: { label: 'Out of Sync', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-500/10' },
+    partial: { label: 'Issues Found', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+  };
+
+  const status = lastSync ? statusConfig[lastSync.status] || { label: lastSync.status, icon: Activity, color: 'text-slate-400', bg: 'bg-slate-100' } : { label: 'No Data', icon: Activity, color: 'text-slate-400', bg: 'bg-slate-100' };
+  const Icon = status.icon;
+
+  return (
+    <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <GradientIconBox icon={FileText} size="md" />
+          <h2 className="font-bold text-slate-900 dark:text-white">Payroll Health</h2>
+        </div>
+        <div className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border", status.bg, status.color)}>
+          <Icon className="w-3 h-3" />
+          {status.label}
+        </div>
+      </div>
+
+      {lastSync ? (
+        <div className="space-y-4 flex-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Records</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{lastSync.records_received}</p>
+            </div>
+            <div className="p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Valid</p>
+              <p className="text-lg font-bold text-emerald-600">{lastSync.records_valid}</p>
+            </div>
+          </div>
+          
+          <div className="pt-2">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1.5">
+              <Clock className="w-3 h-3" /> Last synced {new Date(lastSync.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+          <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
+            <Activity className="w-6 h-6 text-slate-300" />
+          </div>
+          <p className="text-sm font-medium text-slate-500">No payroll data synced yet</p>
+        </div>
+      )}
+
+      <Link href="/dashboards/employer-dashboard/payroll/history" className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 group">
+        <span className="text-xs font-semibold text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
+          View Sync Logs <ArrowRight className="w-3.5 h-3.5" />
+        </span>
+      </Link>
     </div>
   );
 };
@@ -252,7 +296,6 @@ export default function EmployerDashboard() {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch employer profile
       const profRes = await fetch('/api/employer-dashboard/profile');
       if (profRes.status === 404) {
         setError('profile_not_found');
@@ -262,7 +305,6 @@ export default function EmployerDashboard() {
       const profJson = await profRes.json();
       const profile: EmployerProfile = profJson.profile;
 
-      // Redirect to onboarding if no company name or still draft
       const incomplete = !profile.company_name || String(profile.status).toLowerCase() === 'draft';
       if (incomplete) {
         router.replace('/dashboards/employer-dashboard/onboarding');
@@ -271,7 +313,6 @@ export default function EmployerDashboard() {
 
       setEmployer(profile);
 
-      // 2. Fetch this month + last month reports in parallel
       const [currRes, prevRes] = await Promise.all([
         fetch('/api/employer-dashboard/reports?period=this_month'),
         fetch('/api/employer-dashboard/reports?period=last_month'),
@@ -285,7 +326,7 @@ export default function EmployerDashboard() {
         const j = await prevRes.json();
         if (j.data) setPrev(j.data);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load dashboard.');
     } finally {
       setLoading(false);
@@ -294,14 +335,10 @@ export default function EmployerDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Derived trends (current vs previous period) ──────────────────────────
-
   const disbursedTrend   = computeTrend(curr?.advances.total_amount ?? 0, prev?.advances.total_amount ?? 0);
   const feesTrend        = computeTrend(curr?.advances.total_fees   ?? 0, prev?.advances.total_fees   ?? 0);
   const avgAdvanceTrend  = computeTrend(curr?.advances.avg_amount   ?? 0, prev?.advances.avg_amount   ?? 0);
   const utilizationTrend = computeTrend(curr?.employees.utilization_rate ?? 0, prev?.employees.utilization_rate ?? 0);
-
-  // ── Loading & error states ────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -325,23 +362,10 @@ export default function EmployerDashboard() {
             Set up your company profile to start offering EaziWage to your employees and unlock all features.
           </p>
           <Link href="/dashboards/employer-dashboard/onboarding">
-            <Button className="h-12 px-8 bg-linear-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl transition-shadow" data-testid="complete-profile-btn">
+            <Button className="h-12 px-8 bg-linear-to-r from-primary to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl transition-shadow">
               Complete Setup <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </Link>
-        </div>
-      </EmployerPortalLayout>
-    );
-  }
-
-  if (error) {
-    return (
-      <EmployerPortalLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <p className="text-red-500 font-semibold">{error}</p>
-          <Button onClick={load} className="flex items-center gap-2">
-            <RefreshCw className="w-4 h-4" /> Retry
-          </Button>
         </div>
       </EmployerPortalLayout>
     );
@@ -353,9 +377,8 @@ export default function EmployerDashboard() {
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Verification Alert */}
         {isPending && (
-          <div className="bg-linear-to-r from-amber-500/10 to-orange-500/10 dark:from-amber-500/20 dark:to-orange-500/20 backdrop-blur-sm rounded-2xl p-4 flex items-center gap-4 border border-amber-500/20" data-testid="verification-alert">
+          <div className="bg-linear-to-r from-amber-500/10 to-orange-500/10 dark:from-amber-500/20 dark:to-orange-500/20 backdrop-blur-sm rounded-2xl p-4 flex items-center gap-4 border border-amber-500/20">
             <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
               <AlertCircle className="w-6 h-6 text-amber-600" />
             </div>
@@ -372,7 +395,6 @@ export default function EmployerDashboard() {
           </div>
         )}
 
-        {/* ── Top Section: Main Stats + Metrics ─────────────────────────────── */}
         <div className="grid lg:grid-cols-3 gap-6">
           <MainStatsCard employer={employer} curr={curr} />
 
@@ -380,21 +402,21 @@ export default function EmployerDashboard() {
             <MetricCard
               icon={DollarSign}
               label="Disbursed This Month"
-              value={formatCurrency(curr?.advances.total_amount ?? 0)}
+              value={formatCurrency(curr?.advances.total_amount ?? 0, employer?.currency)}
               subtext="vs last month"
               trend={disbursedTrend}
             />
             <MetricCard
               icon={Wallet}
               label="Fees Collected"
-              value={formatCurrency(curr?.advances.total_fees ?? 0)}
+              value={formatCurrency(curr?.advances.total_fees ?? 0, employer?.currency)}
               subtext="vs last month"
               trend={feesTrend}
             />
             <MetricCard
               icon={Activity}
               label="Avg. Advance"
-              value={formatCurrency(curr?.advances.avg_amount ?? 0)}
+              value={formatCurrency(curr?.advances.avg_amount ?? 0, employer?.currency)}
               subtext="per disbursement"
               trend={avgAdvanceTrend}
             />
@@ -408,10 +430,7 @@ export default function EmployerDashboard() {
           </div>
         </div>
 
-        {/* ── Advances + Employees Overview ─────────────────────────────────── */}
         <div className="grid lg:grid-cols-3 gap-6">
-
-          {/* Advances snapshot */}
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -430,7 +449,6 @@ export default function EmployerDashboard() {
             <MiniStatRow label="Bank Transfer"    value={curr?.advances.by_method.bank_transfer ?? 0} />
           </div>
 
-          {/* Employees snapshot */}
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -446,7 +464,6 @@ export default function EmployerDashboard() {
             <MiniStatRow label="Used advances"       value={curr?.employees.with_advances  ?? 0} />
             <MiniStatRow label="Utilization rate"   value={`${curr?.employees.utilization_rate ?? 0}%`} accent />
 
-            {/* Sparkline of monthly trend */}
             {curr?.monthly_trend && curr.monthly_trend.length > 0 && (
               <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <p className="text-xs text-slate-400 mb-2">Monthly disbursements (6 mo.)</p>
@@ -455,34 +472,9 @@ export default function EmployerDashboard() {
             )}
           </div>
 
-          {/* Reports quick-access + payroll */}
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30 flex flex-col gap-4">
-            <div className="flex items-center gap-3 mb-1">
-              <GradientIconBox icon={BarChart3} size="md" />
-              <h2 className="font-bold text-slate-900 dark:text-white">Quick Access</h2>
-            </div>
-
-            {[
-              { icon: BarChart3, label: 'Reports & Analytics', sub: 'Period breakdowns & CSVs',  href: '/dashboards/employer-dashboard/reports' },
-              { icon: Upload,    label: 'Upload Payroll',       sub: 'Sync earnings data',        href: '/dashboards/employer-dashboard/payroll' },
-              { icon: FileText,  label: 'Payroll History',      sub: 'Past payroll uploads',      href: '/dashboards/employer-dashboard/payroll/history' },
-              { icon: Zap,       label: 'Risk Insights',        sub: 'Score & fee breakdown',     href: '/dashboards/employer-dashboard/risk-insights' },
-            ].map(({ icon: Ic, label, sub, href }) => (
-              <Link key={href} href={href} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <Ic className="w-4.5 h-4.5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{label}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{sub}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary transition-colors shrink-0" />
-              </Link>
-            ))}
-          </div>
+          <PayrollHealthCard lastSync={curr?.last_sync} />
         </div>
 
-        {/* ── Quick Actions ─────────────────────────────────────────────────── */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h2>
@@ -498,9 +490,7 @@ export default function EmployerDashboard() {
           </div>
         </div>
 
-        {/* ── Company Status + Risk ─────────────────────────────────────────── */}
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Company Status */}
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-5">Company Status</h2>
             <div className="space-y-3">
@@ -535,12 +525,11 @@ export default function EmployerDashboard() {
             </div>
           </div>
 
-          {/* Risk Score */}
           <div className="bg-linear-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-primary/10 dark:border-primary/20">
             <div className="flex items-start justify-between mb-5">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">Risk Assessment</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Your company's risk profile</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Your company&apos;s risk profile</p>
               </div>
               {(() => {
                 if (employer?.status === 'risk_review_in_progress' || employer?.risk_score === 0) {
@@ -599,4 +588,3 @@ export default function EmployerDashboard() {
     </EmployerPortalLayout>
   );
 }
-

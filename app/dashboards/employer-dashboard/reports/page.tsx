@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -191,7 +190,7 @@ export default function EmployerReports() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json.data ?? null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[reports] fetch failed:', err);
       setError('Failed to load reports. Please try again.');
     } finally {

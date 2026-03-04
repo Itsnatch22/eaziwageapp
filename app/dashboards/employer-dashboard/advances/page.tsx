@@ -103,7 +103,7 @@ export default function EmployerAdvancesPage() {
         ]);
 
         const advancesData: unknown = await advancesRes.json();
-        const employerData: any = await employerRes.json();
+        const employerData: Record<string, unknown> = await employerRes.json();
 
         if (!advancesRes.ok) throw new Error((advancesData as { error?: string })?.error || 'Failed to load advances');
         setAdvances(Array.isArray(advancesData) ? (advancesData as AdvanceItem[]) : []);
@@ -129,7 +129,7 @@ export default function EmployerAdvancesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const data: any = await res.json();
+      const data: Record<string, string> = await res.json();
       if (!res.ok) throw new Error(data?.error || data?.message || 'Action failed');
 
       toast.success(action === 'approve' ? 'Advance approved' : 'Advance rejected');

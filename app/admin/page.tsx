@@ -1,11 +1,10 @@
-//@ts-nocheck
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
-  Building2, Users, CreditCard, Shield, Clock, CheckCircle2,
-  AlertTriangle, TrendingUp, ArrowRight, FileText, Wifi, Activity,
+  Building2, Users, CreditCard, Shield, CheckCircle2,
+ TrendingUp, ArrowRight, FileText, Wifi, Activity,
   DollarSign, BarChart3,
 } from 'lucide-react';
 import { Button }            from '@/components/ui/button';
@@ -14,6 +13,8 @@ import { formatCurrency, cn } from '@/lib/utils';
 
 // Types
 type VariantColor = 'green' | 'slate' | 'black';
+type IconSize = 'sm' | 'md' | 'lg';
+type IconComponent = React.ComponentType<{ className?: string }>;
 type APIStatus = 'healthy' | 'degraded' | 'down';
 
 interface DashboardStats {
@@ -29,7 +30,14 @@ interface DashboardStats {
 }
 
 // Components
-const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'green' as VariantColor }) => {
+
+interface GradientIconBoxProps {
+  icon: IconComponent;
+  size?: IconSize;
+  variant?: VariantColor;
+}
+
+const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'green' }: GradientIconBoxProps) => {
   const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12', lg: 'w-14 h-14' };
   const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6', lg: 'w-7 h-7' };
   const variants: Record<VariantColor, string> = {
@@ -44,7 +52,16 @@ const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'green' as Variant
   );
 };
 
-const MetricCard = ({ icon, label, value, subtext, trend, trendUp, variant = 'green' as VariantColor }) => (
+interface AdminMetricCardProps {
+  icon: IconComponent;
+  label: string;
+  value: string | number;
+  subtext?: string;
+  trend?: string;
+  trendUp?: boolean;
+  variant?: VariantColor;
+}
+const MetricCard = ({ icon, label, value, subtext, trend, trendUp, variant = 'green' } : AdminMetricCardProps) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30">
     <div className="flex items-start justify-between">
       <GradientIconBox icon={icon} size="md" variant={variant} />
@@ -66,7 +83,7 @@ const MetricCard = ({ icon, label, value, subtext, trend, trendUp, variant = 'gr
 );
 
 const AlertCard = ({ icon: Icon, title, count, description, link, variant }: {
-  icon: any; title: string; count: number; description: string; link: string; variant: 'green'|'slate'|'black';
+  icon: IconComponent; title: string; count: number; description: string; link: string; variant: 'green'|'slate'|'black';
 }) => {
   const variants = {
     green: 'bg-green-50 dark:bg-green-900/20 border-green-200/50 dark:border-green-700/30',
@@ -112,6 +129,7 @@ const APIHealthCard = ({ api }: { api: { name: string; status: APIStatus; latenc
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const avgEmployerRisk = stats?.risk?.avg_employer_score ?? 3.5;
 
   useEffect(() => {
     (async () => {
@@ -195,8 +213,8 @@ export default function AdminDashboard() {
               </div>
               <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
                 <p className="text-sm text-slate-500 dark:text-slate-400">Avg. Employer Risk</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{stats?.risk.avg_employer_score.toFixed(1) || '3.5'}</p>
-                <p className="text-xs text-slate-400 mt-1">{stats?.risk.avg_employer_score >= 4 ? 'Low Risk' : stats?.risk.avg_employer_score >= 3 ? 'Medium Risk' : 'High Risk'}</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{avgEmployerRisk.toFixed(1)}</p>
+                <p className="text-xs text-slate-400 mt-1">{avgEmployerRisk >= 4 ? 'Low Risk' : avgEmployerRisk >= 3 ? 'Medium Risk' : 'High Risk'}</p>
               </div>
             </div>
           </div>

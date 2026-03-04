@@ -1,10 +1,11 @@
+import React from 'react';
 import { Resend } from 'resend';
 import {
   DocumentApprovedEmail,
   DocumentRejectedEmail,
   DocumentSubmittedEmail,
 } from '@/lib/emails/AdminKYCNotification';
-import { DocumentType, DocumentStatus } from '@/lib/validations/kyc-validation';
+import { DocumentType, DocumentStatus, DOCUMENT_TYPE_LABELS } from '@/lib/validations/kyc-validation';
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -12,7 +13,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 export interface EmailOptions {
   to: string;
   subject: string;
-  react: React.ReactElement;
+  react: React.ReactNode;
 }
 
 export interface SendKYCNotificationParams {
@@ -53,19 +54,7 @@ export async function sendEmail(options: EmailOptions) {
  * Get document type label for human-readable text
  */
 function getDocumentLabel(documentType: DocumentType): string {
-  const labels: Record<DocumentType, string> = {
-    national_id: 'National ID',
-    passport: 'Passport',
-    drivers_license: 'Driving License',
-    kra_pin: 'KRA PIN Certificate',
-    nhif_card: 'NHIF Card',
-    nssf_card: 'NSSF Card',
-    bank_statement: 'Bank Statement',
-    payslip: 'Payslip',
-    employment_letter: 'Employment Letter',
-    selfie: 'Selfie/Photo',
-  };
-  return labels[documentType] || documentType;
+  return DOCUMENT_TYPE_LABELS[documentType] || documentType;
 }
 
 /**

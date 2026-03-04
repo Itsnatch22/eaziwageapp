@@ -1,11 +1,13 @@
 "use client";
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowRight, ArrowLeft,
+  ArrowRight, CheckCircle2,
   Phone, Briefcase, Wallet, Check, Sparkles,
-  Shield, FileText, AlertCircle, ChevronDown, Globe,
-  Upload, Camera, Home, Receipt, Landmark, Search, Building2,
+  Shield, FileText, AlertCircle, ChevronDown,
+  Upload, Camera, Home, Receipt, Search,
+  ScanFace, Loader2, Landmark as BankIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +16,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { EMPLOYMENT_TYPES } from '@/lib/utils';
+import { EMPLOYMENT_TYPES, cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Sun, Moon } from 'lucide-react';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/stores/auth';
+import { EmployeeBackground } from '@/components/employee/EmployeeLayout';
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
@@ -101,7 +103,7 @@ const ALL_COUNTRIES = [
 const TERMS_CONTENT = `Last Updated: October 2025
 
 1. ACCEPTANCE OF TERMS
-By accessing and using EaziWage&apos;s earned wage access services, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
+By accessing and using EaziWage's earned wage access services, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
 
 2. ELIGIBILITY
 To use our services, you must:
@@ -186,21 +188,13 @@ We DO NOT sell your personal data to third parties.
 
 For privacy inquiries: privacy@eaziwage.com`;
 
-const STEPS = [
-  { id: 'welcome', title: 'Welcome', icon: Sparkles },
-  { id: 'terms', title: 'Terms & Privacy', icon: Shield },
-  { id: 'identity', title: 'ID Verification', icon: FileText },
-  { id: 'address', title: 'Address', icon: Home },
-  { id: 'tax', title: 'Tax Info', icon: Receipt },
-  { id: 'employment', title: 'Employment', icon: Briefcase },
-  { id: 'payment', title: 'Payment', icon: Wallet },
-];
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type IconType = React.ComponentType<{ className?: string }>;
 type IdType = 'national_id' | 'passport';
 
 type OnboardingDocKey =
+  | 'face_id'
   | 'id_front'
   | 'id_back'
   | 'address_proof'
@@ -210,8 +204,8 @@ type OnboardingDocKey =
   | 'bank_statement'
   | 'employment_contract';
 
-// Map internal keys to API DocumentTypeEnum values
 const DOC_KEY_TO_TYPE: Record<OnboardingDocKey, string> = {
+    face_id: 'face_id',
     id_front: 'national_id',
     id_back: 'national_id',
     address_proof: 'utility_bill',
@@ -262,22 +256,82 @@ interface Employer {
   countries_of_operation: string[];
 }
 
-// ─── FileUploader component ───────────────────────────────────────────────────
-
 interface FileUploaderProps {
   label: string;
   accept?: string;
   description?: string;
-  onUpload: (file: File) => void | Promise<void>;
-  uploadedFile?: UploadedDocument | null;
-  uploading?: boolean;
-  testId?: string;
+  onUpload: (file: File) => void;
+  uploadedFile: UploadedDocument | null;
+  uploading: boolean;
   required?: boolean;
 }
 
+interface Step {
+  id: string;
+  title: string;
+  icon: IconType;
+}
+
+const STEPS: Step[] = [
+  { id: 'welcome', title: 'Welcome', icon: Sparkles },
+  { id: 'terms', title: 'Terms', icon: Shield },
+  { id: 'face_id', title: 'Face ID', icon: ScanFace },
+  { id: 'identity', title: 'Identity', icon: FileText },
+  { id: 'address', title: 'Address', icon: Home },
+  { id: 'tax', title: 'Tax', icon: Receipt },
+  { id: 'employment', title: 'Job', icon: Briefcase },
+  { id: 'payment', title: 'Payment', icon: Wallet },
+];
+
+// ─── Sub-Components ───────────────────────────────────────────────────────────
+
+interface StepIndicatorProps {
+  steps: Step[];
+  currentStep: number;
+}
+
+const StepIndicator = ({ steps, currentStep }: StepIndicatorProps) => (
+  <div className="flex items-center justify-between w-full max-w-xl mx-auto mb-12">
+    {steps.map((step, index) => {
+      const active = index === currentStep;
+      const completed = index < currentStep;
+      const Icon = step.icon;
+      
+      return (
+        <React.Fragment key={step.id}>
+          <div className="flex flex-col items-center gap-2 group relative">
+            <div className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500",
+              completed ? "bg-primary text-white scale-90" : 
+              active ? "bg-primary text-white shadow-xl shadow-primary/25 ring-4 ring-primary/10" : 
+              "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400"
+            )}>
+              {completed ? <Check className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+            </div>
+            <span className={cn(
+              "text-[10px] font-bold uppercase tracking-widest absolute -bottom-6 whitespace-nowrap transition-colors duration-300",
+              active ? "text-primary" : "text-slate-400"
+            )}>
+              {step.title}
+            </span>
+          </div>
+          {index < steps.length - 1 && (
+            <div className="flex-1 h-0.5 mx-2 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
+              <div 
+                className="absolute inset-0 bg-primary transition-transform duration-700 ease-in-out origin-left"
+                style={{ transform: `scaleX(${completed ? 1 : 0})` }}
+              />
+            </div>
+          )}
+        </React.Fragment>
+      );
+    })}
+  </div>
+);
+
 const FileUploader = ({
   label, accept = 'image/*,application/pdf', description, onUpload,
-  uploadedFile, uploading, testId, required = false,
+  uploadedFile, uploading, required = false,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -286,60 +340,63 @@ const FileUploader = ({
     if (!file) return;
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Please upload a valid image (JPEG, PNG) or PDF file');
+      toast.error('Please upload a valid image or PDF');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size must be less than 5MB');
+      toast.error('File size must be under 5MB');
       return;
     }
     onUpload(file);
   };
 
   return (
-    <div className="space-y-2">
-      <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium flex items-center gap-1">
+    <div className="space-y-3">
+      <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
         {label} {required && <span className="text-red-500">*</span>}
       </Label>
-      <input ref={fileInputRef} type="file" accept={accept} onChange={handleFileSelect} className="hidden" data-testid={testId} />
+      <input ref={fileInputRef} type="file" accept={accept} onChange={handleFileSelect} className="hidden" />
       <div
         onClick={() => !uploading && fileInputRef.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-          uploadedFile ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-slate-200 dark:border-slate-700 hover:border-primary/50'
-        }`}
+        className={cn(
+          "relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 group",
+          uploadedFile 
+            ? "border-primary bg-primary/3 dark:bg-primary/3" 
+            : "border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+        )}
       >
         {uploading ? (
-          <div className="flex items-center justify-center gap-2 py-2">
-            <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-            <span className="text-sm text-slate-600 dark:text-slate-400">Uploading...</span>
+          <div className="flex flex-col items-center gap-2 py-2">
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Processing...</p>
           </div>
         ) : uploadedFile ? (
-          <div className="flex items-center justify-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-              <Check className="w-5 h-5 text-primary" />
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+              <Check className="w-5 h-5" />
             </div>
-            <div className="text-left">
-              <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-45">{uploadedFile.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Click to replace</p>
-            </div>
+            <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-full px-4">{uploadedFile.name}</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase">Click to replace</p>
           </div>
         ) : (
-          <>
-            <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm text-slate-600 dark:text-slate-400">Click to upload</p>
-            {description && <p className="text-xs text-slate-400 mt-1">{description}</p>}
-          </>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-10 h-10 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
+              <Upload className="w-5 h-5" />
+            </div>
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">Choose File</p>
+            {description && <p className="text-[10px] text-slate-400 font-medium">{description}</p>}
+          </div>
         )}
       </div>
     </div>
   );
 };
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Onboarding() {
   const router = useRouter();
-  const user = useAuthStore((state: { user: any; }) => state.user); // ✅ replaced localStorage
+  const user = useAuthStore((state) => state.user);
   const [identity, setIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -351,10 +408,16 @@ export default function Onboarding() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsContent, setShowTermsContent] = useState(false);
   const [showPrivacyContent, setShowPrivacyContent] = useState(false);
-  const [idType, setIdType] = useState<IdType>('national_id');
+
+  // Face ID State
+  const [capturingFaceId, setCapturingFaceId] = useState(false);
+  const [faceIdCaptured, setFaceIdCaptured] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [uploadingFile, setUploadingFile] = useState<OnboardingDocKey | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFilesState>({
+    face_id: null,
     id_front: null,
     id_back: null,
     address_proof: null,
@@ -366,68 +429,45 @@ export default function Onboarding() {
   });
 
   const [formData, setFormData] = useState<OnboardingFormData>({
-    employer_id: '',
-    employee_code: '',
-    national_id: '',
-    id_type: 'national_id',
-    nationality: '',
-    date_of_birth: '',
-    employment_type: '',
-    job_title: '',
-    department: '',
-    monthly_salary: '',
-    bank_name: '',
-    bank_account: '',
-    mobile_money_provider: '',
-    mobile_money_number: '',
-    country: '',
-    tax_id: '',
-    address_line1: '',
-    address_line2: '',
-    city: '',
-    postal_code: '',
-    start_date: '',
+    employer_id: '', employee_code: '', national_id: '', id_type: 'national_id',
+    nationality: '', date_of_birth: '', employment_type: '', job_title: '',
+    department: '', monthly_salary: '', bank_name: '', bank_account: '',
+    mobile_money_provider: '', mobile_money_number: '', country: '',
+    tax_id: '', address_line1: '', address_line2: '', city: '',
+    postal_code: '', start_date: '',
   });
 
-  const welcomeName =
-    user?.full_name ||
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    user?.email?.split('@')[0] ||
-    identity?.full_name ||
-    identity?.email?.split('@')[0] ||
-    'there';
-
   useEffect(() => {
-    const fetchIdentity = async () => {
+    async function checkExistingStatus() {
       try {
         const res = await fetch('/api/employee-dashboard/profile');
-        const data = await res.json();
-        if (!res.ok) return;
-        const profile = data?.profile || {};
-        setIdentity({
-          full_name: profile?.full_name || '',
-          email: profile?.email || '',
-        });
-      } catch {
-        // Non-fatal fallback only.
+        if (res.ok) {
+          const data = await res.json();
+          const status = data?.profile?.employee?.kyc_status;
+          if (status === 'approved' || status === 'pending') {
+            router.replace('/dashboards/employee-dashboard');
+          }
+          setIdentity({
+            full_name: data?.profile?.full_name || '',
+            email: data?.profile?.email || '',
+          });
+        }
+      } catch (err) {
+        console.error('Failed to check status:', err);
       }
-    };
-    fetchIdentity();
-  }, []);
+    }
+    checkExistingStatus();
+  }, [router]);
 
-  // ── Fetch approved employers on mount ────────────────────────────────────
   useEffect(() => {
     const fetchEmployers = async () => {
       setEmployersLoading(true);
       try {
         const res = await fetch('/api/employee-dashboard/employers');
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? 'Failed to load employers');
-        setEmployers(data.employers ?? []);
+        setEmployers(data.employers || []);
       } catch (err) {
-        console.error('[fetch employers]', err);
-        toast.error('Could not load employer list. Please refresh.');
+        console.error('Failed to fetch employers:', err);
       } finally {
         setEmployersLoading(false);
       }
@@ -435,33 +475,16 @@ export default function Onboarding() {
     fetchEmployers();
   }, []);
 
-  // ── Filtered employer list for the search input ───────────────────────────
   const filteredEmployers = employers.filter((e) =>
     e.company_name.toLowerCase().includes(employerSearch.toLowerCase())
   );
 
-  // ── Selected employer object ──────────────────────────────────────────────
   const selectedEmployer = employers.find((e) => e.id === formData.employer_id) ?? null;
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   const updateField = <K extends keyof OnboardingFormData>(field: K, value: OnboardingFormData[K]) => {
-    setFormData((prev) =>
-      field === 'country'
-        ? { ...prev, [field]: value, mobile_money_provider: '' }
-        : { ...prev, [field]: value }
-    );
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleIdTypeChange = (type: IdType) => {
-    setIdType(type);
-    setFormData((prev) => ({
-      ...prev,
-      id_type: type,
-      nationality: type === 'national_id' ? '' : prev.nationality,
-    }));
-  };
-
-  // ── File upload ───────────────────────────────────────────────────────────
   const handleFileUpload = async (file: File, docKey: OnboardingDocKey) => {
     setUploadingFile(docKey);
     try {
@@ -469,607 +492,408 @@ export default function Onboarding() {
       fd.append('file', file);
       fd.append('document_type', DOC_KEY_TO_TYPE[docKey]);
 
-      const res = await fetch('/api/employee-dashboard/kyc/documents', {
-        method: 'POST',
-        body: fd,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
+      const res = await fetch('/api/employee-dashboard/kyc/documents', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
 
-      setUploadedFiles((prev) => ({
+      setUploadedFiles(prev => ({
         ...prev,
-        [docKey]: {
-          name: file.name,
-          url: data.document_url,
-        },
+        [docKey]: { name: file.name, url: data.document_url },
       }));
-      toast.success('Document uploaded successfully!');
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to upload document');
+      toast.success('File saved');
+    } catch (err: any) {
+      toast.error(err?.message || 'Upload failed');
     } finally {
       setUploadingFile(null);
     }
   };
 
-  // ── Submit ────────────────────────────────────────────────────────────────
+  // Face ID Logic
+  const startFaceCapture = async () => {
+    try {
+      setCapturingFaceId(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user', width: 640, height: 480 } 
+      });
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    } catch (err) {
+      toast.error('Camera access denied');
+      setCapturingFaceId(false);
+    }
+  };
+
+  const stopFaceCapture = () => {
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCapturingFaceId(false);
+  };
+
+  const captureFaceId = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
+    
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        const file = new File([blob], 'face_id.jpg', { type: 'image/jpeg' });
+        await handleFileUpload(file, 'face_id');
+        setFaceIdCaptured(true);
+        stopFaceCapture();
+      }
+    }, 'image/jpeg', 0.8);
+  };
+
   const handleSubmit = async () => {
     setError('');
     setLoading(true);
     try {
-      // Collect uploaded URLs
       const docUrls: Record<string, string> = {};
-      (Object.entries(uploadedFiles) as [OnboardingDocKey, UploadedDocument | null][]).forEach(
-        ([key, val]) => { if (val?.url) docUrls[key] = val.url; }
-      );
-
-      const payload = {
-        ...formData,
-        monthly_salary: parseFloat(formData.monthly_salary) || 0,
-        ...docUrls,
-      };
+      Object.entries(uploadedFiles).forEach(([k, v]) => { if (v?.url) docUrls[k] = v.url; });
 
       const res = await fetch('/api/employee-dashboard/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...formData, ...docUrls, monthly_salary: parseFloat(formData.monthly_salary) || 0 }),
       });
 
-      const responseData = await res.json().catch(() => ({}));
-
       if (!res.ok) {
-        // Format Zod detail array if present
-        const detail = responseData.detail;
-        const message =
-          Array.isArray(detail)
-            ? detail.map((e: { msg: string }) => e.msg).join(', ')
-            : responseData.error ?? 'Failed to submit application';
-        setError(message);
-        return;
+        const d = await res.json();
+        throw new Error(d.error || 'Submission failed');
       }
 
-      toast.success("KYC application submitted! You'll hear from us in 1–2 business days.");
+      toast.success("Application submitted!");
       router.push('/dashboards/employee-dashboard');
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } catch (err: any) {
+      setError(err?.message || 'Submission failed');
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Navigation ────────────────────────────────────────────────────────────
   const nextStep = () => {
-    if (currentStep === 1 && !agreedToTerms) {
-      setError('Please accept the Terms of Service and Privacy Policy to continue');
-      return;
-    }
+    if (currentStep === 1 && !agreedToTerms) return setError('Please accept terms');
     setError('');
-    if (currentStep < STEPS.length - 1) setCurrentStep((s) => s + 1);
+    if (currentStep < STEPS.length - 1) setCurrentStep(s => s + 1);
   };
 
   const prevStep = () => {
     setError('');
-    if (currentStep > 0) setCurrentStep((s) => s - 1);
+    setCurrentStep((s) => Math.max(0, s - 1));
+  };
+
+  const retakeFaceId = () => {
+    setFaceIdCaptured(false);
+    setUploadedFiles((prev) => ({ ...prev, face_id: null }));
   };
 
   const canProceed = (): boolean => {
     switch (currentStep) {
       case 0: return true;
       case 1: return agreedToTerms;
-      case 2: {
-        const hasIdNumber = !!formData.national_id;
-        const hasDob = !!formData.date_of_birth;
-        const hasIdFront = !!uploadedFiles.id_front;
-        const hasNationality = idType === 'passport' ? !!formData.nationality : true;
-        return hasIdNumber && hasDob && hasIdFront && hasNationality;
-      }
-      case 3:
-        return !!(formData.country && formData.address_line1 && formData.city && uploadedFiles.address_proof);
-      case 4:
-        return true; // optional step
-      case 5:
-        return !!(formData.job_title && formData.employment_type && formData.monthly_salary &&
-          formData.employer_id && uploadedFiles.payslip_1 && uploadedFiles.employment_contract);
-      case 6:
-        return !!(formData.mobile_money_provider && formData.mobile_money_number &&
-          formData.bank_name && formData.bank_account && uploadedFiles.bank_statement);
+      case 2: return true; 
+      case 3: return !!(formData.national_id && formData.date_of_birth && uploadedFiles.id_front);
+      case 4: return !!(formData.country && formData.address_line1 && formData.city && uploadedFiles.address_proof);
+      case 5: return true;
+      case 6: return !!(formData.employer_id && formData.job_title && uploadedFiles.payslip_1);
+      case 7: return !!(formData.mobile_money_number && formData.bank_account && uploadedFiles.bank_statement);
       default: return false;
     }
   };
 
-  // ── Step content ──────────────────────────────────────────────────────────
   const renderStepContent = () => {
     switch (currentStep) {
-
-      // ── Step 0: Welcome ───────────────────────────────────────────────────
-      case 0:
-        return (
-          <div className="text-center py-8">
-            <div className="w-20 h-20 bg-linear-to-br from-primary to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/30">
-              <Sparkles className="w-10 h-10 text-white" />
-            </div>
-            <h2 className="font-heading text-3xl font-bold text-slate-900 dark:text-white mb-4">
-              Welcome to EaziWage, {welcomeName.split(' ')[0] || 'there'}!
-            </h2>
-            <p className="text-lg text-slate-600 dark:text-slate-300 mb-8 max-w-md mx-auto">
-              Let's get you verified to access your earned wages instantly. This comprehensive KYC process takes about 5–10 minutes.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto">
-              {[
-                { icon: Shield, text: 'Secure & Private' },
-                { icon: Wallet, text: 'Instant Transfers' },
-                { icon: FileText, text: 'Quick Verification' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-2 p-3 bg-primary/5 dark:bg-primary/10 rounded-xl text-sm">
-                  <item.icon className="w-5 h-5 text-primary" />
-                  <span className="text-slate-700 dark:text-slate-300">{item.text}</span>
-                </div>
-              ))}
-            </div>
+      case 0: return (
+        <div className="text-center py-8">
+          <div className="w-20 h-20 bg-linear-to-br from-primary to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-primary/25">
+            <Sparkles className="w-10 h-10 text-white" />
           </div>
-        );
-
-      // ── Step 1: Terms ─────────────────────────────────────────────────────
-      case 1:
-        return (
-          <div className="py-6">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-                <Shield className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Terms & Privacy</h2>
-              <p className="text-slate-600 dark:text-slate-300">Please review and accept our terms to continue</p>
-            </div>
-            <div className="space-y-4 max-w-md mx-auto">
-              {/* Terms of Service */}
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="p-4">
-                  <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Terms of Service</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">By using EaziWage, you agree to our terms governing your use of the platform.</p>
-                  <button type="button" onClick={() => setShowTermsContent(!showTermsContent)} className="text-primary text-sm font-medium hover:underline inline-flex items-center gap-1" data-testid="toggle-terms-content">
-                    {showTermsContent ? 'Hide terms' : 'Read full terms'}
-                    <ChevronDown className={`w-4 h-4 transition-transform ${showTermsContent ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-                {showTermsContent && (
-                  <div className="border-t border-slate-200 dark:border-slate-700 p-4 max-h-48 overflow-y-auto bg-white dark:bg-slate-900/50">
-                    <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap font-sans leading-relaxed">{TERMS_CONTENT}</pre>
-                  </div>
-                )}
-              </div>
-              {/* Privacy Policy */}
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="p-4">
-                  <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Privacy Policy</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Your data is encrypted and never shared without consent.</p>
-                  <button type="button" onClick={() => setShowPrivacyContent(!showPrivacyContent)} className="text-primary text-sm font-medium hover:underline inline-flex items-center gap-1" data-testid="toggle-privacy-content">
-                    {showPrivacyContent ? 'Hide privacy policy' : 'Read privacy policy'}
-                    <ChevronDown className={`w-4 h-4 transition-transform ${showPrivacyContent ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-                {showPrivacyContent && (
-                  <div className="border-t border-slate-200 dark:border-slate-700 p-4 max-h-48 overflow-y-auto bg-white dark:bg-slate-900/50">
-                    <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap font-sans leading-relaxed">{PRIVACY_CONTENT}</pre>
-                  </div>
-                )}
-              </div>
-              {/* Agree checkbox */}
-              <div className="flex items-start gap-3 p-4 bg-primary/5 dark:bg-primary/10 rounded-xl">
-                <div className="relative flex items-center mt-0.5">
-                  <input type="checkbox" id="agree-terms" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 checked:border-primary checked:bg-primary transition-all hover:border-primary" data-testid="onboarding-terms-checkbox" />
-                  <Check className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100" />
-                </div>
-                <label htmlFor="agree-terms" className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                  I have read and agree to the <strong>Terms of Service</strong> and <strong>Privacy Policy</strong>
-                </label>
-              </div>
-            </div>
-          </div>
-        );
-
-      // ── Step 2: ID Verification ───────────────────────────────────────────
-      case 2:
-        return (
-          <div className="py-6">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-                <FileText className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">ID Verification</h2>
-              <p className="text-slate-600 dark:text-slate-300">Upload a clear photo of your identification document</p>
-            </div>
-            <div className="space-y-5 max-w-md mx-auto">
-              {/* ID type toggle */}
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Identification Type *</Label>
-                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
-                  <button type="button" onClick={() => handleIdTypeChange('national_id')} className={`py-3 px-4 rounded-lg text-sm font-semibold transition-all ${idType === 'national_id' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`} data-testid="id-type-national">National ID</button>
-                  <button type="button" onClick={() => handleIdTypeChange('passport')} className={`py-3 px-4 rounded-lg text-sm font-semibold transition-all ${idType === 'passport' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`} data-testid="id-type-passport">Passport</button>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">{idType === 'passport' ? 'Passport Number *' : 'National ID Number *'}</Label>
-                <Input placeholder={idType === 'passport' ? 'e.g. AB1234567' : 'e.g. 12345678'} value={formData.national_id} onChange={(e) => updateField('national_id', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-national-id" />
-              </div>
-              {idType === 'passport' && (
-                <div className="flex flex-col gap-2">
-                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1 flex items-center gap-2"><Globe className="w-4 h-4 text-primary" />Country of Nationality *</Label>
-                  <Select value={formData.nationality} onValueChange={(v) => updateField('nationality', v)}>
-                    <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-nationality">
-                      <SelectValue placeholder="Select your nationality" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-75">
-                      {ALL_COUNTRIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Date of Birth *</Label>
-                <Input type="date" value={formData.date_of_birth} onChange={(e) => updateField('date_of_birth', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-dob" />
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><Camera className="w-4 h-4 text-primary" />Upload ID Document</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <FileUploader label="Front Side" description="Clear photo of front" onUpload={(file) => handleFileUpload(file, 'id_front')} uploadedFile={uploadedFiles.id_front} uploading={uploadingFile === 'id_front'} testId="upload-id-front" required />
-                  <FileUploader label="Back Side" description="Clear photo of back" onUpload={(file) => handleFileUpload(file, 'id_back')} uploadedFile={uploadedFiles.id_back} uploading={uploadingFile === 'id_back'} testId="upload-id-back" />
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Ensure all text is clearly visible and the photo is not blurry</p>
-              </div>
-            </div>
-          </div>
-        );
-
-      // ── Step 3: Address ───────────────────────────────────────────────────
-      case 3:
-        return (
-          <div className="py-6">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-                <Home className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Address Verification</h2>
-              <p className="text-slate-600 dark:text-slate-300">Provide your current residential address</p>
-            </div>
-            <div className="space-y-4 max-w-md mx-auto">
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Country of Work *</Label>
-                <Select value={formData.country} onValueChange={(v) => updateField('country', v)}>
-                  <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-country">
-                    <SelectValue placeholder="Select your country" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COUNTRIES_OF_WORK.map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-slate-500 dark:text-slate-400 text-xs ml-1">EaziWage operates in Kenya, Uganda, Tanzania, and Rwanda</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Address Line 1 *</Label>
-                <Input placeholder="Street address, P.O. box" value={formData.address_line1} onChange={(e) => updateField('address_line1', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-address1" />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Address Line 2</Label>
-                <Input placeholder="Apartment, suite, building (optional)" value={formData.address_line2} onChange={(e) => updateField('address_line2', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-address2" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">City/Town *</Label>
-                  <Input placeholder="e.g. Nairobi" value={formData.city} onChange={(e) => updateField('city', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-city" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Postal Code</Label>
-                  <Input placeholder="e.g. 00100" value={formData.postal_code} onChange={(e) => updateField('postal_code', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-postal" />
-                </div>
-              </div>
-              <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20 space-y-3">
-                <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Proof of Address *</h4>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Upload a utility bill, bank statement, or lease agreement (less than 3 months old)</p>
-                <FileUploader label="Address Proof Document" description="Utility bill, bank statement, or lease" onUpload={(file) => handleFileUpload(file, 'address_proof')} uploadedFile={uploadedFiles.address_proof} uploading={uploadingFile === 'address_proof'} testId="upload-address-proof" required />
-              </div>
-            </div>
-          </div>
-        );
-
-      // ── Step 4: Tax ───────────────────────────────────────────────────────
-      case 4:
-        return (
-          <div className="py-6">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-                <Receipt className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Tax Information</h2>
-              <p className="text-slate-600 dark:text-slate-300">Provide your tax identification number for compliance</p>
-            </div>
-            <div className="space-y-4 max-w-md mx-auto">
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800/30">
-                <div className="flex gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-sm text-amber-800 dark:text-amber-200"><strong>Why we need this:</strong> Tax compliance is required by financial regulations in all our operating countries.</p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Tax Identification Number (TIN)</Label>
-                <Input placeholder="Enter your TIN" value={formData.tax_id} onChange={(e) => updateField('tax_id', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-tin" />
-                <p className="text-xs text-slate-500 dark:text-slate-400 ml-1">Also known as PIN in Kenya, TIN in Tanzania/Uganda/Rwanda</p>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
-                <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Tax Certificate (Optional)</h4>
-                <FileUploader label="Tax Certificate" description="TIN certificate or compliance document" onUpload={(file) => handleFileUpload(file, 'tax_certificate')} uploadedFile={uploadedFiles.tax_certificate} uploading={uploadingFile === 'tax_certificate'} testId="upload-tax-cert" />
-              </div>
-              <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                don&apos;t have your TIN yet?{' '}
-                <button type="button" onClick={nextStep} className="text-primary font-medium hover:underline">Skip this step</button> and add it later.
-              </p>
-            </div>
-          </div>
-        );
-
-      // ── Step 5: Employment (includes employer picker) ─────────────────────
-      case 5:
-        return (
-          <div className="py-6">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-                <Briefcase className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Employment Details</h2>
-              <p className="text-slate-600 dark:text-slate-300">Tell us about your current employment</p>
-            </div>
-            <div className="space-y-4 max-w-md mx-auto">
-
-              {/* ── Employer Picker ── */}
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-primary" />
-                  Your Employer *
-                </Label>
-
-                {/* Search box */}
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    placeholder="Search for your company..."
-                    value={employerSearch}
-                    onChange={(e) => setEmployerSearch(e.target.value)}
-                    className="h-14 rounded-xl bg-white dark:bg-slate-800/50 pl-10"
-                    data-testid="employer-search"
-                  />
-                </div>
-
-                {/* Employer list */}
-                {employersLoading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                    <span className="ml-2 text-sm text-slate-500">Loading employers...</span>
-                  </div>
-                ) : filteredEmployers.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700">
-                    {employerSearch ? `No employer found matching "${employerSearch}"` : 'No approved employers available yet.'}
-                  </div>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700/50" data-testid="employer-list">
-                    {filteredEmployers.map((emp) => (
-                      <button
-                        key={emp.id}
-                        type="button"
-                        onClick={() => updateField('employer_id', emp.id)}
-                        className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
-                          formData.employer_id === emp.id
-                            ? 'bg-primary/10 dark:bg-primary/20'
-                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                        }`}
-                        data-testid={`employer-option-${emp.id}`}
-                      >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${formData.employer_id === emp.id ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`}>
-                          {formData.employer_id === emp.id
-                            ? <Check className="w-4 h-4" />
-                            : <Building2 className="w-4 h-4" />}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{emp.company_name}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">{emp.industry} · {emp.city}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Selected employer confirmation */}
-                {selectedEmployer && (
-                  <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800/30 text-sm text-emerald-800 dark:text-emerald-200">
-                    <Check className="w-4 h-4 shrink-0" />
-                    <span>Selected: <strong>{selectedEmployer.company_name}</strong></span>
-                  </div>
-                )}
-              </div>
-
-              {/* Employee code */}
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Staff / Payroll Code <span className="text-slate-400 text-xs font-normal">(Optional)</span></Label>
-                <Input placeholder="e.g. EMP-00123" value={formData.employee_code} onChange={(e) => updateField('employee_code', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-employee-code" />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Job Title *</Label>
-                <Input placeholder="e.g. Software Engineer" value={formData.job_title} onChange={(e) => updateField('job_title', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-job-title" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Employment Type *</Label>
-                  <Select value={formData.employment_type} onValueChange={(v) => updateField('employment_type', v)}>
-                    <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-employment-type">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EMPLOYMENT_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Start Date</Label>
-                  <Input type="date" value={formData.start_date} onChange={(e) => updateField('start_date', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-start-date" />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Monthly Gross Salary *</Label>
-                <Input type="number" placeholder="e.g. 50000" min="0" value={formData.monthly_salary} onChange={(e) => updateField('monthly_salary', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-salary" />
-              </div>
-
-              {/* Payslips */}
-              <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20 space-y-3">
-                <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Recent Payslips *</h4>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Upload your last 1–2 payslips to verify your salary</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <FileUploader label="Payslip 1" description="Most recent" onUpload={(file) => handleFileUpload(file, 'payslip_1')} uploadedFile={uploadedFiles.payslip_1} uploading={uploadingFile === 'payslip_1'} testId="upload-payslip1" required />
-                  <FileUploader label="Payslip 2" description="Previous month" onUpload={(file) => handleFileUpload(file, 'payslip_2')} uploadedFile={uploadedFiles.payslip_2} uploading={uploadingFile === 'payslip_2'} testId="upload-payslip2" />
-                </div>
-              </div>
-
-              {/* Employment Contract */}
-              <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20 space-y-3">
-                <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Employment Contract *</h4>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Upload a copy of your employment contract or offer letter</p>
-                <FileUploader label="Employment Contract" description="Contract or offer letter" onUpload={(file) => handleFileUpload(file, 'employment_contract')} uploadedFile={uploadedFiles.employment_contract} uploading={uploadingFile === 'employment_contract'} testId="upload-employment-contract" required />
-              </div>
-            </div>
-          </div>
-        );
-
-      // ── Step 6: Payment ───────────────────────────────────────────────────
-      case 6: {
-        const selectedWorkCountry = COUNTRIES_OF_WORK.find((c) => c.code === formData.country);
-        const mobileMoneyProviders = selectedWorkCountry?.providers ?? [];
-        const phonePlaceholder = { KE: '+254 7XX XXX XXX', UG: '+256 7XX XXX XXX', TZ: '+255 7XX XXX XXX', RW: '+250 7XX XXX XXX' }[formData.country] ?? '+XXX XXX XXX XXX';
-
-        return (
-          <div className="py-6">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-                <Wallet className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Payment Details</h2>
-              <p className="text-slate-600 dark:text-slate-300">Where should we send your wage advances?</p>
-            </div>
-            <div className="space-y-6 max-w-md mx-auto">
-              {/* Mobile Money */}
-              <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20">
-                <h3 className="font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2"><Phone className="w-5 h-5 text-primary" />Mobile Money *</h3>
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-2">
-                    <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Provider *</Label>
-                    <Select value={formData.mobile_money_provider} onValueChange={(v) => updateField('mobile_money_provider', v)} disabled={!formData.country}>
-                      <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-mobile-provider">
-                        <SelectValue placeholder={formData.country ? 'Select provider' : 'Complete Address step first'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mobileMoneyProviders.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    {formData.country && <p className="text-xs text-slate-500 dark:text-slate-400 ml-1">Available providers for {selectedWorkCountry?.name}</p>}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Mobile Number *</Label>
-                    <Input type="tel" placeholder={phonePlaceholder} value={formData.mobile_money_number} onChange={(e) => updateField('mobile_money_number', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-mobile-number" />
-                  </div>
-                </div>
-              </div>
-              {/* Bank Account */}
-              <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20">
-                <h3 className="font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2"><Landmark className="w-5 h-5 text-primary" />Bank Account *</h3>
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-2">
-                    <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Bank Name *</Label>
-                    <Input placeholder="e.g. Kenya Commercial Bank" value={formData.bank_name} onChange={(e) => updateField('bank_name', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-bank-name" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Account Number *</Label>
-                    <Input placeholder="e.g. 1234567890" value={formData.bank_account} onChange={(e) => updateField('bank_account', e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="onboarding-bank-account" />
-                  </div>
-                  <FileUploader label="Bank Statement *" description="Last 3 months statement" onUpload={(file) => handleFileUpload(file, 'bank_statement')} uploadedFile={uploadedFiles.bank_statement} uploading={uploadingFile === 'bank_statement'} testId="upload-bank-statement" required />
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      }
-
-      default:
-        return null;
-    }
-  };
-
-  // ── Shell ─────────────────────────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
-      <div className="absolute inset-0 gradient-mesh" />
-      <div className="absolute inset-0 bg-grid" />
-      <div className="absolute top-20 right-0 w-150 h-150 bg-primary/10 rounded-full blur-[150px]" />
-      <div className="absolute bottom-0 left-0 w-125 h-125 bg-emerald-500/10 rounded-full blur-[150px]" />
-
-      <header className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center justify-center">
-          <Link href="/" className="flex items-center gap-3 group" data-testid="logo-link">
-            <div className="w-11 h-11 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-primary/30">
-              <span className="text-white font-bold text-xl">E</span>
-            </div>
-            <span className="font-heading font-bold text-2xl text-slate-900 dark:text-white">EaziWage</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Progress */}
-        <div className="mb-8 overflow-x-auto pb-2">
-          <div className="flex items-center justify-between min-w-max px-2">
-            {STEPS.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${index < currentStep ? 'bg-primary text-white' : index === currentStep ? 'bg-linear-to-br from-primary to-emerald-600 text-white shadow-lg shadow-primary/30' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
-                  {index < currentStep ? <Check className="w-5 h-5" /> : <step.icon className="w-5 h-5" />}
-                </div>
-                {index < STEPS.length - 1 && (
-                  <div className={`h-1 mx-1 sm:mx-2 rounded-full transition-all ${index < currentStep ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-700'}`} style={{ width: '24px' }} />
-                )}
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4">Ready to unlock your wages?</h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-10 max-w-md mx-auto leading-relaxed">
+            Let&apos;s get you verified. This secure process takes less than 5 minutes and ensures your account stays private.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { icon: Shield, text: 'Biometric Secure' },
+              { icon: Wallet, text: 'Instant Access' },
+              { icon: CheckCircle2, text: 'AML Compliant' },
+            ].map((item, i) => (
+              <div key={i} className="flex flex-col items-center gap-2 p-4 bg-slate-50/50 dark:bg-white/2 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                <item.icon className="w-5 h-5 text-primary" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{item.text}</span>
               </div>
             ))}
           </div>
         </div>
+      );
 
-        <p className="text-center text-sm text-slate-600 dark:text-slate-400 mb-6">
-          Step {currentStep + 1} of {STEPS.length}: <span className="font-medium text-slate-900 dark:text-white">{STEPS[currentStep].title}</span>
-        </p>
-
-        {error && (
-          <Alert variant="destructive" className="mb-6 bg-red-500/10 border-red-500/20 rounded-xl backdrop-blur-sm" data-testid="onboarding-error">
-            <AlertCircle className="h-4 w-4 text-red-400" />
-            <AlertDescription className="text-red-400">{error}</AlertDescription>
-          </Alert>
-        )}
-
-        <div className="glass-card rounded-3xl p-6 sm:p-8 shadow-xl mb-8">{renderStepContent()}</div>
-
-        <div className="flex justify-between gap-4">
-          <Button type="button" variant="outline" onClick={prevStep} disabled={currentStep === 0} className="h-14 px-6 rounded-2xl border-slate-200 dark:border-slate-700" data-testid="prev-step">
-            <ArrowLeft className="w-5 h-5 mr-2" />Back
-          </Button>
-          {currentStep === STEPS.length - 1 ? (
-            <Button type="button" onClick={handleSubmit} disabled={loading || !canProceed()} className="h-14 px-8 rounded-2xl bg-linear-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30 btn-glow" data-testid="complete-onboarding">
-              {loading ? (
-                <span className="flex items-center gap-2"><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Completing...</span>
-              ) : (
-                <span className="flex items-center gap-2">Complete Setup<Check className="w-5 h-5" /></span>
+      case 1: return (
+        <div className="space-y-6 py-4">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Legal Agreements</h2>
+            <p className="text-slate-500 text-sm mt-1">Review our commitment to your privacy and security.</p>
+          </div>
+          <div className="space-y-4 max-w-md mx-auto">
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <button onClick={() => setShowTermsContent(!showTermsContent)} className="w-full p-4 flex items-center justify-between group">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary"><Shield className="w-4 h-4" /></div>
+                  <span className="font-bold text-sm">Terms of Service</span>
+                </div>
+                <ChevronDown className={cn("w-4 h-4 transition-transform", showTermsContent && "rotate-180")} />
+              </button>
+              {showTermsContent && (
+                <div className="p-4 border-t border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto">
+                  <pre className="text-[10px] text-slate-500 whitespace-pre-wrap font-sans leading-relaxed">{TERMS_CONTENT}</pre>
+                </div>
               )}
-            </Button>
-          ) : (
-            <Button type="button" onClick={nextStep} disabled={!canProceed()} className="h-14 px-8 rounded-2xl bg-linear-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white font-semibold shadow-xl shadow-primary/30 btn-glow" data-testid="next-step">
-              Continue<ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <button onClick={() => setShowPrivacyContent(!showPrivacyContent)} className="w-full p-4 flex items-center justify-between group">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary"><Shield className="w-4 h-4" /></div>
+                  <span className="font-bold text-sm">Privacy Policy</span>
+                </div>
+                <ChevronDown className={cn("w-4 h-4 transition-transform", showPrivacyContent && "rotate-180")} />
+              </button>
+              {showPrivacyContent && (
+                <div className="p-4 border-t border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto">
+                  <pre className="text-[10px] text-slate-500 whitespace-pre-wrap font-sans leading-relaxed">{PRIVACY_CONTENT}</pre>
+                </div>
+              )}
+            </div>
+            <div className="flex items-start gap-3 p-5 bg-primary/5 rounded-2xl border border-primary/10">
+              <input type="checkbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="mt-1 h-5 w-5 rounded-lg border-primary text-primary focus:ring-primary" />
+              <label className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                I have read and agree to the <strong>Terms of Service</strong> and <strong>Privacy Policy</strong>.
+              </label>
+            </div>
+          </div>
+        </div>
+      );
+
+      case 2: return (
+        <div className="space-y-8 py-4">
+          <div className="text-center">
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Face ID Check</h2>
+            <p className="text-slate-500 text-sm mt-1">Enable secure biometric login for quick access.</p>
+          </div>
+          
+          <div className="max-w-md mx-auto">
+            {faceIdCaptured && uploadedFiles.face_id ? (
+              <div className="text-center py-10 bg-emerald-500/5 rounded-3xl border-2 border-emerald-500/20">
+                <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-emerald-500/25">
+                  <Check className="w-10 h-10 text-white" />
+                </div>
+                <h4 className="text-lg font-bold text-slate-900 dark:text-white">Face ID Captured</h4>
+                <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-widest">Biometric data secured</p>
+                <Button variant="outline" onClick={retakeFaceId} className="mt-6 rounded-xl border-slate-200">Retake Photo</Button>
+              </div>
+            ) : capturingFaceId ? (
+              <div className="space-y-6">
+                <div className="relative bg-black rounded-[2rem] overflow-hidden aspect-square shadow-2xl ring-8 ring-slate-100 dark:ring-slate-900">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-[70%] h-[80%] border-2 border-white/30 rounded-[100%] shadow-[0_0_0_1000px_rgba(0,0,0,0.4)]" />
+                  </div>
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+                <div className="flex gap-4">
+                  <Button variant="outline" onClick={stopFaceCapture} className="flex-1 h-12 rounded-2xl">Cancel</Button>
+                  <Button onClick={captureFaceId} disabled={uploadingFile === 'face_id'} className="flex-1 h-12 rounded-2xl bg-primary text-white font-black uppercase tracking-widest">
+                    {uploadingFile === 'face_id' ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Capture'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-slate-50/50 dark:bg-slate-900/50 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+                <div className="w-24 h-24 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl text-slate-300">
+                  <ScanFace className="w-12 h-12" />
+                </div>
+                <Button onClick={startFaceCapture} className="h-14 px-8 rounded-2xl bg-primary text-white font-black uppercase tracking-widest shadow-xl shadow-primary/25">
+                  <Camera className="w-5 h-5 mr-2" /> Start Camera
+                </Button>
+                <p className="mt-6 text-[10px] text-slate-400 font-bold uppercase tracking-widest">Or skip this step for now</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+
+      case 3: return (
+        <div className="space-y-6 py-4">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Identity</h2>
+            <p className="text-slate-500 text-sm mt-1">Official identification for KYC compliance.</p>
+          </div>
+          <div className="max-w-md mx-auto space-y-5">
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/50 dark:border-slate-800">
+              <button onClick={() => updateField('id_type', 'national_id')} className={cn("py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all", formData.id_type === 'national_id' ? "bg-white dark:bg-slate-800 text-primary shadow-sm" : "text-slate-400")}>National ID</button>
+              <button onClick={() => updateField('id_type', 'passport')} className={cn("py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all", formData.id_type === 'passport' ? "bg-white dark:bg-slate-800 text-primary shadow-sm" : "text-slate-400")}>Passport</button>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">{formData.id_type === 'passport' ? 'Passport' : 'ID'} Number</Label>
+                <Input value={formData.national_id} onChange={e => updateField('national_id', e.target.value)} placeholder="Enter number..." className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Date of Birth</Label>
+                <Input type="date" value={formData.date_of_birth} onChange={e => updateField('date_of_birth', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
+              </div>
+              <FileUploader label="Document Photo (Front)" onUpload={(f: File) => handleFileUpload(f, 'id_front')} uploadedFile={uploadedFiles.id_front} uploading={uploadingFile === 'id_front'} required />
+            </div>
+          </div>
+        </div>
+      );
+
+      case 4: return (
+        <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Address Step - To Implement</div>
+      );
+
+      case 5: return (
+        <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Tax Step - To Implement</div>
+      );
+
+      case 6: return (
+        <div className="space-y-6 py-4">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Employment</h2>
+            <p className="text-slate-500 text-sm mt-1">Verify your active status with your employer.</p>
+          </div>
+          <div className="max-w-md mx-auto space-y-5">
+            <div className="space-y-2">
+              <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Select Employer</Label>
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input value={employerSearch} onChange={e => setEmployerSearch(e.target.value)} placeholder="Search companies..." className="pl-10 h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800" />
+              </div>
+              <div className="max-h-40 overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/50">
+                {filteredEmployers.map(emp => (
+                  <button key={emp.id} onClick={() => updateField('employer_id', emp.id)} className={cn("w-full text-left p-4 text-sm font-bold flex items-center justify-between group transition-colors", formData.employer_id === emp.id ? "bg-primary/5 text-primary" : "hover:bg-slate-50 dark:hover:bg-white/2")}>
+                    <span>{emp.company_name}</span>
+                    {formData.employer_id === emp.id && <Check className="w-4 h-4" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Job Title</Label>
+                <Input value={formData.job_title} onChange={e => updateField('job_title', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Monthly Salary</Label>
+                <Input type="number" value={formData.monthly_salary} onChange={e => updateField('monthly_salary', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
+              </div>
+            </div>
+            <FileUploader label="Latest Payslip" onUpload={(f: File) => handleFileUpload(f, 'payslip_1')} uploadedFile={uploadedFiles.payslip_1} uploading={uploadingFile === 'payslip_1'} required />
+          </div>
+        </div>
+      );
+
+      case 7: return (
+        <div className="space-y-6 py-4">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Payout</h2>
+            <p className="text-slate-500 text-sm mt-1">Where should we send your funds?</p>
+          </div>
+          <div className="max-w-md mx-auto space-y-6">
+            <div className="p-5 bg-primary/5 rounded-3xl border border-primary/10">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
+                <BankIcon className="w-3.5 h-3.5" /> Bank Details
+              </h4>
+              <div className="space-y-4">
+                <Input value={formData.bank_name} onChange={e => updateField('bank_name', e.target.value)} placeholder="Bank Name" className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800" />
+                <Input value={formData.bank_account} onChange={e => updateField('bank_account', e.target.value)} placeholder="Account Number" className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800" />
+              </div>
+            </div>
+            <div className="p-5 bg-indigo-500/5 rounded-3xl border border-indigo-500/10">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-4 flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5" /> Mobile Money
+              </h4>
+              <div className="space-y-4">
+                <Select value={formData.mobile_money_provider} onValueChange={v => updateField('mobile_money_provider', v)}>
+                  <SelectTrigger className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800">
+                    <SelectValue placeholder="Select Provider" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="M-PESA">M-PESA</SelectItem>
+                    <SelectItem value="Airtel Money">Airtel Money</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input value={formData.mobile_money_number} onChange={e => updateField('mobile_money_number', e.target.value)} placeholder="Mobile Number" className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800" />
+              </div>
+            </div>
+            <FileUploader label="Recent Bank Statement" onUpload={(f: File) => handleFileUpload(f, 'bank_statement')} uploadedFile={uploadedFiles.bank_statement} uploading={uploadingFile === 'bank_statement'} required />
+          </div>
+        </div>
+      );
+
+      default: return <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest">Form Section {currentStep}</div>;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 relative flex flex-col">
+      <EmployeeBackground />
+
+      <header className="relative z-10 w-full px-6 py-8 flex justify-center">
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all duration-500 shadow-xl shadow-primary/25 ring-4 ring-primary/5">
+            <span className="text-white font-black text-2xl">E</span>
+          </div>
+          <span className="font-heading font-black text-2xl text-slate-900 dark:text-white tracking-tight">EaziWage</span>
+        </Link>
+      </header>
+
+      <main className="relative z-10 flex-1 max-w-3xl w-full mx-auto px-6 pb-24">
+        <StepIndicator steps={STEPS} currentStep={currentStep} />
+
+        <div className="mt-12 space-y-8">
+          {error && (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+              <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">{error}</p>
+            </div>
           )}
+
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[2.5rem] p-8 md:p-12 border border-white/40 dark:border-slate-800 shadow-2xl shadow-slate-200/50 dark:shadow-black/20">
+            {renderStepContent()}
+          </div>
+
+          <div className="flex items-center justify-between gap-4 max-w-md mx-auto">
+            <Button 
+              variant="ghost" 
+              onClick={prevStep} 
+              disabled={currentStep === 0} 
+              className="h-14 px-8 rounded-2xl font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all disabled:opacity-0"
+            >
+              Back
+            </Button>
+            
+            {currentStep === STEPS.length - 1 ? (
+              <Button 
+                onClick={handleSubmit} 
+                disabled={loading || !canProceed()} 
+                className="flex-1 h-14 bg-primary text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-primary/30 transition-all hover:scale-[1.02] active:scale-95"
+              >
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Complete Setup'}
+              </Button>
+            ) : (
+              <Button 
+                onClick={nextStep} 
+                disabled={!canProceed()} 
+                className="flex-1 h-14 bg-primary text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-primary/30 transition-all hover:scale-[1.02] active:scale-95"
+              >
+                Continue <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            )}
+          </div>
         </div>
       </main>
     </div>
   );
 }
-

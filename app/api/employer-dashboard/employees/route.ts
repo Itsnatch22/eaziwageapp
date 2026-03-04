@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const allEmployees = (rawEmployees ?? []).map((e: any) => {
+  const allEmployees = (rawEmployees ?? []).map((e: Record<string, unknown>) => {
     // Pull full_name from profiles
     const profileRecord = Array.isArray(e.profile) ? e.profile[0] : e.profile;
     const full_name: string = profileRecord?.full_name ?? '';

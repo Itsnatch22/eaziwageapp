@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
   const now = new Date();
-  const data: any[] = [];
+  const data: Record<string, unknown>[] = [];
 
   if (period === 'weekly') {
     for (let i = 6; i >= 0; i--) {
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
         .eq('status', 'approved')
         .gte('requested_at', `${dayStart}T00:00:00`)
         .lte('requested_at', `${dayStart}T23:59:59`);
-      data.push({ name: d.toLocaleDateString('en-US', { weekday: 'short' }), amount: day?.reduce((s: number, a: any) => s + Number(a.amount), 0) || 0 });
+      data.push({ name: d.toLocaleDateString('en-US', { weekday: 'short' }), amount: day?.reduce((s: number, a: Record<string, unknown>) => s + Number(a.amount), 0) || 0 });
     }
   } else {
     for (let i = 5; i >= 0; i--) {
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
         .eq('status', 'approved')
         .gte('requested_at', m.toISOString())
         .lte('requested_at', end.toISOString());
-      data.push({ name: m.toLocaleDateString('en-US', { month: 'short' }), amount: month?.reduce((s: number, a: any) => s + Number(a.amount), 0) || 0 });
+      data.push({ name: m.toLocaleDateString('en-US', { month: 'short' }), amount: month?.reduce((s: number, a: Record<string, unknown>) => s + Number(a.amount), 0) || 0 });
     }
   }
 

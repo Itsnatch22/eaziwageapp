@@ -1,7 +1,7 @@
 "use client"
 import { 
   LayoutDashboard, Users, CreditCard, BarChart3, Settings, LogOut, 
-  Bell, Menu, X, ChevronRight, Upload, HelpCircle, Shield, Trash2
+  Bell, Menu, X, ChevronRight, Upload, HelpCircle, Shield, Trash2, MessageSquare
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
@@ -12,10 +12,10 @@ import Link from 'next/link';
 import { logout } from '@/actions/auth';
 import React,{ useState, useRef, useEffect, useCallback }from 'react';
 import { usePathname } from 'next/navigation';
-import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
+import { ChatWindow } from '../layout/ChatWindow';
 
 export const EmployerBackground = () => (
   <>
@@ -32,12 +32,31 @@ interface ContactSupportModalProps {
   onClose: () => void;
 }
 
+interface EmployerUser {
+  id?: string;
+  email?: string;
+  full_name?: string;
+  user_metadata?: {
+    full_name?: string;
+    name?: string;
+  };
+}
+
+interface EmployerNotification {
+  id: string;
+  type: 'advance' | 'system' | 'employee' | string;
+  title: string;
+  message: string;
+  read: boolean;
+  created_at?: string;
+}
+
 const ContactSupportModal = ({ isOpen, onClose }: ContactSupportModalProps) => {
   const [formData, setFormData] = useState({ subject: '', message: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -55,12 +74,12 @@ const ContactSupportModal = ({ isOpen, onClose }: ContactSupportModalProps) => {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div 
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-md overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         <div className="bg-linear-to-r from-primary to-emerald-600 p-6">
           <h2 className="text-xl font-bold text-white">Contact Support</h2>
-          <p className="text-white/80 text-sm mt-1">We're here to help 24/7</p>
+          <p className="text-white/80 text-sm mt-1">We&apos;re here to help 24/7</p>
         </div>
         
         {submitted ? (
@@ -121,51 +140,17 @@ interface SidebarNavProps {
 }
 const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const location = usePathname();
-  const router = useRouter();
-  const user = useAuthStore((state: { user: any; }) => state.user);
-  const [isHydrated, setIsHydrated] = useState(false);
-  const [profileIdentity, setProfileIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
+  const user = useAuthStore((state) => state.user as EmployerUser | null);
   const [showContactModal, setShowContactModal] = useState(false);
-  const authName =
-    user?.full_name ||
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    '';
-  const authEmail = user?.email || user?.user_metadata?.email || '';
-  const fullName =
-    authName?.trim() ||
-    profileIdentity?.full_name?.trim() ||
-    profileIdentity?.email?.split('@')[0] ||
-    'User';
-  const userEmail = authEmail || profileIdentity?.email || 'No email';
+
+  const fullName = user?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Employer';
+  const userEmail = user?.email || 'No email';
   const initials = fullName
     .split(' ')
     .filter(Boolean)
     .map((n: string) => n[0])
     .join('')
-    .toUpperCase() || 'U';
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    const fetchIdentity = async () => {
-      try {
-        const res = await fetch('/api/employer-dashboard/profile');
-        const data = await res.json();
-        if (!res.ok) return;
-        const profile = data?.profile || {};
-        setProfileIdentity({
-          full_name: profile?.full_name || profile?.contact_person || '',
-          email: profile?.email || profile?.contact_email || '',
-        });
-      } catch {
-        // Non-fatal; auth store is primary source.
-      }
-    };
-    fetchIdentity();
-  }, []);
+    .toUpperCase() || 'E';
 
   const navItems = [
     { href: '/dashboards/employer-dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -255,7 +240,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
               );
             })}
 
-            {/* Help Card - Now inside scrollable area */}
+            {/* Help Card */}
             <div className="mt-6 bg-linear-to-br from-primary/10 to-emerald-500/10 dark:from-primary/20 dark:to-emerald-500/20 rounded-2xl p-4 border border-primary/20">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
@@ -263,7 +248,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">Need Help?</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">We're here 24/7</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">We&apos;re here 24/7</p>
                 </div>
               </div>
               <button 
@@ -281,15 +266,15 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-11 h-11 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
                 <span className="text-white font-bold text-sm">
-                  {isHydrated ? initials : 'U'}
+                  {initials}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                  {isHydrated ? fullName : 'User'}
+                  {fullName}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                  {isHydrated ? userEmail : 'No email'}
+                  {userEmail}
                 </p>
               </div>
             </div>
@@ -320,10 +305,12 @@ interface TopHeaderProps {
 }
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [greeting, setGreeting] = useState('Welcome');
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const [notifications, setNotifications] = useState<EmployerNotification[]>([]);
+  const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
-  const user = useAuthStore((state: any) => state.user);
+  const user = useAuthStore((state) => state.user as EmployerUser | null);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -338,12 +325,14 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   }, []);
 
   useEffect(() => {
-    fetchNotifications();
+    const timer = setTimeout(() => {
+      void fetchNotifications();
+    }, 0);
 
     if (user?.id && pusherClient) {
       const channel = pusherClient.subscribe(`employer-${user.id}`);
       
-      channel.bind('new-notification', (data: any) => {
+      channel.bind('new-notification', (data: EmployerNotification) => {
         toast(data.title, {
           description: data.message,
           icon: <Bell className="w-5 h-5 text-primary" />
@@ -356,9 +345,11 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
       });
 
       return () => {
+        clearTimeout(timer);
         pusherClient!.unsubscribe(`employer-${user.id}`);
       };
     }
+    return () => clearTimeout(timer);
   }, [user?.id, fetchNotifications]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -371,8 +362,8 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
             setNotifications(prev => prev.filter(n => String(n.id) !== String(id)));
             toast.success('Notification deleted');
         }
-    } catch (err) {
-        toast.error('Failed to delete notification');
+    } catch {
+      toast.error('Failed to delete notification');
     }
   };
 
@@ -386,20 +377,12 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good Morning');
-    else if (hour < 17) setGreeting('Good Afternoon');
-    else setGreeting('Good Evening');
-  }, []);
-
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50">
       <div className="px-4 lg:px-8 py-4">
         <div className="flex items-center justify-between">
-          {/* Left side - Menu + Greeting */}
           <div className="flex items-center gap-4">
             <button
               onClick={onMenuClick}
@@ -409,17 +392,23 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-	              <p className="text-sm text-slate-500 dark:text-slate-400">{greeting}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{greeting}</p>
               <h1 className="text-lg font-bold text-slate-900 dark:text-white">
                 {employer?.company_name || 'Company Portal'}
               </h1>
             </div>
           </div>
 
-          {/* Right side - Actions */}
           <div className="flex items-center gap-2">
-            
-            {/* Notifications Bell with Dropdown */}
+            {/* Messaging */}
+            <button
+              onClick={() => setActiveChat({ id: 'admin-support', name: 'EaziWage Support' })}
+              className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
+              aria-label="Messages"
+            >
+              <MessageSquare className="w-5 h-5" />
+            </button>
+
             <div className="relative" ref={notificationsRef}>
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}
@@ -434,7 +423,6 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
                 )}
               </button>
 
-              {/* Notifications Dropdown */}
               {showNotifications && (
                 <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-hidden z-50">
                   <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/30 flex items-center justify-between">
@@ -515,17 +503,26 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
           </div>
         </div>
       </div>
+
+      {activeChat && user && (
+        <ChatWindow 
+          currentUserId={user.id ?? 'unknown-user'}
+          otherUserId={activeChat.id}
+          otherUserName={activeChat.name}
+          onClose={() => setActiveChat(null)}
+        />
+      )}
     </header>
   );
 };
 
 interface EmployerPortalLayoutProps {
   children: React.ReactNode;
-  employer: {
+  employer?: {
     company_name: string;
   } | null;
 }
-export const EmployerPortalLayout = ({ children, employer }: EmployerPortalLayoutProps) => {
+export const EmployerPortalLayout = ({ children, employer = null }: EmployerPortalLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (

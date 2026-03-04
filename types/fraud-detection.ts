@@ -147,9 +147,9 @@ export interface RuleToggleResponse {
   enabled: boolean;
 }
 
-export interface RuleCreateResponse extends FraudRule {}
+export type RuleCreateResponse = FraudRule;
 
-export interface RuleUpdateResponse extends FraudRule {}
+export type RuleUpdateResponse = FraudRule;
 
 export interface ReviewSubmitResponse {
   success: boolean;

@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
     const documentType = parsedDocType.data;
 
     // Validate MIME type (image/jpeg is explicitly allowed)
-    if (!ALLOWED_MIME_TYPES.includes(file.type as any)) {
+    if (!ALLOWED_MIME_TYPES.some((allowed) => allowed === file.type)) {
       return NextResponse.json(
         { error: 'Invalid file type. Allowed: JPEG, PNG, WEBP, PDF', code: 'INVALID_FILE_TYPE' },
         { status: 422 }
@@ -340,13 +340,15 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(validatedDoc, { status: 201 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[KYC POST] Full error object:', JSON.stringify(err, null, 2));
-    console.error('[KYC POST] Error message:', err?.message);
-    console.error('[KYC POST] Error stack:', err?.stack);
+    const errMessage = err instanceof Error ? err.message : 'Internal server error';
+    const errStack = err instanceof Error ? err.stack : undefined;
+    console.error('[KYC POST] Error message:', errMessage);
+    console.error('[KYC POST] Error stack:', errStack);
     
     return NextResponse.json({ 
-        error: err?.message || 'Internal server error', 
+        error: errMessage, 
         code: 'SERVER_ERROR',
         details: process.env.NODE_ENV === 'development' ? err : undefined
     }, { status: 500 });

@@ -4,9 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Building2, Lock, Bell, HelpCircle, 
   MessageCircle, Scale, LogOut, ChevronRight, CheckCircle2,
-   Sun, Moon, Shield, CreditCard, Smartphone, 
+  Shield, CreditCard, Smartphone, 
   Mail, Phone, Camera, Edit2, Save, X, MapPin, FileText,
-  User, IdCard, ChevronDown, ScanFace, Eye, EyeOff
+  User, IdCard, ChevronDown, ScanFace, Eye, EyeOff,
+  Briefcase, Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -498,15 +499,6 @@ const BiometricScanModal = ({ isOpen, onClose, onSuccess }: BiometricScanModalPr
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  useEffect(() => {
-    if (isOpen && !scanning && !scanComplete) {
-      startCamera();
-    }
-    return () => {
-      stopCamera();
-    };
-  }, [isOpen]);
-
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -528,6 +520,16 @@ const BiometricScanModal = ({ isOpen, onClose, onSuccess }: BiometricScanModalPr
       streamRef.current = null;
     }
   };
+
+  useEffect(() => {
+    if (isOpen && !scanning && !scanComplete) {
+      startCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const handleScan = () => {
     setScanning(true);
@@ -674,6 +676,8 @@ interface EmployeeProfile {
   employer_name?: string;
   kyc_status?: string;
   job_title?: string;
+  nationality?: string;
+  employment_type?: string;
   address_line1?: string;
   city?: string;
   postal_code?: string;
@@ -742,7 +746,7 @@ export default function Settings() {
 
     const fetchProfile = async () => {
       try {
-        const res = await fetch('/api/profile');
+        const res = await fetch('/api/employee-dashboard/profile');
         if (res.ok) {
           const data = await res.json();
           setProfile(data.profile);
@@ -986,6 +990,13 @@ export default function Settings() {
               icon={Phone}
               placeholder="Enter phone number"
             />
+            <EditableField 
+              label="Nationality" 
+              value={employee?.nationality || ''} 
+              onSave={(val) => handleEmployeeSettingsSave('nationality', val)}
+              icon={Globe}
+              placeholder="Your nationality"
+            />
           </div>
         </div>
 
@@ -1014,6 +1025,38 @@ export default function Settings() {
               icon={MapPin}
               placeholder="Postal code"
             />
+          </div>
+        </div>
+
+        {/* Employment Details */}
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
+          <SectionHeader title="Employment" />
+          <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
+            <EditableField 
+              label="Job Title" 
+              value={employee?.job_title || ''} 
+              onSave={(val) => handleEmployeeSettingsSave('job_title', val)}
+              icon={Briefcase}
+              placeholder="Your job title"
+            />
+            <EditableField 
+              label="Employment Type" 
+              value={employee?.employment_type || ''} 
+              onSave={(val) => handleEmployeeSettingsSave('employment_type', val)}
+              icon={User}
+              placeholder="e.g. Full-time"
+            />
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shrink-0">
+                <CreditCard className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-0.5">Monthly Gross Salary</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                  {employee?.monthly_salary ? Number(employee.monthly_salary).toLocaleString() : 'Not set'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1067,29 +1110,29 @@ export default function Settings() {
           </div>
           <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
             <KYCDocumentItem 
+              title="Face ID Verification" 
+              status={getDocStatus('face_id')}
+              icon={ScanFace}
+            />
+            <KYCDocumentItem 
               title="National ID / Passport" 
-              status={getDocStatus('id_front') || (employee?.id_document_front ? 'submitted' : null)}
+              status={getDocStatus('id_front')}
               icon={IdCard}
             />
             <KYCDocumentItem 
               title="Proof of Address" 
-              status={getDocStatus('address_proof') || (employee?.address_proof ? 'submitted' : null)}
+              status={getDocStatus('address_proof')}
               icon={MapPin}
             />
             <KYCDocumentItem 
               title="Payslips" 
-              status={getDocStatus('payslip_1') || (employee?.payslip_1 ? 'submitted' : null)}
+              status={getDocStatus('payslip_1')}
               icon={FileText}
             />
             <KYCDocumentItem 
               title="Employment Contract" 
-              status={getDocStatus('employment_contract') || (employee?.employment_contract ? 'submitted' : null)}
+              status={getDocStatus('employment_contract')}
               icon={FileText}
-            />
-            <KYCDocumentItem 
-              title="Selfie Verification" 
-              status={getDocStatus('selfie') || (employee?.selfie ? 'submitted' : null)}
-              icon={Camera}
             />
           </div>
         </div>

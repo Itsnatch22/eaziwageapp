@@ -21,7 +21,7 @@ declare global {
     grecaptcha: {
       ready: (cb: () => void) => void;
       execute: (siteKey: string, options: { action: string }) => Promise<string>;
-      render: (container: string | HTMLElement, parameters: Record<string, any>) => number;
+      render: (container: string | HTMLElement, parameters: Record<string, unknown>) => number;
     reset: (widgetId?: number) => void;
     };
   }
@@ -123,7 +123,7 @@ export default function ForgotPasswordPage() {
           <p className="text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
             If an account exists for{' '}
             <span className="font-semibold text-slate-700 dark:text-slate-300">{email}</span>,
-            you'll receive a password reset link shortly.
+            you&apos;ll receive a password reset link shortly.
           </p>
           <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
             The link expires in 1 hour. Check your spam folder if you don&apos;t see it.
@@ -208,7 +208,7 @@ export default function ForgotPasswordPage() {
                 </span>
               </h1>
               <p className="text-base text-slate-500 dark:text-slate-400 leading-relaxed">
-                No worries. Enter the email address linked to your account and we'll send you a reset link.
+                No worries. Enter the email address linked to your account and we&apos;ll send you a reset link.
               </p>
             </div>
 

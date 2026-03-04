@@ -27,27 +27,63 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // Check if user is an env-defined admin
+  const adminEmails = (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+  const isEnvAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
+
+  // Check system_admins table for env admins
+  let systemAdminRecord = null;
+  if (isEnvAdmin) {
+    const { data: sysAdmin } = await adminSupabase
+      .from('system_admins')
+      .select('id, email, full_name')
+      .eq('id', user.id)
+      .maybeSingle<{ id: string; email: string; full_name: string | null }>();
+    systemAdminRecord = sysAdmin;
+  }
+
+  // Check profiles table for regular users
   const { data: profile } = await adminSupabase
     .from('profiles')
-    .select('role')
+    .select('id, email, full_name, role')
     .eq('id', user.id)
-    .maybeSingle<{ role: string | null }>();
+    .maybeSingle<{ id: string; email: string; full_name: string | null; role: string | null }>();
+
+  // If user is env admin, they have admin access
+  if (isEnvAdmin) {
+    return NextResponse.json({
+      user_id: user.id,
+      email: user.email,
+      full_name: systemAdminRecord?.full_name ?? profile?.full_name ?? user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+      profiles_role: profile?.role ?? null,
+      app_metadata_role: user.app_metadata?.role ?? null,
+      user_metadata_role: user.user_metadata?.role ?? null,
+      role_candidates: ['admin'],
+      is_admin: true,
+      is_env_admin: true,
+      allowed_roles: ['admin', 'super_admin', 'compliance', 'employer_admin'],
+    });
+  }
 
   const roleCandidates = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
     .filter((r): r is string => typeof r === 'string' && r.length > 0)
     .map((r) => r.toLowerCase());
 
+  const isAdminRoleFinal = roleCandidates.some((role) => {
+    const parsed = UserRoleEnum.safeParse(role);
+    return parsed.success && isAdminRole(parsed.data);
+  });
+
   return NextResponse.json({
     user_id: user.id,
     email: user.email,
+    full_name: profile?.full_name ?? user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
     profiles_role: profile?.role ?? null,
     app_metadata_role: user.app_metadata?.role ?? null,
     user_metadata_role: user.user_metadata?.role ?? null,
     role_candidates: roleCandidates,
-    is_admin: roleCandidates.some((role) => {
-      const parsed = UserRoleEnum.safeParse(role);
-      return parsed.success && isAdminRole(parsed.data);
-    }),
+    is_admin: isAdminRoleFinal,
+    is_env_admin: false,
     allowed_roles: ['admin', 'super_admin', 'compliance', 'employer_admin'],
   });
 }

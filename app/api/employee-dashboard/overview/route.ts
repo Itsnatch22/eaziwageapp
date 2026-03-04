@@ -20,7 +20,8 @@ export async function GET() {
       employer:employer_id (
         id,
         company_name,
-        risk_score
+        risk_score,
+        country
       )
     `)
     .eq('user_id', user.id)
@@ -75,6 +76,18 @@ export async function GET() {
   
   const advanceLimit = Math.max(0, (earnedWages * maxAccessPct) - totalAdvances);
 
+  const currencyMap: Record<string, string> = {
+    'Kenya': 'KES',
+    'Uganda': 'UGX',
+    'Tanzania': 'TZS',
+    'Rwanda': 'RWF',
+    'KE': 'KES',
+    'UG': 'UGX',
+    'TZ': 'TZS',
+    'RW': 'RWF',
+  };
+  const currency = currencyMap[employee.employer?.country] || 'KES';
+
   // 5. Build response in unison with existing dashboard patterns
   return NextResponse.json({
     employee: {
@@ -85,6 +98,7 @@ export async function GET() {
       status: employee.status,
       kyc_status: employee.status, 
       profile_picture_url: user.user_metadata?.avatar_url,
+      currency,
     },
     stats: {
       earned_wages: earnedWages,

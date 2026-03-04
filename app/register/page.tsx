@@ -53,7 +53,7 @@ declare global {
     grecaptcha: {
       ready: (cb: () => void) => void;
       execute: (siteKey: string, options: { action: string }) => Promise<string>;
-      render: (container: string | HTMLElement, parameters: Record<string, any>) => number;
+      render: (container: string | HTMLElement, parameters: Record<string, unknown>) => number;
       reset: (widgetId?: number) => void;
     };
   }
@@ -214,7 +214,7 @@ function CompanySearchModal({ employers, onSelect, onNotFound, onClose }: Compan
             onClick={onNotFound}
             className="w-full py-3 text-sm font-medium text-green-600 dark:text-green-400 hover:underline"
           >
-            My company isn't listed — Continue without code
+            My company isn&apos;t listed — Continue without code
           </button>
         </div>
       </div>
@@ -564,7 +564,7 @@ export default function RegisterPage() {
                             <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
                             <div>
                               <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Company not on EaziWage yet</p>
-                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Provide your employer&apos;s details and we'll reach out to onboard them.</p>
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Provide your employer&apos;s details and we&apos;ll reach out to onboard them.</p>
                             </div>
                           </div>
                         </div>

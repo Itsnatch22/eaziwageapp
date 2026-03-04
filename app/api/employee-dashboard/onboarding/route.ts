@@ -48,12 +48,12 @@ export async function POST(req: NextRequest) {
 
   const data = parsed.data;
 
-  // ── Verify the employer exists and is approved ────────────────────────────
+  // ── Verify the employer exists and is registered ──────────────────────────
   const { data: onboardingEmp } = await supabase
     .from('employer_onboarding')
     .select('id, company_name, status, user_id')
     .eq('id', data.employer_id)
-    .eq('status', 'approved')
+    .in('status', ['approved', 'pending'])
     .maybeSingle();
 
   let employer = onboardingEmp;
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       .from('employers')
       .select('id, company_name, status, user_id')
       .eq('id', data.employer_id)
-      .eq('status', 'approved')
+      .in('status', ['approved', 'pending'])
       .maybeSingle();
     
     if (syncedEmp) {
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
   if (!employer) {
     return NextResponse.json(
-      { error: 'Selected employer is not registered or not yet approved on EaziWage.' },
+      { error: 'Selected employer is not registered on EaziWage.' },
       { status: 422 },
     );
   }
@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
     bank_account,
     mobile_money_provider,
     mobile_money_number,
+    face_id,
     id_front,
     id_back,
     address_proof,
@@ -149,6 +150,7 @@ export async function POST(req: NextRequest) {
     mobile_money_provider,
     mobile_money_number,
     // Documents
+    face_id: face_id || null,
     id_front: id_front || null,
     id_back: id_back || null,
     address_proof: address_proof || null,
@@ -203,6 +205,7 @@ export async function POST(req: NextRequest) {
     const docSyncs = [];
     const idDocType = data.id_type === 'passport' ? 'passport' : 'national_id';
     
+    if (face_id) docSyncs.push({ user_id: user.id, document_type: 'face_id', document_url: face_id, status: 'pending' });
     if (id_front) docSyncs.push({ user_id: user.id, document_type: idDocType, document_url: id_front, status: 'pending' });
     if (address_proof) docSyncs.push({ user_id: user.id, document_type: 'utility_bill', document_url: address_proof, status: 'pending' });
     if (tax_certificate) docSyncs.push({ user_id: user.id, document_type: 'tax_certificate', document_url: tax_certificate, status: 'pending' });

@@ -54,7 +54,7 @@ export async function PATCH(
     return NextResponse.json({ error: employeesError.message }, { status: 500 });
   }
 
-  const employeeIds = (employeeRows ?? []).map((e: any) => e.id);
+  const employeeIds = (employeeRows ?? []).map((e: { id: string }) => e.id);
   if (employeeIds.length === 0) {
     return NextResponse.json({ error: 'No employees found' }, { status: 404 });
   }

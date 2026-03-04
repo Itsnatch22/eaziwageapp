@@ -4,7 +4,8 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 import { getEnv }                      from '@/env';
 import { apiLimiter, checkRateLimit }  from '@/lib/rate-limit';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { isAdminRole } from '@/lib/validations/kyc-validation';
+import type { UserRole } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import pusherServer from '@/lib/pusher-server';
 
@@ -213,7 +214,7 @@ export async function DELETE(req: NextRequest) {
 
         // Verify Admin
         const { data: profile } = await adminSupabase.from('profiles').select('role').eq('id', user.id).single();
-        if (!profile || !isAdminRole(profile.role as any)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        if (!profile || !isAdminRole(profile.role as UserRole)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
         const { error } = await adminSupabase.from('admin_notifications').delete().eq('id', id);
         if (error) throw error;
@@ -222,7 +223,7 @@ export async function DELETE(req: NextRequest) {
         await pusherServer.trigger('admin-notifications', 'notification-deleted', { id });
 
         return NextResponse.json({ success: true });
-    } catch (err) {
+    } catch {
         return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
 }

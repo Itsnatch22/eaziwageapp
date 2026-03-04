@@ -1,0 +1,116 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+import pusherServer from '@/lib/pusher-server';
+import { z } from 'zod';
+
+const bankChangeSchema = z.object({
+  bank_name: z.string().min(2, 'Bank name is required'),
+  bank_account_number: z.string().min(5, 'Account number is required'),
+  reason: z.string().optional(),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = await createRouteHandlerClient();
+
+    // 1. Auth check
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 2. Verify employer role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || profile.role !== 'employer') {
+      return NextResponse.json({ error: 'Forbidden. Employer access required.' }, { status: 403 });
+    }
+
+    // 3. Get employer details
+    const { data: employer } = await supabase
+      .from('employer_onboarding')
+      .select('id, company_name, bank_name, bank_account_number')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!employer) {
+      return NextResponse.json({ error: 'Employer record not found' }, { status: 404 });
+    }
+
+    // 4. Parse & validate body
+    const body = await req.json().catch(() => ({}));
+    const parsed = bankChangeSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Validation failed', details: parsed.error.issues }, { status: 422 });
+    }
+
+    const { bank_name, bank_account_number, reason } = parsed.data;
+
+    // 5. Create Bank Change Request record
+    const { data: requestRecord, error: requestError } = await supabase
+      .from('bank_change_requests')
+      .insert({
+        employer_id: employer.id,
+        user_id: user.id,
+        old_bank_name: employer.bank_name,
+        old_account_number: employer.bank_account_number,
+        new_bank_name: bank_name,
+        new_account_number: bank_account_number,
+        reason: reason || 'Not provided',
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (requestError) {
+      console.error('[bank-change-request] DB error:', requestError);
+      // We'll still try to send notification if table doesn't exist, but maybe log it
+    }
+
+    // 6. Create admin notification
+    const { data: adminNotif, error: notifError } = await supabase
+      .from('admin_notifications')
+      .insert({
+        type: 'employer_kyc',
+        title: 'Bank Details Change Request',
+        message: `${employer.company_name} is requesting to change their bank details.`,
+        read: false,
+        metadata: {
+          employer_id: employer.id,
+          company_name: employer.company_name,
+          current_bank: employer.bank_name,
+          current_account: employer.bank_account_number,
+          requested_bank: bank_name,
+          requested_account: bank_account_number,
+          reason: reason || 'Not provided',
+          request_type: 'bank_change',
+          request_id: requestRecord?.id
+        },
+      })
+      .select()
+      .single();
+
+    if (notifError) {
+      console.error('[bank-change-request] Notification error:', notifError);
+      return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
+    }
+
+    // 7. Trigger real-time notification for admins
+    if (adminNotif) {
+      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Bank change request submitted successfully. Our team will review it shortly.' 
+    });
+
+  } catch (error) {
+    console.error('[POST /api/employer-dashboard/settings/bank-change-request] Unexpected error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

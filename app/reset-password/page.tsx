@@ -27,7 +27,7 @@ declare global {
     grecaptcha: {
       ready: (cb: () => void) => void;
       execute: (siteKey: string, options: { action: string }) => Promise<string>;
-      render: (container: string | HTMLElement, parameters: Record<string, any>) => number;
+      render: (container: string | HTMLElement, parameters: Record<string, unknown>) => number;
       reset: (widgetId?: number) => void;
     };
   }
@@ -132,7 +132,7 @@ export default function ResetPasswordPage() {
   );
 
   // ── Validate client-side before hitting the API ─────────────────────────────
-  const validate = (): string | null => {
+  const validate = useCallback((): string | null => {
     if (password.length < 8)
       return 'Password must be at least 8 characters.';
     if (!/[A-Z]/.test(password))
@@ -142,7 +142,7 @@ export default function ResetPasswordPage() {
     if (password !== confirm)
       return 'Passwords do not match.';
     return null;
-  };
+  }, [password, confirm]);
 
   // ── Submit handler ──────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
@@ -187,7 +187,7 @@ export default function ResetPasswordPage() {
       setFormError('Something went wrong. Please try again.');
       setState('idle');
     }
-  }, [token, password, confirm, getReCaptchaToken]);
+  }, [token, password, getReCaptchaToken, validate]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSubmit();

@@ -29,7 +29,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   try {
-    // ── 4. Fetch employer stats ───────────────────────────────────────────────
+    // ── 4. Fetch counts ───────────────────────────────────────────────────────
+    
+    // Risk Reviews from review_requests
+    const { count: riskPending } = await supabase
+      .from('review_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    // Bank Changes
+    const { count: bankPending } = await supabase
+      .from('bank_change_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    const totalPendingReviews = (riskPending || 0) + (bankPending || 0);
+
+    // Employers
     const { count: employerTotal } = await supabase
       .from('employers')
       .select('id', { count: 'exact', head: true });
@@ -40,11 +56,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .eq('status', 'approved');
 
     const { count: employerPending } = await supabase
-      .from('employers')
+      .from('employer_onboarding')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending');
 
-    // ── 5. Fetch employee stats ───────────────────────────────────────────────
+    // Employees
     const { count: employeeTotal } = await supabase
       .from('employees')
       .select('id', { count: 'exact', head: true });
@@ -55,10 +71,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .eq('status', 'approved');
 
     const { count: employeeKYCPending } = await supabase
-      .from('employees')
+      .from('employee_kyc_documents')
       .select('id', { count: 'exact', head: true })
-      .in('kyc_status', ['submitted', 'pending']);
+      .eq('status', 'pending');
 
+    // ... rest of logic stays similar but with improved queries ...
+    
     // ── 5b. Fetch trends ──────────────────────────────────────────────────────
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -123,20 +141,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ? employerRisks.reduce((sum, e) => sum + (e.risk_score || 0), 0) / employerRisks.length
       : 3.5;
 
-    const { count: riskFactorsCount } = await supabase
-      .from('employer_risk_factors')
-      .select('employer_id', { count: 'exact', head: true });
-    
-    const pendingReviews = Math.max(0, (employerTotal || 0) - (riskFactorsCount || 0));
-
     // ── 9. Fetch API health 
     const { data: apiHealthData } = await supabase
       .from('api_health')
       .select('name, status, latency_ms, uptime_percent');
 
-    const apiHealth = apiHealthData || [];
-
-    const apiHealthStats = apiHealth.reduce((stats: Record<string, any>, health: any) => {
+    type ApiHealthRow = {
+      name: string | null;
+      status: string | null;
+      latency_ms: number | null;
+      uptime_percent: number | null;
+    };
+    const apiHealthStats = ((apiHealthData || []) as ApiHealthRow[]).reduce((stats: Record<string, ApiHealthRow>, health) => {
       if (health.name) {
         stats[health.name] = {
           name: health.name,
@@ -174,7 +190,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           employers: employerPending || 0,
           employees: employeeKYCPending || 0,
         },
-        pending_reviews: pendingReviews,
+        pending_reviews: totalPendingReviews,
         pending_reconciliation: pendingReconciliation || 0,
         monthly: {
           disbursed:     monthlyDisbursed,

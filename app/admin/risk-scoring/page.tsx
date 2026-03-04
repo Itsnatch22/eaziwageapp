@@ -25,7 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { AdminPortalLayout } from '@/components/admin/AdminLayout';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,10 +67,11 @@ interface Stats {
     high_risk: number;
     very_high_risk: number;
   };
-  risk_stats: number[]; // For histogram or distribution chart
+  risk_stats: number[]; 
   avg_risk_score: number;
   avg_application_fee: number;
   needs_risk_assessment: number;
+  base_currency: string;
 }
 
 interface ApiResponse {

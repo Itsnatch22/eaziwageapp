@@ -81,7 +81,7 @@ export async function PUT(
 
   const parsed = ewaSettingsSchema.safeParse(coerced);
   if (!parsed.success) {
-    const detail = parsed.error.issues.map((e: { path: any[]; message: any; }) => ({
+    const detail = parsed.error.issues.map((e) => ({
       field: e.path.join('.'),
       msg: e.message,
     }));

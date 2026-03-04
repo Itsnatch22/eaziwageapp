@@ -1,8 +1,9 @@
 import { createClient } from "../supabase/client";
 import { useEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 
 interface AuthState {
-  user: any;
+  user: (User & { full_name?: string }) | null;
   loading: boolean;
 }
 

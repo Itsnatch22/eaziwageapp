@@ -380,6 +380,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
 
   // ── Calculate Statistics ──────────────────────────────────────────────────
+  const countries = [...new Set(result.map((e) => e.country).filter(Boolean))].sort();
+  const industries = [...new Set(result.map((e) => e.industry).filter(Boolean))].sort();
+
   const stats = {
     total: result.length,
     active: result.filter((e) => e.status === 'approved').length,
@@ -407,10 +410,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     
     // Employers needing risk assessment
     needs_risk_assessment: result.filter((e) => !e.has_risk_factors || e.status === 'risk_review_in_progress').length,
-  };
 
-  const countries = [...new Set(result.map((e) => e.country).filter(Boolean))].sort();
-  const industries = [...new Set(result.map((e) => e.industry).filter(Boolean))].sort();
+    // Currency metadata for dashboard formatting
+    base_currency: countryFilter ? (countries.find(c => c === countryFilter) || 'KES') : 'KES',
+  };
 
   // ── Apply Filters ─────────────────────────────────────────────────────────
   const filtered = result.filter((e) => {

@@ -39,6 +39,7 @@ export const DocumentTypeEnum = z.enum([
   'tax_certificate',
   'utility_bill',
   'selfie',
+  'face_id',
 ]);
 export type DocumentType = z.infer<typeof DocumentTypeEnum>;
 
@@ -213,6 +214,7 @@ export const ApiErrorResponseSchema = z.object({
   error: z.string(),
   code: z.string().optional(),
   details: z.unknown().optional(),
+  keys: z.array(z.string()).optional(),
 });
 
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
@@ -235,6 +237,7 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   tax_certificate: 'Tax Compliance Certificate',
   utility_bill: 'Utility Bill (Proof of Address)',
   selfie: 'Selfie/Photo',
+  face_id: 'Face ID Verification',
 };
 
 export const STATUS_CONFIG = {

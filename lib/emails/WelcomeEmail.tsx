@@ -6,7 +6,6 @@ import {
   Heading,
   Hr,
   Html,
-  Img,
   Link,
   Preview,
   Section,
@@ -118,7 +117,7 @@ export default function WelcomeEmail({
           {/* ── Features ── */}
           <Section style={styles.featuresSection}>
             <Heading as="h2" style={styles.featuresHeading}>
-              What's waiting for you
+              What&apos;s waiting for you
             </Heading>
             {featureItems.map((item, i) => (
               <div key={i} style={styles.featureRow}>

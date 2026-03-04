@@ -57,7 +57,7 @@ export async function GET(request: Request) {
   const empMap = new Map(employees?.map(e => [e.id, Number(e.salary || 0)]));
 
   // Group by week
-  const weekly: any[] = [];
+  const weekly: unknown[] = [];
   for (let i = 7; i >= 0; i--) {
     const start = new Date();
     start.setDate(start.getDate() - i * 7);

@@ -152,7 +152,7 @@ const FilterButton: React.FC<{ active: boolean; onClick: () => void; children: R
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: any[];
+  payload?: { payload: Record<string, unknown>; value: number; name: string }[];
   totalEmployees: number;
 }
 

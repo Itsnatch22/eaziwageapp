@@ -63,7 +63,15 @@ export async function GET(req: NextRequest) {
 
   if (kycError) console.error('Error fetching KYC docs:', kycError);
 
-  // 3. Combine and Format
+  // 3. Fetch Bank Change Requests
+  const { data: bankRequests, error: bankError } = await adminSupabase
+    .from('bank_change_requests')
+    .select('*, employer_onboarding(company_name)')
+    .order('created_at', { ascending: false });
+
+  if (bankError) console.error('Error fetching bank change requests:', bankError);
+
+  // 4. Combine and Format
   const formattedRisk = (riskRequests || []).map(r => ({
     id: r.id,
     type: 'risk_score',
@@ -89,7 +97,19 @@ export async function GET(req: NextRequest) {
     raw_data: k
   }));
 
-  const allRequests = [...formattedRisk, ...formattedKyc].sort(
+  const formattedBank = (bankRequests || []).map(b => ({
+    id: b.id,
+    type: 'bank_change',
+    subject: `Bank Change Request: ${b.employer_onboarding?.company_name}`,
+    employer_name: b.employer_onboarding?.company_name,
+    message: `New Bank: ${b.new_bank_name}. New Account: ${b.new_account_number}`,
+    status: b.status,
+    priority: 'high',
+    requested_at: b.created_at,
+    raw_data: b
+  }));
+
+  const allRequests = [...formattedRisk, ...formattedKyc, ...formattedBank].sort(
     (a, b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime()
   );
 

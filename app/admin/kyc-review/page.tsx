@@ -7,11 +7,19 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Download,
   RefreshCw,
   X,
   Calendar,
   Loader2,
+  Building2,
+  User,
+  ExternalLink,
+  ChevronRight,
+  Shield,
+  Briefcase,
+  MapPin,
+  CreditCard,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,32 +37,36 @@ import {
 // TYPES
 // ============================================================================
 
-interface DocumentStats {
-  pending: number;
-  approved: number;
-  rejected: number;
-  total: number;
+interface EmployerApplication {
+  id: string;
+  user_id: string;
+  company_name: string;
+  registration_number: string;
+  industry: string;
+  city?: string;
+  status: DocumentStatus;
+  created_at: string;
+  // Document URLs
+  certificate_of_incorporation?: string;
+  kra_pin_certificate?: string;
+  cr12_document?: string;
+  business_permit?: string;
+  reviewer_notes?: string;
+  // Financials
+  bank_name?: string;
+  bank_account_number?: string;
 }
 
 type FilterType = 'all' | DocumentStatus;
+type EntityType = 'employee' | 'employer';
+type IconType = React.ComponentType<{ className?: string }>;
+type GradientVariant = 'purple' | 'green' | 'amber' | 'red' | 'blue';
 
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
 
-interface GradientIconBoxProps {
-  icon: React.ElementType;
-  size?: 'sm' | 'md' | 'lg';
-  variant?: 'purple' | 'green' | 'amber' | 'red' | 'blue';
-}
-
-const GradientIconBox: React.FC<GradientIconBoxProps> = ({
-  icon: Icon,
-  size = 'md',
-  variant = 'purple',
-}) => {
-  const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12', lg: 'w-14 h-14' };
-  const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6', lg: 'w-7 h-7' };
+const GradientIconBox = ({ icon: Icon, variant = 'purple' }: { icon: IconType; variant?: GradientVariant }) => {
   const variants = {
     purple: 'from-purple-600 to-indigo-600',
     green: 'from-emerald-500 to-green-600',
@@ -62,377 +74,162 @@ const GradientIconBox: React.FC<GradientIconBoxProps> = ({
     red: 'from-red-500 to-rose-500',
     blue: 'from-blue-500 to-cyan-500',
   };
-
   return (
-    <div
-      className={cn(
-        'rounded-xl flex items-center justify-center bg-linear-to-br shadow-lg',
-        sizes[size],
-        variants[variant]
-      )}
-    >
-      <Icon className={cn('text-white', iconSizes[size])} />
+    <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center bg-linear-to-br shadow-lg', variants[variant as keyof typeof variants])}>
+      <Icon className="w-6 h-6 text-white" />
     </div>
   );
 };
 
 interface MetricCardProps {
-  icon: React.ElementType;
+  icon: IconType;
   label: string;
   value: number;
-  subtext?: string;
-  variant?: 'purple' | 'green' | 'amber' | 'red';
-  onClick?: () => void;
-  active?: boolean;
+  variant?: GradientVariant;
+  onClick: () => void;
+  active: boolean;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({
-  icon,
-  label,
-  value,
-  subtext,
-  variant = 'purple',
-  onClick,
-  active,
-}) => (
+const MetricCard = ({ icon, label, value, variant = 'purple', onClick, active }: MetricCardProps) => (
   <div
     className={cn(
       'bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border transition-all cursor-pointer',
-      active
-        ? 'border-purple-500 ring-2 ring-purple-500/20'
-        : 'border-slate-200/50 dark:border-slate-700/30 hover:border-purple-300'
+      active ? 'border-purple-500 ring-2 ring-purple-500/20' : 'border-slate-200/50 dark:border-slate-700/30'
     )}
     onClick={onClick}
   >
     <div className="flex items-start justify-between">
-      <GradientIconBox icon={icon} size="md" variant={variant} />
+      <GradientIconBox icon={icon} variant={variant} />
     </div>
     <div className="mt-4">
       <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
       <p className="text-sm text-slate-600 dark:text-slate-400">{label}</p>
-      {subtext && <p className="text-xs text-slate-500 mt-1">{subtext}</p>}
     </div>
   </div>
 );
 
-interface StatusBadgeProps {
-  status: DocumentStatus;
-}
-
-const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
+const StatusBadge = ({ status }: { status: DocumentStatus }) => {
   const config = {
-    pending: {
-      bg: 'bg-amber-100 dark:bg-amber-500/20',
-      text: 'text-amber-700 dark:text-amber-300',
-    },
-    approved: {
-      bg: 'bg-emerald-100 dark:bg-emerald-500/20',
-      text: 'text-emerald-700 dark:text-emerald-300',
-    },
-    rejected: {
-      bg: 'bg-red-100 dark:bg-red-500/20',
-      text: 'text-red-700 dark:text-red-300',
-    },
+    pending: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+    approved: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300',
+    rejected: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300',
   };
-  const { bg, text } = config[status] || config.pending;
   return (
-    <span className={cn('px-3 py-1 rounded-full text-xs font-semibold capitalize', bg, text)}>
+    <span className={cn('px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider', config[status] || config.pending)}>
       {status}
     </span>
   );
 };
 
-interface FilterButtonProps {
+interface EntityTypeButtonProps {
   active: boolean;
   onClick: () => void;
-  children: React.ReactNode;
-  count?: number;
+  icon: IconType;
+  label: string;
 }
 
-const FilterButton: React.FC<FilterButtonProps> = ({ active, onClick, children, count }) => (
+const EntityTypeButton = ({ active, onClick, icon: Icon, label }: EntityTypeButtonProps) => (
   <button
     onClick={onClick}
     className={cn(
-      'px-4 py-2 rounded-xl text-sm font-medium transition-all relative',
-      active
-        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
-        : 'bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'
+      "flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold transition-all",
+      active 
+        ? "bg-purple-600 text-white shadow-lg shadow-purple-500/25" 
+        : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
     )}
   >
-    {children}
-    {count !== undefined && count > 0 && (
-      <span
-        className={cn(
-          'absolute -top-1 -right-1 w-5 h-5 text-xs rounded-full flex items-center justify-center',
-          active ? 'bg-white text-purple-600' : 'bg-amber-500 text-white'
-        )}
-      >
-        {count}
-      </span>
-    )}
+    <Icon className="w-5 h-5" />
+    {label}
   </button>
 );
 
-interface DocumentCardProps {
+const DocumentCard = ({
+  doc,
+  onReview,
+  getEmployeeName,
+}: {
   doc: KYCDocument;
   onReview: (doc: KYCDocument) => void;
-  getEmployeeName: (userId: string) => string;
-}
-
-const DocumentCard: React.FC<DocumentCardProps> = ({ doc, onReview, getEmployeeName }) => (
+  getEmployeeName: (uid: string) => string;
+}) => (
   <div
-    className={cn(
-      'bg-white/40 dark:bg-slate-800/40 rounded-xl p-5 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all cursor-pointer border',
-      doc.status === 'pending'
-        ? 'border-l-4 border-l-amber-500 border-r-slate-200/50 border-y-slate-200/50 dark:border-r-slate-700/30 dark:border-y-slate-700/30'
-        : 'border-slate-200/50 dark:border-slate-700/30'
-    )}
+    className="bg-white/40 dark:bg-slate-800/40 rounded-xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:shadow-lg transition-all cursor-pointer group"
     onClick={() => onReview(doc)}
-    data-testid={`kyc-doc-${doc.id}`}
   >
     <div className="flex items-start justify-between mb-4">
-      <div
-        className={cn(
-          'w-12 h-12 rounded-xl flex items-center justify-center',
-          doc.status === 'pending'
-            ? 'bg-amber-100 dark:bg-amber-500/20'
-            : doc.status === 'approved'
-            ? 'bg-emerald-100 dark:bg-emerald-500/20'
-            : 'bg-red-100 dark:bg-red-500/20'
-        )}
-      >
-        <FileText
-          className={cn(
-            'w-6 h-6',
-            doc.status === 'pending'
-              ? 'text-amber-600'
-              : doc.status === 'approved'
-              ? 'text-emerald-600'
-              : 'text-red-600'
-          )}
-        />
+      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", doc.status === 'pending' ? 'bg-amber-100 text-amber-600' : 'bg-purple-100 text-purple-600')}>
+        <FileText className="w-6 h-6" />
       </div>
       <StatusBadge status={doc.status} />
     </div>
-
-    <h3 className="font-semibold text-slate-900 dark:text-white mb-1">
-      {DOCUMENT_TYPE_LABELS[doc.document_type]}
+    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">
+      {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}
     </h3>
-    <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">{getEmployeeName(doc.user_id)}</p>
-
-    {doc.document_number && (
-      <p className="text-xs text-slate-400 font-mono mb-2">#{doc.document_number}</p>
-    )}
-
-    <div className="flex items-center gap-2 text-xs text-slate-400">
+    <p className="text-sm text-slate-500 mb-2">{getEmployeeName(doc.user_id)}</p>
+    <div className="flex items-center gap-2 text-[10px] text-slate-400">
       <Calendar className="w-3 h-3" />
       <span>{formatDateTime(doc.created_at)}</span>
     </div>
-
-    {doc.status === 'pending' && (
-      <Button className="w-full mt-4 bg-purple-600 hover:bg-purple-700" size="sm">
-        Review Now
-      </Button>
-    )}
   </div>
 );
 
-interface ReviewModalProps {
-  doc: KYCDocument | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onReview: (docId: string, status: 'approved' | 'rejected', notes: string) => Promise<void>;
-  loading: boolean;
-}
-
-const ReviewModal: React.FC<ReviewModalProps> = ({ doc, isOpen, onClose, onReview, loading }) => {
-  const [notes, setNotes] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (doc) {
-      setNotes(doc.reviewer_notes || '');
-    }
-  }, [doc]);
-
-  if (!isOpen || !doc) return null;
-
-  const handleReview = async (status: 'approved' | 'rejected') => {
-    setIsSubmitting(true);
-    try {
-      await onReview(doc.id, status, notes);
-      setNotes('');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="bg-linear-to-r from-purple-600 to-indigo-600 p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <FileText className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white">Review Document</h2>
-                <p className="text-white/80 text-sm">{DOCUMENT_TYPE_LABELS[doc.document_type]}</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="text-white/80 hover:text-white" disabled={isSubmitting}>
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {/* Document Preview Placeholder */}
-          <div className="bg-slate-100 dark:bg-slate-800 rounded-xl p-8 text-center">
-            <FileText className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <p className="text-slate-600 dark:text-slate-300 font-medium">
-              {DOCUMENT_TYPE_LABELS[doc.document_type]}
-            </p>
-            <p className="text-sm text-slate-500 mt-1">Document preview would appear here</p>
-            <Button
-              variant="outline"
-              className="mt-4"
-              size="sm"
-              onClick={() => window.open(doc.document_url, '_blank')}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download Original
-            </Button>
-          </div>
-
-          {/* Document Details */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-slate-500">Document Type</p>
-              <p className="font-medium text-slate-900 dark:text-white">
-                {DOCUMENT_TYPE_LABELS[doc.document_type]}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500">Document Number</p>
-              <p className="font-medium text-slate-900 dark:text-white">
-                {doc.document_number || 'N/A'}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500">Status</p>
-              <StatusBadge status={doc.status} />
-            </div>
-            <div>
-              <p className="text-sm text-slate-500">Submitted On</p>
-              <p className="font-medium text-slate-900 dark:text-white">
-                {formatDateTime(doc.created_at)}
-              </p>
-            </div>
-          </div>
-
-          {/* Reviewer Notes */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Reviewer Notes {doc.status === 'rejected' && <span className="text-red-500">*</span>}
-            </label>
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add notes about the document review..."
-              rows={4}
-              className="w-full"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            <Button
-              onClick={() => handleReview('approved')}
-              disabled={isSubmitting || loading}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Approving...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Approve Document
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={() => handleReview('rejected')}
-              disabled={isSubmitting || loading}
-              variant="destructive"
-              className="flex-1"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Rejecting...
-                </>
-              ) : (
-                <>
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Reject Document
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+const EmployerCard = ({ app, onReview }: { app: EmployerApplication, onReview: (a: EmployerApplication) => void }) => (
+  <div 
+    onClick={() => onReview(app)}
+    className="bg-white/40 dark:bg-slate-800/40 rounded-xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:shadow-lg transition-all cursor-pointer group"
+  >
+    <div className="flex justify-between items-start mb-4">
+      <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600">
+        <Building2 className="w-6 h-6" />
       </div>
+      <StatusBadge status={app.status} />
     </div>
-  );
-};
+    <h3 className="font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">{app.company_name}</h3>
+    <p className="text-xs text-slate-500 mt-1">{app.industry}</p>
+    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+      <span className="text-[10px] font-mono text-slate-400">#{app.registration_number}</span>
+      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
+    </div>
+  </div>
+);
 
 // ============================================================================
 // MAIN PAGE COMPONENT
 // ============================================================================
 
 export default function KYCReviewPage() {
+  const [entityType, setEntityType] = useState<EntityType>('employee');
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
+  const [employerApplications, setEmployerApplications] = useState<EmployerApplication[]>([]);
   const [employeesByUserId, setEmployeesByUserId] = useState<
     Record<string, { full_name: string; employee_code: string | null }>
   >({});
+  
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<KYCDocument | null>(null);
+  const [selectedEmployer, setSelectedEmployer] = useState<EmployerApplication | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const statusQuery = filter !== 'all' ? `?status=${filter}` : '';
+      const res = await fetch(`/api/admin/kyc/documents${statusQuery}`);
 
-      const docsResponse = await fetch(`/api/admin/kyc/documents${statusQuery}`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-      if (docsResponse.ok) {
-        const docsData = await docsResponse.json();
-        setDocuments(docsData.documents || []);
-        setEmployeesByUserId(docsData.employeesByUserId || {});
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data.documents || []);
+        setEmployerApplications(data.employerApplications || []);
+        setEmployeesByUserId(data.employeesByUserId || {});
       } else {
-        toast.error('Failed to load documents');
+        toast.error('Failed to load KYC data');
       }
     } catch (err) {
-      console.error('Failed to fetch data:', err);
-      toast.error('Failed to load data');
+      console.error('Fetch error:', err);
+      toast.error('Connection error');
     } finally {
       setLoading(false);
     }
@@ -442,207 +239,328 @@ export default function KYCReviewPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleReview = async (docId: string, status: 'approved' | 'rejected', notes: string) => {
-    if (status === 'rejected' && !notes.trim()) {
-      toast.error('Please provide a reason for rejection');
-      return;
-    }
-
+  const handleReviewEmployee = async (docId: string, status: 'approved' | 'rejected', notes: string) => {
     setActionLoading(true);
     try {
-      const response = await fetch(
-        `/api/admin/kyc/documents/${docId}/review?status=${status}&notes=${encodeURIComponent(
-          notes || ''
-        )}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success(`Document ${status} successfully`);
+      const res = await fetch(`/api/admin/kyc/documents/${docId}/review?status=${status}&notes=${encodeURIComponent(notes)}`, {
+        method: 'PATCH'
+      });
+      if (res.ok) {
+        toast.success('Document updated');
         setShowReviewModal(false);
-        setSelectedDoc(null);
-        await fetchData();
+        fetchData();
       } else {
-        toast.error(data.error || 'Failed to review document');
+        const d = await res.json();
+        toast.error(d.error || 'Failed');
       }
-    } catch (err) {
-      console.error('Review error:', err);
-      toast.error('Failed to review document');
-    } finally {
-      setActionLoading(false);
-    }
+    } finally { setActionLoading(false); }
   };
 
-  const getEmployeeName = (userId: string): string => {
-    const employee = employeesByUserId[userId];
-    return employee
-      ? `${employee.full_name || 'Employee'}${employee.employee_code ? ` (${employee.employee_code})` : ''}`
-      : 'Unknown Employee';
+  const handleReviewEmployer = async (appId: string, status: 'approved' | 'rejected', notes: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/kyc/employer/${appId}/review?status=${status}&notes=${encodeURIComponent(notes)}`, {
+        method: 'PATCH'
+      });
+      if (res.ok) {
+        toast.success('Employer status updated');
+        setShowReviewModal(false);
+        fetchData();
+      } else {
+        const d = await res.json();
+        toast.error(d.error || 'Failed');
+      }
+    } finally { setActionLoading(false); }
   };
 
-  // Filter documents by search
-  const filteredDocs = documents.filter((doc) => {
-    if (!searchTerm) return true;
-    const label = DOCUMENT_TYPE_LABELS[doc.document_type].toLowerCase();
-    const employeeName = getEmployeeName(doc.user_id).toLowerCase();
-    return label.includes(searchTerm.toLowerCase()) || employeeName.includes(searchTerm.toLowerCase());
-  });
+  const getEmployeeName = (uid: string) => employeesByUserId[uid]?.full_name || 'Unknown Employee';
 
-  const stats: DocumentStats = {
-    pending: documents.filter((d) => d.status === 'pending').length,
-    approved: documents.filter((d) => d.status === 'approved').length,
-    rejected: documents.filter((d) => d.status === 'rejected').length,
-    total: documents.length,
+  const filteredItems = entityType === 'employee' 
+    ? documents.filter(d => {
+        if (!searchTerm) return true;
+        const name = getEmployeeName(d.user_id).toLowerCase();
+        const type = (DOCUMENT_TYPE_LABELS[d.document_type] || d.document_type).toLowerCase();
+        return name.includes(searchTerm.toLowerCase()) || type.includes(searchTerm.toLowerCase());
+      })
+    : employerApplications.filter(a => {
+        if (!searchTerm) return true;
+        return a.company_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+               a.registration_number.toLowerCase().includes(searchTerm.toLowerCase());
+      });
+
+  const stats = {
+    pending: entityType === 'employee' ? documents.filter(d => d.status === 'pending').length : employerApplications.filter(a => a.status === 'pending').length,
+    approved: entityType === 'employee' ? documents.filter(d => d.status === 'approved').length : employerApplications.filter(a => a.status === 'approved').length,
+    rejected: entityType === 'employee' ? documents.filter(d => d.status === 'rejected').length : employerApplications.filter(a => a.status === 'rejected').length,
+    total: entityType === 'employee' ? documents.length : employerApplications.length
   };
 
   return (
     <AdminPortalLayout>
-      <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-kyc-review-page">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">KYC Review</h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">
-              Review and approve employee verification documents
-            </p>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">KYC Review Hub</h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">Manage and verify identities across the platform</p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="bg-white/60 dark:bg-slate-800/60"
-              onClick={fetchData}
-              disabled={loading}
-            >
-              <RefreshCw className={cn('w-4 h-4 mr-2', loading && 'animate-spin')} />
+          <div className="flex bg-white/50 dark:bg-slate-900/50 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-700/30">
+            <EntityTypeButton 
+              active={entityType === 'employee'} 
+              onClick={() => { setEntityType('employee'); setFilter('all'); }} 
+              icon={User} 
+              label="Employees" 
+            />
+            <EntityTypeButton 
+              active={entityType === 'employer'} 
+              onClick={() => { setEntityType('employer'); setFilter('all'); }} 
+              icon={Building2} 
+              label="Employers" 
+            />
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard icon={Clock} label="Pending Review" value={stats.pending} variant="amber" onClick={() => setFilter('pending')} active={filter === 'pending'} />
+          <MetricCard icon={CheckCircle2} label="Approved" value={stats.approved} variant="green" onClick={() => setFilter('approved')} active={filter === 'approved'} />
+          <MetricCard icon={XCircle} label="Rejected" value={stats.rejected} variant="red" onClick={() => setFilter('rejected')} active={filter === 'rejected'} />
+          <MetricCard icon={FileText} label="Total" value={stats.total} variant="purple" onClick={() => setFilter('all')} active={filter === 'all'} />
+        </div>
+
+        {/* Search & Filters */}
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input
+                placeholder={`Search ${entityType === 'employee' ? 'documents or employees' : 'companies'}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 h-12 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 rounded-xl"
+              />
+            </div>
+            <Button variant="outline" className="h-12 px-6 rounded-xl" onClick={fetchData}>
+              <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Refresh
             </Button>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            icon={Clock}
-            label="Pending Review"
-            value={stats.pending}
-            variant="amber"
-            onClick={() => setFilter('pending')}
-            active={filter === 'pending'}
-          />
-          <MetricCard
-            icon={CheckCircle2}
-            label="Approved"
-            value={stats.approved}
-            variant="green"
-            onClick={() => setFilter('approved')}
-            active={filter === 'approved'}
-          />
-          <MetricCard
-            icon={XCircle}
-            label="Rejected"
-            value={stats.rejected}
-            variant="red"
-            onClick={() => setFilter('rejected')}
-            active={filter === 'rejected'}
-          />
-          <MetricCard
-            icon={FileText}
-            label="Total Documents"
-            value={stats.total}
-            variant="purple"
-            onClick={() => setFilter('all')}
-            active={filter === 'all'}
-          />
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <Input
-                placeholder="Search by document type or employee..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 h-11 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 rounded-xl"
-                data-testid="search-kyc"
-              />
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>
-                All
-              </FilterButton>
-              <FilterButton
-                active={filter === 'pending'}
-                onClick={() => setFilter('pending')}
-                count={stats.pending}
-              >
-                Pending
-              </FilterButton>
-              <FilterButton active={filter === 'approved'} onClick={() => setFilter('approved')}>
-                Approved
-              </FilterButton>
-              <FilterButton active={filter === 'rejected'} onClick={() => setFilter('rejected')}>
-                Rejected
-              </FilterButton>
-            </div>
-          </div>
-        </div>
-
-        {/* Documents Grid */}
+        {/* List */}
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+          <div className="py-20 flex justify-center">
+            <Loader2 className="w-10 h-10 text-purple-600 animate-spin" />
           </div>
-        ) : filteredDocs.length === 0 ? (
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-16 border border-slate-200/50 dark:border-slate-700/30 text-center">
-            <div className="w-16 h-16 bg-purple-100 dark:bg-purple-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-8 h-8 text-purple-600" />
+        ) : filteredItems.length === 0 ? (
+          <div className="py-20 text-center bg-white/40 dark:bg-slate-900/40 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
+            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-8 h-8 text-slate-400" />
             </div>
-            <h3 className="font-semibold text-slate-900 dark:text-white">No documents found</h3>
-            <p className="text-sm text-slate-500 mt-1">No KYC documents match your filter</p>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">No items found</h3>
+            <p className="text-slate-500">Try adjusting your search or filters</p>
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredDocs.map((doc) => (
-              <DocumentCard
-                key={doc.id}
-                doc={doc}
-                onReview={(d) => {
-                  setSelectedDoc(d);
-                  setShowReviewModal(true);
-                }}
-                getEmployeeName={getEmployeeName}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Summary */}
-        {filteredDocs.length > 0 && (
-          <div className="text-sm text-slate-500">
-            Showing {filteredDocs.length} of {documents.length} documents
+            {entityType === 'employee' 
+              ? (filteredItems as KYCDocument[]).map(doc => (
+                  <DocumentCard key={doc.id} doc={doc} onReview={(d) => { setSelectedDoc(d); setSelectedEmployer(null); setShowReviewModal(true); }} getEmployeeName={getEmployeeName} />
+                ))
+              : (filteredItems as EmployerApplication[]).map(app => (
+                  <EmployerCard key={app.id} app={app} onReview={(a) => { setSelectedEmployer(a); setSelectedDoc(null); setShowReviewModal(true); }} />
+                ))
+            }
           </div>
         )}
       </div>
 
-      {/* Review Modal */}
-      <ReviewModal
-        doc={selectedDoc}
-        isOpen={showReviewModal}
-        onClose={() => {
-          setShowReviewModal(false);
-          setSelectedDoc(null);
-        }}
-        onReview={handleReview}
+      <ReviewModal 
+        key={`${selectedDoc?.id ?? selectedEmployer?.id ?? 'none'}-${showReviewModal ? 'open' : 'closed'}`}
+        doc={selectedDoc} 
+        employer={selectedEmployer}
+        isOpen={showReviewModal} 
+        onClose={() => setShowReviewModal(false)}
+        onReviewEmployee={handleReviewEmployee}
+        onReviewEmployer={handleReviewEmployer}
         loading={actionLoading}
       />
     </AdminPortalLayout>
   );
 }
 
+// ─── Review Modal ─────────────────────────────────────────────────────────────
+
+interface ReviewModalProps {
+  doc: KYCDocument | null;
+  employer: EmployerApplication | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onReviewEmployee: (docId: string, status: 'approved' | 'rejected', notes: string) => void;
+  onReviewEmployer: (appId: string, status: 'approved' | 'rejected', notes: string) => void;
+  loading: boolean;
+}
+
+const ReviewModal = ({ doc, employer, isOpen, onClose, onReviewEmployee, onReviewEmployer, loading }: ReviewModalProps) => {
+  const [notes, setNotes] = useState(() => doc?.reviewer_notes || employer?.reviewer_notes || '');
+
+  if (!isOpen) return null;
+
+  const isEmployer = !!employer;
+  if (!isEmployer && !doc) return null;
+  const selectedDoc = doc as KYCDocument;
+  const item = employer || doc;
+
+  const handleReview = (status: 'approved' | 'rejected') => {
+    if (status === 'rejected' && !notes.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+    if (isEmployer) onReviewEmployer(employer.id, status, notes);
+    else onReviewEmployee(selectedDoc.id, status, notes);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className={cn("p-6 text-white flex items-center justify-between", isEmployer ? "bg-blue-600" : "bg-purple-600")}>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+              {isEmployer ? <Building2 className="w-6 h-6" /> : <User className="w-6 h-6" />}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">{isEmployer ? 'Review Employer Application' : 'Review Employee Document'}</h2>
+              <p className="text-white/80 text-sm">{isEmployer ? employer.company_name : DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {isEmployer ? (
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Employer Details */}
+              <div className="space-y-6">
+                <section>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Company Details</h4>
+                  <div className="space-y-3">
+                    <InfoRow icon={Building2} label="Company Name" value={employer.company_name} />
+                    <InfoRow icon={Shield} label="Reg Number" value={employer.registration_number} />
+                    <InfoRow icon={Briefcase} label="Industry" value={employer.industry} />
+                    <InfoRow icon={MapPin} label="City" value={employer.city} />
+                  </div>
+                </section>
+
+                <section>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Banking</h4>
+                  <div className="space-y-3">
+                    <InfoRow icon={CreditCard} label="Bank" value={employer.bank_name || 'Not set'} />
+                    <InfoRow icon={Shield} label="Account" value={employer.bank_account_number || 'Not set'} />
+                  </div>
+                </section>
+              </div>
+
+              {/* Documents */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Verification Documents</h4>
+                <div className="grid gap-3">
+                  <DocLink label="Inc. Certificate" url={employer.certificate_of_incorporation} />
+                  <DocLink label="KRA PIN Cert" url={employer.kra_pin_certificate} />
+                  <DocLink label="CR12 Document" url={employer.cr12_document} />
+                  <DocLink label="Business Permit" url={employer.business_permit} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Document Preview */}
+              <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center p-12 text-center">
+                <FileText className="w-16 h-16 text-slate-300 mb-4" />
+                <p className="text-slate-500 mb-6">Document preview is available via external link</p>
+                <Button variant="outline" onClick={() => window.open(selectedDoc.document_url, '_blank')} className="rounded-xl border-purple-200 text-purple-600 hover:bg-purple-50">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View Document
+                </Button>
+              </div>
+
+              <div className="space-y-6">
+                <section>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Document Info</h4>
+                  <div className="space-y-3">
+                    <InfoRow icon={FileText} label="Type" value={DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type} />
+                    <InfoRow icon={Shield} label="Number" value={selectedDoc.document_number || 'N/A'} />
+                    <InfoRow icon={Calendar} label="Submitted" value={formatDateTime(selectedDoc.created_at)} />
+                  </div>
+                </section>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 items-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              Reviewer Decision Notes
+            </label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add your review notes here... Required if rejecting."
+              className="min-h-30 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:ring-purple-500"
+            />
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
+          <Button
+            onClick={() => handleReview('approved')}
+            disabled={loading}
+            className={cn("flex-1 h-12 rounded-xl text-white font-bold shadow-lg", isEmployer ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700")}
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
+            Approve {isEmployer ? 'Employer' : 'Document'}
+          </Button>
+          <Button
+            onClick={() => handleReview('rejected')}
+            disabled={loading}
+            variant="destructive"
+            className="flex-1 h-12 rounded-xl font-bold shadow-lg"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <XCircle className="w-5 h-5 mr-2" />}
+            Reject {isEmployer ? 'Employer' : 'Document'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const InfoRow = ({ icon: Icon, label, value }: { icon: IconType; label: string; value?: string | null }) => (
+  <div className="flex items-center gap-3">
+    <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+      <Icon className="w-4 h-4" />
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-1">{label}</p>
+      <p className="text-sm text-slate-900 dark:text-white font-medium truncate">{value || 'N/A'}</p>
+    </div>
+  </div>
+);
+
+const DocLink = ({ label, url }: { label: string, url?: string }) => (
+  <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+    <div className="flex items-center gap-3">
+      <FileText className="w-4 h-4 text-slate-400" />
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+    </div>
+    {url ? (
+      <Button variant="ghost" size="sm" onClick={() => window.open(url, '_blank')} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+        View <ExternalLink className="w-3 h-3 ml-1" />
+      </Button>
+    ) : (
+      <span className="text-xs text-slate-400 italic">Not provided</span>
+    )}
+  </div>
+);

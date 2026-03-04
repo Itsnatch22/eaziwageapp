@@ -5,6 +5,30 @@ import { NextResponse } from 'next/server';
 
 const COUNTRY_PCT: Record<string, number> = { KE: 0.60, UG: 0.40, RW: 0.50, TZ: 0.45 };
 
+interface OrgProfile {
+  organization_id: string;
+}
+
+interface Organization {
+  country: string | null;
+}
+
+interface EmployeeProfile {
+  id: string;
+  full_name: string | null;
+  department: string | null;
+  salary: number | string | null;
+  [key: string]: unknown;
+}
+
+interface AdvanceRow {
+  id: string;
+  employee_id: string;
+  amount: number | string | null;
+  status: 'pending' | 'approved' | 'rejected' | string;
+  requested_at: string;
+}
+
 export async function GET() {
     const cookieStore = await cookies();
   const supabase = createServerClient(
@@ -33,42 +57,44 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: profile } = await supabase.from('profiles').select('organization_id').eq('id', user.id).single();
+	  const { data: profile } = await supabase.from('profiles').select('organization_id').eq('id', user.id).single();
   if (!profile) return NextResponse.json({ error: 'No org' }, { status: 400 });
 
-  const { data: org } = await supabase.from('organizations').select('country').eq('id', profile.organization_id).single();
-  const country = org?.country || 'KE';
+	  const typedProfile = profile as OrgProfile;
+	  const { data: org } = await supabase.from('organizations').select('country').eq('id', typedProfile.organization_id).single();
+  const typedOrg = org as Organization | null;
+  const country = typedOrg?.country || 'KE';
   const maxPct = COUNTRY_PCT[country] || 0.5;
 
   // Employees
   const { data: employees } = await supabase
     .from('profiles')
     .select('*')
-    .eq('organization_id', profile.organization_id)
-    .eq('role', 'employee');
+	    .eq('organization_id', typedProfile.organization_id)
+	    .eq('role', 'employee');
 
   // All advances this month
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const { data: advances } = await supabase
     .from('advances')
     .select('*')
-    .eq('organization_id', profile.organization_id)
-    .gte('requested_at', startOfMonth);
+	    .eq('organization_id', typedProfile.organization_id)
+	    .gte('requested_at', startOfMonth);
 
-  const advancesByEmp = (advances || []).reduce((acc: any, a: any) => {
-    acc[a.employee_id] = acc[a.employee_id] || [];
-    acc[a.employee_id].push(a);
-    return acc;
-  }, {});
+	  const advancesByEmp = ((advances || []) as AdvanceRow[]).reduce<Record<string, AdvanceRow[]>>((acc, a) => {
+	    acc[a.employee_id] = acc[a.employee_id] || [];
+	    acc[a.employee_id].push(a);
+	    return acc;
+	  }, {});
 
-  const computed = (employees || []).map((emp: any) => {
-    const empAdvances = advancesByEmp[emp.id] || [];
+	  const computed = ((employees || []) as EmployeeProfile[]).map((emp) => {
+	    const empAdvances = advancesByEmp[emp.id] || [];
 
-    const accessedMTD = empAdvances
-      .filter((a: any) => a.status === 'approved')
-      .reduce((sum: number, a: any) => sum + Number(a.amount), 0);
+	    const accessedMTD = empAdvances
+	      .filter((a) => a.status === 'approved')
+	      .reduce((sum, a) => sum + Number(a.amount), 0);
 
-    const latest = empAdvances.sort((a: any, b: any) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime())[0];
+	    const latest = empAdvances.sort((a, b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime())[0];
 
     let status = latest ? (latest.status === 'pending' ? 'Pending' : latest.status === 'approved' ? 'Approved' : 'Denied') : 'Active';
 
@@ -84,7 +110,7 @@ export async function GET() {
       salary: Number(emp.salary || 0),
       withdrawnThisMonth: accessedMTD,
       status,
-      pendingAdvanceId: empAdvances.find((a: any) => a.status === 'pending')?.id || null,
+	      pendingAdvanceId: empAdvances.find((a) => a.status === 'pending')?.id || null,
       maxAccess,
     };
   }) || [];

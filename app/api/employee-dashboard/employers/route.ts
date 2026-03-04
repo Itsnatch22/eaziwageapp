@@ -27,8 +27,9 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q')?.trim() ?? '';
 
   let query = supabase
-    .from('approved_employers')
-    .select('id, company_name, industry, city, country, countries_of_operation')
+    .from('employer_onboarding')
+    .select('id, company_name, industry, city, country, countries_of_operation, status')
+    .in('status', ['approved', 'pending'])
     .order('company_name');
 
   if (q) {

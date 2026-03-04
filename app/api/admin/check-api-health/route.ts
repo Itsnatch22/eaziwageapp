@@ -75,9 +75,7 @@ export async function POST(_req: NextRequest) {
     checkSafaricom(),
   ]);
 
-  const results = checks
-    .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
-    .map(r => r.value);
+  const results = checks.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
 
   // Upsert everything
   const { error } = await supabase

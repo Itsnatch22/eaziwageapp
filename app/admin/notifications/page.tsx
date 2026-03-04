@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Bell, CheckCircle2, Shield, Building2, AlertTriangle, 
   Search, RefreshCw,  Check, 
-  ArrowLeft, Clock
+  ArrowLeft, Clock, Trash2
 } from 'lucide-react';
 import { Button }                  from '@/components/ui/button';
 import { Input }                   from '@/components/ui/input';
@@ -77,16 +77,17 @@ export default function AdminNotificationsPage() {
 
     if (!pusherClient) return;
 
-    // Subscribe to Pusher channel for real-time notifications
-    const channel = pusherClient!.subscribe('admin-notifications'); // Adjust channel name as needed
+    const channel = pusherClient!.subscribe('admin-notifications');
 
     channel.bind('new-notification', (data: Notification) => {
-      // Add new notification to the top of the list
       setNotifications((prev) => [data, ...prev]);
       toast.success('New notification received!');
     });
 
-    // Cleanup subscription on unmount
+    channel.bind('notification-deleted', (data: { id: string }) => {
+        setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
+    });
+
     return () => {
       pusherClient!.unsubscribe('admin-notifications');
     };
@@ -114,6 +115,21 @@ export default function AdminNotificationsPage() {
     if (unreadIds.length > 0) {
       await markAsRead(unreadIds);
       toast.success('All notifications marked as read');
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+        const res = await fetch(`/api/admin/notifications?id=${id}`, {
+            method: 'DELETE'
+        });
+        if (res.ok) {
+            setNotifications(prev => prev.filter(n => String(n.id) !== String(id)));
+            toast.success('Notification deleted');
+        }
+    } catch (err) {
+        toast.error('Failed to delete notification');
     }
   };
 
@@ -226,13 +242,13 @@ export default function AdminNotificationsPage() {
                 <div
                   key={notif.id}
                   className={cn(
-                    'p-6 flex items-start gap-4 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30',
+                    'p-6 flex items-start gap-4 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30 relative group',
                     !notif.read && 'bg-green-50/30 dark:bg-green-900/10'
                   )}
                   onClick={() => !notif.read && markAsRead([notif.id])}
                 >
                   <NotificationIcon type={notif.type} />
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 pr-10">
                     <div className="flex items-center justify-between mb-1">
                       <h3 className={cn(
                         'text-base font-bold text-slate-900 dark:text-white',
@@ -271,6 +287,14 @@ export default function AdminNotificationsPage() {
                       )}
                     </div>
                   </div>
+
+                  <button 
+                        onClick={(e) => handleDelete(e, notif.id)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2.5 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10"
+                        title="Delete notification"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                    </button>
                 </div>
               ))}
             </div>

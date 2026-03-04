@@ -1,7 +1,7 @@
 "use client"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
-import { Bell, CreditCard, Users, CheckCircle2 } from 'lucide-react';
+import { Bell, CreditCard, Users, CheckCircle2, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -9,30 +9,11 @@ import pusherClient from '@/lib/pusher-client';
 import { useAuthStore } from '@/lib/stores/auth';
 
 export default function NotificationsPage() {
-    const [notifications, setNotifications] = useState<any[]>([]);
+    const [notifications, setNotifications] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
-    const user = useAuthStore((state: any) => state.user);
+    const user = useAuthStore((state) => state.user);
 
-    useEffect(() => {
-        fetchNotifications();
-
-        if (user?.id && pusherClient) {
-            const channel = pusherClient.subscribe(`employer-${user.id}`);
-            channel.bind('new-notification', (data: any) => {
-                toast(data.title, {
-                    description: data.message,
-                    icon: <Bell className="w-5 h-5 text-primary" />
-                });
-                fetchNotifications();
-            });
-
-            return () => {
-                pusherClient!.unsubscribe(`employer-${user.id}`);
-            };
-        }
-    }, [user?.id]);
-
-    const fetchNotifications = async () => {
+    const fetchNotifications = useCallback(async () => {
         try {
             const res = await fetch('/api/employer-dashboard/notifications');
             if (res.ok) {
@@ -44,7 +25,31 @@ export default function NotificationsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchNotifications();
+
+        if (user?.id && pusherClient) {
+            const channel = pusherClient.subscribe(`employer-${user.id}`);
+            
+            channel.bind('new-notification', (data: Record<string, string>) => {
+                toast(data.title, {
+                    description: data.message,
+                    icon: <Bell className="w-5 h-5 text-primary" />
+                });
+                fetchNotifications();
+            });
+
+            channel.bind('notification-deleted', (data: { id: string }) => {
+                setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
+            });
+
+            return () => {
+                pusherClient!.unsubscribe(`employer-${user.id}`);
+            };
+        }
+    }, [user?.id, fetchNotifications]);
 
     const markAsRead = async (id?: number) => {
         try {
@@ -58,6 +63,21 @@ export default function NotificationsPage() {
             }
         } catch (error) {
             toast.error('Failed to update notifications');
+        }
+    };
+
+    const deleteNotification = async (e: React.MouseEvent, id: string | number) => {
+        e.stopPropagation();
+        try {
+            const res = await fetch(`/api/employer-dashboard/notifications?id=${id}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                setNotifications(prev => prev.filter(n => n.id !== id));
+                toast.success('Notification deleted');
+            }
+        } catch (err) {
+            toast.error('Failed to delete notification');
         }
     };
 
@@ -83,7 +103,7 @@ export default function NotificationsPage() {
                             Notifications
                         </h1>
                         <p className="text-slate-500 dark:text-slate-400 mt-1">
-                            Stay updated with your company's latest alerts and activity.
+                            Stay updated with your company&apos;s latest alerts and activity.
                         </p>
                     </div>
                     {unreadCount > 0 && (
@@ -109,7 +129,7 @@ export default function NotificationsPage() {
                                 <div 
                                     key={notif.id}
                                     className={cn(
-                                        "p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-start gap-4 cursor-pointer",
+                                        "p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-start gap-4 cursor-pointer relative group",
                                         !notif.read && "bg-primary/5"
                                     )}
                                     onClick={() => !notif.read && markAsRead(notif.id)}
@@ -124,7 +144,7 @@ export default function NotificationsPage() {
                                         {notif.type === 'system' && <Bell className="w-6 h-6 text-amber-600" />}
                                         {notif.type === 'employee' && <Users className="w-6 h-6 text-blue-600" />}
                                     </div>
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0 pr-8">
                                         <div className="flex items-center justify-between">
                                             <p className={cn(
                                                 "text-base font-semibold",
@@ -133,18 +153,29 @@ export default function NotificationsPage() {
                                                 {notif.title}
                                             </p>
                                             <span className="text-xs text-slate-400 font-medium">
-                                                {notif.time}
+                                                {notif.time || (notif.created_at && new Date(notif.created_at).toLocaleTimeString())}
                                             </span>
                                         </div>
                                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                                             {notif.message}
                                         </p>
                                     </div>
-                                    {!notif.read ? (
-                                        <div className="w-3 h-3 bg-primary rounded-full mt-2 shrink-0 shadow-sm" />
-                                    ) : (
-                                        <CheckCircle2 className="w-5 h-5 text-emerald-500/50 mt-1 shrink-0" />
-                                    )}
+                                    
+                                    <div className="flex items-center gap-2">
+                                        {!notif.read ? (
+                                            <div className="w-3 h-3 bg-primary rounded-full shrink-0 shadow-sm" />
+                                        ) : (
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-500/50 shrink-0" />
+                                        )}
+                                        
+                                        <button 
+                                            onClick={(e) => deleteNotification(e, notif.id)}
+                                            className="p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
+                                            title="Delete notification"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -154,4 +185,3 @@ export default function NotificationsPage() {
         </EmployerPortalLayout>
     );
 }
-

@@ -179,6 +179,12 @@ function getRiskRating(crs: number): 'A' | 'B' | 'C' | 'D' {
   return 'D';
 }
 
+function calculateApplicationFee(crs: number): number {
+  const BASE_FEE = 3.5;
+  const RISK_FACTOR = 3.0;
+  return BASE_FEE + (RISK_FACTOR * (1 - crs / 5));
+}
+
 // ─── API Handler ──────────────────────────────────────────────────────────────
 
 export async function GET() {
@@ -277,6 +283,21 @@ export async function GET() {
     console.log('[risk-insights] Computed CRS:', computedCRS, 'Rating:', computedRating);
   }
 
+  const applicationFee = calculateApplicationFee(computedCRS);
+
+  // Map country to currency (centralized in lib/utils ideally, but derived here for API response)
+  const currencyMap: Record<string, string> = {
+    'Kenya': 'KES',
+    'Uganda': 'UGX',
+    'Tanzania': 'TZS',
+    'Rwanda': 'RWF',
+    'KE': 'KES',
+    'UG': 'UGX',
+    'TZ': 'TZS',
+    'RW': 'RWF',
+  };
+  const currency = currencyMap[employer.country] || 'KES';
+
   // ── Check for Pending Review Requests ───────────────────────────────────────
   const { data: pendingReview } = await supabase
     .from('risk_review_requests')
@@ -295,6 +316,7 @@ export async function GET() {
     sector:               employer.sector,
     city:                 employer.city,
     country:              employer.country,
+    currency:             currency,
     employee_count:       employer.employee_count,
     status:               employer.status,
     contact_person:       employer.contact_person,
@@ -306,7 +328,9 @@ export async function GET() {
     // Risk Scoring (Framework Compliant)
     risk_score:  computedCRS,
     risk_rating: computedRating ?? 'B',
+    application_fee: applicationFee,
     risk_factors,
+
 
     // Category Weights (for client-side display)
     category_weights: CATEGORY_WEIGHTS,

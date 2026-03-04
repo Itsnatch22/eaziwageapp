@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import React, { useState, useEffect } from 'react';
 import {
@@ -302,7 +301,7 @@ const RiskRatingBadge = ({ rating, size = 'md' }: RiskRatingBadgeProps) => {
 interface CategoryScoreCardProps {
   category: string;
   score: number;
-  categoryData: any;
+  categoryData: Record<string, number> | undefined;
   expanded?: boolean;
   onToggle: () => void;
 }
@@ -432,21 +431,15 @@ interface FeeImpactCardProps {
 }
 
 const FeeImpactCard = ({ currentScore, currentFee }: FeeImpactCardProps) => {
-  // Calculate potential fees at different risk levels
-  const calculateFeeAtScore = (score: number) => {
-    const BASE_FEE = 3.5;
-    const RISK_FACTOR = 3.0;
-    return BASE_FEE + (RISK_FACTOR * (1 - score / 5));
-  };
-
+  // Calculate potential fees at different risk levels using central utility
   const potentialSavings = [
     { score: 4.5, label: 'Excellent (4.5)', rating: 'A' },
     { score: 3.5, label: 'Good (3.5)', rating: 'B' },
     { score: 2.8, label: 'Fair (2.8)', rating: 'C' },
   ].map(item => ({
     ...item,
-    fee: calculateFeeAtScore(item.score),
-    savings: currentFee - calculateFeeAtScore(item.score),
+    fee: calculateFeePercentage(item.score),
+    savings: currentFee - calculateFeePercentage(item.score),
   }));
 
   return (
@@ -527,7 +520,7 @@ const FeeImpactCard = ({ currentScore, currentFee }: FeeImpactCardProps) => {
 
 export default function RiskInsightsPage() {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   // Fetch risk data from API
@@ -541,8 +534,7 @@ export default function RiskInsightsPage() {
         }
         const json = await res.json();
         setData(json);
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to load risk insights');
+      } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err) || 'Failed to load risk insights');
         console.error('[risk-insights]', err);
       } finally {
         setLoading(false);
@@ -589,21 +581,35 @@ export default function RiskInsightsPage() {
     company_name,
     risk_score = 3.0,
     risk_rating = 'B',
+    application_fee: apiFee,
+    currency = 'KES',
     risk_factors,
     has_pending_review,
     framework_version,
     framework_date,
   } = data;
 
-  // Calculate application fee using formula from PDF
-  const feePercentage = calculateFeePercentage(risk_score);
+  // Use API fee if available, otherwise calculate
+  const feePercentage = apiFee ?? calculateFeePercentage(risk_score);
 
-  // Calculate category averages for display
+  // Calculate category averages using proper framework weights
   const getCategoryAverage = (category: string) => {
     const factors = risk_factors?.[category];
     if (!factors) return 3.0;
+    
+    const subWeights = data?.sub_factor_weights?.[category];
+    const catWeight = data?.category_weights?.[category];
+    
+    if (subWeights && catWeight) {
+      let weightedSum = 0;
+      Object.entries(factors).forEach(([key, score]) => {
+        weightedSum += (score as number) * (subWeights[key] || 0);
+      });
+      return weightedSum / catWeight;
+    }
+
     const values = Object.values(factors) as number[];
-    return values.reduce((sum, val) => sum + val, 0) / values.length;
+    return values.reduce((sum, val) => sum + val, 0) / (values.length || 1);
   };
 
   return (
@@ -636,7 +642,7 @@ export default function RiskInsightsPage() {
                   Risk Review Pending
                 </p>
                 <p className="text-sm text-amber-800 dark:text-amber-200">
-                  Your risk profile is under review. You'll be notified once the review is complete.
+                  Your risk profile is under review. You&apos;ll be notified once the review is complete.
                 </p>
               </div>
             </div>

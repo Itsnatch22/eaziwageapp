@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -7,9 +6,8 @@ import {
   Building2, MapPin, Users, ArrowRight, ArrowLeft,
   Phone, AlertCircle, Check, Sparkles,
   Shield, FileText, ChevronDown, Upload,
-  Globe, UserCheck, Scale, Factory,
-  DollarSign, Plus, Trash2, Info, X,
-  Sun, Moon,
+   UserCheck, Factory,
+  DollarSign, Plus, Trash2, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,7 +121,7 @@ interface FileUploaderProps {
 const FileUploader = ({
   label, description, onUpload, uploadedFile, uploading, testId, required = false, optional = false,
 }: FileUploaderProps) => {
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -186,7 +184,22 @@ const FileUploader = ({
 
 // ─── BeneficialOwnerRow ───────────────────────────────────────────────────────
 
-const BeneficialOwnerRow = ({ owner, index, onUpdate, onRemove }) => (
+interface BeneficialOwner {
+  full_name: string;
+  id_number: string;
+  nationality: string;
+  ownership_percentage: number;
+  is_pep: boolean;
+}
+
+interface BeneficialOwnerRowProps {
+  owner: BeneficialOwner;
+  index: number;
+  onUpdate: (index: number, field: string, value: unknown) => void;
+  onRemove: (index: number) => void;
+}
+
+const BeneficialOwnerRow = ({ owner, index, onUpdate, onRemove }: BeneficialOwnerRowProps) => (
   <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
     <div className="flex items-center justify-between">
       <h4 className="font-medium text-slate-900 dark:text-white">Owner {index + 1}</h4>
@@ -493,7 +506,7 @@ export default function EmployerOnboarding() {
               Welcome to EaziWage Employer Portal {userFullName ? `, ${userFullName.split(" ")[0]}` : ""}!
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-300 mb-8 max-w-lg mx-auto">
-              Complete your company's due diligence onboarding to offer earned wage access to your employees.
+              Complete your company&apos;s due diligence onboarding to offer earned wage access to your employees.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto mb-8">
               {[
@@ -613,7 +626,7 @@ export default function EmployerOnboarding() {
                 <MapPin className="w-8 h-8 text-white" />
               </div>
               <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Business Address</h2>
-              <p className="text-slate-600 dark:text-slate-300">Your company's physical address</p>
+              <p className="text-slate-600 dark:text-slate-300">Your company&apos;s physical address</p>
             </div>
             <div className="space-y-4 max-w-md mx-auto">
               <div className="flex flex-col gap-2">
@@ -872,7 +885,7 @@ export default function EmployerOnboarding() {
               </div>
               <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20">
                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                  <strong>What happens next?</strong> After submission, our team will review your application within 2–3 business days. You'll receive an email notification once approved.
+                  <strong>What happens next?</strong> After submission, our team will review your application within 2–3 business days. you&apos;ll receive an email notification once approved.
                 </p>
               </div>
             </div>

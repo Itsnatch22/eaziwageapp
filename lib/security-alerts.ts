@@ -7,6 +7,8 @@ const resend = new Resend(env.RESEND_API_KEY);
 const FROM_EMAIL = "EaziWage Security <security@eaziwage.com>";
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://eaziwage.com";
 
+const newYear = new Date().getFullYear() + 1; // Always show next year for future-proofing
+
 /**
  * Security notification utilities
  */
@@ -85,7 +87,7 @@ export async function sendAccountLockedEmail(
 
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
               <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
-                © 2024 EaziWage. This is an automated security notification.
+                © 2025 - ${newYear} EaziWage. This is an automated security notification.
               </p>
             </div>
           </body>
@@ -186,7 +188,7 @@ export async function sendLoginNotification(
 
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
               <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
-                © 2024 EaziWage. This is an automated security notification.
+                © 2025 - ${newYear} EaziWage. This is an automated security notification.
               </p>
             </div>
           </body>
@@ -259,7 +261,7 @@ export async function sendPasswordChangedEmail(
 
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
               <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
-                © 2026 EaziWage. This is an automated security notification.
+                © 2025 - ${newYear} EaziWage. This is an automated security notification.
               </p>
             </div>
           </body>

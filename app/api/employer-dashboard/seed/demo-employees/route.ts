@@ -6,6 +6,7 @@
 // Only works for approved employers. Idempotent: won't seed twice.
 //
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs'; // needs crypto for UUIDs
@@ -68,101 +69,159 @@ function randomDate(yearsBack: number): string {
 }
 
 export async function POST() {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (authError) {
+      console.error('[seed/demo-employees] Auth error:', authError);
+      return NextResponse.json({ error: 'Authentication error', details: authError.message }, { status: 401 });
+    }
 
-  // ── Resolve employer ──────────────────────────────────────────────────────
-  const { data: employer, error: employerError } = await supabase
-    .from('employer_onboarding')
-    .select('id, company_name, country')
-    .eq('user_id', user.id)
-    .eq('status', 'approved')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  if (employerError) {
-    return NextResponse.json({ error: employerError.message }, { status: 500 });
-  }
+    // ── Resolve employer ──────────────────────────────────────────────────────
+    const { data: employer, error: employerError } = await supabase
+      .from('employer_onboarding')
+      .select('id, company_name, country')
+      .eq('user_id', user.id)
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (!employer) {
-    return NextResponse.json(
-      { error: 'Approved employer profile required to seed employees.' },
-      { status: 403 },
-    );
-  }
+    if (employerError) {
+      console.error('[seed/demo-employees] Employer query error:', employerError);
+      return NextResponse.json({ error: 'Failed to query employer', details: employerError.message }, { status: 500 });
+    }
 
-  // ── Idempotency: don't seed if already have 50+ ───────────────────────────
-  const { count } = await supabase
-    .from('employee_onboarding')
-    .select('id', { count: 'exact', head: true })
-    .eq('employer_id', employer.id);
+    if (!employer) {
+      return NextResponse.json(
+        { error: 'Approved employer profile required to seed employees.' },
+        { status: 403 },
+      );
+    }
 
-  if ((count ?? 0) >= 50) {
+    // ── Idempotency: don't seed if already have 50+ ───────────────────────────
+    const { count, error: countError } = await supabase
+      .from('employee_onboarding')
+      .select('id', { count: 'exact', head: true })
+      .eq('employer_id', employer.id);
+
+    if (countError) {
+      console.error('[seed/demo-employees] Count error:', countError);
+      return NextResponse.json({ error: 'Failed to count employees', details: countError.message }, { status: 500 });
+    }
+
+    if ((count ?? 0) >= 50) {
+      return NextResponse.json({
+        message: `Already have ${count} employees — skipping seed.`,
+      });
+    }
+
+    // ── Build 60 employees with unique demo users ─────────────────────────────
+    const country = employer.country ?? 'KE';
+    const cities  = CITIES[country] ?? CITIES.KE;
+
+    const rows = [];
+    
+    for (let i = 0; i < 60; i++) {
+      const dept      = pick(DEPARTMENTS);
+      const titles    = JOB_TITLES[dept] ?? ['Staff'];
+      const firstName = pick(FIRST_NAMES);
+      const lastName  = pick(LAST_NAMES);
+      const kycStatus = pick(KYC_STATUSES);
+      const email     = `demo.employee.${i + 1}.${employer.id.substring(0, 8)}@example.com`;
+
+      // Create a demo user account for this employee using supabaseAdmin
+      const { data: demoUser, error: userError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: `DemoPass${Math.random().toString(36).substring(2, 15)}!`,
+        email_confirm: true,
+        user_metadata: {
+          full_name: `${firstName} ${lastName}`,
+          role: 'employee',
+          is_demo: true,
+        },
+      });
+
+      if (userError) {
+        console.error(`[seed/demo-employees] Failed to create user ${i + 1}:`, userError);
+        // Continue with remaining users instead of failing completely
+        continue;
+      }
+
+      if (!demoUser.user) {
+        console.error(`[seed/demo-employees] No user returned for employee ${i + 1}`);
+        continue;
+      }
+
+      rows.push({
+        user_id:         demoUser.user.id, // ✅ Unique user_id for each employee
+        employer_id:     employer.id,
+        employee_code:   `EMP-${String(i + 1).padStart(4, '0')}`,
+        national_id:     `DEMO-${String(i + 1).padStart(6, '0')}`,
+        id_type:         'national_id' as const,
+        date_of_birth:   randomDate(35),  // 0-35 years back
+        job_title:       pick(titles),
+        department:      dept,
+        employment_type: pick(['full_time', 'part_time', 'contract']),
+        start_date:      randomDate(5),   // up to 5 years ago
+        monthly_salary:  randomSalary(),
+        country,
+        city:            pick(cities),
+        address_line1:   `${Math.floor(Math.random() * 999) + 1} Demo Street`,
+        address_line2:   null,
+        postal_code:     String(Math.floor(Math.random() * 90000) + 10000),
+        bank_name:       pick(['KCB', 'Equity Bank', 'NCBA', 'Stanbic', 'Absa']),
+        bank_account:    String(Math.floor(Math.random() * 9e9) + 1e9),
+        mobile_money_provider: pick(['M-PESA', 'Airtel Money', 'MTN MoMo', 'Tigo Pesa']),
+        mobile_money_number:   `+254${Math.floor(Math.random() * 9e8) + 1e8}`,
+        status:          kycStatus,
+        terms_accepted_at: new Date().toISOString(),
+        submitted_at:    new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+    }
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'Failed to create any demo users' }, { status: 500 });
+    }
+
+    console.log('[seed/demo-employees] First row to insert:', JSON.stringify(rows[0], null, 2));
+
+    const { error: insertError } = await supabase
+      .from('employee_onboarding')
+      .insert(rows);
+
+    if (insertError) {
+      console.error('[seed/demo-employees] Insert error details:', JSON.stringify(insertError, null, 2));
+      return NextResponse.json({ 
+        error: 'Failed to seed employees', 
+        details: insertError.message,
+        hint: insertError.hint,
+        code: insertError.code 
+      }, { status: 500 });
+    }
+
     return NextResponse.json({
-      message: `Already have ${count} employees — skipping seed.`,
+      message: `Seeded ${rows.length} demo employees for ${employer.company_name}.`,
+      count: rows.length,
     });
+  } catch (error: unknown) {
+    console.error('[seed/demo-employees] Unexpected error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const stack = error instanceof Error ? error.stack : undefined;
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: message,
+      stack: process.env.NODE_ENV === 'development' ? stack : undefined
+    }, { status: 500 });
   }
-
-  // ── Build 60 employees ────────────────────────────────────────────────────
-  const country = employer.country ?? 'KE';
-  const cities  = CITIES[country] ?? CITIES.KE;
-
-  const rows = Array.from({ length: 60 }, (_, i) => {
-    const dept     = pick(DEPARTMENTS);
-    const titles   = JOB_TITLES[dept] ?? ['Staff'];
-    const firstName = pick(FIRST_NAMES);
-    const lastName  = pick(LAST_NAMES);
-    const kycStatus = pick(KYC_STATUSES);
-
-    return {
-      user_id:         user.id, // will be updated per-user in real flows; placeholder here
-      employer_id:     employer.id,
-      employee_code:   `EMP-${String(i + 1).padStart(4, '0')}`,
-      // full_name stored via user metadata in real flow; here we embed it as national_id alias
-      national_id:     `DEMO-${String(i + 1).padStart(6, '0')}`,
-      id_type:         'national_id' as const,
-      date_of_birth:   randomDate(35),  // 0-35 years back
-      job_title:       pick(titles),
-      department:      dept,
-      employment_type: pick(['full_time', 'part_time', 'contract']),
-      start_date:      randomDate(5),   // up to 5 years ago
-      monthly_salary:  randomSalary(),
-      country,
-      city:            pick(cities),
-      address_line1:   `${Math.floor(Math.random() * 999) + 1} Demo Street`,
-      address_line2:   null,
-      postal_code:     String(Math.floor(Math.random() * 90000) + 10000),
-      bank_name:       pick(['KCB', 'Equity Bank', 'NCBA', 'Stanbic', 'Absa']),
-      bank_account:    String(Math.floor(Math.random() * 9e9) + 1e9),
-      mobile_money_provider: pick(['M-PESA', 'Airtel Money', 'MTN MoMo', 'Tigo Pesa']),
-      mobile_money_number:   `+254${Math.floor(Math.random() * 9e8) + 1e8}`,
-      status:          kycStatus,
-      terms_accepted_at: new Date().toISOString(),
-      submitted_at:    new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-  });
-
-  const { error: insertError } = await supabase
-    .from('employee_onboarding')
-    .insert(rows);
-
-  if (insertError) {
-    console.error('[seed/demo-employees]', insertError);
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    message: `Seeded 60 demo employees for ${employer.company_name}.`,
-    count: 60,
-  });
 }

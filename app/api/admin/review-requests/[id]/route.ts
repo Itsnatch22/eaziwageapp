@@ -101,6 +101,75 @@ export async function PATCH(
     );
 
     return NextResponse.json({ message: 'KYC status updated', data: document });
+
+  } else if (type === 'bank_change') {
+    // 1. Fetch the request to get new details and employer_id
+    const { data: bRequest, error: fetchError } = await adminSupabase
+      .from('bank_change_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (fetchError || !bRequest) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
+
+    // 2. If approved, update the employer record
+    if (status === 'approved') {
+      const updateData = {
+        bank_name: bRequest.new_bank_name,
+        bank_account_number: bRequest.new_account_number,
+        updated_at: new Date().toISOString()
+      };
+
+      // Update employer_onboarding
+      await adminSupabase
+        .from('employer_onboarding')
+        .update(updateData)
+        .eq('id', bRequest.employer_id);
+
+      // Update employers sync table
+      await adminSupabase
+        .from('employers')
+        .update(updateData)
+        .eq('id', bRequest.employer_id);
+    }
+
+    // 3. Update the request status
+    const { data: updatedRequest, error: updateError } = await adminSupabase
+      .from('bank_change_requests')
+      .update({
+        status,
+        internal_notes,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: adminUser.id
+      })
+      .eq('id', requestId)
+      .select()
+      .single();
+
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+
+    // 4. Notify Employer
+    if (bRequest.user_id) {
+      const { data: notif } = await adminSupabase
+        .from('notifications')
+        .insert({
+          user_id: bRequest.user_id,
+          type: 'system',
+          title: `Bank Details Change ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+          message: status === 'approved' 
+            ? 'Your request to change bank details has been approved and updated.'
+            : `Your bank details change request was rejected. ${response ? `Reason: ${response}` : ''}`,
+          read: false
+        })
+        .select()
+        .single();
+
+      if (notif) {
+        await pusherServer.trigger(`employer-${bRequest.user_id}`, 'new-notification', notif);
+      }
+    }
+
+    return NextResponse.json({ message: 'Bank change request updated', data: updatedRequest });
   }
 
   return NextResponse.json({ error: 'Invalid request type' }, { status: 400 });
