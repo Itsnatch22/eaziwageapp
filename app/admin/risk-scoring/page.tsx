@@ -237,6 +237,13 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
     beneficial_ownership: 3,
     pep_screening: 3,
   });
+  const [overrideReason, setOverrideReason] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) {
+      setOverrideReason('');
+    }
+  }, [isOpen, employer?.id]);
 
   const categories = [
     {
@@ -316,7 +323,8 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
         body: JSON.stringify({
           risk_score: currentScore,
           risk_rating: currentRating,
-          status: 'approved' // Automatically approve if we are scoring it? Or keep as is? User said "after scoring by admin"
+          risk_factors: factors,
+          override_reason: overrideReason.trim() || undefined,
         })
       });
 
@@ -407,6 +415,17 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
               </div>
 
               <div className="space-y-3 pt-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Manual Override Note (optional)
+                  </label>
+                  <Input
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    placeholder="Explain why you tuned this employer's risk profile"
+                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
                 <Button 
                   className="w-full h-12 bg-linear-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl"
                   onClick={handleSubmit}

@@ -3,9 +3,11 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Users, Search, Download, TrendingUp, UserCheck, Clock,
   Eye, Settings, CheckCircle2, XCircle, Calendar, Building2,
-  Globe, LucideIcon, AlertCircle,
+  Globe, LucideIcon, AlertCircle, Upload, FileText, Check, X,
+  Loader2,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,6 +83,181 @@ const CHART_COLORS = [
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+const BulkOnboardModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}> = ({ isOpen, onClose, onSuccess }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [results, setResults] = useState<{ total: number; success: number; failed: number; errors: any[] } | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) setFile(selectedFile);
+  };
+
+  const downloadTemplate = () => {
+    const headers = [['full_name', 'email', 'employee_code', 'job_title', 'department', 'monthly_salary']];
+    const ws = XLSX.utils.aoa_to_sheet(headers);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'eaziwage_employee_template.csv');
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const json = XLSX.utils.sheet_to_json(worksheet);
+
+          const res = await fetch('/api/employer-dashboard/employees/bulk-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employees: json }),
+          });
+
+          const resultData = await res.json();
+          if (!res.ok) throw new Error(resultData.error || 'Upload failed');
+          
+          setResults(resultData);
+          if (resultData.success > 0) {
+            toast.success(`Successfully onboarded ${resultData.success} employees`);
+            onSuccess();
+          }
+        } catch (innerErr: any) {
+          toast.error(innerErr.message);
+        } finally {
+          setUploading(false);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (err: any) {
+      toast.error(err.message);
+      setUploading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-linear-to-r from-primary to-emerald-600 p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <Upload className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Bulk Onboard Employees</h2>
+              <p className="text-white/70 text-sm">Upload a CSV/Excel file to invite your team</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-white" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {!results ? (
+            <>
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800 flex items-start gap-3">
+                <FileText className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">How it works</p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                    Download our template, fill in your employee details, and upload it here. 
+                    We'll create pending profiles and send invitations to each email.
+                  </p>
+                  <button onClick={downloadTemplate} className="text-xs font-bold text-blue-600 hover:underline mt-2">
+                    Download CSV Template
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 text-center hover:border-primary transition-colors">
+                <input type="file" id="bulk-file" accept=".csv,.xlsx" className="hidden" onChange={handleFileChange} />
+                <label htmlFor="bulk-file" className="cursor-pointer">
+                  <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Upload className="w-8 h-8 text-primary" />
+                  </div>
+                  {file ? (
+                    <p className="font-bold text-slate-900 dark:text-white">{file.name}</p>
+                  ) : (
+                    <>
+                      <p className="font-bold text-slate-900 dark:text-white">Click to select file</p>
+                      <p className="text-xs text-slate-500 mt-1">CSV or Excel (Max 5MB)</p>
+                    </>
+                  )}
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
+                <Button 
+                  onClick={handleUpload} 
+                  disabled={uploading || !file} 
+                  className="flex-1 bg-primary text-white"
+                >
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                  {uploading ? 'Processing...' : 'Upload & Invite'}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl text-center">
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{results.total}</p>
+                  <p className="text-xs text-slate-500">Total Rows</p>
+                </div>
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-center">
+                  <p className="text-2xl font-bold text-emerald-600">{results.success}</p>
+                  <p className="text-xs text-emerald-600">Successful</p>
+                </div>
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl text-center">
+                  <p className="text-2xl font-bold text-red-600">{results.failed}</p>
+                  <p className="text-xs text-red-600">Failed</p>
+                </div>
+              </div>
+
+              {results.errors.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Email</th>
+                        <th className="px-3 py-2 text-left">Error</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {results.errors.map((err, i) => (
+                        <tr key={i}>
+                          <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">{err.email}</td>
+                          <td className="px-3 py-2 text-red-500">{err.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <Button onClick={onClose} className="w-full bg-primary text-white">Done</Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface MetricCardProps {
   icon: LucideIcon;
@@ -554,6 +731,7 @@ const EmployerEmployees: React.FC = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [showEWAModal, setShowEWAModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
@@ -698,17 +876,25 @@ const EmployerEmployees: React.FC = () => {
               Manage your workforce and EWA settings
             </p>
           </div>
-          {employees.length < 50 && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
-              onClick={handleSeedEmployees}
-              disabled={seeding}
-              className="bg-white/60 dark:bg-slate-800/60"
-              data-testid="seed-employees-btn"
+              onClick={() => setShowBulkModal(true)}
+              className="bg-primary text-white"
             >
-              {seeding ? 'Seeding...' : 'Seed 60 Demo Employees'}
+              <Users className="w-4 h-4 mr-2" /> Bulk Onboard
             </Button>
-          )}
+            {employees.length < 50 && (
+              <Button
+                variant="outline"
+                onClick={handleSeedEmployees}
+                disabled={seeding}
+                className="bg-white/60 dark:bg-slate-800/60"
+                data-testid="seed-employees-btn"
+              >
+                {seeding ? 'Seeding...' : 'Seed Demo Employees'}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Error banner */}
@@ -855,7 +1041,7 @@ const EmployerEmployees: React.FC = () => {
               </p>
               {employees.length === 0 && (
                 <Button onClick={handleSeedEmployees} disabled={seeding} className="mt-4 bg-primary text-white">
-                  {seeding ? 'Seeding...' : 'Seed 60 Demo Employees'}
+                  {seeding ? 'Seeding...' : 'Seed Demo Employees'}
                 </Button>
               )}
             </div>
@@ -908,6 +1094,11 @@ const EmployerEmployees: React.FC = () => {
         employee={selectedEmployee}
         isOpen={showViewModal}
         onClose={() => { setShowViewModal(false); setSelectedEmployee(null); }}
+      />
+      <BulkOnboardModal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        onSuccess={fetchData}
       />
     </EmployerPortalLayout>
   );

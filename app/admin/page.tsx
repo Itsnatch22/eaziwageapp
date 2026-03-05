@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Building2, Users, CreditCard, Shield, CheckCircle2,
- TrendingUp, ArrowRight, FileText, Wifi, Activity,
+ TrendingUp, ArrowRight, FileText, Wifi, Activity, AlertTriangle,
   DollarSign, BarChart3,
 } from 'lucide-react';
 import { Button }            from '@/components/ui/button';
@@ -23,6 +23,16 @@ interface DashboardStats {
   advances: { total_count: number; pending_count: number; total_disbursed: number; total_fees: number };
   kyc_pending: { employers: number; employees: number };
   pending_reviews: number;
+  suspicious_activity: {
+    total_open: number;
+    alerts: Array<{
+      id: number;
+      title: string;
+      description: string;
+      severity: 'low' | 'medium' | 'high' | string;
+      created_at: string;
+    }>;
+  };
   pending_reconciliation: number;
   monthly: { disbursed: number; advance_count: number; fees: number };
   risk: { avg_employer_score: number };
@@ -179,6 +189,39 @@ export default function AdminDashboard() {
             {stats.pending_reviews > 0 && (
               <AlertCard icon={Shield} title="Risk Reviews" count={stats.pending_reviews} description="Employer requests" link="/admin/risk-scoring" variant="green" />
             )}
+          </div>
+        )}
+
+        {stats && stats.suspicious_activity.total_open > 0 && (
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <GradientIconBox icon={Shield} size="sm" variant="black" />
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">Suspicious Activity Feed</p>
+                  <p className="text-xs text-slate-500">{stats.suspicious_activity.total_open} open alerts</p>
+                </div>
+              </div>
+              <Link href="/admin/fraud-detection">
+                <Button variant="ghost" size="sm" className="text-slate-700">
+                  View All <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {stats.suspicious_activity.alerts.map((alert) => (
+                <div key={alert.id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/60 dark:bg-slate-800/40">
+                  <AlertTriangle className={cn(
+                    'w-4 h-4 mt-0.5',
+                    alert.severity === 'high' ? 'text-red-600' : alert.severity === 'medium' ? 'text-amber-600' : 'text-slate-600'
+                  )} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{alert.title}</p>
+                    <p className="text-xs text-slate-500 truncate">{alert.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

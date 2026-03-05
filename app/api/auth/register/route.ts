@@ -324,6 +324,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
         employerUserId = employer.user_id;
     }
+  } else if (input.role === 'employee' && !input.company_code && !input.employer_referral) {
+    // If no code and no referral, we still allow it but they'll be unlinked
+    // (Optionally you could require a referral here if that's your business logic)
   }
 
   // ── 7. Create Supabase Auth user ────────────────────────────────────────────

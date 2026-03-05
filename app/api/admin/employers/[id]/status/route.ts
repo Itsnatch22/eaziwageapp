@@ -5,6 +5,10 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
+function generateCompanyCode(sourceId: string): string {
+  return `EW-${sourceId.slice(0, 8).toUpperCase()}`;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -57,18 +61,41 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { status } = body;
+  const { status, employer_code, initial_credit_limit, reason } = body as {
+    status: string;
+    employer_code?: string;
+    initial_credit_limit?: number;
+    reason?: string;
+  };
 
   if (!['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'].includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
+  const { data: employer, error: employerFetchError } = await adminSupabase
+    .from('employer_onboarding')
+    .select('id,user_id,company_name,max_advance_amount')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (employerFetchError || !employer) {
+    return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof initial_credit_limit === 'number' && Number.isFinite(initial_credit_limit) && initial_credit_limit > 0) {
+    updatePayload.max_advance_amount = Math.round(initial_credit_limit);
+  } else if (status === 'approved' && (!employer.max_advance_amount || Number(employer.max_advance_amount) <= 0)) {
+    updatePayload.max_advance_amount = 500000;
+  }
+
   const { error: updateError } = await adminSupabase
     .from('employer_onboarding')
-    .update({ 
-      status, 
-      updated_at: new Date().toISOString()
-    })
+    .update(updatePayload)
     .eq('id', id);
 
   if (updateError) {
@@ -76,5 +103,45 @@ export async function PATCH(
     return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
 
-  return NextResponse.json({ message: `Employer status updated to ${status}` });
+  // Activation workflow: ensure company code is present in profiles
+  let resolvedCompanyCode: string | null = null;
+  if (status === 'approved') {
+    const { data: profileRow } = await adminSupabase
+      .from('profiles')
+      .select('company_code')
+      .eq('id', employer.user_id)
+      .maybeSingle();
+
+    resolvedCompanyCode =
+      (typeof employer_code === 'string' && employer_code.trim()) ||
+      (profileRow?.company_code ? String(profileRow.company_code).trim() : '') ||
+      generateCompanyCode(employer.id);
+
+    await adminSupabase
+      .from('profiles')
+      .update({ company_code: resolvedCompanyCode })
+      .eq('id', employer.user_id);
+  }
+
+  // Notify employer about status change
+  await adminSupabase.from('notifications').insert({
+    user_id: employer.user_id,
+    type: 'system',
+    title: `Employer Status Updated: ${status.replace(/_/g, ' ')}`,
+    message:
+      status === 'approved'
+        ? `Your employer profile is now fully active.${resolvedCompanyCode ? ` Company code: ${resolvedCompanyCode}.` : ''}`
+        : `Your employer profile status changed to ${status.replace(/_/g, ' ')}.${reason ? ` Reason: ${reason}` : ''}`,
+    read: false,
+    created_at: new Date().toISOString(),
+  });
+
+  return NextResponse.json({
+    message: `Employer status updated to ${status}`,
+    data: {
+      status,
+      company_code: resolvedCompanyCode,
+      initial_credit_limit: updatePayload.max_advance_amount ?? employer.max_advance_amount ?? null,
+    },
+  });
 }

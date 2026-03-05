@@ -5,6 +5,10 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
+function generateCompanyCode(sourceId: string): string {
+  return `EW-${sourceId.slice(0, 8).toUpperCase()}`;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -55,19 +59,69 @@ export async function PATCH(
   }
 
   // Update employer application status
-  const { error: updateError } = await adminSupabase
+  const { data: reviewedEmployer, error: updateError } = await adminSupabase
     .from('employer_onboarding')
     .update({ 
       status, 
       reviewer_notes: notes,
       updated_at: new Date().toISOString()
     })
+    .select('id,user_id,company_name,max_advance_amount')
     .eq('id', appId);
 
-  if (updateError) {
+  if (updateError || !reviewedEmployer || reviewedEmployer.length === 0) {
     console.error('[Employer KYC Review] Update error:', updateError);
     return NextResponse.json({ error: 'Failed to update employer' }, { status: 500 });
   }
 
-  return NextResponse.json({ message: 'Employer review submitted successfully' });
+  const employer = reviewedEmployer[0];
+
+  if (status === 'approved') {
+    // Ensure employer has a company code in profile
+    const { data: profileRow } = await adminSupabase
+      .from('profiles')
+      .select('company_code')
+      .eq('id', employer.user_id)
+      .maybeSingle();
+
+    const resolvedCompanyCode =
+      (profileRow?.company_code && String(profileRow.company_code).trim()) || generateCompanyCode(employer.id);
+
+    await adminSupabase
+      .from('profiles')
+      .update({ company_code: resolvedCompanyCode })
+      .eq('id', employer.user_id);
+
+    // Seed default initial employer credit limit when not already set
+    if (!employer.max_advance_amount || Number(employer.max_advance_amount) <= 0) {
+      await adminSupabase
+        .from('employer_onboarding')
+        .update({
+          max_advance_amount: 500000,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', employer.id);
+    }
+  }
+
+  // Notify employer
+  await adminSupabase.from('notifications').insert({
+    user_id: employer.user_id,
+    type: 'kyc_update',
+    title: status === 'approved' ? 'Employer Onboarding Approved' : 'Employer Onboarding Rejected',
+    message:
+      status === 'approved'
+        ? `${employer.company_name} has been activated. You can now proceed with full platform setup.`
+        : `Your onboarding submission was rejected.${notes ? ` Reason: ${notes}` : ''}`,
+    read: false,
+    created_at: new Date().toISOString(),
+  });
+
+  return NextResponse.json({
+    message: 'Employer review submitted successfully',
+    data: {
+      employer_id: employer.id,
+      status,
+    },
+  });
 }

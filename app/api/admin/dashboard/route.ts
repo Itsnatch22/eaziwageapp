@@ -45,6 +45,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const totalPendingReviews = (riskPending || 0) + (bankPending || 0);
 
+    // Suspicious activity feed
+    const { count: activeFraudAlerts } = await supabase
+      .from('fraud_alerts')
+      .select('id', { count: 'exact', head: true })
+      .neq('status', 'resolved');
+
+    const { data: latestFraudAlerts } = await supabase
+      .from('fraud_alerts')
+      .select('id,title,description,severity,created_at')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
     // Employers
     const { count: employerTotal } = await supabase
       .from('employers')
@@ -191,6 +203,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           employees: employeeKYCPending || 0,
         },
         pending_reviews: totalPendingReviews,
+        suspicious_activity: {
+          total_open: activeFraudAlerts || 0,
+          alerts: latestFraudAlerts || [],
+        },
         pending_reconciliation: pendingReconciliation || 0,
         monthly: {
           disbursed:     monthlyDisbursed,
