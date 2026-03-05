@@ -299,9 +299,9 @@ const RiskRatingBadge = ({ rating, size = 'md' }: RiskRatingBadgeProps) => {
 };
 
 interface CategoryScoreCardProps {
-  category: string;
+  category: keyof typeof RISK_CATEGORIES;
   score: number;
-  categoryData: Record<string, number> | undefined;
+  categoryData: Partial<Record<string, number>> | undefined;
   expanded?: boolean;
   onToggle: () => void;
 }
@@ -313,7 +313,7 @@ const CategoryScoreCard = ({
   expanded, 
   onToggle 
 }: CategoryScoreCardProps) => {
-  const config = RISK_CATEGORIES[category as keyof typeof RISK_CATEGORIES];
+  const config = RISK_CATEGORIES[category];
   if (!config) return null;
 
   const Icon = config.icon;
@@ -518,9 +518,26 @@ const FeeImpactCard = ({ currentScore, currentFee }: FeeImpactCardProps) => {
 
 // ─── Main Page Component ──────────────────────────────────────────────────────
 
+type RiskCategory = keyof typeof RISK_CATEGORIES;
+type RiskFactorMap = Partial<Record<string, number>>;
+
+interface RiskInsightsData {
+  company_name?: string;
+  risk_score?: number;
+  risk_rating?: string;
+  application_fee?: number;
+  currency?: string;
+  risk_factors?: Partial<Record<RiskCategory, RiskFactorMap>>;
+  has_pending_review?: boolean;
+  framework_version?: string;
+  framework_date?: string;
+  sub_factor_weights?: Partial<Record<RiskCategory, Partial<Record<string, number>>>>;
+  category_weights?: Partial<Record<RiskCategory, number>>;
+}
+
 export default function RiskInsightsPage() {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [data, setData] = useState<RiskInsightsData | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   // Fetch risk data from API
@@ -532,7 +549,7 @@ export default function RiskInsightsPage() {
           const err = await res.json();
           throw new Error(err.error || 'Failed to fetch risk insights');
         }
-        const json = await res.json();
+        const json = (await res.json()) as RiskInsightsData;
         setData(json);
       } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err) || 'Failed to load risk insights');
         console.error('[risk-insights]', err);
@@ -582,7 +599,6 @@ export default function RiskInsightsPage() {
     risk_score = 3.0,
     risk_rating = 'B',
     application_fee: apiFee,
-    currency = 'KES',
     risk_factors,
     has_pending_review,
     framework_version,
@@ -593,7 +609,7 @@ export default function RiskInsightsPage() {
   const feePercentage = apiFee ?? calculateFeePercentage(risk_score);
 
   // Calculate category averages using proper framework weights
-  const getCategoryAverage = (category: string) => {
+  const getCategoryAverage = (category: RiskCategory) => {
     const factors = risk_factors?.[category];
     if (!factors) return 3.0;
     
@@ -746,7 +762,7 @@ export default function RiskInsightsPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Click to expand details</p>
           </div>
           <div className="space-y-3">
-            {Object.keys(RISK_CATEGORIES).map((category) => (
+            {(Object.keys(RISK_CATEGORIES) as RiskCategory[]).map((category) => (
               <CategoryScoreCard
                 key={category}
                 category={category}

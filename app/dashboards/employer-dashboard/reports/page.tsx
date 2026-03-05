@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Download, Calendar,
   Users, CreditCard, DollarSign, PieChart, ArrowUpRight, ArrowDownRight,
-  FileText, Wallet, Activity, RefreshCw,
+  FileText, Wallet, Activity, RefreshCw, LucideIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,8 +31,15 @@ interface ReportsData {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+interface MetricCardProps {
+  icon: LucideIcon;
+  title: string;
+  value: string | number;
+  change?: string;
+  changeType?: 'positive' | 'negative';
+}
 
-const MetricCard = ({ title, value, change, changeType, icon: Icon }) => (
+const MetricCard = ({ title, value, change, changeType, icon: Icon }: MetricCardProps) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:shadow-lg transition-all">
     <div className="flex items-start justify-between mb-4">
       <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
@@ -58,7 +65,13 @@ const MetricCard = ({ title, value, change, changeType, icon: Icon }) => (
   </div>
 );
 
-const DonutChart = ({ mobileMoneyCount, bankTransferCount, total }) => {
+interface DonutChartProps {
+  mobileMoneyCount: number;
+  bankTransferCount: number;
+  total: number;
+}
+
+const DonutChart = ({ mobileMoneyCount, bankTransferCount, total }: DonutChartProps) => {
   const pct  = total > 0 ? (mobileMoneyCount / total) * 100 : 0;
   const circ = 2 * Math.PI * 40;
   return (
@@ -85,7 +98,14 @@ const DonutChart = ({ mobileMoneyCount, bankTransferCount, total }) => {
   );
 };
 
-const ProgressItem = ({ label, value, total, color }) => {
+interface ProgressItemProps {
+  label: string;
+  value: number;
+  total: number;
+  color: string;
+}
+
+const ProgressItem = ({ label, value, total, color }: ProgressItemProps) => {
   const pct = total > 0 ? (value / total) * 100 : 0;
   return (
     <div className="space-y-2">
@@ -119,7 +139,15 @@ const MiniBarChart = ({ trend }: { trend: ReportsData['monthly_trend'] }) => {
   );
 };
 
-const ReportCard = ({ icon: Icon, title, description, onClick, disabled = false }) => (
+interface ReportCardProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  onClick: () => void;
+  disabled?: boolean;
+}
+
+const ReportCard = ({ icon: Icon, title, description, onClick, disabled = false }: ReportCardProps) => (
   <div
     onClick={disabled ? undefined : onClick}
     className={cn(
@@ -140,7 +168,13 @@ const ReportCard = ({ icon: Icon, title, description, onClick, disabled = false 
   </div>
 );
 
-const SummaryRow = ({ label, value, valueColor = '' }) => (
+interface SummaryRowProps {
+  label: string;
+  value: React.ReactNode;
+  valueColor?: string;
+}
+
+const SummaryRow = ({ label, value, valueColor = '' }: SummaryRowProps) => (
   <div className="flex items-center justify-between py-3 border-b border-slate-200/50 dark:border-slate-700/30 last:border-0">
     <span className="text-slate-600 dark:text-slate-400">{label}</span>
     <span className={cn("font-semibold", valueColor || "text-slate-900 dark:text-white")}>{value}</span>
@@ -428,7 +462,7 @@ export default function EmployerReports() {
                 <div className="text-right">
                   <span className="font-bold text-slate-900 dark:text-white">{adv?.by_method.mobile_money ?? 0}</span>
                   <span className="text-xs text-slate-500 ml-2">
-                    ({adv?.total > 0 ? (((adv.by_method.mobile_money) / adv.total) * 100).toFixed(0) : 0}%)
+({(adv?.total ?? 0) > 0 ? (((adv!.by_method.mobile_money) / adv!.total) * 100).toFixed(0) : 0}%)
                   </span>
                 </div>
               </div>
@@ -440,7 +474,7 @@ export default function EmployerReports() {
                 <div className="text-right">
                   <span className="font-bold text-slate-900 dark:text-white">{adv?.by_method.bank_transfer ?? 0}</span>
                   <span className="text-xs text-slate-500 ml-2">
-                    ({adv?.total > 0 ? (((adv.by_method.bank_transfer) / adv.total) * 100).toFixed(0) : 0}%)
+({(adv?.total ?? 0) > 0 ? (((adv!.by_method.bank_transfer) / adv!.total) * 100).toFixed(0) : 0}%)
                   </span>
                 </div>
               </div>

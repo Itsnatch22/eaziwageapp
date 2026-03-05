@@ -152,18 +152,20 @@ const FilterButton: React.FC<{ active: boolean; onClick: () => void; children: R
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: { payload: Record<string, unknown>; value: number; name: string }[];
+  payload?: { payload: { name: string; value: number }; value: number; name: string }[];
   totalEmployees: number;
 }
 
 const CustomTooltip = ({ active, payload, totalEmployees }: CustomTooltipProps) => {
   if (active && payload?.length) {
     const d = payload[0].payload;
+    const value = d.value as number;
+    const name = d.name as string;
     return (
       <div className="bg-white dark:bg-slate-800 px-3 py-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
-        <p className="text-sm font-semibold text-slate-900 dark:text-white">{d.name}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{name}</p>
         <p className="text-xs text-slate-600 dark:text-slate-400">
-          {d.value} employees ({totalEmployees > 0 ? ((d.value / totalEmployees) * 100).toFixed(1) : 0}%)
+          {value} employees ({totalEmployees > 0 ? ((value / totalEmployees) * 100).toFixed(1) : 0}%)
         </p>
       </div>
     );

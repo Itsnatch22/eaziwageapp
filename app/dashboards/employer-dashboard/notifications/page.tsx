@@ -8,8 +8,18 @@ import { toast } from 'sonner';
 import pusherClient from '@/lib/pusher-client';
 import { useAuthStore } from '@/lib/stores/auth';
 
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  created_at: string;
+  time?: string;
+}
+
 export default function NotificationsPage() {
-    const [notifications, setNotifications] = useState<Record<string, unknown>[]>([]);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
     const user = useAuthStore((state) => state.user);
 
@@ -51,7 +61,7 @@ export default function NotificationsPage() {
         }
     }, [user?.id, fetchNotifications]);
 
-    const markAsRead = async (id?: number) => {
+    const markAsRead = async (id?: string) => {
         try {
             const res = await fetch('/api/employer-dashboard/notifications', {
                 method: 'PUT',
@@ -66,7 +76,7 @@ export default function NotificationsPage() {
         }
     };
 
-    const deleteNotification = async (e: React.MouseEvent, id: string | number) => {
+    const deleteNotification = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         try {
             const res = await fetch(`/api/employer-dashboard/notifications?id=${id}`, {
@@ -185,3 +195,4 @@ export default function NotificationsPage() {
         </EmployerPortalLayout>
     );
 }
+

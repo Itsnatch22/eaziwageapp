@@ -77,6 +77,12 @@ const StatusBadge = ({ status }: { status: AdvanceStatus }) => {
   );
 };
 
+interface EmployerData {
+  profile?: {
+    company_name?: string;
+  };
+}
+
 export default function EmployerAdvancesPage() {
   const [advances, setAdvances] = useState<AdvanceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +109,7 @@ export default function EmployerAdvancesPage() {
         ]);
 
         const advancesData: unknown = await advancesRes.json();
-        const employerData: Record<string, unknown> = await employerRes.json();
+        const employerData: EmployerData = await employerRes.json();
 
         if (!advancesRes.ok) throw new Error((advancesData as { error?: string })?.error || 'Failed to load advances');
         setAdvances(Array.isArray(advancesData) ? (advancesData as AdvanceItem[]) : []);

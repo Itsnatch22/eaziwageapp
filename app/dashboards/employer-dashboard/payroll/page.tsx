@@ -18,6 +18,17 @@ import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface Employee {
+  id: string;
+  employer_id: string;
+  full_name: string | null;
+  employee_code: string | null;
+  job_title: string | null;
+  department: string | null;
+  monthly_salary: number | null;
+  status: string;
+}
+
 interface Integration {
   id: string;
   provider: string;
@@ -330,7 +341,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected }: {
 
 // ── Payroll History Item ──────────────────────────────────────────────────────
 const PayrollHistoryItem = ({ record, onView }: { record: PayrollRecord; onView: (r: PayrollRecord) => void }) => {
-  const statusConfig = {
+  const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
     processed: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Processed' },
     partial:   { bg: 'bg-amber-100 dark:bg-amber-500/20',   text: 'text-amber-700 dark:text-amber-300',   label: 'Partial'   },
     failed:    { bg: 'bg-red-100 dark:bg-red-500/20',       text: 'text-red-700 dark:text-red-300',       label: 'Failed'    },
@@ -505,14 +516,14 @@ const UploadStepCard = ({ step, title, description, icon: Icon, active, complete
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function EmployerPayroll() {
-  const [employer, setEmployer]               = useState(null);
-  const [employees, setEmployees]             = useState([]);
+  const [employer, setEmployer] = useState<{ id: string; company_name: string; full_name: string | null } | null>(null);
+  const [employees, setEmployees]             = useState<Employee[]>([]);
   const [payrollHistory, setPayrollHistory]   = useState<PayrollRecord[]>([]);
   const [integration, setIntegration]         = useState<Integration | null>(null);
   const [loading, setLoading]                 = useState(true);
   const [uploading, setUploading]             = useState(false);
   const [syncing, setSyncing]                 = useState(false);
-  const [selectedFile, setSelectedFile]       = useState(null);
+  const [selectedFile, setSelectedFile]       = useState<File | null>(null);
   const [selectedMonth, setSelectedMonth]     = useState(new Date().toISOString().slice(0, 7));
   const [uploadResult, setUploadResult]       = useState<UploadResult | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -553,8 +564,8 @@ export default function EmployerPayroll() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // ── File select ───────────────────────────────────────────────────────────
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
       toast.error('Please upload a CSV or Excel file');

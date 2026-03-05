@@ -1,7 +1,7 @@
 "use client"
 import React, { useState, useEffect } from "react"
 import { 
-  Settings as SettingsIcon, Building2, Users, CreditCard, Bell,
+  Building2, Users, CreditCard, Bell,
   Shield, Clock, Save, AlertCircle, CheckCircle2,
   Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight,
   FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
@@ -20,10 +20,45 @@ import { EmployerPortalLayout } from '@/components/employer/EmployerLayout'
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface EmployerProfile {
+  id: string;
+  company_name: string;
+  company_code?: string;
+  status: string;
+  full_name?: string;
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  payroll_cycle?: string;
+  physical_address?: string;
+  city?: string;
+  postal_code?: string;
+  county_region?: string;
+  country?: string;
+  email_notifications?: boolean;
+  advance_alerts?: boolean;
+  payroll_reminders?: boolean;
+  weekly_reports?: boolean;
+  max_advance_percentage?: number;
+  min_advance_amount?: number;
+  max_advance_amount?: number;
+  advance_access_days?: [number, number];
+  cooldown_period?: number;
+  bank_name?: string;
+  bank_account_number?: string;
+  registration_number?: string;
+  tax_id?: string;
+  industry?: string;
+  sector?: string;
+  documents?: Record<string, string>;
+}
+
 interface TabButtonProps {
     icon: LucideIcon;
     label: string;
-    active: string;
+    active: boolean;
     onClick: () => void;
 }
 
@@ -80,7 +115,7 @@ interface ToogleItemProps {
     label: string;
     description: string;
     checked: boolean;
-    onToggle: () => void;
+    onToggle: (checked: boolean) => void;
 }
 const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: ToogleItemProps) => (
   <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
@@ -100,10 +135,10 @@ const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: Toogl
 interface DocumentItemProps {
     icon: LucideIcon;
     label: string;
-    fileName: string;
-    status: string;
+    fileName?: string | null;
+    status?: string | null;
     onView: () => void;
-    onReupload: () => void;
+    onReupload: (file: File) => void | Promise<void>;
 }
 const DocumentItem = ({ icon: Icon, label, fileName, status, onView, onReupload, accept = ".pdf,.jpg,.jpeg,.png", isUploading = false }: DocumentItemProps & { accept?: string, isUploading?: boolean }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -117,7 +152,7 @@ const DocumentItem = ({ icon: Icon, label, fileName, status, onView, onReupload,
       accept={accept}
       onChange={(e) => {
         if (e.target.files?.[0]) {
-          onReupload(e.target.files[0]);
+          void onReupload(e.target.files[0]);
         }
       }}
     />
@@ -180,30 +215,6 @@ const FAQItem = ({ question, answer }: FAQItemProps) => {
     </div>
   );
 };
-
-interface SecurityItemProps{
-    icon: LucideIcon;
-    label: string;
-    description: string;
-    actionLabel: string;
-    onClick: () => void;
-}
-const SecurityItem = ({ icon: Icon, label, description, actionLabel, onClick }: SecurityItemProps) => (
-  <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
-    <div className="flex items-center gap-4">
-      <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-sm">
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <div>
-        <p className="font-medium text-slate-900 dark:text-white">{label}</p>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
-      </div>
-    </div>
-    <Button variant="outline" size="sm" onClick={onClick} className="bg-white dark:bg-slate-800">
-      {actionLabel}
-    </Button>
-  </div>
-);
 
 interface BankChangeModalProps {
   isOpen: boolean;
@@ -287,7 +298,7 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
 };
 
 export default function EmployerSettings() {
-    const [employer, setEmployer] = useState(null);
+    const [employer, setEmployer] = useState<EmployerProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('company');
@@ -327,13 +338,16 @@ export default function EmployerSettings() {
         const data = await res.json();
         
         // Update local state with new Document properties
-        setEmployer((prev: EmployerProfile | null) => ({
-          ...prev,
-          documents: {
-            ...prev?.documents,
-            [docKey]: data.fileUrl,
-          },
-        }));
+        setEmployer((prev: EmployerProfile | null) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            documents: {
+              ...prev.documents,
+              [docKey]: data.fileUrl,
+            },
+          };
+        });
 
         toast.success(`${docKey.replace(/_/g, ' ')} uploaded successfully!`);
       } catch (err: unknown) {
@@ -739,7 +753,7 @@ export default function EmployerSettings() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-slate-900 dark:text-white">
-                        Verification Status: {employer?.status?.charAt(0).toUpperCase() + employer?.status?.slice(1)}
+                        Verification Status: {(employer?.status ?? 'pending').charAt(0).toUpperCase() + (employer?.status ?? 'pending').slice(1)}
                       </h3>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         {employer?.status === 'approved' 
@@ -844,7 +858,7 @@ export default function EmployerSettings() {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={handleBankChangeRequest}
+                        onClick={() => setShowBankModal(true)}
                         className="border-amber-300 text-amber-700 hover:bg-amber-100"
                       >
                         Request Change
@@ -1271,6 +1285,12 @@ export default function EmployerSettings() {
           </div>
         </div>
       </div>
+      <BankChangeModal
+        isOpen={showBankModal}
+        onClose={() => setShowBankModal(false)}
+        onSubmit={handleBankChangeRequest}
+        isSubmitting={saving}
+      />
     </EmployerPortalLayout>
   );
 }
