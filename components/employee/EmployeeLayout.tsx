@@ -11,6 +11,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/actions/auth';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
@@ -179,11 +180,12 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
           {/* User Section - Fixed at bottom */}
           <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 shrink-0 mb-20 lg:mb-0">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 bg-linear-to-br from-primary to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
-                <span className="text-white font-bold text-sm">
+              <Avatar className="w-11 h-11 rounded-xl shadow-md border border-slate-100 dark:border-slate-800">
+                <AvatarImage src={(user as any)?.avatar_url} alt={fullName} />
+                <AvatarFallback className="bg-linear-to-br from-primary to-indigo-600 text-white font-bold text-sm">
                   {initials}
-                </span>
-              </div>
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                   {fullName}

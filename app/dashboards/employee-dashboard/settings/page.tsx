@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { logout } from '@/actions/auth';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
+import { useAuthStore } from '@/lib/stores/auth';
+import { AvatarUpload } from '@/components/ui/AvatarUpload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 interface ToogleSwitchProps {
@@ -899,44 +901,18 @@ export default function Settings() {
           </div>
           
           <div className="px-5 pb-5 -mt-10 relative">
-            <div className="relative inline-block">
-              <div className="h-20 w-20 rounded-2xl bg-white dark:bg-slate-900 p-1 shadow-xl">
-                {profile?.profile_picture_url ? (
-                  <img 
-                    src={`${BACKEND_URL}${profile.profile_picture_url}`} 
-                    alt="Profile" 
-                    className="w-full h-full rounded-xl object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full rounded-xl bg-linear-to-br from-primary to-emerald-600 flex items-center justify-center">
-                    <span className="text-white font-bold text-2xl">
-                      {profile?.full_name?.[0] || user?.full_name?.[0] || 'U'}
-                    </span>
-                  </div>
-                )}
+            <div className="flex justify-center mb-4">
+              <div className="p-1.5 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl">
+                <AvatarUpload 
+                  userId={profile?.email || 'user'} // Using email as fallback or identifier if needed
+                  currentAvatarUrl={profile?.profile_picture_url ? `${BACKEND_URL}${profile.profile_picture_url}` : null}
+                  fullName={profile?.full_name || user?.full_name}
+                  onUploadSuccess={(url) => setProfile(prev => prev ? { ...prev, profile_picture_url: url.replace(BACKEND_URL, '') } : null)}
+                />
               </div>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="absolute -bottom-1 -right-1 w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-                data-testid="upload-profile-pic"
-              >
-                {uploading ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <Camera className="w-4 h-4 text-white" />
-                )}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleProfilePictureUpload}
-                className="hidden"
-              />
             </div>
 
-            <div className="mt-3">
+            <div className="mt-3 text-center">
               <h1 className="text-xl font-bold text-slate-900 dark:text-white">
                 {profile?.full_name || user?.full_name || 'User'}
               </h1>

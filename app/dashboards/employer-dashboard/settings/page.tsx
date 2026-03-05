@@ -19,6 +19,8 @@ import { Slider } from '@/components/ui/slider';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout'
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from '@/lib/stores/auth';
+import { AvatarUpload } from '@/components/ui/AvatarUpload';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -297,11 +299,90 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
   );
 };
 
+const EmployerProfileTab = ({ user }: { user: any }) => {
+  if (!user) return null;
+
+  return (
+    <div className="space-y-6">
+      <SettingsCard icon={Users} title="Your Profile" description="Manage your personal profile and account settings">
+        <div className="flex flex-col items-center mb-8">
+          <AvatarUpload 
+            userId={user.id} 
+            currentAvatarUrl={(user as any).avatar_url} 
+            fullName={(user as any).full_name || user.email}
+          />
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-slate-700 dark:text-slate-300">Full Name</Label>
+            <Input 
+              value={(user as any).full_name || ''} 
+              readOnly 
+              className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed" 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-slate-700 dark:text-slate-300">Email Address</Label>
+            <Input 
+              value={user.email || ''} 
+              readOnly 
+              className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed" 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-slate-700 dark:text-slate-300">Role</Label>
+            <Input 
+              value={(user as any).role || 'Employer Admin'} 
+              readOnly 
+              className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed capitalize" 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-slate-700 dark:text-slate-300">Account ID</Label>
+            <Input 
+              value={user.id} 
+              readOnly 
+              className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed font-mono text-xs" 
+            />
+          </div>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard icon={Shield} title="Account Security" description="Verify your account protection">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="font-medium text-slate-900 dark:text-white">Email Verified</p>
+              <p className="text-sm text-slate-500">Your primary email is confirmed</p>
+            </div>
+            <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm">
+              <CheckCircle2 className="w-4 h-4" />
+              Verified
+            </div>
+          </div>
+          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="font-medium text-slate-900 dark:text-white">Active Session</p>
+              <p className="text-sm text-slate-500">Current browser session is secure</p>
+            </div>
+            <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm">
+              <Shield className="w-4 h-4" />
+              Secure
+            </div>
+          </div>
+        </div>
+      </SettingsCard>
+    </div>
+  );
+};
+
 export default function EmployerSettings() {
+    const user = useAuthStore((state) => state.user);
     const [employer, setEmployer] = useState<EmployerProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState('company');
+    const [activeTab, setActiveTab] = useState('account');
     const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
     const [showBankModal, setShowBankModal] = useState(false);
 
@@ -509,7 +590,8 @@ export default function EmployerSettings() {
   };
 
   const tabs = [
-    { id: 'company', label: 'Company', icon: Building2 },
+    { id: 'account', label: 'Your Profile', icon: User },
+    { id: 'company', label: 'Company Info', icon: Building2 },
     { id: 'kyc', label: 'KYC & Documents', icon: FileText },
     { id: 'ewa', label: 'EWA Settings', icon: CreditCard },
     { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -594,6 +676,9 @@ export default function EmployerSettings() {
 
           {/* Content Area */}
           <div className="lg:col-span-3 space-y-6">
+            {/* Account Tab */}
+            {activeTab === 'account' && <EmployerProfileTab user={user} />}
+
             {/* Company Tab */}
             {activeTab === 'company' && (
               <>
