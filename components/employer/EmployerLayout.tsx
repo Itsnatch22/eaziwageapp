@@ -9,6 +9,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
+import Image from 'next/image';
 import { logout } from '@/actions/auth';
 import React,{ useState, useRef, useEffect, useCallback }from 'react';
 import { usePathname } from 'next/navigation';
@@ -188,8 +189,14 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
           {/* Logo Section */}
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <Link href="/" className="flex items-center gap-3" data-testid="sidebar-logo">
-              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/25">
-                <span className="text-white font-bold text-xl">E</span>
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary/10 border border-slate-100 dark:border-slate-800">
+                <Image
+                  src="/logo.png"
+                  alt="EaziWage Logo"
+                  width={32}
+                  height={32}
+                  className="object-contain"
+                />
               </div>
               <div>
                 <span className="font-heading font-bold text-xl text-slate-900 dark:text-white block">EaziWage</span>

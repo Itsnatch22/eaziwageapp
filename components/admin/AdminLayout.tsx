@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { logout } from '@/actions/auth';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuthStore } from '@/lib/stores/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -106,8 +107,14 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
           {/* Logo Section */}
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <Link href="/admin" className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-green-600 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/25">
-                <span className="text-white font-bold text-xl">E</span>
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
+                <Image
+                  src="/logo.png"
+                  alt="EaziWage Logo"
+                  width={32}
+                  height={32}
+                  className="object-contain"
+                />
               </div>
               <div>
                 <span className="font-heading font-bold text-xl text-slate-900 dark:text-white block">EaziWage</span>

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/actions/auth';
 import { useAuthStore } from '@/lib/stores/auth';
@@ -99,8 +100,14 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
           {/* Logo Section */}
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <Link href="/dashboards/employee-dashboard" className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/25">
-                <span className="text-white font-bold text-xl">E</span>
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary/10 border border-slate-100 dark:border-slate-800">
+                <Image
+                  src="/logo.png"
+                  alt="EaziWage Logo"
+                  width={32}
+                  height={32}
+                  className="object-contain"
+                />
               </div>
               <div>
                 <span className="font-heading font-bold text-xl text-slate-900 dark:text-white block">EaziWage</span>
