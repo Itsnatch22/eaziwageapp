@@ -1,20 +1,18 @@
 import {
-  Body,
   Button,
-  Container,
-  Head,
+  Heading,
   Hr,
-  Html,
-  Preview,
   Section,
   Text,
-  Tailwind,
 } from '@react-email/components';
+import * as React from 'react';
+import EmailLayout, { styles as layoutStyles } from './EmailLayout';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface ResetPasswordEmailProps {
   fullName:  string;
+  email?:    string;
   ip:        string;
   userAgent: string;
   resetUrl:  string; // Link to request another reset if this wasn't them
@@ -24,9 +22,10 @@ interface ResetPasswordEmailProps {
 
 export function ResetPasswordEmail({
   fullName  = 'there',
+  email,
   ip        = 'Unknown',
   userAgent = 'Unknown device',
-  resetUrl  = 'https://eaziwageapp.vercel.app/forgot-password',
+  resetUrl  = 'https://app.eaziwage.com/forgot-password',
 }: ResetPasswordEmailProps) {
   const timestamp = new Date().toLocaleString('en-US', {
     dateStyle: 'full',
@@ -34,104 +33,77 @@ export function ResetPasswordEmail({
   });
 
   return (
-    <Html lang="en">
-      <Head />
-      <Preview>Your EaziWage password was successfully changed</Preview>
+    <EmailLayout 
+      previewText="Your EaziWage password was successfully changed"
+      recipientEmail={email}
+    >
+      <Section>
+        <div style={{ ...layoutStyles.badge, backgroundColor: '#f1f5f9' }}>
+          <span style={{ ...layoutStyles.badgeText, color: '#334155' }}>🔒 Security Notification</span>
+        </div>
+        <Heading style={layoutStyles.heading}>Password Changed</Heading>
+        
+        <Text style={layoutStyles.text}>Hi {fullName},</Text>
+        
+        <Text style={layoutStyles.text}>
+          Your EaziWage account password was successfully updated. All active
+          sessions have been signed out as a security measure.
+        </Text>
 
-      <Tailwind>
-        <Body className="bg-slate-50 font-sans">
-          <Container className="mx-auto my-10 max-w-150 rounded-2xl bg-white shadow-sm">
+        {/* Detail card */}
+        <Section style={layoutStyles.box}>
+          <Text style={{ fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 12px' }}>
+            Change Details
+          </Text>
+          <Hr style={{ ...layoutStyles.divider, margin: '12px 0' }} />
 
-            {/* Header */}
-            <Section className="rounded-t-2xl bg-linear-to-r from-slate-900 to-slate-800 px-10 py-8">
-              <Text className="m-0 text-2xl font-bold tracking-tight text-white">
-                EaziWage
-              </Text>
-              <Text className="m-0 mt-1 text-sm text-slate-400">
-                Security Notification
-              </Text>
-            </Section>
+          <Text style={{ ...layoutStyles.text, fontSize: '14px', margin: '8px 0' }}>
+            <strong>Time:</strong> {timestamp}
+          </Text>
+          <Text style={{ ...layoutStyles.text, fontSize: '14px', margin: '8px 0' }}>
+            <strong>IP Address:</strong> {ip}
+          </Text>
+          <Text style={{ ...layoutStyles.text, fontSize: '14px', margin: '8px 0' }}>
+            <strong>Device:</strong> {userAgent}
+          </Text>
+        </Section>
 
-            {/* Body */}
-            <Section className="px-10 py-8">
-              <Text className="m-0 text-xl font-semibold text-slate-900">
-                Password Changed
-              </Text>
+        {/* Security notice */}
+        <Section style={{ ...layoutStyles.box, backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
+          <Text style={{ fontWeight: '600', color: '#991b1b', margin: '0 0 8px' }}>
+            Wasn&apos;t you?
+          </Text>
+          <Text style={{ color: '#b91c1c', fontSize: '14px', lineHeight: '22px', margin: 0 }}>
+            If you did not make this change, your account may be compromised.
+            Reset your password immediately and contact our security team at{' '}
+            <a
+              href="mailto:security@eaziwage.com"
+              style={{ fontWeight: '600', color: '#991b1b', textDecoration: 'underline' }}
+            >
+              security@eaziwage.com
+            </a>.
+          </Text>
+        </Section>
 
-              <Text className="mt-4 text-sm leading-6 text-slate-600">
-                Hi {fullName},
-              </Text>
-
-              <Text className="mt-2 text-sm leading-6 text-slate-600">
-                Your EaziWage account password was successfully updated. All active
-                sessions have been signed out as a security measure.
-              </Text>
-
-              {/* Detail card */}
-              <Section className="my-6 rounded-xl border border-slate-100 bg-slate-50 px-6 py-5">
-                <Text className="m-0 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Change Details
-                </Text>
-                <Hr className="my-3 border-slate-200" />
-
-                <Text className="m-0 text-sm text-slate-700">
-                  <span className="font-medium text-slate-900">Time: </span>
-                  {timestamp}
-                </Text>
-                <Text className="mt-2 m-0 text-sm text-slate-700">
-                  <span className="font-medium text-slate-900">IP Address: </span>
-                  {ip}
-                </Text>
-                <Text className="mt-2 m-0 text-sm text-slate-700">
-                  <span className="font-medium text-slate-900">Device: </span>
-                  {userAgent}
-                </Text>
-              </Section>
-
-              {/* Security notice */}
-              <Section className="rounded-xl border border-green-100 bg-green-50 px-6 py-5">
-                <Text className="m-0 text-sm font-semibold text-green-800">
-                  Wasn&apos;t you?
-                </Text>
-                <Text className="mt-2 m-0 text-sm leading-6 text-green-700">
-                  If you did not make this change, your account may be compromised.
-                  Reset your password immediately and contact our security team at{' '}
-                  <a
-                    href="mailto:security@eaziwage.com"
-                    className="font-medium text-green-800 underline"
-                  >
-                    security@eaziwage.com
-                  </a>
-                  .
-                </Text>
-              </Section>
-
-              <Section className="mt-8 text-center">
-                <Button
-                  href={resetUrl}
-                  className="rounded-xl bg-green-600 px-8 py-3 text-sm font-semibold text-white no-underline"
-                >
-                  Reset Password Again
-                </Button>
-              </Section>
-            </Section>
-
-            {/* Footer */}
-            <Section className="rounded-b-2xl bg-slate-50 px-10 py-6">
-              <Hr className="mb-5 border-slate-200" />
-              <Text className="m-0 text-center text-xs text-slate-400">
-                © {new Date().getFullYear()} EaziWage · This is an automated security notification.
-              </Text>
-              <Text className="mt-1 m-0 text-center text-xs text-slate-400">
-                You&apos;re receiving this because a password change was made on your account.
-              </Text>
-            </Section>
-
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
+        <Section style={layoutStyles.buttonContainer}>
+          <Button
+            href={resetUrl}
+            style={layoutStyles.button}
+          >
+            Reset Password Again
+          </Button>
+        </Section>
+      </Section>
+    </EmailLayout>
   );
 }
+
+ResetPasswordEmail.PreviewProps = {
+  fullName: 'Jane Wanjiku',
+  email: 'jane@example.com',
+  ip: '192.168.1.1',
+  userAgent: 'Chrome on macOS',
+  resetUrl: 'https://app.eaziwage.com/forgot-password',
+} as ResetPasswordEmailProps;
 
 export default ResetPasswordEmail;

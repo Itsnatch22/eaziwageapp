@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight, Eye, EyeOff, Mail, Lock,
@@ -152,10 +153,16 @@ export default function LoginPage() {
             <div className="flex justify-center mb-6">
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative">
-                  <div className="w-12 h-12 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/30">
-                    <span className="text-white font-bold text-2xl">E</span>
+                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
+                    <Image
+                      src="/logo.png"
+                      alt="EaziWage Logo"
+                      width={32}
+                      height={32}
+                      className="object-contain"
+                    />
                   </div>
-                  <div className="absolute inset-0 bg-green-600/20 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
+                  <div className="absolute inset-0 bg-green-600/10 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
                 </div>
                 <span className="font-bold text-2xl text-slate-900 dark:text-white tracking-tight">EaziWage</span>
               </Link>

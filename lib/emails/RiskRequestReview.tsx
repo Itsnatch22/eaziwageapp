@@ -1,9 +1,14 @@
 import {
-  Body, Container, Head, Heading, Hr, Html,
-  Link, Preview, Section, Text, Tailwind,
+  Heading,
+  Hr,
+  Link,
+  Section,
+  Text,
 } from '@react-email/components';
+import * as React from 'react';
+import EmailLayout, { styles as layoutStyles } from './EmailLayout';
 
-interface Props {
+interface RiskReviewRequestEmailProps {
   companyName:   string;
   contactEmail:  string;
   contactPerson: string;
@@ -24,115 +29,95 @@ export default function RiskReviewRequestEmail({
   contactPerson,
   currentRating,
   currentScore,
-}: Props) {
+}: RiskReviewRequestEmailProps) {
   const ratingColor = RATING_COLORS[currentRating] ?? '#94a3b8';
 
   return (
-    <Html>
-      <Head />
-      <Preview>
-        Risk review request received for {companyName} — we&apos;ll be in touch within 3–5 business days.
-      </Preview>
-      <Tailwind>
-        <Body className="bg-slate-50 font-sans">
-          <Container className="mx-auto max-w-xl py-10 px-4">
+    <EmailLayout 
+      previewText={`Risk review request received for ${companyName} — we'll be in touch within 3–5 business days.`}
+      recipientEmail={contactEmail}
+    >
+      <Section>
+        <div style={layoutStyles.badge}>
+          <span style={layoutStyles.badgeText}>📋 Risk Score Review Requested</span>
+        </div>
+        <Heading style={layoutStyles.heading}>Review Request Received</Heading>
 
-            {/* Logo */}
-            <Section className="text-center mb-8">
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 48, height: 48, borderRadius: 12,
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                marginBottom: 10,
-              }}>
-                <span style={{ color: '#fff', fontWeight: 700, fontSize: 22 }}>E</span>
-              </div>
-              <Heading className="text-2xl font-bold text-slate-900 m-0">EaziWage</Heading>
-            </Section>
+        <Text style={layoutStyles.text}>
+          Hi <strong>{contactPerson}</strong>,
+        </Text>
+        <Text style={layoutStyles.text}>
+          We&apos;ve received your request for a manual risk score review for{' '}
+          <strong>{companyName}</strong>. Our risk team will assess your full company
+          profile and update your score if the new information warrants it.
+        </Text>
 
-            {/* Card */}
-            <Section className="bg-white rounded-2xl shadow-sm px-8 py-8">
-              <Heading className="text-xl font-bold text-slate-900 mt-0 mb-1">
-                Risk Score Review Requested 📋
-              </Heading>
+        {/* Current profile summary */}
+        <Section style={layoutStyles.box}>
+          <Text style={{ fontWeight: '600', color: '#0f172a', margin: '0 0 12px' }}>Your current risk profile</Text>
+          <Hr style={{ ...layoutStyles.divider, margin: '12px 0' }} />
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr>
+                <td style={{ padding: '8px 0', color: '#64748b', fontSize: '14px' }}>
+                  Composite Score
+                </td>
+                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '700', fontSize: '14px', color: '#0f172a' }}>
+                  {currentScore.toFixed(1)} / 5.0
+                </td>
+              </tr>
+              <tr>
+                <td style={{ padding: '8px 0', color: '#64748b', fontSize: '14px' }}>
+                  Rating
+                </td>
+                <td style={{ padding: '8px 0', textAlign: 'right' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    background: ratingColor, color: '#fff',
+                    fontWeight: '700', fontSize: '13px',
+                    borderRadius: '50%',
+                    width: '28px', height: '28px', lineHeight: '28px', textAlign: 'center',
+                  }}>
+                    {currentRating}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Section>
 
-              <Text className="text-slate-600 mt-0">
-                Hi <strong>{contactPerson}</strong>,
-              </Text>
-              <Text className="text-slate-600">
-                We&apos;ve received your request for a manual risk score review for{' '}
-                <strong>{companyName}</strong>. Our risk team will assess your full company
-                profile and update your score if the new information warrants it.
-              </Text>
+        {/* What happens next */}
+        <Section style={{ ...layoutStyles.box, backgroundColor: '#f0fdf4' }}>
+          <Text style={{ fontWeight: '600', color: '#166534', margin: '0 0 12px' }}>What happens next?</Text>
+          <ul style={{ color: '#166534', fontSize: '14px', lineHeight: '24px', margin: 0, paddingLeft: '20px' }}>
+            <li style={{ marginBottom: '8px' }}>① Our risk team reviews your full company profile — <strong>3–5 business days</strong></li>
+            <li style={{ marginBottom: '8px' }}>② We may reach out for additional documentation or clarification</li>
+            <li>③ You&apos;ll receive an email once the review is complete and your score is updated</li>
+          </ul>
+        </Section>
 
-              {/* Current profile summary */}
-              <Section className="bg-slate-50 rounded-xl px-6 py-4 my-6">
-                <Text className="font-semibold text-slate-800 m-0 mb-3">Your current risk profile</Text>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ padding: '4px 0', color: '#64748b', fontSize: 14 }}>
-                        Composite Score
-                      </td>
-                      <td style={{ padding: '4px 0', textAlign: 'right', fontWeight: 700, fontSize: 14 }}>
-                        {currentScore.toFixed(1)} / 5.0
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: '4px 0', color: '#64748b', fontSize: 14 }}>
-                        Rating
-                      </td>
-                      <td style={{ padding: '4px 0', textAlign: 'right' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          background: ratingColor, color: '#fff',
-                          fontWeight: 700, fontSize: 13,
-                          borderRadius: '50%',
-                          width: 28, height: 28, lineHeight: '28px', textAlign: 'center',
-                        }}>
-                          {currentRating}
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </Section>
+        <Text style={layoutStyles.text}>
+          Questions? Reach our risk team at{' '}
+          <Link href="mailto:risk@eaziwage.com" style={{ color: '#16a34a', fontWeight: '500' }}>
+            risk@eaziwage.com
+          </Link>
+        </Text>
 
-              {/* What happens next */}
-              <Section className="bg-emerald-50 rounded-xl px-6 py-4 my-6">
-                <Text className="font-semibold text-emerald-800 m-0 mb-2">What happens next?</Text>
-                <Text className="text-emerald-700 text-sm m-0">
-                  ① Our risk team reviews your full company profile — <strong>3–5 business days</strong>
-                </Text>
-                <Text className="text-emerald-700 text-sm m-0">
-                  ② We may reach out for additional documentation or clarification
-                </Text>
-                <Text className="text-emerald-700 text-sm m-0">
-                  ③ You&apos;ll receive an email once the review is complete and your score is updated
-                </Text>
-              </Section>
+        <Hr style={layoutStyles.divider} />
 
-              <Text className="text-slate-600">
-                Questions? Reach our risk team at{' '}
-                <Link href="mailto:risk@eaziwage.com" className="text-emerald-600">
-                  risk@eaziwage.com
-                </Link>
-              </Text>
-
-              <Hr className="border-slate-200 my-6" />
-
-              <Text className="text-xs text-slate-400 m-0">
-                This email was sent to {contactEmail} because a risk review was
-                requested for {companyName} on the EaziWage platform.
-              </Text>
-            </Section>
-
-            <Text className="text-center text-xs text-slate-400 mt-6">
-              © {new Date().getFullYear()} EaziWage Ltd. All rights reserved.
-            </Text>
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
+        <Text style={{ fontSize: '12px', color: '#64748b', margin: '24px 0 0' }}>
+          This email was sent to {contactEmail} because a risk review was
+          requested for {companyName} on the EaziWage platform.
+        </Text>
+      </Section>
+    </EmailLayout>
   );
 }
+
+RiskReviewRequestEmail.PreviewProps = {
+  companyName: 'Acme Corp',
+  contactEmail: 'jane@acmecorp.com',
+  contactPerson: 'Jane Smith',
+  currentRating: 'C',
+  currentScore: 2.8,
+} as RiskReviewRequestEmailProps;
