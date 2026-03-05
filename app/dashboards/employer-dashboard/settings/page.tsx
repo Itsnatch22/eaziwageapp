@@ -6,7 +6,7 @@ import {
   Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight,
   FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
   MessageSquare, Phone, MapPin, Globe, X, Loader2,
-  LucideIcon
+  LucideIcon, User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

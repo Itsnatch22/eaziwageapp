@@ -2,14 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Settings, Building2, Users, Sliders, Bell, Shield, 
-  Save, RefreshCw, Search, ChevronDown, ChevronRight,
-  DollarSign, Percent, Clock, Calendar, AlertTriangle,
-  CheckCircle2, XCircle, Edit, Eye, Lock, Unlock,
-  Globe, Database, Mail, Smartphone, FileText, Scale,
-  TrendingUp, Activity, Zap, Ban, UserCheck, CreditCard,
-  Plus, Trash2, X, Info, HelpCircle, ArrowUpRight, History,
-  FileCheck, BookOpen, CalendarOff, ClipboardList, Filter,
-  Download, BarChart3, User, ArrowRight
+  Save, RefreshCw, Search, Percent, Clock, DollarSign, AlertTriangle,
+  CheckCircle2,  Edit, Lock, 
+  Globe, Mail, Smartphone, FileText,
+  TrendingUp, Zap, UserCheck,
+  Plus, Trash2, X, History, FileCheck, BookOpen, CalendarOff, 
+  ClipboardList, User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
