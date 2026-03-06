@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { logout } from '@/actions/auth';
+import { useAuthStore } from '@/lib/stores/auth';
+import pusherClient from '@/lib/pusher-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,32 +118,52 @@ const StatBlock = ({ icon: Icon, label, value, sub, variant = "blue" }: { icon: 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function EmployeeDashboardPage() {
+    const user = useAuthStore((state) => state.user);
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [employee, setEmployee] = useState<EmployeeSummary | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
-    useEffect(() => {
-      const fetchStats = async () => {
-        try {
-          const response = await fetch('/api/employee-dashboard/overview');
-          const data = await response.json();
-          if (!response.ok) {
-            if (response.status === 404) setError('profile_not_found');
-            else setError(data?.message || 'Error');
-            return;
-          }
-          setStats(data.stats);
-          setEmployee(data.employee);
-        } catch {
-          setError('Failed to load');
-        } finally {
-          setLoading(false);
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/employee-dashboard/overview');
+        const data = await response.json();
+        if (!response.ok) {
+          if (response.status === 404) setError('profile_not_found');
+          else setError(data?.message || 'Error');
+          return;
         }
-      };
+        setStats(data.stats);
+        setEmployee(data.employee);
+      } catch {
+        setError('Failed to load');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    useEffect(() => {
       fetchStats();
     }, []);
+
+    useEffect(() => {
+      if (!user?.id || !pusherClient) return;
+
+      const channel = pusherClient.subscribe(`user-${user.id}`);
+      
+      const handleUpdate = (data: any) => {
+        console.log('[Pusher] Employee KYC update received:', data);
+        void fetchStats();
+      };
+
+      channel.bind('kyc-update', handleUpdate);
+
+      return () => {
+        channel.unbind('kyc-update', handleUpdate);
+        pusherClient!.unsubscribe(`user-${user.id}`);
+      };
+    }, [user?.id]);
 
     const getNextPayday = () => {
       const today = new Date();

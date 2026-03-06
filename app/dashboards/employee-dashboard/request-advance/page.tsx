@@ -8,7 +8,7 @@ import {
   Shield, Loader2, Landmark, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, calculateFeePercentage, cn } from '@/lib/utils';
+import { formatCurrency, calculateFeePercentage, cn, getCurrencySymbol } from '@/lib/utils';
 import { toast } from 'sonner';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 
@@ -18,6 +18,7 @@ interface EmployeeProfile {
   advance_limit?: number;
   earned_wages?: number;
   risk_score?: number;
+  currency?: string;
   mobile_money_provider?: string;
   mobile_money_number?: string;
   bank_name?: string;
@@ -28,7 +29,7 @@ type DisbursementMethod = 'mobile_money' | 'bank_transfer';
 
 // ─── Circular Progress Component ──────────────────────────────────────────────
 
-const CircularAmountSelector = ({ value, max }: { value: number; max: number }) => {
+const CircularAmountSelector = ({ value, max, currency = 'KES' }: { value: number; max: number; currency?: string }) => {
   const percentage = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   const circumference = 2 * Math.PI * 44;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
@@ -67,11 +68,11 @@ const CircularAmountSelector = ({ value, max }: { value: number; max: number }) 
       <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-1">Advance Amount</p>
         <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter" data-testid="display-amount">
-          {formatCurrency(value).split('.')[0]}
+          {formatCurrency(value, currency).split('.')[0]}
         </h2>
         <div className="flex items-center gap-1.5 mt-2 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200/50 dark:border-slate-700/50">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Limit</span>
-          <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{formatCurrency(max).split('.')[0]}</span>
+          <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{formatCurrency(max, currency).split('.')[0]}</span>
         </div>
       </div>
     </div>
@@ -112,6 +113,7 @@ export default function RequestAdvance() {
   }, []);
 
   const maxAmount = Math.min(employee?.advance_limit || 0, employee?.earned_wages || 0);
+  const currency = employee?.currency || 'KES';
   const feePercentage = calculateFeePercentage(employee?.risk_score || 3.0);
   const feeAmount = amount * (feePercentage / 100);
   const netAmount = amount - feeAmount;
@@ -215,7 +217,7 @@ export default function RequestAdvance() {
         
         {/* Main Selector Card */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[3rem] p-8 border border-white/40 dark:border-slate-800 shadow-2xl shadow-slate-200/50 dark:shadow-black/20 text-center">
-          <CircularAmountSelector value={amount} max={maxAmount} />
+          <CircularAmountSelector value={amount} max={maxAmount} currency={currency} />
 
           {/* Precision Slider */}
           <div className="mt-10 px-2 space-y-4">
@@ -232,8 +234,8 @@ export default function RequestAdvance() {
               }}
             />
             <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-              <span>Min: {formatCurrency(0).split('.')[0]}</span>
-              <span>Max: {formatCurrency(maxAmount).split('.')[0]}</span>
+              <span>Min: {formatCurrency(0, currency).split('.')[0]}</span>
+              <span>Max: {formatCurrency(maxAmount, currency).split('.')[0]}</span>
             </div>
           </div>
 
@@ -250,7 +252,7 @@ export default function RequestAdvance() {
                     : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-500 hover:border-primary/50"
                 )} 
               >
-                {formatCurrency(amt).split('.')[0].replace('KES', '')}
+                {formatCurrency(amt, currency).split('.')[0].replace(getCurrencySymbol(currency), '').trim()}
               </button>
             ))}
             <button 
@@ -277,12 +279,12 @@ export default function RequestAdvance() {
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500 font-medium">Service Fee ({feePercentage.toFixed(1)}%)</span>
-                <span className="text-red-500 font-bold">-{formatCurrency(feeAmount)}</span>
+                <span className="text-red-500 font-bold">-{formatCurrency(feeAmount, currency)}</span>
               </div>
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
                 <span className="text-slate-900 dark:text-white font-black uppercase tracking-tight">Net Payout</span>
                 <span className="text-2xl font-black text-primary tracking-tighter" data-testid="net-amount">
-                  {formatCurrency(netAmount)}
+                  {formatCurrency(netAmount, currency)}
                 </span>
               </div>
             </div>
@@ -351,7 +353,7 @@ export default function RequestAdvance() {
             ) : (
               <span className="flex items-center gap-2">
                 <Zap className="w-5 h-5 fill-current" />
-                Request {formatCurrency(netAmount).split('.')[0]}
+                Request {formatCurrency(netAmount, currency).split('.')[0]}
               </span>
             )}
           </Button>

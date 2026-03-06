@@ -48,29 +48,34 @@ export async function POST(req: NextRequest) {
 
   const data = parsed.data;
 
+  console.log('Looking for employer_id:', data.employer_id);
   // ── Verify the employer exists and is registered ──────────────────────────
-  const { data: onboardingEmp } = await supabase
+  const { data: onboardingEmp, error: onboardingError } = await supabase
     .from('employer_onboarding')
     .select('id, company_name, status, user_id')
     .eq('id', data.employer_id)
-    .in('status', ['approved', 'pending'])
+    .in('status', ['approved', 'submitted', 'under_review'])
     .maybeSingle();
 
+    console.log('employer_onboarding result:', onboardingEmp, 'error:', onboardingError);
   let employer = onboardingEmp;
 
   if (!employer) {
-    const { data: syncedEmp } = await supabase
+    const { data: syncedEmp, error: syncedError } = await supabase
       .from('employers')
       .select('id, company_name, status, user_id')
-      .eq('id', data.employer_id)
+      .eq('employer_id', data.employer_id)
       .in('status', ['approved', 'pending'])
       .maybeSingle();
     
+      console.log('employers result:', syncedEmp, 'error:', syncedError)
     if (syncedEmp) {
         employer = syncedEmp;
     }
   }
 
+
+console.log('Final employer:', employer);
   if (!employer) {
     return NextResponse.json(
       { error: 'Selected employer is not registered on EaziWage.' },

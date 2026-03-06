@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
 
         await supabase
         .from('profiles')
-        .update({ profile_picture_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+        .update({ avatar_url: urlData.publicUrl, updated_at: new Date().toISOString() })
         .eq('id', user.id);
 
         const profile = await getFullProfile(supabase, user.id, user);

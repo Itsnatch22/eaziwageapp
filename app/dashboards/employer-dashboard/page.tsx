@@ -43,6 +43,16 @@ interface PeriodData {
   } | null;
 }
 
+interface CreditSummary {
+  month: string;
+  company_credit_limit: number;
+  total_outstanding_credit: number;
+  month_disbursed_amount: number;
+  remaining_monthly_limit: number;
+  available_company_credit: number;
+  utilization_percent: number;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function computeTrend(
@@ -288,6 +298,7 @@ export default function EmployerDashboard() {
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   const [curr,     setCurr]     = useState<PeriodData | null>(null);
   const [prev,     setPrev]     = useState<PeriodData | null>(null);
+  const [credit,   setCredit]   = useState<CreditSummary | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
   const router = useRouter();
@@ -313,9 +324,10 @@ export default function EmployerDashboard() {
 
       setEmployer(profile);
 
-      const [currRes, prevRes] = await Promise.all([
+      const [currRes, prevRes, creditRes] = await Promise.all([
         fetch('/api/employer-dashboard/reports?period=this_month'),
         fetch('/api/employer-dashboard/reports?period=last_month'),
+        fetch('/api/employer-dashboard/credit'),
       ]);
 
       if (currRes.ok) {
@@ -325,6 +337,10 @@ export default function EmployerDashboard() {
       if (prevRes.ok) {
         const j = await prevRes.json();
         if (j.data) setPrev(j.data);
+      }
+      if (creditRes.ok) {
+        const j = await creditRes.json();
+        setCredit(j);
       }
     } catch (err: unknown) {
       setError('Failed to load dashboard.');
@@ -467,12 +483,50 @@ export default function EmployerDashboard() {
             {curr?.monthly_trend && curr.monthly_trend.length > 0 && (
               <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <p className="text-xs text-slate-400 mb-2">Monthly disbursements (6 mo.)</p>
-                <Sparkline trend={curr.monthly_trend} />
+                <Sparkline trend={curr.monthly_trend} currency={employer?.currency} />
               </div>
             )}
           </div>
 
           <PayrollHealthCard lastSync={curr?.last_sync} />
+        </div>
+
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <GradientIconBox icon={Landmark} size="md" />
+              <h2 className="font-bold text-slate-900 dark:text-white">Company-Wide Credit</h2>
+            </div>
+            <Link href="/dashboards/employer-dashboard/reports" className="text-xs font-medium text-primary flex items-center gap-1 hover:gap-1.5 transition-all">
+              Export Reports <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard
+              icon={Landmark}
+              label="Credit Limit"
+              value={formatCurrency(credit?.company_credit_limit ?? 0, employer?.currency)}
+              subtext="Configured monthly cap"
+            />
+            <MetricCard
+              icon={CreditCard}
+              label="Outstanding Credit"
+              value={formatCurrency(credit?.total_outstanding_credit ?? 0, employer?.currency)}
+              subtext="Currently exposed company-wide"
+            />
+            <MetricCard
+              icon={Zap}
+              label="Month Used"
+              value={formatCurrency(credit?.month_disbursed_amount ?? 0, employer?.currency)}
+              subtext={`${credit?.utilization_percent ?? 0}% of monthly limit`}
+            />
+            <MetricCard
+              icon={Wallet}
+              label="Remaining EWA Limit"
+              value={formatCurrency(credit?.remaining_monthly_limit ?? 0, employer?.currency)}
+              subtext={`Month: ${credit?.month ?? 'N/A'}`}
+            />
+          </div>
         </div>
 
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">

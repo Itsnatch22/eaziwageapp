@@ -121,6 +121,17 @@ export async function PATCH(
       .from('profiles')
       .update({ company_code: resolvedCompanyCode })
       .eq('id', employer.user_id);
+
+    // ─── Sync with primary 'employers' table ──────────────────────────────
+    await adminSupabase.from('employers').upsert({
+      id: employer.id,
+      user_id: employer.user_id,
+      company_name: employer.company_name,
+      employer_code: resolvedCompanyCode,
+      status: 'approved',
+      max_advance_amount: updatePayload.max_advance_amount ?? employer.max_advance_amount ?? 500000,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
   }
 
   // Notify employer about status change

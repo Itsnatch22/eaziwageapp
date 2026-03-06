@@ -4,6 +4,7 @@ import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import pusherServer from '@/lib/pusher-server';
 
 function generateCompanyCode(sourceId: string): string {
   return `EW-${sourceId.slice(0, 8).toUpperCase()}`;
@@ -116,6 +117,24 @@ export async function PATCH(
     read: false,
     created_at: new Date().toISOString(),
   });
+
+  // ── 5. Trigger Pusher for dynamic updates ────────────────────────────────────
+  try {
+    // Notify the employer's user channel
+    await pusherServer.trigger(`user-${employer.user_id}`, 'kyc-update', {
+      employer_id: employer.id,
+      status,
+      message: status === 'approved' ? 'Your company has been approved.' : 'Your company onboarding was rejected.'
+    });
+
+    // Notify the specific employer channel (used by dashboard)
+    await pusherServer.trigger(`employer-${employer.id}`, 'kyc-update', {
+      status,
+      employer_id: employer.id
+    });
+  } catch (pusherErr) {
+    console.error('[Employer KYC Review] Pusher trigger error:', pusherErr);
+  }
 
   return NextResponse.json({
     message: 'Employer review submitted successfully',

@@ -4,8 +4,6 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 import { getEnv }                      from '@/env';
 import { apiLimiter, checkRateLimit }  from '@/lib/rate-limit';
-import { isAdminRole } from '@/lib/validations/kyc-validation';
-import type { UserRole } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import pusherServer from '@/lib/pusher-server';
 
@@ -34,6 +32,27 @@ function getClientIp(req: NextRequest): string {
     req.headers.get('cf-connecting-ip')              ??
     '0.0.0.0'
   ).trim();
+}
+
+/**
+ * Checks if a user is an admin by querying the system_admins table.
+ * Uses service role client to bypass RLS.
+ */
+async function isSystemAdmin(userId: string): Promise<boolean> {
+  const env = getEnv();
+  const adminSupabase = createSupabaseClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
+  const { data: systemAdmin } = await adminSupabase
+    .from('system_admins')
+    .select('id, is_admin')
+    .eq('id', userId)
+    .maybeSingle<{ id: string; is_admin: boolean }>();
+
+  return systemAdmin?.is_admin === true;
 }
 
 // ─── GET /api/admin/notifications ─────────────────────────────────────────────
@@ -76,14 +95,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 3. Verify admin role ─────────────────────────────────────────────────────
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single<{ role: string }>();
+  // ── 3. Verify admin access ───────────────────────────────────────────────────
+  const isAdmin = await isSystemAdmin(user.id);
 
-  if (profileError || !profile || profile.role !== 'admin') {
+  if (!isAdmin) {
     return NextResponse.json(
       { error: 'Forbidden. Admin access required.' },
       { status: 403, headers: rate.headers },
@@ -151,13 +166,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Verify admin
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single<{ role: string }>();
+  const isAdmin = await isSystemAdmin(user.id);
 
-  if (!profile || profile.role !== 'admin') {
+  if (!isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -207,14 +218,14 @@ export async function DELETE(req: NextRequest) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+        // Verify Admin
+        const isAdmin = await isSystemAdmin(user.id);
+        if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
         const env = getEnv();
         const adminSupabase = createSupabaseClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
             auth: { autoRefreshToken: false, persistSession: false },
         });
-
-        // Verify Admin
-        const { data: profile } = await adminSupabase.from('profiles').select('role').eq('id', user.id).single();
-        if (!profile || !isAdminRole(profile.role as UserRole)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
         const { error } = await adminSupabase.from('admin_notifications').delete().eq('id', id);
         if (error) throw error;

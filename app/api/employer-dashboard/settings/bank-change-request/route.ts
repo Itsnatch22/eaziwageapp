@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { createClient } from '@supabase/supabase-js';
+import { getEnv } from '@/env';
 import pusherServer from '@/lib/pusher-server';
 import { z } from 'zod';
 
@@ -71,8 +73,15 @@ export async function POST(req: NextRequest) {
       // We'll still try to send notification if table doesn't exist, but maybe log it
     }
 
-    // 6. Create admin notification
-    const { data: adminNotif, error: notifError } = await supabase
+    // 6. Create admin notification (using service role to bypass RLS)
+    const env = getEnv();
+    const adminSupabase = createClient(
+      env.NEXT_PUBLIC_SUPABASE_URL,
+      env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    const { data: adminNotif, error: notifError } = await adminSupabase
       .from('admin_notifications')
       .insert({
         type: 'employer_kyc',

@@ -48,9 +48,16 @@ interface EmployerApplication {
   created_at: string;
   // Document URLs
   certificate_of_incorporation?: string;
+  business_registration?: string;
+  tax_compliance_certificate?: string;
   kra_pin_certificate?: string;
   cr12_document?: string;
   business_permit?: string;
+  audited_financials?: string;
+  bank_statement?: string;
+  proof_of_address?: string;
+  proof_of_bank_account?: string;
+  employment_contract_template?: string;
   reviewer_notes?: string;
   // Financials
   bank_name?: string;
@@ -201,8 +208,8 @@ export default function KYCReviewPage() {
   const [entityType, setEntityType] = useState<EntityType>('employee');
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
   const [employerApplications, setEmployerApplications] = useState<EmployerApplication[]>([]);
-  const [employeesByUserId, setEmployeesByUserId] = useState<
-    Record<string, { full_name: string; employee_code: string | null }>
+  const [usersById, setUsersById] = useState<
+    Record<string, { full_name: string; role: string }>
   >({});
   
   const [loading, setLoading] = useState(true);
@@ -223,7 +230,7 @@ export default function KYCReviewPage() {
         const data = await res.json();
         setDocuments(data.documents || []);
         setEmployerApplications(data.employerApplications || []);
-        setEmployeesByUserId(data.employeesByUserId || {});
+        setUsersById(data.usersById || {});
       } else {
         toast.error('Failed to load KYC data');
       }
@@ -273,26 +280,49 @@ export default function KYCReviewPage() {
     } finally { setActionLoading(false); }
   };
 
-  const getEmployeeName = (uid: string) => employeesByUserId[uid]?.full_name || 'Unknown Employee';
+  const getUserName = (uid: string) => usersById[uid]?.full_name || 'Unknown User';
+
+  // Categorize documents by role
+  const employeeDocuments = documents.filter(d => (usersById[d.user_id]?.role || 'employee') === 'employee');
+  const employerStandaloneDocs = documents.filter(d => usersById[d.user_id]?.role === 'employer');
 
   const filteredItems = entityType === 'employee' 
-    ? documents.filter(d => {
+    ? employeeDocuments.filter(d => {
         if (!searchTerm) return true;
-        const name = getEmployeeName(d.user_id).toLowerCase();
+        const name = getUserName(d.user_id).toLowerCase();
         const type = (DOCUMENT_TYPE_LABELS[d.document_type] || d.document_type).toLowerCase();
         return name.includes(searchTerm.toLowerCase()) || type.includes(searchTerm.toLowerCase());
       })
-    : employerApplications.filter(a => {
-        if (!searchTerm) return true;
-        return a.company_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-               a.registration_number.toLowerCase().includes(searchTerm.toLowerCase());
-      });
+    : [
+        ...employerApplications.filter(a => {
+          if (!searchTerm) return true;
+          return a.company_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                 a.registration_number.toLowerCase().includes(searchTerm.toLowerCase());
+        }),
+        ...employerStandaloneDocs.filter(d => {
+          if (!searchTerm) return true;
+          const name = getUserName(d.user_id).toLowerCase();
+          const type = (DOCUMENT_TYPE_LABELS[d.document_type] || d.document_type).toLowerCase();
+          return name.includes(searchTerm.toLowerCase()) || type.includes(searchTerm.toLowerCase());
+        })
+      ];
 
   const stats = {
-    pending: entityType === 'employee' ? documents.filter(d => d.status === 'pending').length : employerApplications.filter(a => a.status === 'pending').length,
-    approved: entityType === 'employee' ? documents.filter(d => d.status === 'approved').length : employerApplications.filter(a => a.status === 'approved').length,
-    rejected: entityType === 'employee' ? documents.filter(d => d.status === 'rejected').length : employerApplications.filter(a => a.status === 'rejected').length,
-    total: entityType === 'employee' ? documents.length : employerApplications.length
+    pending: entityType === 'employee' 
+      ? employeeDocuments.filter(d => d.status === 'pending').length 
+      : employerApplications.filter(a => a.status === 'pending').length + employerStandaloneDocs.filter(d => d.status === 'pending').length,
+    
+    approved: entityType === 'employee' 
+      ? employeeDocuments.filter(d => d.status === 'approved').length 
+      : employerApplications.filter(a => a.status === 'approved').length + employerStandaloneDocs.filter(d => d.status === 'approved').length,
+    
+    rejected: entityType === 'employee' 
+      ? employeeDocuments.filter(d => d.status === 'rejected').length 
+      : employerApplications.filter(a => a.status === 'rejected').length + employerStandaloneDocs.filter(d => d.status === 'rejected').length,
+    
+    total: entityType === 'employee' 
+      ? employeeDocuments.length 
+      : employerApplications.length + employerStandaloneDocs.length
   };
 
   return (
@@ -361,14 +391,29 @@ export default function KYCReviewPage() {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {entityType === 'employee' 
-              ? (filteredItems as KYCDocument[]).map(doc => (
-                  <DocumentCard key={doc.id} doc={doc} onReview={(d) => { setSelectedDoc(d); setSelectedEmployer(null); setShowReviewModal(true); }} getEmployeeName={getEmployeeName} />
-                ))
-              : (filteredItems as EmployerApplication[]).map(app => (
-                  <EmployerCard key={app.id} app={app} onReview={(a) => { setSelectedEmployer(a); setSelectedDoc(null); setShowReviewModal(true); }} />
-                ))
-            }
+            {filteredItems.map((item: any) => {
+              // Check if it's a KYCDocument or EmployerApplication
+              const isDoc = 'document_type' in item;
+              
+              if (isDoc) {
+                return (
+                  <DocumentCard 
+                    key={item.id} 
+                    doc={item} 
+                    onReview={(d) => { setSelectedDoc(d); setSelectedEmployer(null); setShowReviewModal(true); }} 
+                    getEmployeeName={getUserName} 
+                  />
+                );
+              }
+              
+              return (
+                <EmployerCard 
+                  key={item.id} 
+                  app={item} 
+                  onReview={(a) => { setSelectedEmployer(a); setSelectedDoc(null); setShowReviewModal(true); }} 
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -377,6 +422,7 @@ export default function KYCReviewPage() {
         key={`${selectedDoc?.id ?? selectedEmployer?.id ?? 'none'}-${showReviewModal ? 'open' : 'closed'}`}
         doc={selectedDoc} 
         employer={selectedEmployer}
+        usersById={usersById}
         isOpen={showReviewModal} 
         onClose={() => setShowReviewModal(false)}
         onReviewEmployee={handleReviewEmployee}
@@ -392,6 +438,7 @@ export default function KYCReviewPage() {
 interface ReviewModalProps {
   doc: KYCDocument | null;
   employer: EmployerApplication | null;
+  usersById: Record<string, { full_name: string; role: string }>;
   isOpen: boolean;
   onClose: () => void;
   onReviewEmployee: (docId: string, status: 'approved' | 'rejected', notes: string) => void;
@@ -399,22 +446,26 @@ interface ReviewModalProps {
   loading: boolean;
 }
 
-const ReviewModal = ({ doc, employer, isOpen, onClose, onReviewEmployee, onReviewEmployer, loading }: ReviewModalProps) => {
+const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmployee, onReviewEmployer, loading }: ReviewModalProps) => {
   const [notes, setNotes] = useState(() => doc?.reviewer_notes || employer?.reviewer_notes || '');
 
   if (!isOpen) return null;
 
-  const isEmployer = !!employer;
-  if (!isEmployer && !doc) return null;
+  const isEmployerApp = !!employer;
+  if (!isEmployerApp && !doc) return null;
   const selectedDoc = doc as KYCDocument;
-  const item = employer || doc;
+  
+  // For standalone documents, check the user role from usersById
+  const userRole = doc ? (usersById[doc.user_id]?.role || 'employee') : 'employer';
+  const isEmployerDoc = userRole === 'employer';
+  const isEmployer = isEmployerApp || isEmployerDoc;
 
   const handleReview = (status: 'approved' | 'rejected') => {
     if (status === 'rejected' && !notes.trim()) {
       toast.error('Please provide a reason for rejection');
       return;
     }
-    if (isEmployer) onReviewEmployer(employer.id, status, notes);
+    if (isEmployerApp) onReviewEmployer(employer.id, status, notes);
     else onReviewEmployee(selectedDoc.id, status, notes);
   };
 
@@ -428,8 +479,14 @@ const ReviewModal = ({ doc, employer, isOpen, onClose, onReviewEmployee, onRevie
               {isEmployer ? <Building2 className="w-6 h-6" /> : <User className="w-6 h-6" />}
             </div>
             <div>
-              <h2 className="text-xl font-bold">{isEmployer ? 'Review Employer Application' : 'Review Employee Document'}</h2>
-              <p className="text-white/80 text-sm">{isEmployer ? employer.company_name : DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type}</p>
+              <h2 className="text-xl font-bold">
+                {isEmployerApp ? 'Review Employer Application' : isEmployerDoc ? 'Review Employer Document' : 'Review Employee Document'}
+              </h2>
+              <p className="text-white/80 text-sm">
+                {isEmployerApp 
+                  ? employer.company_name 
+                  : `${usersById[selectedDoc.user_id]?.full_name || 'User'} — ${DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type}`}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
@@ -438,7 +495,7 @@ const ReviewModal = ({ doc, employer, isOpen, onClose, onReviewEmployee, onRevie
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {isEmployer ? (
+          {isEmployerApp ? (
             <div className="grid md:grid-cols-2 gap-8">
               {/* Employer Details */}
               <div className="space-y-6">
@@ -466,9 +523,16 @@ const ReviewModal = ({ doc, employer, isOpen, onClose, onReviewEmployee, onRevie
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Verification Documents</h4>
                 <div className="grid gap-3">
                   <DocLink label="Inc. Certificate" url={employer.certificate_of_incorporation} />
-                  <DocLink label="KRA PIN Cert" url={employer.kra_pin_certificate} />
+                  <DocLink label="Business Reg." url={employer.business_registration} />
+                  <DocLink label="Tax Compliance" url={employer.tax_compliance_certificate} />
                   <DocLink label="CR12 Document" url={employer.cr12_document} />
+                  <DocLink label="KRA PIN Cert" url={employer.kra_pin_certificate} />
                   <DocLink label="Business Permit" url={employer.business_permit} />
+                  <DocLink label="Audited Financials" url={employer.audited_financials} />
+                  <DocLink label="Bank Statement" url={employer.bank_statement} />
+                  <DocLink label="Proof of Address" url={employer.proof_of_address} />
+                  <DocLink label="Proof of Bank Account" url={employer.proof_of_bank_account} />
+                  <DocLink label="Employment Contract" url={employer.employment_contract_template} />
                 </div>
               </div>
             </div>

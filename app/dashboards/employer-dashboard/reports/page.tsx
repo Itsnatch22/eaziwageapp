@@ -11,11 +11,13 @@ import {
 } from '@/components/ui/select';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ReportsData {
   period: { label: string; from: string; to: string };
+  currency?: string;
   advances: {
     total: number; disbursed: number; pending: number; rejected: number;
     total_amount: number; total_fees: number; avg_amount: number;
@@ -121,7 +123,7 @@ const ProgressItem = ({ label, value, total, color }: ProgressItemProps) => {
   );
 };
 
-const MiniBarChart = ({ trend }: { trend: ReportsData['monthly_trend'] }) => {
+const MiniBarChart = ({ trend, currency = 'KES' }: { trend: ReportsData['monthly_trend']; currency?: string }) => {
   const max = Math.max(...trend.map(t => t.amount), 1);
   return (
     <div className="flex items-end gap-2 h-24">
@@ -130,7 +132,7 @@ const MiniBarChart = ({ trend }: { trend: ReportsData['monthly_trend'] }) => {
           <div
             className="w-full bg-linear-to-t from-primary to-emerald-400 rounded-t-sm transition-all duration-700"
             style={{ height: `${Math.max((t.amount / max) * 80, t.amount > 0 ? 4 : 0)}px` }}
-            title={`${t.label}: ${formatCurrency(t.amount)}`}
+            title={`${t.label}: ${formatCurrency(t.amount, currency)}`}
           />
           <span className="text-[10px] text-slate-400 truncate w-full text-center">{t.label}</span>
         </div>
@@ -194,12 +196,24 @@ function pctChange(current: number, previous: number): { label: string; type: 'p
   };
 }
 
-function generateCSV(rows: string[][], filename: string) {
-  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+async function downloadReportFile(
+  period: string,
+  month: string,
+  type: 'advances' | 'employees' | 'financial' | 'payroll' | 'all',
+  format: 'csv' | 'pdf',
+) {
+  const params = new URLSearchParams({ period, month, type, format });
+  const res = await fetch(`/api/employer-dashboard/reports/export?${params}`);
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const filenameMatch = disposition.match(/filename="([^"]+)"/);
+  const filename = filenameMatch?.[1] ?? `${type}-${month}.${format}`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -214,6 +228,7 @@ export default function EmployerReports() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [exportFormat, setExportFormat] = useState<'csv' | 'pdf'>('csv');
 
   const fetchReports = useCallback(async (period: string, month: string) => {
     setLoading(true);
@@ -238,76 +253,17 @@ export default function EmployerReports() {
 
   // ── Download handlers ─────────────────────────────────────────────────────
 
-  const downloadAdvances = () => {
+  const downloadReport = useCallback(async (
+    type: 'advances' | 'employees' | 'financial' | 'payroll' | 'all',
+  ) => {
     if (!data) return;
-    const adv = data.advances;
-    generateCSV([
-      ['Report', 'Advances Summary'],
-      ['Period', data.period.label],
-      [''],
-      ['Metric', 'Value'],
-      ['Total Requests', String(adv.total)],
-      ['Disbursed', String(adv.disbursed)],
-      ['Pending', String(adv.pending)],
-      ['Rejected', String(adv.rejected)],
-      ['Total Amount Disbursed', String(adv.total_amount)],
-      ['Total Fees Collected', String(adv.total_fees)],
-      ['Average Advance Amount', String(adv.avg_amount.toFixed(2))],
-      ['Mobile Money', String(adv.by_method.mobile_money)],
-      ['Bank Transfer', String(adv.by_method.bank_transfer)],
-    ], `advances-summary-${data.period.label.replace(/\s+/g, '-').toLowerCase()}.csv`);
-  };
-
-  const downloadEmployees = () => {
-    if (!data) return;
-    const emp = data.employees;
-    generateCSV([
-      ['Report', 'Employee Summary'],
-      ['Period', data.period.label],
-      [''],
-      ['Metric', 'Value'],
-      ['Total Employees', String(emp.total)],
-      ['Active Employees', String(emp.active)],
-      ['Employees with Advances', String(emp.with_advances)],
-      ['Utilization Rate (%)', String(emp.utilization_rate)],
-    ], `employee-report-${data.period.label.replace(/\s+/g, '-').toLowerCase()}.csv`);
-  };
-
-  const downloadFinancial = () => {
-    if (!data) return;
-    const prev = data.previous_period;
-    generateCSV([
-      ['Report', 'Financial Report'],
-      ['Period', data.period.label],
-      [''],
-      ['Metric', 'Current Period', 'Previous Period'],
-      ['Total Disbursed', String(data.advances.total_amount), String(prev.total_amount)],
-      ['Total Fees', String(data.advances.total_fees), String(prev.total_fees)],
-      ['Average Advance', String(data.advances.avg_amount.toFixed(2)), ''],
-    ], `financial-report-${data.period.label.replace(/\s+/g, '-').toLowerCase()}.csv`);
-  };
-
-  const downloadPayroll = () => {
-    if (!data) return;
-    const rows: string[][] = [
-      ['Report', 'Payroll Reconciliation'],
-      ['Period', data.period.label],
-      [''],
-      ['Month', 'Total Disbursed', 'Advance Count'],
-    ];
-    data.monthly_trend.forEach(t => {
-      rows.push([t.label, String(t.amount), String(t.count)]);
-    });
-    generateCSV(rows, `payroll-reconciliation-${data.period.label.replace(/\s+/g, '-').toLowerCase()}.csv`);
-  };
-
-  const downloadAll = () => {
-    if (!data) return;
-    downloadAdvances();
-    downloadEmployees();
-    downloadFinancial();
-    downloadPayroll();
-  };
+    try {
+      await downloadReportFile(selectedPeriod, selectedMonth, type, exportFormat);
+    } catch (err) {
+      console.error('[reports] export failed:', err);
+      toast.error('Failed to export report file.');
+    }
+  }, [data, exportFormat, selectedMonth, selectedPeriod]);
 
   // ── Derived metrics ───────────────────────────────────────────────────────
 
@@ -378,15 +334,24 @@ export default function EmployerReports() {
                 <SelectItem value="this_year">This Year</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={exportFormat} onValueChange={(v: 'csv' | 'pdf') => setExportFormat(v)}>
+              <SelectTrigger className="w-28 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700">
+                <SelectValue placeholder="Format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="csv">CSV</SelectItem>
+                <SelectItem value="pdf">PDF</SelectItem>
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
-              onClick={downloadAll}
+              onClick={() => downloadReport('all')}
               disabled={!data}
               className="flex items-center gap-2 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
               data-testid="download-report-btn"
             >
               <Download className="w-4 h-4" />
-              Download All
+              Export All
             </Button>
           </div>
         </div>
@@ -395,21 +360,21 @@ export default function EmployerReports() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title="Total Disbursed"
-            value={formatCurrency(adv?.total_amount ?? 0)}
+            value={formatCurrency(adv?.total_amount ?? 0, data?.currency)}
             change={amountChange?.label}
             changeType={amountChange?.type}
             icon={DollarSign}
           />
           <MetricCard
             title="Total Fees Collected"
-            value={formatCurrency(adv?.total_fees ?? 0)}
+            value={formatCurrency(adv?.total_fees ?? 0, data?.currency)}
             change={feesChange?.label}
             changeType={feesChange?.type}
             icon={Wallet}
           />
           <MetricCard
             title="Avg. Advance Amount"
-            value={formatCurrency(adv?.avg_amount ?? 0)}
+            value={formatCurrency(adv?.avg_amount ?? 0, data?.currency)}
             icon={Activity}
           />
           <MetricCard
@@ -431,7 +396,7 @@ export default function EmployerReports() {
                 <p className="text-sm text-slate-500 dark:text-slate-400">Last 6 months</p>
               </div>
             </div>
-            <MiniBarChart trend={data.monthly_trend} />
+            <MiniBarChart trend={data.monthly_trend} currency={data.currency} />
           </div>
         )}
 
@@ -539,8 +504,8 @@ export default function EmployerReports() {
               <SummaryRow label="Disbursed"         value={adv?.disbursed ?? 0}  valueColor="text-emerald-600" />
               <SummaryRow label="Pending"           value={adv?.pending ?? 0}    valueColor="text-amber-600" />
               <SummaryRow label="Rejected"          value={adv?.rejected ?? 0}   valueColor="text-red-600" />
-              <SummaryRow label="Total Amount"      value={formatCurrency(adv?.total_amount ?? 0)} valueColor="text-primary" />
-              <SummaryRow label="Total Fees"        value={formatCurrency(adv?.total_fees ?? 0)} />
+              <SummaryRow label="Total Amount"      value={formatCurrency(adv?.total_amount ?? 0, data?.currency)} valueColor="text-primary" />
+              <SummaryRow label="Total Fees"        value={formatCurrency(adv?.total_fees ?? 0, data?.currency)} />
             </div>
           </div>
 
@@ -552,7 +517,7 @@ export default function EmployerReports() {
               </div>
               <div>
                 <h2 className="font-bold text-slate-900 dark:text-white">Available Reports</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Download as CSV</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Export as CSV or PDF</p>
               </div>
             </div>
             <div className="space-y-3">
@@ -560,28 +525,28 @@ export default function EmployerReports() {
                 icon={CreditCard}
                 title="Advances Summary"
                 description="All advance requests and status"
-                onClick={downloadAdvances}
+                onClick={() => downloadReport('advances')}
                 disabled={!data}
               />
               <ReportCard
                 icon={Users}
                 title="Employee Report"
                 description="Enrollment and activity data"
-                onClick={downloadEmployees}
+                onClick={() => downloadReport('employees')}
                 disabled={!data}
               />
               <ReportCard
                 icon={DollarSign}
                 title="Financial Report"
                 description="Fees, disbursements and period comparison"
-                onClick={downloadFinancial}
+                onClick={() => downloadReport('financial')}
                 disabled={!data}
               />
               <ReportCard
                 icon={Calendar}
                 title="Payroll Reconciliation"
                 description="Monthly disbursements breakdown"
-                onClick={downloadPayroll}
+                onClick={() => downloadReport('payroll')}
                 disabled={!data}
               />
             </div>

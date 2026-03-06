@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
+import pusherClient from '@/lib/pusher-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -377,6 +378,24 @@ const EmployerProfileTab = ({ user }: { user: any }) => {
   );
 };
 
+const getResponseErrorMessage = async (res: Response, fallback: string): Promise<string> => {
+  try {
+    const text = await res.text();
+    if (!text) return fallback;
+
+    try {
+      const parsed = JSON.parse(text) as { error?: unknown; message?: unknown };
+      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error;
+      if (typeof parsed.message === "string" && parsed.message.trim()) return parsed.message;
+      return fallback;
+    } catch {
+      return text.trim() || fallback;
+    }
+  } catch {
+    return fallback;
+  }
+};
+
 export default function EmployerSettings() {
     const user = useAuthStore((state) => state.user);
     const [employer, setEmployer] = useState<EmployerProfile | null>(null);
@@ -412,8 +431,8 @@ export default function EmployerSettings() {
         });
 
         if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Failed to upload document");
+          const errorMessage = await getResponseErrorMessage(res, "Failed to upload document");
+          throw new Error(errorMessage);
         }
 
         const data = await res.json();
@@ -465,8 +484,8 @@ export default function EmployerSettings() {
           toast.success("Password updated successfully");
           setPasswordForm({ newPassword: '', confirmPassword: '' });
         } else {
-          const data = await res.json();
-          toast.error(data.error || "Failed to update password");
+          const errorMessage = await getResponseErrorMessage(res, "Failed to update password");
+          toast.error(errorMessage);
         }
       } catch (err) {
         console.error("Password update error:", err);
@@ -476,7 +495,7 @@ export default function EmployerSettings() {
       }
     };
 
-    const [profile, setProfile] = useState({
+  const [profile, setProfile] = useState({
     maxAdvancePercentage: 50,
     minAdvanceAmount: 500,
     maxAdvanceAmount: 50000,
@@ -499,46 +518,90 @@ export default function EmployerSettings() {
     country: 'KE'
   });
 
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [profileRes, settingsRes] = await Promise.all([
+        fetch('/api/employer-dashboard/profile'),
+        fetch('/api/employer-dashboard/settings'),
+      ]);
+
+      const profileData = profileRes.ok ? await profileRes.json() : null;
+      const settingsData = settingsRes.ok ? await settingsRes.json() : null;
+
+      const employerData = (profileData?.profile ?? settingsData?.employer) as EmployerProfile | undefined;
+      const settingsEmployer = settingsData?.employer as Record<string, unknown> | undefined;
+
+      if (employerData) {
+        setEmployer(employerData);
+        setProfile((prev) => ({
+          ...prev,
+          companyName: employerData.company_name || '',
+          contactPerson: employerData.contact_person || employerData.full_name || '',
+          contactEmail: employerData.contact_email || '',
+          contactPhone: employerData.contact_phone || '',
+          payrollCycle: employerData.payroll_cycle || prev.payrollCycle,
+          physicalAddress: employerData.physical_address || '',
+          city: employerData.city || '',
+          postalCode: employerData.postal_code || '',
+          countyRegion: employerData.county_region || '',
+          country: employerData.country || 'KE',
+        }));
+      }
+
+      if (settingsEmployer) {
+        const rawDays = settingsEmployer.advance_access_days;
+        const accessDays: [number, number] = Array.isArray(rawDays) && rawDays.length >= 2
+          ? [Number(rawDays[0]) || 1, Number(rawDays[1]) || 25]
+          : [1, 25];
+
+        setSettings((prev) => ({
+          ...prev,
+          maxAdvancePercentage: Number(settingsEmployer.max_advance_percentage ?? prev.maxAdvancePercentage),
+          minAdvanceAmount: Number(settingsEmployer.min_advance_amount ?? prev.minAdvanceAmount),
+          maxAdvanceAmount: Number(settingsEmployer.max_advance_amount ?? prev.maxAdvanceAmount),
+          advanceAccessDays: accessDays,
+          cooldownPeriod: Number(settingsEmployer.cooldown_period ?? prev.cooldownPeriod),
+          emailNotifications: Boolean(settingsEmployer.email_notifications ?? prev.emailNotifications),
+          advanceAlerts: Boolean(settingsEmployer.advance_alerts ?? prev.advanceAlerts),
+          payrollReminders: Boolean(settingsEmployer.payroll_reminders ?? prev.payrollReminders),
+          weeklyReports: Boolean(settingsEmployer.weekly_reports ?? prev.weeklyReports),
+          payrollCycle: String(settingsEmployer.payroll_cycle ?? prev.payrollCycle),
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to load employer settings:', err);
+      toast.error('Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-        try {
-            const res = await fetch("/api/employer-dashboard/profile");
-            if (!res.ok) {
-              throw new Error(`Failed to fetch employer profile: ${res.status}`);
-            }
-            const payload = await res.json();
-            const employerData = payload?.profile ?? payload?.employer ?? payload ?? {};
-            setEmployer(employerData);
-            setProfile(prev => ({
-                ...prev,
-                companyName: employerData.company_name || '',
-                contactPerson: employerData.contact_person || '',
-                contactEmail: employerData.contact_email || '',
-                contactPhone: employerData.contact_phone || '',
-                payrollCycle: employerData.payroll_cycle || 'monthly',
-                physicalAddress: employerData.physical_address || '',
-                city: employerData.city || '',
-                postalCode: employerData.postal_code || '',
-                countyRegion: employerData.county_region || '',
-                country: employerData.country || 'KE',
-                emailNotifications: employerData.email_notifications ?? true,
-                advanceAlerts: employerData.advance_alerts ?? true,
-                payrollReminders: employerData.payroll_reminders ?? true,
-                weeklyReports: employerData.weekly_reports ?? false,
-                maxAdvancePercentage: employerData.max_advance_percentage ?? 50,
-                minAdvanceAmount: employerData.min_advance_amount ?? 500,
-                maxAdvanceAmount: employerData.max_advance_amount ?? 50000,
-                advanceAccessDays: employerData.advance_access_days ?? [1, 25],
-                cooldownPeriod: employerData.cooldown_period ?? 7,
-            }));
-        } catch (err) {
-            console.error("Failed to fetch employer data:", err);
-        } finally {
-            setLoading(false);
-        }
-    };
-    fetchData();
+    void fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id || !employer?.id || !pusherClient) return;
+
+    const userChannel = pusherClient.subscribe(`user-${user.id}`);
+    const employerChannel = pusherClient.subscribe(`employer-${employer.id}`);
+
+    const handleUpdate = (data: any) => {
+      console.log('[Pusher] KYC update received:', data);
+      void fetchData();
+    };
+
+    userChannel.bind('kyc-update', handleUpdate);
+    employerChannel.bind('kyc-update', handleUpdate);
+
+    return () => {
+      userChannel.unbind('kyc-update', handleUpdate);
+      employerChannel.unbind('kyc-update', handleUpdate);
+      pusherClient!.unsubscribe(`user-${user.id}`);
+      pusherClient!.unsubscribe(`employer-${employer.id}`);
+    };
+  }, [user?.id, employer?.id]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -553,8 +616,8 @@ export default function EmployerSettings() {
         if (res.ok) {
             toast.success("Profile saved successfully");
         } else {
-            const data = await res.json();
-            toast.error(data.error || "Failed to save profile");
+            const errorMessage = await getResponseErrorMessage(res, "Failed to save profile");
+            toast.error(errorMessage);
         }
     } catch (err) {
         console.error("Failed to save profile:", err);
@@ -578,8 +641,8 @@ export default function EmployerSettings() {
             toast.success("Bank change request sent successfully");
             setShowBankModal(false);
         } else {
-            const errData = await res.json();
-            toast.error(errData.error || "Failed to send bank change request");
+            const errorMessage = await getResponseErrorMessage(res, "Failed to send bank change request");
+            toast.error(errorMessage);
         }
     } catch (err) {
         console.error("Failed to send bank change request:", err);

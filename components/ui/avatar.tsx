@@ -28,6 +28,7 @@ const AvatarFallback = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTM
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
+      suppressHydrationWarning
       className={cn("flex h-full w-full items-center justify-center rounded-full bg-muted", className)}
       {...props}
     />

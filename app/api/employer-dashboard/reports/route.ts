@@ -1,6 +1,7 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ReportsQuerySchema } from '@/lib/validations/employer-reports';
+import { getCurrencyFromCountry } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
@@ -118,6 +119,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { data: registrationProfile } = await supabase
+    .from('profiles')
+    .select('phone_country_code')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const registrationCountryCode =
+    registrationProfile?.phone_country_code
+    ?? (user.user_metadata?.phone_country_code as string | undefined);
+
   // ── Parse & validate query params ──────────────────────────────────────────
   const { searchParams } = new URL(req.url);
   const parsed = ReportsQuerySchema.safeParse({
@@ -139,7 +150,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── Resolve employer ────────────────────────────────────────────────────────
   const { data: employer, error: employerError } = await supabase
     .from('employer_onboarding')
-    .select('id, risk_score, risk_rating')
+    .select('id, country, risk_score, risk_rating')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -154,6 +165,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       data: {
         period:  { label: range.label, from: range.from.toISOString(), to: range.to.toISOString() },
+        currency: getCurrencyFromCountry(registrationCountryCode, 'KES'),
         advances: {
           total: 0, disbursed: 0, pending: 0, rejected: 0,
           total_amount: 0, total_fees: 0, avg_amount: 0,
@@ -169,6 +181,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const employerId = employer.id;
+  const currency = getCurrencyFromCountry(employer.country ?? registrationCountryCode, 'KES');
 
   // ── Fetch employees for this employer ───────────────────────────────────────
   const { data: employeeRows, error: empErr } = await supabase
@@ -296,6 +309,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         from:  range.from.toISOString(),
         to:    range.to.toISOString(),
       },
+      currency,
       advances: {
         total:        all.length,
         disbursed:    disbursed.length,

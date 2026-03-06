@@ -4,6 +4,7 @@ import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import pusherServer from '@/lib/pusher-server';
 
 export async function PATCH(
   req: NextRequest,
@@ -152,6 +153,27 @@ export async function PATCH(
     read: false,
     created_at: new Date().toISOString(),
   });
+
+  // ── 5. Trigger Pusher for dynamic updates ────────────────────────────────────
+  try {
+    // Notify the employee
+    await pusherServer.trigger(`user-${doc.user_id}`, 'kyc-update', {
+      document_id: doc.id,
+      status,
+      onboarding_status: onboardingStatus,
+      message: employeeMessage
+    });
+
+    // If we have an employer_id, notify the employer's channel too
+    if (employeeOnboarding?.employer_id) {
+      await pusherServer.trigger(`employer-${employeeOnboarding.employer_id}`, 'employee-kyc-update', {
+        employee_user_id: doc.user_id,
+        onboarding_status: onboardingStatus
+      });
+    }
+  } catch (pusherErr) {
+    console.error('[KYC Review] Pusher trigger error:', pusherErr);
+  }
 
   return NextResponse.json({
     message: 'Document reviewed successfully',

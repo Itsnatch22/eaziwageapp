@@ -1,5 +1,6 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { getCurrencyFromCountry } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
@@ -45,6 +46,12 @@ export async function GET() {
     }, { status: 404 });
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('phone_country_code')
+    .eq('id', user.id)
+    .maybeSingle();
+
   // 3. Fetch advances for this month
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const { data: advances, error: advancesError } = await supabase
@@ -76,17 +83,13 @@ export async function GET() {
   
   const advanceLimit = Math.max(0, (earnedWages * maxAccessPct) - totalAdvances);
 
-  const currencyMap: Record<string, string> = {
-    'Kenya': 'KES',
-    'Uganda': 'UGX',
-    'Tanzania': 'TZS',
-    'Rwanda': 'RWF',
-    'KE': 'KES',
-    'UG': 'UGX',
-    'TZ': 'TZS',
-    'RW': 'RWF',
-  };
-  const currency = currencyMap[employee.employer?.country] || 'KES';
+  const currency = getCurrencyFromCountry(
+    employee.employer?.country
+      ?? employee.country
+      ?? profile?.phone_country_code
+      ?? (user.user_metadata?.phone_country_code as string | undefined),
+    'KES',
+  );
 
   // 5. Build response in unison with existing dashboard patterns
   return NextResponse.json({

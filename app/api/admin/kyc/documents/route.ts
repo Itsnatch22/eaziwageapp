@@ -85,20 +85,42 @@ export async function GET(req: NextRequest) {
     
     const { data: employerApps, error: empAppsError } = await empOnboardingQuery;
 
+    // Fetch employee onboarding records (from bulk uploads or manual invites)
+    let employeeOnboardingQuery = adminSupabase
+      .from('employee_onboarding')
+      .select(`
+        *,
+        employer:employer_onboarding!employer_id (
+          company_name
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (status) employeeOnboardingQuery = employeeOnboardingQuery.eq('status', status);
+    const { data: employeeApps } = await employeeOnboardingQuery;
+
+    // Fetch "Unlinked" employees (registered without a company code)
+    const { data: unlinkedProfiles } = await adminSupabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'employee')
+      .is('company_code', null)
+      .order('created_at', { ascending: false });
+
     const userIds = [...new Set((documents ?? []).map((d) => d.user_id).filter(Boolean))];
-    const employeesByUserId: Record<string, { full_name: string; employee_code: string | null }> = {};
+    const userMap: Record<string, { full_name: string; role: string }> = {};
 
     if (userIds.length > 0) {
-      const { data: employees } = await adminSupabase
-        .from('employees')
-        .select('user_id, full_name, employee_code')
-        .in('user_id', userIds);
+      const { data: profiles } = await adminSupabase
+        .from('profiles')
+        .select('id, full_name, role')
+        .in('id', userIds);
 
-      (employees ?? []).forEach((emp) => {
-        if (emp.user_id) {
-          employeesByUserId[emp.user_id] = {
-            full_name: emp.full_name ?? 'Unknown Employee',
-            employee_code: emp.employee_code ?? null,
+      (profiles ?? []).forEach((p) => {
+        if (p.id) {
+          userMap[p.id] = {
+            full_name: p.full_name ?? 'Unknown User',
+            role: p.role ?? 'employee',
           };
         }
       });
@@ -108,7 +130,9 @@ export async function GET(req: NextRequest) {
       {
         documents: documents ?? [],
         employerApplications: employerApps ?? [],
-        employeesByUserId,
+        employeeApplications: employeeApps ?? [],
+        unlinkedEmployees: unlinkedProfiles ?? [],
+        usersById: userMap,
       },
       { status: 200 }
     );

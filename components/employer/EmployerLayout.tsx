@@ -144,15 +144,20 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const location = usePathname();
   const user = useAuthStore((state) => state.user as EmployerUser | null);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const fullName = user?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Employer';
-  const userEmail = user?.email || 'No email';
-  const initials = fullName
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const fullName = mounted ? (user?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Employer') : 'Employer';
+  const userEmail = mounted ? (user?.email || 'No email') : 'No email';
+  const initials = mounted ? (fullName
     .split(' ')
     .filter(Boolean)
     .map((n: string) => n[0])
     .join('')
-    .toUpperCase() || 'E';
+    .toUpperCase() || 'E') : 'E';
 
   const navItems = [
     { href: '/dashboards/employer-dashboard', label: 'Dashboard', icon: LayoutDashboard },

@@ -24,6 +24,7 @@ interface UserProfile {
   email: string;
   full_name: string | null;
   role: string;
+  avatar_url?: string | null;
 }
 
 interface Notification {
@@ -58,6 +59,11 @@ interface SidebarNavProps {
 
 const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const menuItems = [
     { label: 'Overview',        href: '/admin',                  icon: LayoutDashboard },
@@ -78,13 +84,13 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
     return path === '/admin' ? pathname === '/admin' : pathname.startsWith(path);
   };
 
-  const fullName = userProfile?.full_name || userProfile?.email?.split('@')[0] || 'Admin';
-  const initials = fullName
+  const fullName = mounted ? (userProfile?.full_name || userProfile?.email?.split('@')[0] || 'Admin') : 'Admin';
+  const initials = mounted ? (fullName
     .split(' ')
     .filter(Boolean)
     .map((n: string) => n[0])
     .join('')
-    .toUpperCase() || 'A';
+    .toUpperCase() || 'A') : 'A';
 
   return (
     <>
@@ -225,6 +231,20 @@ interface TopHeaderProps {
   userProfile: UserProfile | null;
 }
 
+const dedupeNotifications = (items: Notification[]): Notification[] => {
+  const seen = new Set<string>();
+  const deduped: Notification[] = [];
+
+  for (const item of items) {
+    const id = String(item.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(item);
+  }
+
+  return deduped;
+};
+
 const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const hour = new Date().getHours();
@@ -238,7 +258,8 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
       const res = await fetch('/api/admin/notifications');
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data || []);
+        const notificationsData = Array.isArray(data) ? data : [];
+        setNotifications(dedupeNotifications(notificationsData).slice(0, 50));
       }
     } catch (err) {
       console.error('Failed to load admin notifications', err);
@@ -254,7 +275,10 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
       const channel = pusherClient.subscribe('admin-notifications');
       
       channel.bind('new-notification', (data: Notification) => {
-        setNotifications(prev => [data, ...prev].slice(0, 50));
+        setNotifications(prev => {
+          const withoutCurrent = prev.filter(n => String(n.id) !== String(data.id));
+          return dedupeNotifications([data, ...withoutCurrent]).slice(0, 50);
+        });
         toast(data.title, {
           description: data.message,
           icon: <Bell className="w-5 h-5 text-green-600" />
@@ -492,6 +516,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
           email: data.email,
           full_name: data.full_name,
           role: data.profiles_role || 'admin',
+          avatar_url: data.avatar_url,
         });
         setIsAuthorized(true);
       } catch (err) {

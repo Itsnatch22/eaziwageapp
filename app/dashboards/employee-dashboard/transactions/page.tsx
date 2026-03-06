@@ -47,6 +47,7 @@ interface StatusConfig {
 export default function Transactions() {
     const [advances, setAdvances] = useState<Advance[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currency, setCurrency] = useState('KES');
     const [filter, setFilter] = useState<FilterType>('all');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -54,9 +55,17 @@ export default function Transactions() {
         const fetchAdvances = async () => {
             try {
                 setLoading(true);
-                const response = await fetch('/api/employee-dashboard/transactions');
-                const data = await response.json();
-                setAdvances(Array.isArray(data) ? data : []);
+                const [txResponse, overviewResponse] = await Promise.all([
+                  fetch('/api/employee-dashboard/transactions'),
+                  fetch('/api/employee-dashboard/overview'),
+                ]);
+                const txData = await txResponse.json();
+                setAdvances(Array.isArray(txData) ? txData : []);
+
+                if (overviewResponse.ok) {
+                  const overviewData = await overviewResponse.json();
+                  setCurrency(overviewData?.employee?.currency || 'KES');
+                }
             } catch (error) {
                 console.error('Error fetching advances:', error);
                 toast.error('Failed to sync transactions');
@@ -162,7 +171,7 @@ export default function Transactions() {
               <p className="text-[10px] font-black uppercase tracking-widest opacity-60">This Month</p>
             </div>
             <h2 className="text-3xl font-black tracking-tighter" data-testid="monthly-total">
-              {formatCurrency(monthlyTotal).split('.')[0]}
+              {formatCurrency(monthlyTotal, currency).split('.')[0]}
             </h2>
             <p className="text-[10px] font-bold mt-1 opacity-40 uppercase tracking-widest">Total Disbursements</p>
           </div>
@@ -277,7 +286,7 @@ export default function Transactions() {
                           "text-lg font-black tracking-tight mb-1",
                           item.status === 'rejected' ? "text-slate-300 dark:text-slate-600 line-through" : "text-slate-900 dark:text-white"
                         )}>
-                          {formatCurrency(item.amount).split('.')[0]}
+                          {formatCurrency(item.amount, currency).split('.')[0]}
                         </p>
                         <div className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border",

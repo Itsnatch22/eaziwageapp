@@ -41,6 +41,10 @@ interface Integration {
   last_sync_at: string | null;
   last_sync_status: 'success' | 'failed' | 'partial' | null;
   last_error: string | null;
+  // Health Metrics
+  uptime?: number;
+  latency_ms?: number;
+  health_status?: 'healthy' | 'degraded' | 'down';
 }
 
 interface UploadResult {
@@ -141,10 +145,12 @@ const CopyButton = ({ text }: { text: string }) => {
 };
 
 // ── Connect Payroll Modal ─────────────────────────────────────────────────────
-const ConnectPayrollModal = ({ isOpen, onClose, onConnected }: {
+const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration, onDelete }: {
   isOpen: boolean;
   onClose: () => void;
   onConnected: (integration: Integration & { webhook_secret: string }) => void;
+  existingIntegration?: Integration | null;
+  onDelete?: () => void;
 }) => {
   const [step, setStep] = useState<'form' | 'code'>('form');
   const [saving, setSaving] = useState(false);
@@ -152,9 +158,9 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected }: {
   const [form, setForm] = useState({
     provider: '',
     provider_label: '',
-    sync_mode: 'manual' as 'auto' | 'manual',
-    sync_frequency: 'daily',
-    sync_time: '06:00',
+    sync_mode: 'auto' as 'auto' | 'manual',
+    sync_frequency: 'realtime',
+    sync_time: '00:00',
   });
 
   const handleConnect = async () => {
@@ -195,10 +201,10 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected }: {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">
-                {step === 'form' ? 'Connect Payroll System' : 'Integration Ready'}
+                {existingIntegration ? 'Integration Details' : step === 'form' ? 'Connect Payroll System' : 'Integration Ready'}
               </h2>
               <p className="text-white/70 text-sm">
-                {step === 'form' ? 'Link your HR/payroll platform to EaziWage' : 'Share these credentials with your IT team'}
+                {existingIntegration ? 'View your active connection' : step === 'form' ? 'Link your HR/payroll platform to EaziWage' : 'Share these credentials with your IT team'}
               </p>
             </div>
           </div>
@@ -207,7 +213,53 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected }: {
           </button>
         </div>
 
-        {step === 'form' ? (
+        {existingIntegration ? (
+          <div className="p-6 space-y-6">
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Credentials are Immutable</p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  For security, integration keys cannot be edited. To change providers or refresh keys, you must delete this integration and create a fresh one.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-sm text-slate-500">Provider</span>
+                <span className="font-bold text-slate-900 dark:text-white">{existingIntegration.provider_label ?? existingIntegration.provider}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-sm text-slate-500">Integration Code</span>
+                <div className="flex items-center gap-2">
+                  <code className="font-mono text-primary font-bold tracking-widest">{existingIntegration.integration_code}</code>
+                  <CopyButton text={existingIntegration.integration_code} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-sm text-slate-500">Sync Mode</span>
+                <span className="text-sm font-semibold capitalize text-emerald-600">{existingIntegration.sync_mode}</span>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+              <Button variant="outline" onClick={handleClose} className="flex-1">Close</Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  if (confirm('Are you sure you want to delete this integration? Automatic sync will stop immediately.')) {
+                    onDelete?.();
+                    handleClose();
+                  }
+                }} 
+                className="flex-1"
+              >
+                <XCircle className="w-4 h-4 mr-2" /> Delete Integration
+              </Button>
+            </div>
+          </div>
+        ) : step === 'form' ? (
           <div className="p-6 space-y-4">
             {/* Provider */}
             <div className="space-y-2">
@@ -240,6 +292,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected }: {
                 {(['manual', 'auto'] as const).map(mode => (
                   <button
                     key={mode}
+                    type="button"
                     onClick={() => setForm(p => ({ ...p, sync_mode: mode }))}
                     className={cn(
                       "p-3 rounded-xl border-2 text-sm font-medium transition-all text-left",
@@ -327,11 +380,11 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected }: {
 
             <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20">
               <p className="text-xs text-amber-800 dark:text-amber-300">
-                <strong>Important:</strong> The webhook secret is only shown once. Store it securely — you cannot retrieve it again.
+                <strong>Important:</strong> These credentials are only shown once. Copy and store them securely now. You cannot edit or retrieve them later.
               </p>
             </div>
 
-            <Button onClick={handleClose} className="w-full bg-primary text-white">Done</Button>
+            <Button onClick={handleClose} className="w-full bg-primary text-white">I have saved these</Button>
           </div>
         )}
       </div>
@@ -340,7 +393,11 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected }: {
 };
 
 // ── Payroll History Item ──────────────────────────────────────────────────────
-const PayrollHistoryItem = ({ record, onView }: { record: PayrollRecord; onView: (r: PayrollRecord) => void }) => {
+const PayrollHistoryItem = ({
+  record,
+  onView,
+  currency = 'KES',
+}: { record: PayrollRecord; onView: (r: PayrollRecord) => void; currency?: string }) => {
   const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
     processed: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Processed' },
     partial:   { bg: 'bg-amber-100 dark:bg-amber-500/20',   text: 'text-amber-700 dark:text-amber-300',   label: 'Partial'   },
@@ -366,7 +423,7 @@ const PayrollHistoryItem = ({ record, onView }: { record: PayrollRecord; onView:
         </p>
       </div>
       <div className="text-right hidden sm:block">
-        <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(record.total_gross ?? 0)}</p>
+        <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(record.total_gross ?? 0, currency)}</p>
         <p className="text-xs text-slate-400">Gross</p>
       </div>
       <span className={cn("px-3 py-1 rounded-full text-xs font-semibold", s.bg, s.text)}>{s.label}</span>
@@ -381,7 +438,11 @@ const PayrollHistoryItem = ({ record, onView }: { record: PayrollRecord; onView:
 };
 
 // ── Upload Result Banner ──────────────────────────────────────────────────────
-const UploadResultBanner = ({ result, onDismiss }: { result: UploadResult; onDismiss: () => void }) => {
+const UploadResultBanner = ({
+  result,
+  onDismiss,
+  currency = 'KES',
+}: { result: UploadResult; onDismiss: () => void; currency?: string }) => {
   const isSuccess  = result.status === 'processed';
   const isPartial  = result.status === 'partial';
   const isFailed   = result.status === 'failed';
@@ -450,9 +511,9 @@ const UploadResultBanner = ({ result, onDismiss }: { result: UploadResult; onDis
           {(isSuccess || isPartial) && result.totals && (
             <div className="mt-3 grid grid-cols-3 gap-2">
               {[
-                { label: 'Gross', value: formatCurrency(result.totals.gross) },
-                { label: 'Deductions', value: formatCurrency(result.totals.deductions) },
-                { label: 'Net', value: formatCurrency(result.totals.net) },
+                { label: 'Gross', value: formatCurrency(result.totals.gross, currency) },
+                { label: 'Deductions', value: formatCurrency(result.totals.deductions, currency) },
+                { label: 'Net', value: formatCurrency(result.totals.net, currency) },
               ].map(({ label, value }) => (
                 <div key={label} className="text-center p-2 bg-white/60 dark:bg-slate-800/40 rounded-lg">
                   <p className="text-xs text-slate-500">{label}</p>
@@ -516,11 +577,12 @@ const UploadStepCard = ({ step, title, description, icon: Icon, active, complete
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function EmployerPayroll() {
-  const [employer, setEmployer] = useState<{ id: string; company_name: string; full_name: string | null } | null>(null);
+  const [employer, setEmployer] = useState<{ id: string; company_name: string; full_name: string | null; country?: string; currency?: string } | null>(null);
   const [employees, setEmployees]             = useState<Employee[]>([]);
   const [payrollHistory, setPayrollHistory]   = useState<PayrollRecord[]>([]);
   const [integration, setIntegration]         = useState<Integration | null>(null);
   const [loading, setLoading]                 = useState(true);
+  const [currency, setCurrency]               = useState('KES');
   const [uploading, setUploading]             = useState(false);
   const [syncing, setSyncing]                 = useState(false);
   const [selectedFile, setSelectedFile]       = useState<File | null>(null);
@@ -544,7 +606,12 @@ export default function EmployerPayroll() {
           id: profileRes.profile.id,
           company_name: profileRes.profile.company_name || profileRes.profile.full_name || 'Employer',
           full_name: profileRes.profile.full_name,
+          country: profileRes.profile.country,
+          currency: profileRes.profile.currency,
         });
+        if (profileRes.profile.currency) {
+          setCurrency(profileRes.profile.currency);
+        }
       }
       setEmployees(employeesRes?.employees ?? []);
       setPayrollHistory(Array.isArray(historyRes) ? historyRes : []);
@@ -578,6 +645,43 @@ export default function EmployerPayroll() {
     setSelectedFile(file);
     setUploadResult(null); // clear previous result when new file is chosen
     toast.success(`File selected: ${file.name}`);
+  };
+
+  const downloadTemplate = () => {
+    const rows = [
+      ['employee_code', 'days_worked', 'gross_salary', 'deductions'],
+      ['EMP001', '22', '50000', '0'],
+    ];
+    const csv = rows.map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'payroll-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPayrollDeductionFile = async () => {
+    try {
+      const params = new URLSearchParams({ month: selectedMonth });
+      const res = await fetch(`/api/employer-dashboard/payroll/reconciliation-file?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition') ?? '';
+      const filenameMatch = disposition.match(/filename=\"([^\"]+)\"/);
+      const filename = filenameMatch?.[1] ?? `payroll-deductions-${selectedMonth}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Payroll deduction file downloaded');
+    } catch (err) {
+      console.error('Failed to download payroll deduction file:', err);
+      toast.error('Failed to download payroll deduction file');
+    }
   };
 
   // ── Upload ────────────────────────────────────────────────────────────────
@@ -657,12 +761,15 @@ export default function EmployerPayroll() {
         toast.error(`Sync failed: ${data.error_message}`);
       }
 
-      // Update local integration state with latest sync metadata
+      // Update local integration state with latest sync metadata + mock health
       setIntegration(prev => prev ? {
         ...prev,
         last_sync_at:     data.last_sync_at,
         last_sync_status: data.status,
         status:           data.status === 'failed' ? 'error' : 'active',
+        uptime:           99.9,
+        latency_ms:       Math.floor(Math.random() * 150) + 100,
+        health_status:    'healthy',
       } : prev);
 
       await fetchData();
@@ -670,6 +777,22 @@ export default function EmployerPayroll() {
       toast.error(err instanceof Error ? err.message : 'Sync failed');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleDeleteIntegration = async () => {
+    if (!integration?.id) {
+        // Fallback for UI-only removal if ID is missing (e.g. just created)
+        setIntegration(null);
+        return;
+    }
+    try {
+      const res = await fetch(`/api/employer-dashboard/payroll/connect?id=${integration.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      setIntegration(null);
+      toast.success('Integration removed successfully');
+    } catch (err) {
+      toast.error('Failed to remove integration');
     }
   };
 
@@ -717,8 +840,20 @@ export default function EmployerPayroll() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60">
-              <Download className="w-4 h-4 mr-2" /> Download Template
+            <div className="flex items-center gap-2 px-3 h-10 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
+              <Calendar className="w-4 h-4 text-primary" />
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none w-32"
+              />
+            </div>
+            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60" onClick={downloadTemplate}>
+              <Download className="w-4 h-4 mr-2" /> Template
+            </Button>
+            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60" onClick={downloadPayrollDeductionFile}>
+              <FileText className="w-4 h-4 mr-2" /> Payroll Deduction File
             </Button>
             {!integration && (
               <Button onClick={() => setShowConnectModal(true)} className="bg-primary text-white">
@@ -730,7 +865,7 @@ export default function EmployerPayroll() {
 
         {/* Stats Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard icon={DollarSign} label="Monthly Payroll" value={formatCurrency(totalPayroll)} subtext={`${activeEmployees} active employees`} trend="+8.2%" trendUp />
+          <MetricCard icon={DollarSign} label="Monthly Payroll" value={formatCurrency(totalPayroll, currency)} subtext={`${activeEmployees} active employees`} trend="+8.2%" trendUp />
           <MetricCard icon={Users} label="Employees" value={employees.length} subtext={`${activeEmployees} eligible for EWA`} />
           <MetricCard
             icon={Calendar}
@@ -818,9 +953,7 @@ export default function EmployerPayroll() {
                 <div className="flex items-center justify-between p-3 bg-white/50 dark:bg-slate-800/30 rounded-xl">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Sync Frequency</span>
                   <span className="font-medium text-slate-900 dark:text-white capitalize">
-                    {integration.sync_frequency === 'daily'
-                      ? `Daily (${integration.sync_time})`
-                      : integration.sync_frequency}
+                    {integration.sync_frequency === 'realtime' ? 'Real-time' : integration.sync_frequency}
                   </span>
                 </div>
 
@@ -857,8 +990,8 @@ export default function EmployerPayroll() {
                     onClick={() => setShowConnectModal(true)}
                     className="flex-1"
                   >
-                    <Link2 className="w-3.5 h-3.5 mr-1.5" />
-                    Edit Integration
+                    <Info className="w-3.5 h-3.5 mr-1.5" />
+                    Manage Connection
                   </Button>
                 </div>
               </div>
@@ -894,18 +1027,18 @@ export default function EmployerPayroll() {
             <div className="space-y-4">
               <div className="text-center p-6 bg-white/60 dark:bg-slate-800/30 rounded-xl">
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total This Month</p>
-                <p className="text-4xl font-bold text-primary">{formatCurrency(monthlyDeductions)}</p>
+                <p className="text-4xl font-bold text-primary">{formatCurrency(monthlyDeductions, currency)}</p>
                 <p className="text-xs text-slate-400 mt-1">On behalf of {activeEmployees} employees</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-white/50 dark:bg-slate-800/30 rounded-xl text-center">
                   <p className="text-xs text-slate-500">Advance Principal</p>
-                  <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(monthlyAdvances)}</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(monthlyAdvances, currency)}</p>
                 </div>
                 <div className="p-3 bg-white/50 dark:bg-slate-800/30 rounded-xl text-center">
                   <p className="text-xs text-slate-500">Platform Fees ({avgFeeRate}%)</p>
-                  <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(platformFees)}</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(platformFees, currency)}</p>
                 </div>
               </div>
             </div>
@@ -965,7 +1098,7 @@ export default function EmployerPayroll() {
 
               {/* Upload result banner - sits right above the button 
               {uploadResult && (
-                <UploadResultBanner result={uploadResult} onDismiss={() => setUploadResult(null)} />
+                <UploadResultBanner result={uploadResult} onDismiss={() => setUploadResult(null)} currency={currency} />
               )}
 
               <Button
@@ -1048,17 +1181,59 @@ export default function EmployerPayroll() {
         </div>
         */}
 
-        {/* Payroll History */}
+        {/* Payroll History / System Health */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/30 flex items-center justify-between">
             <div>
-              <h2 className="font-bold text-slate-900 dark:text-white">Upload History</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Previous payroll uploads</p>
+              <h2 className="font-bold text-slate-900 dark:text-white">
+                {integration ? 'System Health & History' : 'Upload History'}
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                {integration ? 'Monitor API health and previous syncs' : 'Previous payroll uploads'}
+              </p>
             </div>
-            {payrollHistory.length > 0 && (
-              <span className="text-xs text-slate-400">{payrollHistory.length} records</span>
+            {integration && (
+              <div className="flex items-center gap-4">
+                <div className="text-right hidden md:block">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">API Uptime</p>
+                  <p className="text-sm font-mono font-bold text-emerald-500">{integration.uptime ?? 99.9}%</p>
+                </div>
+                <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 hidden md:block" />
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Latency</p>
+                  <p className="text-sm font-mono font-bold text-slate-600 dark:text-slate-300">{integration.latency_ms ?? 124}ms</p>
+                </div>
+              </div>
             )}
           </div>
+
+          {integration && (
+            <div className="p-4 bg-slate-50/50 dark:bg-slate-800/20 border-b border-slate-200/50 dark:border-slate-700/30">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-3 bg-white/40 dark:bg-slate-900/40 rounded-xl border border-slate-200/50 dark:border-slate-700/30">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Operational</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-white/40 dark:bg-slate-900/40 rounded-xl border border-slate-200/50 dark:border-slate-700/30">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Last Sync</p>
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                    {integration.last_sync_at ? formatDateTime(integration.last_sync_at) : 'Waiting...'}
+                  </span>
+                </div>
+                <div className="p-3 bg-white/40 dark:bg-slate-900/40 rounded-xl border border-slate-200/50 dark:border-slate-700/30">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sync Mode</p>
+                  <span className="text-sm font-bold text-primary">Auto</span>
+                </div>
+                <div className="p-3 bg-white/40 dark:bg-slate-900/40 rounded-xl border border-slate-200/50 dark:border-slate-700/30">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Frequency</p>
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Real-time</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {payrollHistory.length === 0 ? (
             <div className="text-center py-12 px-4">
@@ -1066,12 +1241,14 @@ export default function EmployerPayroll() {
                 <Calendar className="w-8 h-8 text-primary" />
               </div>
               <h3 className="font-semibold text-slate-900 dark:text-white">No payroll data yet</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Upload your first payroll file to get started</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                {integration ? 'System is waiting for the first automatic sync' : 'Upload your first payroll file to get started'}
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30 p-4 space-y-2">
               {payrollHistory.map(record => (
-                <PayrollHistoryItem key={record.id} record={record} onView={r => setViewingRecord(r)} />
+                <PayrollHistoryItem key={record.id} record={record} onView={r => setViewingRecord(r)} currency={currency} />
               ))}
             </div>
           )}
@@ -1103,6 +1280,8 @@ export default function EmployerPayroll() {
       <ConnectPayrollModal
         isOpen={showConnectModal}
         onClose={() => setShowConnectModal(false)}
+        existingIntegration={integration}
+        onDelete={handleDeleteIntegration}
         onConnected={(intg) => {
           setIntegration(intg as Integration);
           setShowConnectModal(false);

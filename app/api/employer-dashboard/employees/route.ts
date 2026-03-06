@@ -1,7 +1,7 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -70,9 +70,6 @@ export async function GET(req: NextRequest) {
         min_advance_amount,
         max_advance_amount,
         cooldown_period
-      ),
-      profile:profiles(id=user_id) (
-        full_name
       )
     `)
     .eq('employer_id', employer.id)
@@ -89,6 +86,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: empError.message }, { status: 500 });
   }
 
+  // ── Fetch profiles for all employees ──────────────────────────────────────
+  const userIds = (rawEmployees ?? []).map((e) => e.user_id).filter(Boolean);
+  let profilesMap: Record<string, { full_name: string }> = {};
+
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', userIds);
+
+    if (profiles) {
+      profilesMap = profiles.reduce((acc, p) => {
+        acc[p.id] = { full_name: p.full_name };
+        return acc;
+      }, {} as Record<string, { full_name: string }>);
+    }
+  }
+
   // ── Shape each employee record ────────────────────────────────────────────
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -96,9 +111,8 @@ export async function GET(req: NextRequest) {
   const allEmployees = (rawEmployees ?? []).map((e) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const record = e as any;
-    // Pull full_name from profiles
-    const profileRecord = Array.isArray(record.profile) ? record.profile[0] : record.profile;
-    const full_name: string = profileRecord?.full_name ?? '';
+    // Pull full_name from profilesMap
+    const full_name: string = profilesMap[record.user_id]?.full_name ?? '';
 
     // Compute tenure in months from start_date
     const startDate = record.start_date ? new Date(record.start_date) : null;

@@ -301,24 +301,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         );
       }
 
-      // Check onboarding status
-      const { data: onboarding } = await supabase
+      // Check onboarding status - handle multiple records by picking the "best" one
+      const { data: onboardingRows } = await supabase
         .from('employer_onboarding')
         .select('status, user_id')
         .eq('user_id', profileEmp.id)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
-      if (onboarding?.status !== 'approved') {
-        return NextResponse.json(
-          { error: 'This company is not yet approved on EaziWage.' },
-          { status: 422, headers: rateResult.headers },
-        );
+      // Prefer 'approved' if it exists, otherwise pick the latest record
+      const onboarding = onboardingRows?.find(r => r.status === 'approved') 
+        || onboardingRows?.find(r => r.status === 'submitted' || r.status === 'pending')
+        || (onboardingRows && onboardingRows.length > 0 ? onboardingRows[0] : null);
+
+      if (onboarding) {
+        if (onboarding.status === 'rejected' || onboarding.status === 'suspended') {
+          return NextResponse.json(
+            { error: `This company is currently ${onboarding.status} on EaziWage. Please contact support.` },
+            { status: 422, headers: rateResult.headers },
+          );
+        }
+        employerUserId = onboarding.user_id;
+      } else {
+        // If we found a profile but NO onboarding record, it's a newly registered employer
+        // We still allow registration, but status will be effectively pending
+        employerUserId = profileEmp.id;
       }
-      employerUserId = onboarding.user_id;
     } else {
-        if (employer.status !== 'approved') {
+        if (employer.status === 'rejected' || employer.status === 'suspended') {
             return NextResponse.json(
-              { error: 'This company is not yet approved on EaziWage.' },
+              { error: `This company is currently ${employer.status} on EaziWage. Please contact support.` },
               { status: 422, headers: rateResult.headers },
             );
         }

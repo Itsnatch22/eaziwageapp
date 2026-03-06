@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,22 @@ export default function LoginPage() {
   const [error,          setError]          = useState('');
   const [isLoading,      setIsLoading]      = useState(false);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
+
+  const handleSocialLogin = async (provider: 'google' | 'apple') => {
+    setError('');
+    setIsLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/api/auth/callback?role=employee`,
+      },
+    });
+    if (error) {
+      setError(error.message);
+      setIsLoading(false);
+    }
+  };
 
   /** Executes reCAPTCHA v3 and returns a fresh token for the given action. */
   const getReCaptchaToken = useCallback((action: string): Promise<string> => {
@@ -297,7 +314,7 @@ export default function LoginPage() {
                   <Button
                     variant="outline"
                     className="h-12 rounded-xl border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium text-slate-700 dark:text-slate-300"
-                    onClick={() => {}}
+                    onClick={() => handleSocialLogin('google')}
                   >
                     <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
                       <path
@@ -322,7 +339,7 @@ export default function LoginPage() {
                   <Button
                     variant="outline"
                     className="h-12 rounded-xl border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium text-slate-700 dark:text-slate-300"
-                    onClick={() => {}}
+                    onClick={() => handleSocialLogin('apple')}
                   >
                     <svg className="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 384 512">
                       <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 33-17.9 63.4-17.9 31.8 0 39.6 17.9 65.4 17.9 48.6-.1 90.7-82.5 103-119.5-31.9-14.5-54.6-43.9-54.7-91.7zM224.2 81.1c16-19.8 26.8-47.3 23.8-74.7-23.4 1-51.5 15.6-68.3 35.4-15 17.5-28.2 45.4-24.8 71.9 26.2 2 53.2-12.8 69.3-32.6z"/>

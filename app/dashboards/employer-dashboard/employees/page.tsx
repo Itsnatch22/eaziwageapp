@@ -19,6 +19,7 @@ import {
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import pusherClient from '@/lib/pusher-client';
 import {
   GradientIconBox, GradientAvatar, currencies, countries,
 } from '@/components/employer/SharedComponents';
@@ -780,6 +781,24 @@ const EmployerEmployees: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!employer?.id || !pusherClient) return;
+
+    const channel = pusherClient.subscribe(`employer-${employer.id}`);
+    
+    const handleEmployeeUpdate = (data: any) => {
+      console.log('[Pusher] Employee KYC update received by employer:', data);
+      void fetchData();
+    };
+
+    channel.bind('employee-kyc-update', handleEmployeeUpdate);
+
+    return () => {
+      channel.unbind('employee-kyc-update', handleEmployeeUpdate);
+      pusherClient!.unsubscribe(`employer-${employer.id}`);
+    };
+  }, [employer?.id, fetchData]);
 
   // ── Seed ──────────────────────────────────────────────────────────────────
   const handleSeedEmployees = async () => {

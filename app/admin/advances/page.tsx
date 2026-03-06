@@ -135,15 +135,15 @@ export function AdvanceRow({
       </div>
 
       <div className="text-right w-28">
-        <p className="font-bold">{formatCurrency(advance.amount)}</p>
+        <p className="font-bold">{formatCurrency(advance.amount, 'USD')}</p>
         <p className="text-xs text-slate-500">
-          Fee: {formatCurrency(advance.fee_amount)}
+          Fee: {formatCurrency(advance.fee_amount, 'USD')}
         </p>
       </div>
 
       <div className="text-right w-28 hidden md:block">
         <p className="font-bold text-purple-600">
-          {formatCurrency(advance.net_amount)}
+          {formatCurrency(advance.net_amount, 'USD')}
         </p>
         <p className="text-xs text-slate-500">Net</p>
       </div>
@@ -349,15 +349,15 @@ export function AdvanceDetailModal({
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-2">
             <div className="flex justify-between">
               <span className="text-slate-600 dark:text-slate-400">Amount Requested</span>
-              <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(advance.amount)}</span>
+              <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(advance.amount, 'USD')}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-600 dark:text-slate-400">Service Fee ({advance.fee_percentage?.toFixed(1)}%)</span>
-              <span className="font-medium text-red-600">-{formatCurrency(advance.fee_amount)}</span>
+              <span className="font-medium text-red-600">-{formatCurrency(advance.fee_amount, 'USD')}</span>
             </div>
             <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2">
               <span className="font-semibold text-slate-900 dark:text-white">Net Amount</span>
-              <span className="font-bold text-purple-600">{formatCurrency(advance.net_amount)}</span>
+              <span className="font-bold text-purple-600">{formatCurrency(advance.net_amount, 'USD')}</span>
             </div>
           </div>
           
@@ -580,8 +580,8 @@ export default function AdminAdvances(){
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={CreditCard} label="Total Advances" value={stats.total} variant="purple" />
           <MetricCard icon={Clock} label="Pending" value={stats.pending} subtext="Awaiting approval" variant="amber" />
-          <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats.total_amount)} variant="green" />
-          <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(stats.total_fees)} variant="blue" />
+          <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats.total_amount, 'USD')} variant="green" />
+          <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(stats.total_fees, 'USD')} variant="blue" />
         </div>
 
         {/* Search & Filters */}

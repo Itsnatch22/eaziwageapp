@@ -41,6 +41,7 @@ interface MetricCardProps {
 
 interface EmployerProfile {
   company_name: string;
+  currency?: string;
 }
 
 const MetricCard = ({
@@ -80,6 +81,7 @@ const StatusBadge = ({ status }: { status: AdvanceStatus }) => {
 interface EmployerData {
   profile?: {
     company_name?: string;
+    currency?: string;
   };
 }
 
@@ -114,8 +116,11 @@ export default function EmployerAdvancesPage() {
         if (!advancesRes.ok) throw new Error((advancesData as { error?: string })?.error || 'Failed to load advances');
         setAdvances(Array.isArray(advancesData) ? (advancesData as AdvanceItem[]) : []);
         setEmployer(
-          employerData?.profile?.company_name
-            ? { company_name: employerData.profile.company_name }
+          employerData?.profile
+            ? {
+                company_name: employerData.profile.company_name || 'Employer',
+                currency: employerData.profile.currency,
+              }
             : null,
         );
       } catch (error: unknown) {
@@ -204,14 +209,14 @@ export default function EmployerAdvancesPage() {
             icon={CreditCard}
             label="Total Requests"
             value={stats.total}
-            subtext={formatCurrency(stats.totalAmount)}
+            subtext={formatCurrency(stats.totalAmount, employer?.currency)}
             valueColor="text-primary"
           />
           <MetricCard
             icon={Clock}
             label="Pending Review"
             value={stats.pendingCount}
-            subtext={formatCurrency(stats.pendingAmount)}
+            subtext={formatCurrency(stats.pendingAmount, employer?.currency)}
             valueColor="text-amber-600"
           />
           <MetricCard
@@ -300,15 +305,15 @@ export default function EmployerAdvancesPage() {
 
                     <div className="text-left xl:text-right">
                       <p className="font-bold text-slate-900 dark:text-white">
-                        {formatCurrency(advance.amount)}
+                        {formatCurrency(advance.amount, employer?.currency)}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Fee: {advance.fee_percentage ?? 0}% ({formatCurrency(advance.fee_amount || 0)})
+                        Fee: {advance.fee_percentage ?? 0}% ({formatCurrency(advance.fee_amount || 0, employer?.currency)})
                       </p>
                     </div>
 
                     <div className="text-left xl:text-right">
-                      <p className="font-semibold text-primary">{formatCurrency(advance.net_amount || 0)}</p>
+                      <p className="font-semibold text-primary">{formatCurrency(advance.net_amount || 0, employer?.currency)}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
                         {(advance.disbursement_method || '').replace('_', ' ')}
                       </p>

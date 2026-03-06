@@ -21,6 +21,35 @@ const currencySymbolMap: Record<string, string> = {
   UGX: 'USh',
 };
 
+const countryCurrencyMap: Record<string, string> = {
+  KE: 'KES',
+  UG: 'UGX',
+  TZ: 'TZS',
+  RW: 'RWF',
+};
+
+const countryNameToCodeMap: Record<string, string> = {
+  KENYA: 'KE',
+  UGANDA: 'UG',
+  TANZANIA: 'TZ',
+  RWANDA: 'RW',
+};
+
+export function normalizeCountryCode(country: string | null | undefined): string | undefined {
+  if (!country) return undefined;
+  const normalized = country.trim().toUpperCase();
+  if (countryCurrencyMap[normalized]) return normalized;
+  return countryNameToCodeMap[normalized];
+}
+
+export function getCurrencyFromCountry(
+  country: string | null | undefined,
+  fallbackCurrency = 'KES'
+) {
+  const code = normalizeCountryCode(country);
+  return code ? countryCurrencyMap[code] : fallbackCurrency;
+}
+
 export function formatCurrency(
   amount: string | number | bigint,
   currency = 'KES'
@@ -29,20 +58,31 @@ export function formatCurrency(
 
   if (isNaN(numericAmount)) return '';
 
-  const locale = currencyLocaleMap[currency] || 'en-KE';
+  const normalizedCurrency = (currency || 'KES').toUpperCase();
+  const locale = currencyLocaleMap[normalizedCurrency] || 'en-KE';
 
   // Some browsers don't support the specific locales well, 
   // so we ensure the symbol is correct for the region
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(numericAmount);
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: normalizedCurrency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(numericAmount);
+  } catch {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(numericAmount);
+  }
 }
 
 export function getCurrencySymbol(currency: string = 'KES') {
-  return currencySymbolMap[currency] || currency;
+  const normalizedCurrency = (currency || 'KES').toUpperCase();
+  return currencySymbolMap[normalizedCurrency] || normalizedCurrency;
 }
 
 export function formatDate(dateString: string | number | Date) {

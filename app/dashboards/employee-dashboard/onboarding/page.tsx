@@ -264,6 +264,7 @@ interface FileUploaderProps {
   uploadedFile: UploadedDocument | null;
   uploading: boolean;
   required?: boolean;
+  testId?: string;
 }
 
 interface Step {
@@ -331,7 +332,7 @@ const StepIndicator = ({ steps, currentStep }: StepIndicatorProps) => (
 
 const FileUploader = ({
   label, accept = 'image/*,application/pdf', description, onUpload,
-  uploadedFile, uploading, required = false,
+  uploadedFile, uploading, required = false, testId
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -351,7 +352,7 @@ const FileUploader = ({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid={testId}>
       <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
         {label} {required && <span className="text-red-500">*</span>}
       </Label>
@@ -398,6 +399,13 @@ export default function Onboarding() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [identity, setIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
+  const userFullName =
+    user?.full_name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    identity?.full_name ||
+    '';
+  const userFirstName = userFullName.trim().split(/\s+/)[0] || '';
 
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -443,8 +451,8 @@ export default function Onboarding() {
         const res = await fetch('/api/employee-dashboard/profile');
         if (res.ok) {
           const data = await res.json();
-          const status = data?.profile?.employee?.kyc_status;
-          if (status === 'approved' || status === 'pending') {
+          const status = String(data?.profile?.employee?.kyc_status || '').toLowerCase();
+          if (status === 'approved') {
             router.replace('/dashboards/employee-dashboard');
           }
           setIdentity({
@@ -611,7 +619,9 @@ export default function Onboarding() {
           <div className="w-20 h-20 bg-linear-to-br from-primary to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-primary/25">
             <Sparkles className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4">Ready to unlock your wages?</h2>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4">
+            Ready to unlock your wages{userFirstName ? `, ${userFirstName}` : ''}?
+          </h2>
           <p className="text-slate-500 dark:text-slate-400 mb-10 max-w-md mx-auto leading-relaxed">
             Let&apos;s get you verified. This secure process takes less than 5 minutes and ensures your account stays private.
           </p>
@@ -749,13 +759,185 @@ export default function Onboarding() {
         </div>
       );
 
-      case 4: return (
-        <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Address Step - To Implement</div>
-      );
+      case 4: // Address Verification
+        return (
+          <div className="py-6">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+                <Home className="w-8 h-8 text-black" />
+              </div>
+              <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                Address Verification
+              </h2>
+              <p className="text-slate-600 dark:text-slate-300">
+                Provide your current residential address
+              </p>
+            </div>
+            
+            <div className="space-y-4 max-w-md mx-auto">
+              <div className="flex flex-col gap-2">
+                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
+                  Country of Work *
+                </Label>
+                <Select value={formData.country} onValueChange={(v) => updateField('country', v)}>
+                  <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700" data-testid="onboarding-country">
+                    <SelectValue placeholder="Select your country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES_OF_WORK.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-slate-500 dark:text-slate-400 text-xs ml-1">
+                  EaziWage operates in Kenya, Uganda, Tanzania, and Rwanda
+                </p>
+              </div>
 
-      case 5: return (
-        <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Tax Step - To Implement</div>
-      );
+              <div className="flex flex-col gap-2">
+                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
+                  Address Line 1 *
+                </Label>
+                <Input
+                  placeholder="Street address, P.O. box"
+                  value={formData.address_line1}
+                  onChange={(e) => updateField('address_line1', e.target.value)}
+                  className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+                  data-testid="onboarding-address1"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
+                  Address Line 2
+                </Label>
+                <Input
+                  placeholder="Apartment, suite, building (optional)"
+                  value={formData.address_line2}
+                  onChange={(e) => updateField('address_line2', e.target.value)}
+                  className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+                  data-testid="onboarding-address2"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
+                    City/Town *
+                  </Label>
+                  <Input
+                    placeholder="e.g. Nairobi"
+                    value={formData.city}
+                    onChange={(e) => updateField('city', e.target.value)}
+                    className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+                    data-testid="onboarding-city"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
+                    Postal Code
+                  </Label>
+                  <Input
+                    placeholder="e.g. 00100"
+                    value={formData.postal_code}
+                    onChange={(e) => updateField('postal_code', e.target.value)}
+                    className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+                    data-testid="onboarding-postal"
+                  />
+                </div>
+              </div>
+
+              {/* Address Proof Upload - Required */}
+              <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20 space-y-3">
+                <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" />
+                  Proof of Address *
+                </h4>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Upload a utility bill, bank statement, or lease agreement (less than 3 months old)
+                </p>
+                <FileUploader
+                  label="Address Proof Document"
+                  description="Utility bill, bank statement, or lease"
+                  onUpload={(file) => handleFileUpload(file, 'address_proof')}
+                  uploadedFile={uploadedFiles.address_proof}
+                  uploading={uploadingFile === 'address_proof'}
+                  testId="upload-address-proof"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 5: // Tax Identification
+        return (
+          <div className="py-6">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+                <Receipt className="w-8 h-8 text-black" />
+              </div>
+              <h2 className="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                Tax Information
+              </h2>
+              <p className="text-slate-600 dark:text-slate-300">
+                Provide your tax identification number for compliance
+              </p>
+            </div>
+            
+            <div className="space-y-4 max-w-md mx-auto">
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800/30">
+                <div className="flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      <strong>Why we need this:</strong> Tax compliance is required by financial regulations in all our operating countries.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
+                  Tax Identification Number (TIN)
+                </Label>
+                <Input
+                  placeholder="Enter your TIN"
+                  value={formData.tax_id}
+                  onChange={(e) => updateField('tax_id', e.target.value)}
+                  className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+                  data-testid="onboarding-tin"
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400 ml-1">
+                  Also known as PIN in Kenya, TIN in Tanzania, or TIN in Uganda/Rwanda
+                </p>
+              </div>
+
+              {/* Tax Certificate Upload */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" />
+                  Tax Certificate (Optional)
+                </h4>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Upload your tax registration certificate or compliance certificate
+                </p>
+                <FileUploader
+                  label="Tax Certificate"
+                  description="TIN certificate or compliance document"
+                  onUpload={(file) => handleFileUpload(file, 'tax_certificate')}
+                  uploadedFile={uploadedFiles.tax_certificate}
+                  uploading={uploadingFile === 'tax_certificate'}
+                  testId="upload-tax-cert"
+                />
+              </div>
+
+              <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+                Don't have your TIN yet? You can <button type="button" onClick={nextStep} className="text-primary font-medium hover:underline">skip this step</button> and add it later.
+              </p>
+            </div>
+          </div>
+        );
 
       case 6: return (
         <div className="space-y-6 py-4">
@@ -770,24 +952,67 @@ export default function Onboarding() {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input value={employerSearch} onChange={e => setEmployerSearch(e.target.value)} placeholder="Search companies..." className="pl-10 h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800" />
               </div>
-              <div className="max-h-40 overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/50">
-                {filteredEmployers.map(emp => (
-                  <button key={emp.id} onClick={() => updateField('employer_id', emp.id)} className={cn("w-full text-left p-4 text-sm font-bold flex items-center justify-between group transition-colors", formData.employer_id === emp.id ? "bg-primary/5 text-primary" : "hover:bg-slate-50 dark:hover:bg-white/2")}>
-                    <span>{emp.company_name}</span>
-                    {formData.employer_id === emp.id && <Check className="w-4 h-4" />}
-                  </button>
-                ))}
+              <div className="max-h-48 overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/50 bg-white/30 dark:bg-black/20">
+                {employersLoading ? (
+                  <div className="p-8 text-center">
+                    <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto mb-2" />
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Searching partners...</p>
+                  </div>
+                ) : filteredEmployers.length > 0 ? (
+                  filteredEmployers.map(emp => (
+                    <button key={emp.id} onClick={() => updateField('employer_id', emp.id)} className={cn("w-full text-left p-4 text-sm font-bold flex items-center justify-between group transition-colors", formData.employer_id === emp.id ? "bg-primary text-white" : "hover:bg-primary/5 text-slate-700 dark:text-slate-300")}>
+                      <div className="flex flex-col">
+                        <span>{emp.company_name}</span>
+                        <span className={cn("text-[10px] uppercase tracking-wider font-bold", formData.employer_id === emp.id ? "text-white/70" : "text-slate-400")}>
+                          {emp.industry} • {emp.city}, {emp.country}
+                        </span>
+                      </div>
+                      {formData.employer_id === emp.id && <CheckCircle2 className="w-5 h-5 text-white" />}
+                    </button>
+                  ))
+                ) : (
+                  <div className="p-8 text-center">
+                    <AlertCircle className="w-6 h-6 text-slate-300 mx-auto mb-2" />
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">No matching partners found</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="pt-2">
+                <p className="text-[10px] text-slate-500 font-medium">
+                  Don&apos;t see your employer? Enter your company code instead:
+                </p>
+                <Input 
+                  value={formData.employee_code} 
+                  onChange={e => updateField('employee_code', e.target.value)} 
+                  placeholder="e.g. CO-12345" 
+                  className="h-10 mt-2 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-slate-800 text-xs"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Job Title</Label>
-                <Input value={formData.job_title} onChange={e => updateField('job_title', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
+                <Input value={formData.job_title} onChange={e => updateField('job_title', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="e.g. Sales Manager" />
               </div>
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Monthly Salary</Label>
-                <Input type="number" value={formData.monthly_salary} onChange={e => updateField('monthly_salary', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Employment Type</Label>
+                <Select value={formData.employment_type} onValueChange={v => updateField('employment_type', v)}>
+                  <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="full_time">Full-time</SelectItem>
+                    <SelectItem value="part_time">Part-time</SelectItem>
+                    <SelectItem value="contract">Contract</SelectItem>
+                    <SelectItem value="internship">Internship</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Monthly Salary (Gross)</Label>
+              <Input type="number" value={formData.monthly_salary} onChange={e => updateField('monthly_salary', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="Enter amount..." />
             </div>
             <FileUploader label="Latest Payslip" onUpload={(f: File) => handleFileUpload(f, 'payslip_1')} uploadedFile={uploadedFiles.payslip_1} uploading={uploadingFile === 'payslip_1'} required />
           </div>

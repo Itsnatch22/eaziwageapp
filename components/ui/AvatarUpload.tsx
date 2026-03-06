@@ -43,15 +43,15 @@ export function AvatarUpload({
 
       const file = event.target.files[0];
       const fileExt = file.name.split('.').pop();
-      const filePath = `${userId}-${Math.random()}.${fileExt}`;
+      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
 
       // 1. Create a local preview
       const objectUrl = URL.createObjectURL(file);
       setPreviewUrl(objectUrl);
 
       // 2. Upload to Supabase Storage
-      // Note: Assumes 'avatars' bucket exists and is public
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file, {
           upsert: true,
