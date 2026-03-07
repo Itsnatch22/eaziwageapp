@@ -116,6 +116,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
+    console.error('[reports] Auth error:', authError);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -148,30 +149,42 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const prevRange = getPreviousRange(range);
 
   // ── Resolve employer ────────────────────────────────────────────────────────
-  const { data: onboardingEmp, error: employerError } = await supabase
-    .from('employer_onboarding')
-    .select('id, country, risk_score, risk_rating')
-    .eq('user_id', user.id)
-    .in('status', ['approved', 'submitted', 'pending', 'risk_review_in_progress'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let employer: { id: string; country: string | null; risk_score: number | null; risk_rating: string | null } | null = null;
+  
+  try {
+    const { data: onboardingEmp, error: employerError } = await supabase
+      .from('employer_onboarding')
+      .select('id, country, risk_score, risk_rating')
+      .eq('user_id', user.id)
+      .in('status', ['approved', 'submitted', 'pending', 'risk_review_in_progress'])
+      .limit(1)
+      .maybeSingle();
 
-  if (employerError) {
-    return NextResponse.json({ error: employerError.message }, { status: 500 });
+    if (employerError) {
+      console.error('[reports] Error fetching employer_onboarding:', employerError);
+      return NextResponse.json({ error: 'Failed to fetch employer', detail: employerError.message }, { status: 500 });
+    }
+
+    employer = onboardingEmp;
+  } catch (err) {
+    console.error('[reports] Exception fetching employer_onboarding:', err);
   }
-
-  let employer = onboardingEmp;
 
   if (!employer) {
     // Check fallback in 'employers' table
-    const { data: syncedEmp } = await supabase
-      .from('employers')
-      .select('id, country, risk_score, risk_rating')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    
-    if (!syncedEmp) {
+    try {
+      const { data: syncedEmp, error: syncedError } = await supabase
+        .from('employers')
+        .select('id, country, risk_score, risk_rating')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (syncedError) {
+        console.error('[reports] Error fetching employers:', syncedError);
+        return NextResponse.json({ error: 'Failed to fetch employer', detail: syncedError.message }, { status: 500 });
+      }
+      
+      if (!syncedEmp) {
         // Graceful empty state — employer not yet onboarded
         return NextResponse.json({
           data: {
@@ -189,54 +202,100 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             monthly_trend: [],
           },
         });
+      }
+      employer = syncedEmp;
+    } catch (err) {
+      console.error('[reports] Exception fetching employers:', err);
+      // Return graceful empty state
+      return NextResponse.json({
+        data: {
+          period:  { label: range.label, from: range.from.toISOString(), to: range.to.toISOString() },
+          currency: getCurrencyFromCountry(registrationCountryCode, 'KES'),
+          advances: {
+            total: 0, disbursed: 0, pending: 0, rejected: 0,
+            total_amount: 0, total_fees: 0, avg_amount: 0,
+            by_method: { mobile_money: 0, bank_transfer: 0 },
+          },
+          employees: { total: 0, active: 0, with_advances: 0, utilization_rate: 0 },
+          risk_score: null,
+          risk_rating: null,
+          previous_period: { total_amount: 0, total_fees: 0 },
+          monthly_trend: [],
+        },
+      });
     }
-    employer = syncedEmp;
   }
 
   const employerId = employer.id;
   const currency = getCurrencyFromCountry(employer.country ?? registrationCountryCode, 'KES');
 
   // ── Fetch employees for this employer ───────────────────────────────────────
-  const { data: employeeRows, error: empErr } = await supabase
-    .from('employee_onboarding')
-    .select('id, status')
-    .eq('employer_id', employerId);
+  let employeeRows: { id: string; status: string }[] = [];
+  try {
+    const { data: employees, error: empErr } = await supabase
+      .from('employee_onboarding')
+      .select('id, status')
+      .eq('employer_id', employerId);
 
-  if (empErr) {
-    return NextResponse.json({ error: empErr.message }, { status: 500 });
+    if (empErr) {
+      console.error('[reports] Error fetching employees:', empErr);
+      // Continue with empty employees
+      employeeRows = [];
+    } else {
+      employeeRows = (employees ?? []) as { id: string; status: string }[];
+    }
+  } catch (err) {
+    console.error('[reports] Exception fetching employees:', err);
+    employeeRows = [];
   }
 
-  const typedEmployees = (employeeRows ?? []) as EmployeeRow[];
-  const allEmployeeIds = typedEmployees.map((e) => e.id);
-  const activeCount = typedEmployees.filter((e) => e.status === 'approved').length;
+  const allEmployeeIds = employeeRows.map((e) => e.id);
+  const activeCount = employeeRows.filter((e) => e.status === 'approved').length;
 
   // ── Fetch advances (current period) ────────────────────────────────────────
-  const { data: advances, error: advErr } = allEmployeeIds.length > 0
-    ? await supabase
-        .from('advances')
-        .select('id, employee_id, amount, fee_amount, status, disbursement_method, created_at')
-        .in('employee_id', allEmployeeIds)
-        .gte('created_at', range.from.toISOString())
-        .lte('created_at', range.to.toISOString())
-    : { data: [] as AdvanceRow[], error: null };
+  let advances: { id: string; employee_id: string; amount: number | string | null; fee_amount: number | string | null; status: string; disbursement_method: string | null; created_at: string }[] = [];
+  try {
+    if (allEmployeeIds.length > 0) {
+      const { data: advData, error: advErr } = await supabase
+          .from('advances')
+          .select('id, employee_id, amount, fee_amount, status, disbursement_method, created_at')
+          .in('employee_id', allEmployeeIds)
+          .gte('created_at', range.from.toISOString())
+          .lte('created_at', range.to.toISOString());
 
-  if (advErr) {
-    return NextResponse.json({ error: advErr.message }, { status: 500 });
+      if (advErr) {
+        console.error('[reports] Error fetching advances:', advErr);
+        // Continue with empty advances
+      } else {
+        advances = (advData ?? []) as typeof advances;
+      }
+    }
+  } catch (err) {
+    console.error('[reports] Exception fetching advances:', err);
+    // Continue with empty advances
   }
 
   // ── Fetch advances (previous period for % change) ──────────────────────────
-  const { data: prevAdvances } = allEmployeeIds.length > 0
-    ? await supabase
-        .from('advances')
-        .select('amount, fee_amount, status')
-        .in('employee_id', allEmployeeIds)
-        .in('status', ['disbursed', 'approved'])
-        .gte('created_at', prevRange.from.toISOString())
-        .lte('created_at', prevRange.to.toISOString())
-    : { data: [] as PrevAdvanceRow[] };
+  let prevAdvances: { amount: number | string | null; fee_amount: number | string | null; status: string }[] = [];
+  try {
+    if (allEmployeeIds.length > 0) {
+      const { data: prevAdvData } = await supabase
+          .from('advances')
+          .select('amount, fee_amount, status')
+          .in('employee_id', allEmployeeIds)
+          .in('status', ['disbursed', 'approved'])
+          .gte('created_at', prevRange.from.toISOString())
+          .lte('created_at', prevRange.to.toISOString());
+
+      prevAdvances = (prevAdvData ?? []) as typeof prevAdvances;
+    }
+  } catch (err) {
+    console.error('[reports] Exception fetching previous advances:', err);
+    // Continue with empty previous advances
+  }
 
   // ── Compute advance summary ─────────────────────────────────────────────────
-  const all = (advances ?? []) as AdvanceRow[];
+  const all = advances;
   const disbursed = all.filter((a) => a.status === 'disbursed' || a.status === 'approved');
   const pending = all.filter((a) => a.status === 'pending');
   const rejected = all.filter((a) => a.status === 'rejected');
@@ -249,7 +308,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const byBankTransfer = all.filter((a) => a.disbursement_method === 'bank_transfer').length;
 
   // ── Previous period totals ──────────────────────────────────────────────────
-  const prevAll = (prevAdvances ?? []) as PrevAdvanceRow[];
+  const prevAll = prevAdvances;
   const prevTotalAmount = prevAll.reduce((s, a) => s + Number(a.amount ?? 0), 0);
   const prevTotalFees = prevAll.reduce((s, a) => s + Number(a.fee_amount ?? 0), 0);
 
@@ -264,40 +323,50 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const monthlyTrend: Array<{ label: string; amount: number; count: number }> = [];
   const now = new Date();
 
-  if (allEmployeeIds.length > 0) {
-    const trendFrom = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    const { data: trendRows } = await supabase
-      .from('advances')
-      .select('amount, status, created_at')
-      .in('employee_id', allEmployeeIds)
-      .in('status', ['disbursed', 'approved'])
-      .gte('created_at', trendFrom.toISOString());
+  try {
+    if (allEmployeeIds.length > 0) {
+      const trendFrom = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      const { data: trendRows } = await supabase
+        .from('advances')
+        .select('amount, status, created_at')
+        .in('employee_id', allEmployeeIds)
+        .in('status', ['disbursed', 'approved'])
+        .gte('created_at', trendFrom.toISOString());
 
-    // Bucket by month
-    const buckets = new Map<string, { amount: number; count: number }>();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      buckets.set(key, { amount: 0, count: 0 });
-    }
+      // Bucket by month
+      const buckets = new Map<string, { amount: number; count: number }>();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        buckets.set(key, { amount: 0, count: 0 });
+      }
 
-    for (const row of (trendRows ?? []) as TrendRow[]) {
-      const d   = new Date(row.created_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const b   = buckets.get(key);
-      if (b) {
-        b.amount += Number(row.amount ?? 0);
-        b.count  += 1;
+      for (const row of (trendRows ?? []) as { amount: number | string | null; status: string; created_at: string }[]) {
+        const d   = new Date(row.created_at);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const b   = buckets.get(key);
+        if (b) {
+          b.amount += Number(row.amount ?? 0);
+          b.count  += 1;
+        }
+      }
+
+      for (const [key, b] of buckets) {
+        const [y, m] = key.split('-').map(Number);
+        const label  = new Date(y, m - 1, 1).toLocaleString('en', { month: 'short', year: '2-digit' });
+        monthlyTrend.push({ label, amount: b.amount, count: b.count });
+      }
+    } else {
+      // No employees — return 6 empty buckets
+      for (let i = 5; i >= 0; i--) {
+        const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const label = d.toLocaleString('en', { month: 'short', year: '2-digit' });
+        monthlyTrend.push({ label, amount: 0, count: 0 });
       }
     }
-
-    for (const [key, b] of buckets) {
-      const [y, m] = key.split('-').map(Number);
-      const label  = new Date(y, m - 1, 1).toLocaleString('en', { month: 'short', year: '2-digit' });
-      monthlyTrend.push({ label, amount: b.amount, count: b.count });
-    }
-  } else {
-    // No employees — return 6 empty buckets
+  } catch (err) {
+    console.error('[reports] Error fetching monthly trend:', err);
+    // Return empty trend on error
     for (let i = 5; i >= 0; i--) {
       const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const label = d.toLocaleString('en', { month: 'short', year: '2-digit' });
@@ -306,13 +375,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── Fetch Last Sync Log ───────────────────────────────────────────────────
-  const { data: lastSync } = await supabase
-    .from('payroll_sync_logs')
-    .select('status, records_received, records_valid, created_at')
-    .eq('employer_id', employerId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let lastSync: { status: string; records_received: number; records_valid: number; created_at: string } | null = null;
+  try {
+    const { data: syncData } = await supabase
+      .from('payroll_sync_logs')
+      .select('status, records_received, records_valid, created_at')
+      .eq('employer_id', employerId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    lastSync = syncData;
+  } catch (err) {
+    console.error('[reports] Error fetching payroll_sync_logs:', err);
+    // Continue without sync data
+  }
 
   // ── Build response ──────────────────────────────────────────────────────────
   return NextResponse.json({

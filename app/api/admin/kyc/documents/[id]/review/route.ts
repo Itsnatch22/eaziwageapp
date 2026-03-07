@@ -2,10 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import pusherServer from '@/lib/pusher-server';
 
+// ── Structured logger ──────────────────────────────────────────────────────────
+type LogLevel = 'info' | 'warn' | 'error';
+
+interface LogContext {
+  docId?: string;
+  userId?: string;
+  employerId?: string;
+  status?: string | null;
+  onboardingStatus?: string;
+  [key: string]: unknown;
+}
+
+function log(level: LogLevel, step: string, message: string, ctx: LogContext = {}, err?: unknown) {
+  const entry = {
+    level,
+    route: 'PATCH /api/admin/kyc/[id]',
+    step,
+    message,
+    ...ctx,
+    ...(err !== undefined && {
+      error: err instanceof Error
+        ? { name: err.name, message: err.message, stack: err.stack }
+        : err,
+    }),
+    ts: new Date().toISOString(),
+  };
+
+  if (level === 'error') console.error(JSON.stringify(entry));
+  else if (level === 'warn') console.warn(JSON.stringify(entry));
+  else console.log(JSON.stringify(entry));
+}
+
+// ── Handler ────────────────────────────────────────────────────────────────────
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,16 +47,19 @@ export async function PATCH(
   const status = searchParams.get('status');
   const notes = searchParams.get('notes') || '';
 
+  // 1. Rate limit
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-kyc-review:${ip}`);
 
   if (!rateResult.success) {
+    log('warn', 'rate_limit', 'Rate limit exceeded', { docId, ip });
     return NextResponse.json(
       { error: 'Too many requests.', code: 'RATE_LIMITED' },
       { status: 429, headers: rateResult.headers }
     );
   }
 
+  // 2. Auth
   const supabase = await createRouteHandlerClient();
   const {
     data: { user },
@@ -32,6 +67,7 @@ export async function PATCH(
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
+    log('warn', 'auth', 'Unauthenticated request', { docId }, authError);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -40,48 +76,52 @@ export async function PATCH(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Verify Admin
-  const { data: profile } = await adminSupabase
-    .from('profiles')
-    .select('role')
+  // 3. Admin role check via system_admins table
+  const { data: systemAdmin } = await adminSupabase
+    .from('system_admins')
+    .select('id, is_admin')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (!profile || !isAdminRole(UserRoleEnum.parse(profile.role.toLowerCase()))) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!systemAdmin || !systemAdmin.is_admin) {
+    log('warn', 'admin_check', 'Non-admin attempted KYC review', { docId, userId: user.id });
+    return NextResponse.json({ error: 'Forbidden. Admin access required.' }, { status: 403 });
   }
 
+  // 4. Validate status param
   if (!['approved', 'rejected'].includes(status || '')) {
+    log('warn', 'validation', 'Invalid status value provided', { docId, userId: user.id, status });
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
-  // 1. Update the document status and get document owner context
+  // 5. Update document
   const { data: reviewedDoc, error: updateError } = await adminSupabase
     .from('employee_kyc_documents')
-    .update({ 
-      status, 
+    .update({
+      status,
       reviewer_notes: notes,
       reviewed_at: new Date().toISOString(),
-      reviewed_by: user.id
+      reviewed_by: user.id,
     })
     .select('id,user_id,document_type,status')
     .eq('id', docId);
 
   if (updateError || !reviewedDoc || reviewedDoc.length === 0) {
-    console.error('[KYC Review] Update error:', updateError);
+    log('error', 'doc_update', 'Failed to update KYC document', { docId, userId: user.id, status }, updateError);
     return NextResponse.json({ error: 'Failed to update document' }, { status: 500 });
   }
 
   const doc = reviewedDoc[0];
+  log('info', 'doc_update', 'KYC document updated', { docId: doc.id, userId: doc.user_id, status });
 
-  // 2. Recompute onboarding status based on all submitted docs for this user
+  // 6. Recompute onboarding status
   const { data: docsForUser, error: docsError } = await adminSupabase
     .from('employee_kyc_documents')
     .select('status')
     .eq('user_id', doc.user_id);
 
   if (docsError) {
-    console.error('[KYC Review] Failed to fetch user docs:', docsError);
+    log('error', 'onboarding_recompute', 'Failed to fetch user KYC documents', { docId: doc.id, userId: doc.user_id }, docsError);
     return NextResponse.json({ error: 'Failed to finalize KYC review' }, { status: 500 });
   }
 
@@ -93,27 +133,52 @@ export async function PATCH(
   if (hasRejected) onboardingStatus = 'rejected';
   else if (allApproved) onboardingStatus = 'approved';
 
+  log('info', 'onboarding_recompute', 'Recomputed onboarding status', {
+    docId: doc.id,
+    userId: doc.user_id,
+    totalDocs,
+    hasRejected,
+    allApproved,
+    onboardingStatus,
+  });
+
+  // 7. Sync employee_onboarding
   const { data: employeeOnboarding, error: employeeError } = await adminSupabase
     .from('employee_onboarding')
-    .update({
-      status: onboardingStatus,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: onboardingStatus, updated_at: new Date().toISOString() })
     .eq('user_id', doc.user_id)
     .select('id,employer_id,monthly_salary')
-    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (employeeError) {
-    console.error('[KYC Review] Failed to sync employee onboarding status:', employeeError);
+    log('error', 'onboarding_sync', 'Failed to sync employee onboarding status', {
+      docId: doc.id,
+      userId: doc.user_id,
+      onboardingStatus,
+    }, employeeError);
     return NextResponse.json({ error: 'Failed to sync employee status' }, { status: 500 });
   }
 
-  // 3. On full approval, bootstrap default EWA settings (initial credit limit)
+  if (!employeeOnboarding) {
+    log('warn', 'onboarding_sync', 'No employee_onboarding record found for user', {
+      docId: doc.id,
+      userId: doc.user_id,
+    });
+  }
+
+  // 8. Bootstrap EWA settings on full approval
   if (onboardingStatus === 'approved' && employeeOnboarding?.id && employeeOnboarding?.employer_id) {
     const monthlySalary = Number(employeeOnboarding.monthly_salary ?? 0);
     const initialLimit = Math.max(5000, Math.round(monthlySalary * 0.5) || 5000);
+
+    log('info', 'ewa_bootstrap', 'Bootstrapping EWA settings', {
+      userId: doc.user_id,
+      employerId: employeeOnboarding.employer_id,
+      onboardingId: employeeOnboarding.id,
+      monthlySalary,
+      initialLimit,
+    });
 
     const { error: ewaError } = await adminSupabase
       .from('employee_ewa_settings')
@@ -133,11 +198,21 @@ export async function PATCH(
       );
 
     if (ewaError) {
-      console.error('[KYC Review] Failed to initialize EWA settings:', ewaError);
+      // Non-fatal: log but don't abort the request
+      log('error', 'ewa_bootstrap', 'Failed to initialize EWA settings', {
+        userId: doc.user_id,
+        employerId: employeeOnboarding.employer_id,
+        onboardingId: employeeOnboarding.id,
+      }, ewaError);
+    } else {
+      log('info', 'ewa_bootstrap', 'EWA settings initialized successfully', {
+        userId: doc.user_id,
+        onboardingId: employeeOnboarding.id,
+      });
     }
   }
 
-  // 4. Notify employee
+  // 9. Insert notification
   const employeeMessage =
     onboardingStatus === 'approved'
       ? 'Your KYC has been fully approved and your account is now active.'
@@ -145,34 +220,58 @@ export async function PATCH(
       ? `One or more KYC documents were rejected. ${notes ? `Reason: ${notes}` : ''}`.trim()
       : `Your ${doc.document_type.replace(/_/g, ' ')} document was ${status}.`;
 
-  await adminSupabase.from('notifications').insert({
+  const { error: notifError } = await adminSupabase.from('notifications').insert({
     user_id: doc.user_id,
     type: 'kyc_update',
-    title: onboardingStatus === 'approved' ? 'KYC Approved' : onboardingStatus === 'rejected' ? 'KYC Requires Action' : 'KYC Document Reviewed',
+    title:
+      onboardingStatus === 'approved'
+        ? 'KYC Approved'
+        : onboardingStatus === 'rejected'
+        ? 'KYC Requires Action'
+        : 'KYC Document Reviewed',
     message: employeeMessage,
     read: false,
     created_at: new Date().toISOString(),
   });
 
-  // ── 5. Trigger Pusher for dynamic updates ────────────────────────────────────
+  if (notifError) {
+    // Non-fatal: the review itself succeeded
+    log('warn', 'notification', 'Failed to insert KYC notification', {
+      docId: doc.id,
+      userId: doc.user_id,
+      onboardingStatus,
+    }, notifError);
+  }
+
+  // 10. Pusher real-time events
   try {
-    // Notify the employee
     await pusherServer.trigger(`user-${doc.user_id}`, 'kyc-update', {
       document_id: doc.id,
       status,
       onboarding_status: onboardingStatus,
-      message: employeeMessage
+      message: employeeMessage,
     });
 
-    // If we have an employer_id, notify the employer's channel too
     if (employeeOnboarding?.employer_id) {
       await pusherServer.trigger(`employer-${employeeOnboarding.employer_id}`, 'employee-kyc-update', {
         employee_user_id: doc.user_id,
-        onboarding_status: onboardingStatus
+        onboarding_status: onboardingStatus,
       });
     }
+
+    log('info', 'pusher', 'Pusher events triggered', {
+      docId: doc.id,
+      userId: doc.user_id,
+      employerId: employeeOnboarding?.employer_id,
+      onboardingStatus,
+    });
   } catch (pusherErr) {
-    console.error('[KYC Review] Pusher trigger error:', pusherErr);
+    // Non-fatal: real-time update failed but the record is already persisted
+    log('error', 'pusher', 'Failed to trigger Pusher event(s)', {
+      docId: doc.id,
+      userId: doc.user_id,
+      employerId: employeeOnboarding?.employer_id,
+    }, pusherErr);
   }
 
   return NextResponse.json({

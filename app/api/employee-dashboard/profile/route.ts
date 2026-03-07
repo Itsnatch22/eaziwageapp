@@ -70,6 +70,12 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
         }
     }
 
+    // Fetch individual KYC document statuses
+    const { data: kycDocs } = await supabase
+        .from('employee_kyc_documents')
+        .select('document_type, status, reviewer_notes')
+        .eq('user_id', userId);
+
     const mergedEmployee = {
         ...(employee || {}),
         ...(onboarding || {}),
@@ -78,24 +84,10 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
         kyc_status: onboarding?.status || employee?.kyc_status || 'pending',
     };
 
-    const docMap: Record<string, string> = {
-        id_front: 'id_front',
-        address_proof: 'address_proof',
-        payslip_1: 'payslip_1',
-        employment_contract: 'employment_contract',
-        face_id: 'face_id',
-    };
-
-    const employeeData = mergedEmployee as Record<string, unknown>;
-    const kycDocuments = Object.entries(docMap).map(([docType,field]) => ({
-        document_type: docType,
-        status: employeeData[field] ? ('submitted' as const) : null,
-    }));
-
     return {
         ...profile,
         employee: mergedEmployee,
-        kycDocuments,
+        kycDocuments: kycDocs || [],
     };
 }
 

@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
+import pusherClient from '@/lib/pusher-client';
+import { useAuthStore } from '@/lib/stores/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +53,16 @@ interface CreditSummary {
   remaining_monthly_limit: number;
   available_company_credit: number;
   utilization_percent: number;
+}
+
+interface EmployeeStats {
+  total_employees: number;
+  active_employees: number;
+  kyc_completion_rate: number;
+  retention_rate: number;
+  avg_tenure_months: number;
+  new_hires_30_days: number;
+  department_breakdown?: Record<string, number>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -295,10 +307,12 @@ const PayrollHealthCard = ({ lastSync }: { lastSync: PeriodData['last_sync'] }) 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EmployerDashboard() {
+  const user = useAuthStore((state) => state.user);
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   const [curr,     setCurr]     = useState<PeriodData | null>(null);
   const [prev,     setPrev]     = useState<PeriodData | null>(null);
   const [credit,   setCredit]   = useState<CreditSummary | null>(null);
+  const [employeeStats, setEmployeeStats] = useState<EmployeeStats | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
   const router = useRouter();
@@ -324,10 +338,11 @@ export default function EmployerDashboard() {
 
       setEmployer(profile);
 
-      const [currRes, prevRes, creditRes] = await Promise.all([
+      const [currRes, prevRes, creditRes, employeeRes] = await Promise.all([
         fetch('/api/employer-dashboard/reports?period=this_month'),
         fetch('/api/employer-dashboard/reports?period=last_month'),
         fetch('/api/employer-dashboard/credit'),
+        fetch('/api/employer-dashboard/employees'),
       ]);
 
       if (currRes.ok) {
@@ -342,6 +357,10 @@ export default function EmployerDashboard() {
         const j = await creditRes.json();
         setCredit(j);
       }
+      if (employeeRes.ok) {
+        const j = await employeeRes.json();
+        if (j.stats) setEmployeeStats(j.stats);
+      }
     } catch (err: unknown) {
       setError('Failed to load dashboard.');
     } finally {
@@ -350,6 +369,30 @@ export default function EmployerDashboard() {
   }, [router]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!user?.id || !employer?.id || !pusherClient) return;
+
+    const userChannel = pusherClient.subscribe(`user-${user.id}`);
+    const handleUpdate = (data: any) => {
+      console.log('[Pusher] Employer overview update:', data);
+      void load();
+    };
+
+    userChannel.bind('kyc-update', handleUpdate);
+
+    const employerChannel = pusherClient.subscribe(`employer-${employer.id}`);
+    employerChannel.bind('employee-kyc-update', handleUpdate);
+    employerChannel.bind('kyc-update', handleUpdate);
+
+    return () => {
+      userChannel.unbind('kyc-update', handleUpdate);
+      pusherClient!.unsubscribe(`user-${user.id}`);
+      employerChannel.unbind('employee-kyc-update', handleUpdate);
+      employerChannel.unbind('kyc-update', handleUpdate);
+      pusherClient!.unsubscribe(`employer-${employer.id}`);
+    };
+  }, [user?.id, employer?.id, load]);
 
   const disbursedTrend   = computeTrend(curr?.advances.total_amount ?? 0, prev?.advances.total_amount ?? 0);
   const feesTrend        = computeTrend(curr?.advances.total_fees   ?? 0, prev?.advances.total_fees   ?? 0);
@@ -475,8 +518,8 @@ export default function EmployerDashboard() {
                 View all <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
-            <MiniStatRow label="Total enrolled"     value={curr?.employees.total         ?? 0} />
-            <MiniStatRow label="Active"              value={curr?.employees.active         ?? 0} accent />
+            <MiniStatRow label="Total enrolled"     value={employeeStats?.total_employees ?? curr?.employees.total ?? 0} />
+            <MiniStatRow label="Active"              value={employeeStats?.active_employees ?? curr?.employees.active ?? 0} accent />
             <MiniStatRow label="Used advances"       value={curr?.employees.with_advances  ?? 0} />
             <MiniStatRow label="Utilization rate"   value={`${curr?.employees.utilization_rate ?? 0}%`} accent />
 

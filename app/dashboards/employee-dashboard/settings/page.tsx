@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Lock, Bell, HelpCircle, 
-   LogOut, ChevronRight, CheckCircle2,
+  ChevronRight, CheckCircle2,
   Shield, CreditCard, Smartphone, 
-  Mail, Phone, MapPin, FileText,
-  User, IdCard, ScanFace,
-  Briefcase, Landmark
+  Mail, Phone, MapPin,
+  User,ScanFace,
+  Briefcase, Landmark, Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,6 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { logout } from '@/actions/auth';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
 import { useAuthStore } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
@@ -220,7 +219,7 @@ export default function EmployeeSettings() {
                     </div>
                     <div className="space-y-2">
                       <Label>Nationality</Label>
-                      <Input value={employee?.nationality || 'Not set'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
+                      <Input value={employee?.country || 'Not set'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
                     </div>
                   </div>
                   <p className="mt-4 text-[10px] text-slate-400 italic">To change verified personal details, please contact HR.</p>
@@ -254,11 +253,7 @@ export default function EmployeeSettings() {
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Employer</Label>
-                      <Input value={employee?.employer_person_name || 'Loading...'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Company</Label>
-                      <Input value={employee?.company_name || 'N/A'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
+                      <Input value={employee?.employer_id|| 'Loading...'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
                     </div>
                     <div className="space-y-2">
                       <Label>Job Title</Label>
@@ -286,7 +281,7 @@ export default function EmployeeSettings() {
                     <div>
                       <h4 className="font-bold text-slate-900 dark:text-white">Employment Verified</h4>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        Your account is linked to <span className="font-bold text-slate-900 dark:text-white">{employee?.company_name}</span>. 
+                        Your account is linked to <span className="font-bold text-slate-900 dark:text-white">{employee?.employer_id ? `•••• ${employee.employer_id.slice(-4)}` : '---'}</span>. 
                         Your salary advances are automatically reconciled via your company's payroll system.
                       </p>
                     </div>
@@ -305,11 +300,11 @@ export default function EmployeeSettings() {
                         <Smartphone className="w-6 h-6 text-emerald-600" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 dark:text-white">{employee?.mobile_money_provider || 'M-PESA'}</p>
-                        <p className="text-sm text-emerald-600 font-medium">{employee?.mobile_money_number || 'No number set'}</p>
+                        <p className="font-bold text-slate-900 dark:text-white">{employee?.mobile_money_provider || 'Not linked'}</p>
+                        <p className="text-sm text-emerald-600 font-medium">{employee?.mobile_money_number || '---'}</p>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase">Linked</span>
+                    {employee?.mobile_money_number && <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase">Linked</span>}
                   </div>
                 </SettingsCard>
 
@@ -320,11 +315,11 @@ export default function EmployeeSettings() {
                         <CreditCard className="w-6 h-6 text-slate-400" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 dark:text-white">{employee?.bank_name || 'Bank Account'}</p>
-                        <p className="text-sm text-slate-500">•••• {employee?.bank_account?.slice(-4) || 'XXXX'}</p>
+                        <p className="font-bold text-slate-900 dark:text-white">{employee?.bank_name || 'No bank linked'}</p>
+                        <p className="text-sm text-slate-500">{employee?.bank_account ? `•••• ${employee.bank_account.slice(-4)}` : '---'}</p>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="rounded-lg">Manage</Button>
+                    <Button variant="outline" size="sm" className="rounded-lg" onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}>Manage</Button>
                   </div>
                 </SettingsCard>
               </div>
@@ -334,29 +329,47 @@ export default function EmployeeSettings() {
             {activeTab === 'kyc' && (
               <SettingsCard icon={Shield} title="KYC Compliance" description="Your identity verification status">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <ScanFace className="w-5 h-5 text-primary" />
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">Biometric Face Scan</p>
+                  {profile?.kycDocuments && profile.kycDocuments.length > 0 ? (
+                    profile.kycDocuments.map((doc: any) => {
+                      const labelMap: Record<string, string> = {
+                        face_id: 'Biometric Face Scan',
+                        national_id: 'National ID (Front)',
+                        passport: 'Passport (Bio Page)',
+                        utility_bill: 'Proof of Address',
+                        tax_certificate: 'Tax Certificate',
+                        payslip: 'Latest Payslip',
+                        bank_statement: 'Bank Statement',
+                        employment_contract: 'Employment Contract'
+                      };
+                      
+                      return (
+                        <div key={doc.document_type} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-4">
+                            {doc.status === 'approved' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Clock className="w-5 h-5 text-amber-500" />}
+                            <div>
+                              <p className="text-sm font-medium text-slate-900 dark:text-white">{labelMap[doc.document_type] || doc.document_type}</p>
+                              {doc.reviewer_notes && <p className="text-[10px] text-red-500 mt-0.5">{doc.reviewer_notes}</p>}
+                            </div>
+                          </div>
+                          <span className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
+                            doc.status === 'approved' ? "text-emerald-600 bg-emerald-100" : 
+                            doc.status === 'rejected' ? "text-red-600 bg-red-100" : "text-amber-600 bg-amber-100"
+                          )}>
+                            {doc.status}
+                          </span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-slate-500">No documents submitted yet.</p>
                     </div>
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <IdCard className="w-5 h-5 text-primary" />
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">National ID (Front)</p>
-                    </div>
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <FileText className="w-5 h-5 text-primary" />
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">Latest Payslip</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full uppercase">Reviewing</span>
-                  </div>
+                  )}
                 </div>
-                <Button className="w-full mt-6" variant="outline" onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}>Update Documents</Button>
+                <Button className="w-full mt-6" variant="outline" onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}>
+                  {profile?.kycDocuments?.some((d: any) => d.status === 'rejected') ? 'Re-upload Documents' : 'Update Documents'}
+                </Button>
               </SettingsCard>
             )}
 

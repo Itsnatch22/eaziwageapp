@@ -238,22 +238,30 @@ export async function POST(req: NextRequest) {
 
   // ── Create Notifications ──────────────────────────────────────────────────
   try {
-    // 1. Employer Notification
-    if (employer.user_id) {
-      const { data: empNotif, error: empNotifError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: employer.user_id,
-          type: 'employee',
-          title: 'New Employee Registration',
-          message: `${employeeName} has submitted their KYC application.`,
-          read: false,
-        })
-        .select()
-        .single();
+    // 1. Employer Notification & Real-time update
+    if (employer.id) {
+      // Trigger update on the COMPANY channel (for overview metrics)
+      await pusherServer.trigger(`employer-${employer.id}`, 'employee-kyc-update', {
+        employee_name: employeeName,
+        status: 'pending'
+      });
 
-      if (!empNotifError && empNotif) {
-        await pusherServer.trigger(`employer-${employer.user_id}`, 'new-notification', empNotif);
+      if (employer.user_id) {
+        const { data: empNotif, error: empNotifError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: employer.user_id,
+            type: 'employee',
+            title: 'New Employee Registration',
+            message: `${employeeName} has submitted their KYC application.`,
+            read: false,
+          })
+          .select()
+          .single();
+
+        if (!empNotifError && empNotif) {
+          await pusherServer.trigger(`employer-${employer.user_id}`, 'new-notification', empNotif);
+        }
       }
     }
 

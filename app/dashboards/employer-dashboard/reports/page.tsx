@@ -236,12 +236,17 @@ export default function EmployerReports() {
     try {
       const params = new URLSearchParams({ period, month });
       const res = await fetch(`/api/employer-dashboard/reports?${params}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMessage = errorData.detail || errorData.error || `HTTP ${res.status}`;
+        throw new Error(errorMessage);
+      }
       const json = await res.json();
       setData(json.data ?? null);
     } catch (err: unknown) {
       console.error('[reports] fetch failed:', err);
-      setError('Failed to load reports. Please try again.');
+      const message = err instanceof Error ? err.message : 'Failed to load reports. Please try again.';
+      setError(message);
     } finally {
       setLoading(false);
     }

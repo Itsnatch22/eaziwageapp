@@ -1,6 +1,7 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
+import pusherServer from '@/lib/pusher-server';
 
 export const runtime = 'nodejs';
 
@@ -85,4 +86,58 @@ export async function GET() {
       full_name: onboarding.contact_person,
     },
   });
+}
+
+export async function POST(req: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const body = await req.json();
+    
+    // Update employer_onboarding (source of truth for settings)
+    const { error: onboardingError } = await supabase
+      .from('employer_onboarding')
+      .update({
+        company_name: body.companyName,
+        contact_person: body.contactPerson,
+        contact_email: body.contactEmail,
+        contact_phone: body.contactPhone,
+        payroll_cycle: body.payrollCycle,
+        physical_address: body.physicalAddress,
+        city: body.city,
+        postal_code: body.postalCode,
+        county_region: body.countyRegion,
+        country: body.country,
+        email_notifications: body.emailNotifications,
+        advance_alerts: body.advanceAlerts,
+        payroll_reminders: body.payrollReminders,
+        weekly_reports: body.weeklyReports,
+        max_advance_percentage: body.maxAdvancePercentage,
+        min_advance_amount: body.minAdvanceAmount,
+        max_advance_amount: body.maxAdvanceAmount,
+        advance_access_days: body.advanceAccessDays,
+        cooldown_period: body.cooldownPeriod,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id);
+
+    if (onboardingError) throw onboardingError;
+
+    // Trigger Pusher for real-time sync across dashboard tabs
+    try {
+      await pusherServer.trigger(`user-${user.id}`, 'kyc-update', {
+        message: 'Profile updated successfully',
+        type: 'profile_update'
+      });
+    } catch (pErr) {
+      console.error('[Pusher] Trigger error:', pErr);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('[POST /api/employer-dashboard/profile] Error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to update profile' }, { status: 500 });
+  }
 }
