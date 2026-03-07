@@ -22,6 +22,7 @@ export const EmployeeStatusEnum = z.enum([
   'inactive',
   'suspended',
   'terminated',
+  'pending',
 ]);
 export type EmployeeStatus = z.infer<typeof EmployeeStatusEnum>;
 
@@ -76,6 +77,8 @@ export const EmployeeSchema = z.object({
   monthly_salary: z.number().nullable(),
   hire_date: z.string().nullable(),
   status: EmployeeStatusEnum,
+  employer_name: z.string().optional(),
+  kyc_status: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).default({}),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),

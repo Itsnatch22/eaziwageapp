@@ -1135,13 +1135,16 @@ export default function AdminEmployees() {
     try {
       // GET /api/admin/employees (no employer_id filter → all employees)
       const res = await fetch('/api/admin/employees');
+      const payload = await res.json();
+      
       if (res.ok) {
-        const data: Employee[] = await res.json();
-        setEmployees(data);
+        // The API returns { data: Employee[], pagination: ... }
+        setEmployees(payload.data || []);
       } else {
-        toast.error('Failed to fetch employees.');
+        toast.error(payload.error || 'Failed to fetch employees.');
       }
-    } catch {
+    } catch (err) {
+      console.error('[AdminEmployees] Fetch error:', err);
       toast.error('Failed to fetch employees.');
     } finally {
       setLoading(false);

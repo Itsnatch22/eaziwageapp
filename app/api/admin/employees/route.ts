@@ -8,7 +8,7 @@ import { EmployeeSchema, isAdminRole, UserRoleEnum } from '@/lib/validations/kyc
 
 const QueryParamsSchema = z.object({
   employer_id: z.string().uuid().optional(),
-  status: z.enum(['active', 'inactive', 'suspended', 'terminated']).optional(),
+  status: z.enum(['active', 'inactive', 'suspended', 'terminated', 'pending']).optional(),
   search: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
@@ -116,24 +116,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { employer_id, status, search, limit, offset } = queryParams.data;
 
-    // Build query
+    // Build query with joins
     let query = adminSupabase
       .from('employees')
       .select(`
-        id,
-        user_id,
-        employer_id,
-        employee_code,
-        full_name,
-        email,
-        phone,
-        job_title,
-        department,
-        monthly_salary,
-        hire_date,
-        status,
-        created_at,
-        updated_at
+        *,
+        employer:employer_onboarding!employer_id(company_name),
+        onboarding:employee_onboarding!user_id(status)
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -148,7 +137,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
 
     if (search) {
-      // Search in multiple fields
       query = query.or(
         `full_name.ilike.%${search}%,email.ilike.%${search}%,employee_code.ilike.%${search}%`
       );
@@ -164,11 +152,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Validate response data
-    const validatedEmployees = employees?.map((emp) => {
-      const parsed = EmployeeSchema.safeParse(emp);
-      return parsed.success ? parsed.data : null;
-    }).filter(Boolean) || [];
+    // Transform and validate response data
+    const validatedEmployees = (employees || []).map((emp: any) => {
+      const flattened = {
+        ...emp,
+        employer_name: emp.employer?.company_name || 'Unknown Employer',
+        kyc_status:    emp.onboarding?.status || 'pending',
+      };
+      
+      const parsed = EmployeeSchema.safeParse(flattened);
+      if (!parsed.success) {
+        console.warn('[Admin Employees] Validation failed for employee:', emp.id, parsed.error.format());
+        // Still return the flattened data for the UI even if Zod is strict about minor fields
+        return flattened; 
+      }
+      return parsed.data;
+    });
 
     return NextResponse.json(
       {

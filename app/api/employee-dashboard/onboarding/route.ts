@@ -1,19 +1,30 @@
-import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { employeeOnboardingSchema } from '@/lib/validations/employee-validation';
 import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
 import pusherServer from '@/lib/pusher-server';
+import { getEnv } from '@/env';
 
 export const runtime = 'nodejs';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+function createAdminClient() {
+  const env = getEnv();
+  return createSupabaseClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/employee-dashboard/onboarding
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
+  const supabase = await createRouteHandlerClient();
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const {
@@ -47,36 +58,36 @@ export async function POST(req: NextRequest) {
   }
 
   const data = parsed.data;
+  const adminSupabase = createAdminClient();
 
-  console.log('Looking for employer_id:', data.employer_id);
-  // ── Verify the employer exists and is registered ──────────────────────────
-  const { data: onboardingEmp, error: onboardingError } = await supabase
+  console.log('Verifying employer_id:', data.employer_id);
+  
+  // ── Verify the employer exists and is registered (Using Admin Client to bypass RLS) ──
+  const { data: onboardingEmp } = await adminSupabase
     .from('employer_onboarding')
     .select('id, company_name, status, user_id')
     .eq('id', data.employer_id)
-    .in('status', ['approved', 'submitted', 'under_review'])
+    .in('status', ['approved', 'submitted', 'under_review', 'pending'])
     .maybeSingle();
 
-    console.log('employer_onboarding result:', onboardingEmp, 'error:', onboardingError);
   let employer = onboardingEmp;
 
   if (!employer) {
-    const { data: syncedEmp, error: syncedError } = await supabase
+    // Fallback check in the primary employers table
+    const { data: syncedEmp } = await adminSupabase
       .from('employers')
       .select('id, company_name, status, user_id')
-      .eq('employer_id', data.employer_id)
+      .eq('id', data.employer_id)
       .in('status', ['approved', 'pending'])
       .maybeSingle();
     
-      console.log('employers result:', syncedEmp, 'error:', syncedError)
     if (syncedEmp) {
         employer = syncedEmp;
     }
   }
 
-
-console.log('Final employer:', employer);
   if (!employer) {
+    console.error('[Onboarding] Employer verification failed for ID:', data.employer_id);
     return NextResponse.json(
       { error: 'Selected employer is not registered on EaziWage.' },
       { status: 422 },
@@ -296,7 +307,7 @@ console.log('Final employer:', employer);
 // Returns the current user's existing KYC application (status check / resume)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = await createRouteHandlerClient();
 
   const {
     data: { user },
