@@ -250,11 +250,15 @@ export default function EmployeeSettings() {
             {/* Employment Tab */}
             {activeTab === 'employment' && (
               <div className="space-y-6">
-                <SettingsCard icon={Building2} title="Work Details" description="Information about your current employer" locked>
+                <SettingsCard icon={Building2} title="Work Details" description="Information about your professional affiliation" locked>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Employer</Label>
-                      <Input value={employee?.employer_name || 'Loading...'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
+                      <Input value={employee?.employer_person_name || 'Loading...'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Company</Label>
+                      <Input value={employee?.company_name || 'N/A'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
                     </div>
                     <div className="space-y-2">
                       <Label>Job Title</Label>
@@ -262,13 +266,13 @@ export default function EmployeeSettings() {
                     </div>
                     <div className="space-y-2">
                       <Label>Employment Type</Label>
-                      <Input value={employee?.employment_type || 'Full-time'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
+                      <Input value={employee?.employment_type?.replace('_', ' ') || 'Full-time'} readOnly className="bg-slate-50 dark:bg-slate-800/50 capitalize" />
                     </div>
                     <div className="space-y-2">
                       <Label>Monthly Salary</Label>
                       <div className="relative">
                         <Input value={employee?.monthly_salary ? Number(employee.monthly_salary).toLocaleString() : '---'} readOnly className="bg-slate-50 dark:bg-slate-800/50 pl-12" />
-                        <Landmark className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{profile?.currency || 'KES'}</span>
                       </div>
                     </div>
                   </div>
@@ -277,11 +281,14 @@ export default function EmployeeSettings() {
                 <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shrink-0">
-                      <InfoRow icon={Briefcase} />
+                      <Briefcase className="w-6 h-6 text-white" />
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-900 dark:text-white">Employment Verified</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Your account is linked to {employee?.employer_name}. Your salary advances are automatically reconciled via your company's payroll system.</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                        Your account is linked to <span className="font-bold text-slate-900 dark:text-white">{employee?.company_name}</span>. 
+                        Your salary advances are automatically reconciled via your company's payroll system.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -416,7 +423,7 @@ export default function EmployeeSettings() {
                     <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4"><Phone className="w-6 h-6 text-primary" /></div>
                     <h4 className="font-bold text-slate-900 dark:text-white">Call Support</h4>
                     <p className="text-xs text-slate-500 mt-1 mb-4">Available Mon-Fri, 8AM-8PM</p>
-                    <a href="tel:+254700123456" className="text-primary font-bold text-sm hover:underline">+254 700 123 456</a>
+                    <a href="tel:+254700123456" className="text-primary font-bold text-sm hover:underline">+254 723 154 900</a>
                   </div>
                   <div className="bg-white/60 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200/50 text-center">
                     <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4"><Mail className="w-6 h-6 text-primary" /></div>

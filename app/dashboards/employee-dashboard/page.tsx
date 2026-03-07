@@ -1,19 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  Wallet, TrendingUp, Clock, ArrowRight, 
-  AlertCircle, CheckCircle2, History, Calendar, 
-  Building2, Zap, ArrowUpRight, ChevronRight, Bell, X, 
-  Shield, CreditCard, Landmark, Loader2, Sparkles,
+import {
+  Wallet, TrendingUp, Clock, ArrowRight,
+  CheckCircle2, History, Calendar,
+  Building2, Zap, ChevronRight,
+  Shield, Landmark, Loader2, Sparkles,
   ArrowDownLeft, ArrowUpRight as ArrowUpRightIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
-import { logout } from '@/actions/auth';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 
@@ -44,50 +43,43 @@ interface EmployeeSummary {
   currency?: string;
 }
 
-// ─── Components ───────────────────────────────────────────────────────────────
+// ─── Circular Dial ────────────────────────────────────────────────────────────
 
 const SpeedDial = ({ value, max, currency = 'KES' }: { value: number; max: number; currency?: string }) => {
-  const percentage = max > 0 ? Math.min((value / max) * 100, 100) : 0;
-  const circumference = 2 * Math.PI * 44;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
-  
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  const r = 44;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (pct / 100) * circ;
+
   return (
-    <div className="relative w-64 h-64 mx-auto group">
-      {/* Background Aura */}
-      <div className="absolute inset-0 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-700" />
-      
-      <svg className="absolute inset-0 w-full h-full -rotate-90 z-10" viewBox="0 0 100 100">
-        <circle 
-          cx="50" cy="50" r="44" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="3" 
-          className="text-slate-100 dark:text-slate-800/50" 
-        />
-        <circle 
-          cx="50" cy="50" r="44" 
-          fill="none" 
-          stroke="url(#dialGrad)" 
-          strokeWidth="6" 
+    <div className="relative w-56 h-56 mx-auto">
+      <div className="absolute inset-4 rounded-full blur-2xl opacity-10"
+        style={{ background: 'radial-gradient(circle, #10b981, transparent)' }} />
+
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeWidth="3"
+          className="text-slate-100 dark:text-white/5" />
+        <circle cx="50" cy="50" r={r} fill="none"
+          stroke="url(#dialGrad)" strokeWidth="5"
           strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          className="transition-all duration-[1.5s] ease-out shadow-2xl"
-        />
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          className="transition-all duration-[1.5s] ease-out" />
         <defs>
-          <linearGradient id="dialGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id="dialGrad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#0df259" />
             <stop offset="100%" stopColor="#10b981" />
           </linearGradient>
         </defs>
       </svg>
-      
-      <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 mb-2">Unlocked Funds</p>
-        <h2 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter">
+
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400 mb-1">Unlocked Funds</p>
+        <p className="text-4xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
           {formatCurrency(value, currency).split('.')[0]}
-        </h2>
-        <div className="mt-4 px-4 py-1.5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-widest shadow-xl">
+        </p>
+        <div className="mt-2 px-3 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400"
+          style={{ background: '#10b98115', border: '1px solid #10b98125' }}>
           Available Now
         </div>
       </div>
@@ -95,112 +87,116 @@ const SpeedDial = ({ value, max, currency = 'KES' }: { value: number; max: numbe
   );
 };
 
-const StatBlock = ({ icon: Icon, label, value, sub, variant = "blue" }: { icon: React.ElementType; label: string; value: React.ReactNode; sub?: string; variant?: string }) => {
-  const variants: Record<string, string> = {
-    blue: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-    amber: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-    purple: "bg-purple-500/10 text-purple-600 border-purple-500/20",
-    emerald: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-  };
+// ─── Stat Block ───────────────────────────────────────────────────────────────
 
+const STAT_ACCENTS: Record<string, string> = {
+  emerald: '#10b981',
+  blue: '#3b82f6',
+  amber: '#f59e0b',
+  purple: '#8b5cf6',
+};
+
+const StatBlock = ({ icon: Icon, label, value, sub, variant = 'blue' }: {
+  icon: React.ElementType; label: string; value: React.ReactNode; sub?: string; variant?: string;
+}) => {
+  const accent = STAT_ACCENTS[variant] ?? '#3b82f6';
   return (
-    <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/30 rounded-3xl p-5 shadow-sm hover:shadow-lg transition-all duration-300">
-      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-4 border", variants[variant])}>
-        <Icon className="w-5 h-5" />
+    <div className="relative bg-white/50 dark:bg-white/4 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 overflow-hidden group transition-all duration-300 hover:border-white/80 dark:hover:border-white/20">
+      <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full blur-2xl opacity-15 group-hover:opacity-25 transition-opacity"
+        style={{ background: accent }} />
+      <div className="relative z-10">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4"
+          style={{ background: `${accent}18`, border: `1px solid ${accent}30` }}>
+          <Icon className="w-4 h-4" style={{ color: accent }} />
+        </div>
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">{value}</h3>
+        {sub && <p className="text-[10px] text-slate-400/70 mt-0.5">{sub}</p>}
       </div>
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{label}</p>
-      <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{value}</h3>
-      {sub && <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">{sub}</p>}
     </div>
   );
 };
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function EmployeeDashboardPage() {
-    const user = useAuthStore((state) => state.user);
-    const [stats, setStats] = useState<DashboardStats | null>(null);
-    const [employee, setEmployee] = useState<EmployeeSummary | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [employee, setEmployee] = useState<EmployeeSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-    const fetchStats = async () => {
-      try {
-        const response = await fetch('/api/employee-dashboard/overview');
-        const data = await response.json();
-        if (!response.ok) {
-          if (response.status === 404) setError('profile_not_found');
-          else setError(data?.message || 'Error');
-          return;
-        }
-        setStats(data.stats);
-        setEmployee(data.employee);
-      } catch {
-        setError('Failed to load');
-      } finally {
-        setLoading(false);
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/employee-dashboard/overview');
+      const data = await res.json();
+      if (!res.ok) {
+        setError(res.status === 404 ? 'profile_not_found' : data?.message || 'Error');
+        return;
       }
+      setStats(data.stats);
+      setEmployee(data.employee);
+    } catch {
+      setError('Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchStats(); }, []);
+
+  useEffect(() => {
+    if (!user?.id || !pusherClient) return;
+    const channel = pusherClient.subscribe(`user-${user.id}`);
+    const handleUpdate = () => void fetchStats();
+    channel.bind('kyc-update', handleUpdate);
+    return () => {
+      channel.unbind('kyc-update', handleUpdate);
+      pusherClient!.unsubscribe(`user-${user.id}`);
     };
+  }, [user?.id]);
 
-    useEffect(() => {
-      fetchStats();
-    }, []);
+  const getNextPayday = () => {
+    const today = new Date();
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const daysUntil = Math.ceil((lastDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return { date: lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), daysUntil };
+  };
 
-    useEffect(() => {
-      if (!user?.id || !pusherClient) return;
+  // ── Loading ────────────────────────────────────────────────────────────────
+  if (loading) return (
+    <EmployeePortalLayout title="Syncing...">
+      <div className="flex flex-col items-center justify-center py-40 gap-4">
+        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Verifying ledger…</p>
+      </div>
+    </EmployeePortalLayout>
+  );
 
-      const channel = pusherClient.subscribe(`user-${user.id}`);
-      
-      const handleUpdate = (data: any) => {
-        console.log('[Pusher] Employee KYC update received:', data);
-        void fetchStats();
-      };
-
-      channel.bind('kyc-update', handleUpdate);
-
-      return () => {
-        channel.unbind('kyc-update', handleUpdate);
-        pusherClient!.unsubscribe(`user-${user.id}`);
-      };
-    }, [user?.id]);
-
-    const getNextPayday = () => {
-      const today = new Date();
-      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      const daysUntil = Math.ceil((lastDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return { date: lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), daysUntil };
-    };
-
-  if (loading) {
-    return (
-      <EmployeePortalLayout title="Syncing...">
-        <div className="flex flex-col items-center justify-center py-32 space-y-4">
-          <Loader2 className="w-12 h-12 text-primary animate-spin" />
-          <p className="text-xs font-black uppercase tracking-widest text-slate-400">Verifying Ledger...</p>
+  // ── Profile Not Found ──────────────────────────────────────────────────────
+  if (error === 'profile_not_found') return (
+    <EmployeePortalLayout title="Welcome">
+      <div className="max-w-sm mx-auto text-center py-16 space-y-8">
+        <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto"
+          style={{ background: '#10b98112', border: '1px solid #10b98125' }}>
+          <Sparkles className="w-9 h-9 text-emerald-500" />
         </div>
-      </EmployeePortalLayout>
-    );
-  }
-
-  if (error === 'profile_not_found') {
-    return (
-      <EmployeePortalLayout title="Welcome">
-        <div className="max-w-md mx-auto text-center py-12 space-y-8">
-          <div className="w-24 h-24 bg-primary/10 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-2xl">
-            <Sparkles className="w-12 h-12 text-primary" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Setup Required</h1>
-            <p className="text-slate-500 dark:text-slate-400">Your employee profile is not yet fully configured. Let&apos;s get you started.</p>
-          </div>
-          <Button onClick={() => router.push('/dashboards/employee-dashboard/onboarding')} className="h-16 px-10 bg-primary text-white font-black uppercase tracking-widest rounded-2xl shadow-2xl shadow-primary/20 hover:scale-105 transition-all w-full">
-            Start Onboarding <ArrowRight className="w-5 h-5 ml-2" />
-          </Button>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Setup Required</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+            Your employee profile isn&apos;t fully configured yet. Let&apos;s get you started.
+          </p>
         </div>
-      </EmployeePortalLayout>
-    );
-  }
+        <Button
+          onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}
+          className="h-12 px-8 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 w-full"
+        >
+          Start Onboarding <ArrowRight className="w-4 h-4 ml-2" />
+        </Button>
+      </div>
+    </EmployeePortalLayout>
+  );
 
   const earnedWages = stats?.earned_wages || 0;
   const advanceLimit = stats?.advance_limit || 0;
@@ -208,181 +204,167 @@ export default function EmployeeDashboardPage() {
   const kycPending = employee?.kyc_status === 'pending' || employee?.kyc_status === 'submitted';
   const isVerified = employee?.kyc_status === 'approved' && employee?.status === 'approved';
   const payday = getNextPayday();
+  const currency = employee?.currency;
 
   return (
     <EmployeePortalLayout title="Overview">
-      <div className="max-w-6xl mx-auto space-y-8">
-        
-        {/* Top Hero Section */}
-        <div className="grid lg:grid-cols-12 gap-8 items-center">
-          
-          {/* Left: Dial */}
-          <div className="lg:col-span-5 text-center">
-            <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[3rem] p-10 border border-white/40 dark:border-slate-800 shadow-2xl shadow-slate-200/50 dark:shadow-black/20 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-primary to-indigo-600" />
-              <SpeedDial value={advanceLimit} max={earnedWages || 10000} currency={employee?.currency} />
-              
-              <div className="mt-8 space-y-6">
-                <div className="flex items-center justify-center gap-8">
-                  <div className="text-center">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Transfer Fee</p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">3.5% Flat</p>
-                  </div>
-                  <div className="w-px h-8 bg-slate-200 dark:bg-slate-800" />
-                  <div className="text-center">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Transfer Speed</p>
-                    <p className="text-sm font-bold text-emerald-600 flex items-center justify-center gap-1">
-                      <Zap className="w-3 h-3 fill-current" /> Instant
-                    </p>
-                  </div>
-                </div>
+      <div className="max-w-5xl mx-auto space-y-6">
 
-                <Button 
-                  onClick={() => router.push('/dashboards/employee-dashboard/request-advance')}
-                  disabled={!isVerified || advanceLimit <= 0}
-                  className="w-full h-16 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.15em] shadow-2xl shadow-slate-200 dark:shadow-black/20 hover:scale-[1.02] active:scale-95 transition-all"
-                >
-                  <Wallet className="w-5 h-5 mr-3" /> Withdraw Funds
-                </Button>
+        {/* Hero */}
+        <div className="grid lg:grid-cols-12 gap-6 items-start">
+
+          {/* Dial Card */}
+          <div className="lg:col-span-5">
+            <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 p-8 space-y-8 relative overflow-hidden">
+              {/* Top accent line */}
+              <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-emerald-400/50 to-transparent" />
+
+              <SpeedDial value={advanceLimit} max={earnedWages || 10000} currency={currency} />
+
+              <div className="flex items-center justify-center gap-8 py-2">
+                <div className="text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Transfer Fee</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">3.5% Flat</p>
+                </div>
+                <div className="w-px h-6 bg-slate-200 dark:bg-white/10" />
+                <div className="text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Speed</p>
+                  <p className="text-sm font-bold text-emerald-500 flex items-center gap-1">
+                    <Zap className="w-3 h-3 fill-current" /> Instant
+                  </p>
+                </div>
               </div>
+
+              <Button
+                onClick={() => router.push('/dashboards/employee-dashboard/request-advance')}
+                disabled={!isVerified || advanceLimit <= 0}
+                className="w-full h-13 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-sm uppercase tracking-widest shadow-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Wallet className="w-4 h-4 mr-2" /> Withdraw Funds
+              </Button>
             </div>
           </div>
 
-          {/* Right: Stats Grid */}
-          <div className="lg:col-span-7 space-y-6">
+          {/* Stats Grid */}
+          <div className="lg:col-span-7 space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
-              <StatBlock 
-                icon={TrendingUp} 
-                label="Earned Wage" 
-                value={formatCurrency(earnedWages, employee?.currency)} 
-                sub="Accrued this cycle"
-                variant="emerald"
-              />
-              <StatBlock 
-                icon={Calendar} 
-                label="Next Payday" 
-                value={payday.date} 
-                sub={`${payday.daysUntil} days remaining`}
-                variant="blue"
-              />
-              <StatBlock 
-                icon={History} 
-                label="Withdrawn" 
-                value={formatCurrency(totalAdvances, employee?.currency)} 
-                sub="Total this month"
-                variant="amber"
-              />
-              <StatBlock 
-                icon={Building2} 
-                label="Employer" 
-                value={employee?.employer_name || 'N/A'} 
-                sub={employee?.job_title || 'Verified Partner'}
-                variant="purple"
-              />
+              <StatBlock icon={TrendingUp} label="Earned Wages" value={formatCurrency(earnedWages, currency)} sub="Accrued this cycle" variant="emerald" />
+              <StatBlock icon={Calendar} label="Next Payday" value={payday.date} sub={`${payday.daysUntil} days remaining`} variant="blue" />
+              <StatBlock icon={History} label="Withdrawn" value={formatCurrency(totalAdvances, currency)} sub="Total this month" variant="amber" />
+              <StatBlock icon={Building2} label="Employer" value={employee?.employer_name || 'N/A'} sub={employee?.job_title || 'Verified Partner'} variant="purple" />
             </div>
 
-            {/* Verification Alert */}
             {kycPending && (
-              <div className="bg-primary/5 border border-primary/20 rounded-[2rem] p-6 flex items-center justify-between group cursor-pointer hover:bg-primary/10 transition-all" onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center shadow-sm">
-                    <Shield className="w-6 h-6 text-primary animate-pulse" />
+              <button
+                onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}
+                className="w-full bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-2xl border border-emerald-400/20 p-4 flex items-center justify-between group hover:border-emerald-400/40 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                    style={{ background: '#10b98112', border: '1px solid #10b98125' }}>
+                    <Shield className="w-4 h-4 text-emerald-500 animate-pulse" />
                   </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-tight">Identity Review</h4>
-                    <p className="text-xs text-slate-500 font-medium">Your verification is being processed.</p>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Identity Review</p>
+                    <p className="text-[10px] text-slate-400">Your verification is being processed.</p>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-primary group-hover:translate-x-1 transition-transform" />
-              </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+              </button>
             )}
           </div>
         </div>
 
-        {/* Bottom Section: Activity & Status */}
-        <div className="grid lg:grid-cols-12 gap-8">
-          
-          {/* Recent Transactions */}
-          <div className="lg:col-span-8 space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Recent Ledger</h3>
-              <Link href="/dashboards/employee-dashboard/transactions" className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors">
-                View All History
+        {/* Bottom */}
+        <div className="grid lg:grid-cols-12 gap-6">
+
+          {/* Transactions */}
+          <div className="lg:col-span-8 space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Activity</p>
+              <Link href="/dashboards/employee-dashboard/transactions"
+                className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-600 transition-colors">
+                View All
               </Link>
             </div>
-            <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/30 rounded-[2.5rem] overflow-hidden shadow-sm">
+
+            <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 overflow-hidden">
               {stats?.recent_transactions?.length ? (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                <div className="divide-y divide-slate-100 dark:divide-white/5">
                   {stats.recent_transactions.slice(0, 4).map((tx) => (
-                    <div key={tx.id} className="p-5 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-white/2 transition-colors">
-                      <div className="flex items-center gap-4">
+                    <div key={tx.id} className="px-5 py-4 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-white/2 transition-colors">
+                      <div className="flex items-center gap-3">
                         <div className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center border",
-                          tx.type === 'disbursement' ? "bg-slate-50 border-slate-100 text-slate-400" : "bg-primary/5 border-primary/10 text-primary"
-                        )}>
-                          {tx.type === 'disbursement' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRightIcon className="w-5 h-5" />}
+                          "w-9 h-9 rounded-xl flex items-center justify-center border",
+                          tx.type === 'disbursement'
+                            ? "bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/10 text-slate-400"
+                            : "border-emerald-400/20 text-emerald-500"
+                          )}
+                          style={tx.type !== 'disbursement' ? { background: '#10b98110' } : {}}>
+                          {tx.type === 'disbursement'
+                            ? <ArrowDownLeft className="w-4 h-4" />
+                            : <ArrowUpRightIcon className="w-4 h-4" />}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white leading-none mb-1">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white leading-none">
                             {tx.type === 'disbursement' ? 'Withdrawal' : 'Advance Request'}
                           </p>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
                             {new Date(tx.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={cn("text-sm font-black", tx.type === 'disbursement' ? "text-slate-600 dark:text-slate-300" : "text-primary")}>
-                          {tx.type === 'disbursement' ? '-' : ''}{formatCurrency(tx.amount, employee?.currency).split('.')[0]}
+                        <p className={cn("text-sm font-bold tabular-nums",
+                          tx.type === 'disbursement' ? "text-slate-600 dark:text-slate-300" : "text-emerald-500")}>
+                          {tx.type === 'disbursement' ? '−' : ''}{formatCurrency(tx.amount, currency).split('.')[0]}
                         </p>
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{tx.status}</span>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 mt-0.5">{tx.status}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="py-20 text-center">
-                  <History className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-4" />
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No Recent Activity</p>
+                <div className="py-16 text-center">
+                  <History className="w-10 h-10 text-slate-200 dark:text-white/10 mx-auto mb-3" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">No recent activity</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Quick Access / Status */}
-          <div className="lg:col-span-4 space-y-4">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-2">Account Health</h3>
-            <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/30 rounded-[2.5rem] p-6 space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 border border-emerald-500/20">
-                      <CheckCircle2 className="w-4 h-4" />
+          {/* Account Health */}
+          <div className="lg:col-span-4 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">Account Health</p>
+
+            <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 p-5 space-y-5">
+              <div className="space-y-3">
+                {[
+                  { icon: CheckCircle2, label: 'Identity', value: employee?.kyc_status, accent: '#10b981' },
+                  { icon: Landmark, label: 'Employment', value: employee?.status, accent: '#3b82f6' },
+                ].map(({ icon: Icon, label, value, accent }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                        style={{ background: `${accent}12`, border: `1px solid ${accent}25` }}>
+                        <Icon className="w-3.5 h-3.5" style={{ color: accent }} />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{label}</span>
                     </div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">Identity</span>
+                    <span className={cn(
+                      "text-[9px] font-bold uppercase tracking-wider",
+                      isVerified ? "text-emerald-500" : "text-amber-500"
+                    )}>
+                      {value}
+                    </span>
                   </div>
-                  <span className={cn("text-[9px] font-black uppercase tracking-widest", isVerified ? "text-emerald-600" : "text-amber-600")}>
-                    {employee?.kyc_status}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 border border-blue-500/20">
-                      <Landmark className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">Employment</span>
-                  </div>
-                  <span className={cn("text-[9px] font-black uppercase tracking-widest", isVerified ? "text-emerald-600" : "text-amber-600")}>
-                    {employee?.status}
-                  </span>
-                </div>
+                ))}
               </div>
 
-              <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Security Settings</p>
+              <div className="pt-4 border-t border-slate-100 dark:border-white/5">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-3">Security</p>
                 <Link href="/dashboards/employee-dashboard/settings">
-                  <Button variant="outline" className="w-full h-12 rounded-xl border-slate-200 dark:border-slate-700 font-bold text-[10px] uppercase tracking-widest">
+                  <Button variant="outline" className="w-full h-10 rounded-xl text-[10px] font-bold uppercase tracking-widest border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 transition-colors">
                     Manage Profile
                   </Button>
                 </Link>

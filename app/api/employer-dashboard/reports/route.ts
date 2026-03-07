@@ -148,10 +148,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const prevRange = getPreviousRange(range);
 
   // ── Resolve employer ────────────────────────────────────────────────────────
-  const { data: employer, error: employerError } = await supabase
+  const { data: onboardingEmp, error: employerError } = await supabase
     .from('employer_onboarding')
     .select('id, country, risk_score, risk_rating')
     .eq('user_id', user.id)
+    .in('status', ['approved', 'submitted', 'pending', 'risk_review_in_progress'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -160,24 +161,36 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: employerError.message }, { status: 500 });
   }
 
+  let employer = onboardingEmp;
+
   if (!employer) {
-    // Graceful empty state — employer not yet onboarded
-    return NextResponse.json({
-      data: {
-        period:  { label: range.label, from: range.from.toISOString(), to: range.to.toISOString() },
-        currency: getCurrencyFromCountry(registrationCountryCode, 'KES'),
-        advances: {
-          total: 0, disbursed: 0, pending: 0, rejected: 0,
-          total_amount: 0, total_fees: 0, avg_amount: 0,
-          by_method: { mobile_money: 0, bank_transfer: 0 },
-        },
-        employees: { total: 0, active: 0, with_advances: 0, utilization_rate: 0 },
-        risk_score: null,
-        risk_rating: null,
-        previous_period: { total_amount: 0, total_fees: 0 },
-        monthly_trend: [],
-      },
-    });
+    // Check fallback in 'employers' table
+    const { data: syncedEmp } = await supabase
+      .from('employers')
+      .select('id, country, risk_score, risk_rating')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (!syncedEmp) {
+        // Graceful empty state — employer not yet onboarded
+        return NextResponse.json({
+          data: {
+            period:  { label: range.label, from: range.from.toISOString(), to: range.to.toISOString() },
+            currency: getCurrencyFromCountry(registrationCountryCode, 'KES'),
+            advances: {
+              total: 0, disbursed: 0, pending: 0, rejected: 0,
+              total_amount: 0, total_fees: 0, avg_amount: 0,
+              by_method: { mobile_money: 0, bank_transfer: 0 },
+            },
+            employees: { total: 0, active: 0, with_advances: 0, utilization_rate: 0 },
+            risk_score: null,
+            risk_rating: null,
+            previous_period: { total_amount: 0, total_fees: 0 },
+            monthly_trend: [],
+          },
+        });
+    }
+    employer = syncedEmp;
   }
 
   const employerId = employer.id;

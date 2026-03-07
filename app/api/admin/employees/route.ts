@@ -116,58 +116,90 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { employer_id, status, search, limit, offset } = queryParams.data;
 
-    // Build query with joins
-    let query = adminSupabase
-      .from('employees')
-      .select(`
-        *,
-        employer:employer_onboarding!employer_id(company_name),
-        onboarding:employee_onboarding!user_id(status)
-      `, { count: 'exact' })
+    // 1. Fetch profiles where role='employee'
+    let profileQuery = adminSupabase
+      .from('profiles')
+      .select('id, full_name, email, phone, company_code, created_at, role, role_normalized', { count: 'exact' })
+      .eq('role', 'employee')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Apply filters
-    if (employer_id) {
-      query = query.eq('employer_id', employer_id);
-    }
-
-    if (status) {
-      query = query.eq('status', status);
-    }
-
     if (search) {
-      query = query.or(
-        `full_name.ilike.%${search}%,email.ilike.%${search}%,employee_code.ilike.%${search}%`
+      profileQuery = profileQuery.or(
+        `full_name.ilike.%${search}%,email.ilike.%${search}%,company_code.ilike.%${search}%`
       );
     }
 
-    const { data: employees, error, count } = await query;
+    const { data: profiles, error: profileErr, count } = await profileQuery;
 
-    if (error) {
-      console.error('[GET /api/admin/employees] Query error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch employees.', code: 'QUERY_ERROR' },
-        { status: 500, headers: rateResult.headers }
-      );
+    if (profileErr) {
+      console.error('[GET /api/admin/employees] Profile query error:', profileErr);
+      return NextResponse.json({ error: 'Failed to fetch profiles', code: 'QUERY_ERROR' }, { status: 500 });
     }
 
-    // Transform and validate response data
-    const validatedEmployees = (employees || []).map((emp: any) => {
-      const flattened = {
-        ...emp,
-        employer_name: emp.employer?.company_name || 'Unknown Employer',
-        kyc_status:    emp.onboarding?.status || 'pending',
-      };
+    if (!profiles || profiles.length === 0) {
+      return NextResponse.json({ data: [], pagination: { total: 0, limit, offset, hasMore: false } }, { status: 200 });
+    }
+
+    const userIds = profiles.map(p => p.id);
+
+    // 2. Fetch onboarding records for these users
+    const { data: onboardingRecords } = await adminSupabase
+      .from('employee_onboarding')
+      .select(`
+        *,
+        employer:employer_onboarding!employer_id (
+          company_name
+        )
+      `)
+      .in('user_id', userIds);
+
+    // 3. Merge data
+    const validatedEmployees = profiles.map((p) => {
+      const onboarding = (onboardingRecords || []).find(o => o.user_id === p.id);
       
+      const flattened = {
+        id:             p.id,
+        user_id:        p.id,
+        employer_id:    onboarding?.employer_id || null,
+        employee_code:  onboarding?.employee_code || p.company_code || 'N/A',
+        full_name:      onboarding?.full_name || p.full_name || 'Anonymous User',
+        email:          onboarding?.email || p.email,
+        phone:          onboarding?.phone || p.phone,
+        job_title:      onboarding?.job_title || 'Not Set',
+        department:     onboarding?.department || 'Not Set',
+        monthly_salary: onboarding?.monthly_salary ? parseFloat(onboarding.monthly_salary as any) : 0,
+        hire_date:      onboarding?.start_date || null,
+        status:         (onboarding?.status === 'approved' ? 'active' : onboarding?.status || 'pending') as any,
+        kyc_status:     onboarding?.status || 'pending',
+        employer_name:  onboarding?.employer?.company_name || 'Unlinked',
+        created_at:     p.created_at,
+        updated_at:     onboarding?.updated_at || p.created_at,
+      };
+
+      // Apply status filter manually if provided (since it's now on joined data)
+      if (status && flattened.status !== status) return null;
+      if (employer_id && flattened.employer_id !== employer_id) return null;
+
       const parsed = EmployeeSchema.safeParse(flattened);
-      if (!parsed.success) {
-        console.warn('[Admin Employees] Validation failed for employee:', emp.id, parsed.error.format());
-        // Still return the flattened data for the UI even if Zod is strict about minor fields
-        return flattened; 
+      return parsed.success ? parsed.data : flattened;
+    }).filter(Boolean);
+
+    return NextResponse.json(
+      {
+        data: validatedEmployees,
+        pagination: {
+          total: count || 0,
+          limit,
+          offset,
+          hasMore: (count || 0) > offset + limit,
+        },
+      },
+      {
+        status: 200,
+        headers: rateResult.headers,
       }
-      return parsed.data;
-    });
+    );
 
     return NextResponse.json(
       {

@@ -255,7 +255,9 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/notifications');
+      const res = await fetch('/api/admin/notifications', {
+        credentials: 'include',
+      });
       if (res.ok) {
         const data = await res.json();
         const notificationsData = Array.isArray(data) ? data : [];
@@ -311,7 +313,8 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
     e.stopPropagation();
     try {
       const res = await fetch(`/api/admin/notifications?id=${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include',
       });
       if (res.ok) {
         setNotifications(prev => prev.filter(n => String(n.id) !== String(id)));
@@ -485,7 +488,9 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
 
     async function fetchProfile() {
       try {
-        const res = await fetch('/api/admin/me');
+        const res = await fetch('/api/admin/me', {
+          credentials: 'include',
+        });
         const data = await res.json();
 
         if (!res.ok || data.error) {

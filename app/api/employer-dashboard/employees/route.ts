@@ -17,11 +17,11 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Resolve employer ──────────────────────────────────────────────────────
-  const { data: employer, error: employerError } = await supabase
+  const { data: onboardingEmp, error: employerError } = await supabase
     .from('employer_onboarding')
     .select('id')
     .eq('user_id', user.id)
-    .eq('status', 'approved')
+    .in('status', ['approved', 'submitted', 'pending', 'risk_review_in_progress'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -30,9 +30,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: employerError.message }, { status: 500 });
   }
 
+  let employer = onboardingEmp;
+
   if (!employer) {
-    // Return empty set gracefully — employer might still be pending approval
-    return NextResponse.json({ employees: [], stats: buildStats([]) });
+    // Check fallback in 'employers' table
+    const { data: syncedEmp } = await supabase
+      .from('employers')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (!syncedEmp) {
+      return NextResponse.json({ employees: [], stats: buildStats([]) });
+    }
+    employer = syncedEmp;
   }
 
   // ── Parse query params ────────────────────────────────────────────────────
@@ -98,7 +109,7 @@ export async function GET(req: NextRequest) {
 
     if (profiles) {
       profilesMap = profiles.reduce((acc, p) => {
-        acc[p.id] = { full_name: p.full_name };
+        if (p.id) acc[p.id.toLowerCase()] = { full_name: p.full_name || 'Anonymous' };
         return acc;
       }, {} as Record<string, { full_name: string }>);
     }
@@ -111,8 +122,9 @@ export async function GET(req: NextRequest) {
   const allEmployees = (rawEmployees ?? []).map((e) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const record = e as any;
-    // Pull full_name from profilesMap
-    const full_name: string = profilesMap[record.user_id]?.full_name ?? '';
+    // Pull full_name from profilesMap with normalized ID
+    const lookupId = record.user_id?.toLowerCase() || '';
+    const full_name: string = profilesMap[lookupId]?.full_name ?? ('Employee ' + (record.employee_code || ''));
 
     // Compute tenure in months from start_date
     const startDate = record.start_date ? new Date(record.start_date) : null;

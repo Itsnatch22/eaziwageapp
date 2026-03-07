@@ -45,16 +45,36 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
         employee = newEmployee;
     }
 
-    // Fetch onboarding data to supplement employee profile
+    // Fetch onboarding data joined with employer info
     const { data: onboarding } = await supabase
     .from('employee_onboarding')
-    .select('*')
+    .select(`
+        *,
+        employer_onboarding!employer_id (
+            company_name,
+            user_id
+        )
+    `)
     .eq('user_id', userId)
     .maybeSingle();
+
+    let employerPersonName = 'N/A';
+    if (onboarding?.employer_onboarding?.user_id) {
+        const { data: employerProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', onboarding.employer_onboarding.user_id)
+            .single();
+        if (employerProfile) {
+            employerPersonName = employerProfile.full_name;
+        }
+    }
 
     const mergedEmployee = {
         ...(employee || {}),
         ...(onboarding || {}),
+        company_name: onboarding?.employer_onboarding?.company_name || 'Unlinked',
+        employer_person_name: employerPersonName,
         kyc_status: onboarding?.status || employee?.kyc_status || 'pending',
     };
 

@@ -20,7 +20,7 @@ import { toast }                   from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type EmployeeStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
+type EmployeeStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
 
 type KYCStatus = 'approved' | 'pending' | 'submitted' | 'rejected';
 
@@ -179,6 +179,11 @@ interface StatusBadgeProps {
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const config: Record<EmployeeStatus, { bg: string; text: string; label: string }> = {
+    active: { 
+      bg:    'bg-green-100 dark:bg-green-500/20', 
+      text:  'text-green-700 dark:text-green-300', 
+      label: 'Active',
+    },
     approved: { 
       bg:    'bg-green-100 dark:bg-green-500/20', 
       text:  'text-green-700 dark:text-green-300', 
@@ -201,7 +206,10 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     },
   };
 
-  const { bg, text, label } = config[status];
+  // Handle both 'active' and 'approved' statuses, fallback to 'pending' for unknown statuses
+  const statusConfig = config[status] || config.pending;
+
+  const { bg, text, label } = statusConfig;
 
   return (
     <span className={cn('px-3 py-1 rounded-full text-xs font-semibold', bg, text)}>
@@ -437,12 +445,21 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
   const handleStatusChange = async (newStatus: EmployeeStatus) => {
     if (!employee) return;
 
+    let reason = '';
+    if (newStatus === 'rejected') {
+      reason = window.prompt('Please provide a reason for rejection:') || '';
+      if (!reason) {
+        toast.error('Rejection reason is required');
+        return;
+      }
+    }
+
     try {
       // PATCH /api/admin/employees/:id/status
       const res = await fetch(`/api/admin/employees/${employee.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ status: newStatus }),
+        body:    JSON.stringify({ status: newStatus, reason }),
       });
 
       if (res.ok) {
@@ -450,7 +467,8 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
         fetchEmployeeDetail();
         onRefresh();
       } else {
-        toast.error('Failed to update status.');
+        const d = await res.json();
+        toast.error(d.error || 'Failed to update status.');
       }
     } catch {
       toast.error('Failed to update status.');
@@ -460,12 +478,21 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
   const handleKYCChange = async (newStatus: KYCStatus) => {
     if (!employee) return;
 
+    let reason = '';
+    if (newStatus === 'rejected') {
+      reason = window.prompt('Please provide a reason for KYC rejection:') || '';
+      if (!reason) {
+        toast.error('Rejection reason is required');
+        return;
+      }
+    }
+
     try {
       // PATCH /api/admin/employees/:id/kyc
       const res = await fetch(`/api/admin/employees/${employee.id}/kyc`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ kyc_status: newStatus }),
+        body:    JSON.stringify({ kyc_status: newStatus, reason }),
       });
 
       if (res.ok) {
@@ -473,7 +500,8 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
         fetchEmployeeDetail();
         onRefresh();
       } else {
-        toast.error('Failed to update KYC status.');
+        const d = await res.json();
+        toast.error(d.error || 'Failed to update KYC status.');
       }
     } catch {
       toast.error('Failed to update KYC status.');
@@ -1279,7 +1307,7 @@ export default function AdminEmployees() {
   // ── Stats ──────────────────────────────────────────────────────────────────
   const stats: Stats = {
     total:       employees.length,
-    active:      employees.filter(e => e.status === 'approved').length,
+    active:      employees.filter(e => e.status === 'active' || e.status === 'approved').length,
     pending_kyc: employees.filter(e => e.kyc_status === 'submitted' || e.kyc_status === 'pending').length,
     suspended:   employees.filter(e => e.status === 'suspended').length,
   };
