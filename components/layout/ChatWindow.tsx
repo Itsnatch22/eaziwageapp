@@ -6,7 +6,6 @@ import {
   Trash2, Phone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
@@ -208,14 +207,13 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
             className="flex-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl h-11"
             disabled={sending}
           />
-          <Button 
+          <button 
             type="submit" 
-            size="icon" 
             disabled={sending || !newMessage.trim()}
-            className="rounded-xl bg-primary hover:bg-primary/90 shrink-0 h-11 w-11 shadow-lg shadow-primary/20"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 rounded-xl shrink-0 h-11 w-11 shadow-lg shadow-primary/20"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
+          </button>
         </form>
       </div>
     </div>

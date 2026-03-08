@@ -119,6 +119,25 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
+    // Fetch admin's profile for the audit log
+    const { data: adminProfile } = await adminSupabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+
+    // ── 5. Record Audit Log ────────────────────────────────────────────────────
+    await adminSupabase.from('system_audit_logs').insert({
+      admin_id: user.id,
+      admin_name: adminProfile?.full_name || 'Admin',
+      target_id: id,
+      target_type: 'employee',
+      action: 'account_status',
+      new_status: status,
+      reason: reason || null,
+      created_at: new Date().toISOString(),
+    });
+
     // Trigger Pusher for real-time update
     try {
       await pusherServer.trigger(`user-${id}`, 'kyc-update', {

@@ -5,7 +5,6 @@ import {
   MoreHorizontal, Wallet, ArrowUpRight, RefreshCw, AlertTriangle,
   DollarSign
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
@@ -402,34 +401,33 @@ export function AdvanceDetailModal({
         </div>
 
         <div className="flex gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
-          <Button variant="outline" onClick={onClose} className="flex-1">Close</Button>
+          <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2" onClick={onClose}>Close</button>
           {advance.status === 'pending' && (
             <>
-              <Button 
-                variant="outline" 
+              <button 
                 onClick={() => onReject(advance.id)} 
                 disabled={loading}
                 className="border-red-200 text-red-600 hover:bg-red-50"
               >
                 <XCircle className="w-4 h-4 mr-2" /> Reject
-              </Button>
-              <Button 
+              </button>
+              <button 
                 onClick={() => onApprove(advance.id)} 
                 disabled={loading}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <CheckCircle2 className="w-4 h-4 mr-2" /> Approve
-              </Button>
+              </button>
             </>
           )}
           {advance.status === 'approved' && (
-            <Button 
+            <button 
               onClick={() => onDisburse(advance.id)} 
               disabled={loading}
               className="bg-purple-600 hover:bg-purple-700 text-white flex-1"
             >
               <ArrowUpRight className="w-4 h-4 mr-2" /> Disburse Now
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -567,12 +565,15 @@ export default function AdminAdvances(){
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60" onClick={fetchAdvances}>
+            <button 
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60" 
+            onClick={fetchAdvances}>
               <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-            </Button>
-            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60">
+            </button>
+            <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 dark:bg-slate-800/60"
+            >
               <Download className="w-4 h-4 mr-2" /> Export
-            </Button>
+            </button>
           </div>
         </div>
 

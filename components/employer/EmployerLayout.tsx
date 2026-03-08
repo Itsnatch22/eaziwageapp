@@ -18,6 +18,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
+import { NotificationDropdown } from '../layout/NotificationDropdown';
 
 export const EmployerBackground = () => (
   <>
@@ -318,80 +319,10 @@ interface TopHeaderProps {
     } | null;
 }
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
+  const user = useAuthStore((state) => state.user as EmployerUser | null);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-  const [notifications, setNotifications] = useState<EmployerNotification[]>([]);
-  const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
-  const notificationsRef = useRef<HTMLDivElement | null>(null);
-  const user = useAuthStore((state) => state.user as EmployerUser | null);
-
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const res = await fetch('/api/employer-dashboard/notifications');
-      if (res.ok) {
-        const data = await res.json();
-        setNotifications(data.notifications || []);
-      }
-    } catch (err) {
-      console.error('Failed to load notifications', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void fetchNotifications();
-    }, 0);
-
-    if (user?.id && pusherClient) {
-      const channel = pusherClient.subscribe(`employer-${user.id}`);
-      
-      channel.bind('new-notification', (data: EmployerNotification) => {
-        toast(data.title, {
-          description: data.message,
-          icon: <Bell className="w-5 h-5 text-primary" />
-        });
-        fetchNotifications();
-      });
-
-      channel.bind('notification-deleted', (data: { id: string }) => {
-        setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
-      });
-
-      return () => {
-        clearTimeout(timer);
-        pusherClient!.unsubscribe(`employer-${user.id}`);
-      };
-    }
-    return () => clearTimeout(timer);
-  }, [user?.id, fetchNotifications]);
-
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    try {
-        const res = await fetch(`/api/employer-dashboard/notifications?id=${id}`, {
-            method: 'DELETE'
-        });
-        if (res.ok) {
-            setNotifications(prev => prev.filter(n => String(n.id) !== String(id)));
-            toast.success('Notification deleted');
-        }
-    } catch {
-      toast.error('Failed to delete notification');
-    }
-  };
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50">
@@ -423,97 +354,16 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
               <MessageSquare className="w-5 h-5" />
             </button>
 
-            <div className="relative" ref={notificationsRef}>
-              <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                data-testid="notifications-btn"
-              >
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary rounded-full ring-2 ring-white dark:ring-slate-900 text-[10px] font-bold text-white flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-
-              {showNotifications && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-hidden z-50">
-                  <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/30 flex items-center justify-between">
-                    <h3 className="font-bold text-slate-900 dark:text-white">Notifications</h3>
-                    <div className="flex items-center gap-2">
-                        {unreadCount > 0 && (
-                        <span className="text-xs font-medium px-2 py-1 bg-primary/10 text-primary rounded-full">
-                            {unreadCount} new
-                        </span>
-                        )}
-                    </div>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                        <div className="p-6 text-center text-slate-500 dark:text-slate-400 text-sm">
-                            No notifications yet
-                        </div>
-                    ) : (
-                        notifications.map((notif) => (
-                        <div 
-                            key={notif.id}
-                            className={cn(
-                            "p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors relative group",
-                            !notif.read && "bg-primary/5"
-                            )}
-                        >
-                            <div className="flex items-start gap-3 pr-8">
-                            <div className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                                notif.type === 'advance' && "bg-primary/10",
-                                notif.type === 'system' && "bg-amber-100 dark:bg-amber-500/20",
-                                notif.type === 'employee' && "bg-blue-100 dark:bg-blue-500/20"
-                            )}>
-                                {notif.type === 'advance' && <CreditCard className="w-4 h-4 text-primary" />}
-                                {notif.type === 'system' && <Bell className="w-4 h-4 text-amber-600" />}
-                                {notif.type === 'employee' && <Users className="w-4 h-4 text-blue-600" />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className={cn(
-                                "text-sm font-medium",
-                                notif.read ? "text-slate-600 dark:text-slate-400" : "text-slate-900 dark:text-white"
-                                )}>
-                                {notif.title}
-                                </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5 truncate">{notif.message}</p>
-                                <p className="text-xs text-slate-400 mt-1">
-                                    {notif.created_at ? new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
-                                </p>
-                            </div>
-                            {!notif.read && (
-                                <div className="w-2 h-2 bg-primary rounded-full mt-2 shrink-0" />
-                            )}
-                            </div>
-                            
-                            <button 
-                                onClick={(e) => handleDelete(e, notif.id)}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
-                                title="Delete notification"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                        </div>
-                        ))
-                    )}
-                  </div>
-                  <div className="p-3 border-t border-slate-200/50 dark:border-slate-700/30">
-                    <Link 
-                      href="/dashboards/employer-dashboard/notifications"
-                      className="block w-full text-center text-sm font-medium text-primary hover:text-primary/80 py-2 rounded-xl hover:bg-primary/5 transition-colors"
-                      onClick={() => setShowNotifications(false)}
-                    >
-                      View All Notifications
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
+            {user?.id && (
+              <NotificationDropdown 
+                role="employer"
+                userId={user.id}
+                apiPath="/api/employer-dashboard/notifications"
+                pusherChannel={`employer-${user.id}`}
+                viewAllHref="/dashboards/employer-dashboard/notifications"
+                primaryColor="blue-600"
+              />
+            )}
           </div>
         </div>
       </div>

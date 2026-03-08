@@ -364,6 +364,69 @@ export default function EmployerOnboarding() {
     fetchProfileFallback();
   }, [userFullName, userEmail]);
 
+  // ── Fetch existing data for recovery ───────────────────────────────────
+  useEffect(() => {
+    const fetchExistingData = async () => {
+      try {
+        const res = await fetch("/api/employer-dashboard/profile");
+        if (res.ok) {
+          const data = await res.json();
+          const profile = data?.profile;
+          
+          if (profile && (profile.status === 'rejected' || profile.status === 'draft' || profile.status === 'pending')) {
+            setFormData(prev => ({
+              ...prev,
+              company_name: profile.company_name || "",
+              registration_number: profile.registration_number || "",
+              date_of_incorporation: profile.date_of_incorporation || "",
+              country: profile.country || "",
+              physical_address: profile.physical_address || "",
+              city: profile.city || "",
+              postal_code: profile.postal_code || "",
+              county_region: profile.county_region || "",
+              tax_id: profile.tax_id || "",
+              vat_number: profile.vat_number || "",
+              industry: profile.industry || "",
+              sector: profile.sector || "",
+              business_description: profile.business_description || "",
+              employee_count: profile.employee_count?.toString() || "",
+              years_in_operation: profile.years_in_operation?.toString() || "",
+              annual_revenue_range: profile.annual_revenue_range || "",
+              payroll_cycle: profile.payroll_cycle || "",
+              monthly_payroll_amount: profile.monthly_payroll_amount?.toString() || "",
+              bank_name: profile.bank_name || "",
+              bank_account_number: profile.bank_account_number || "",
+              contact_person: profile.contact_person || userFullName,
+              contact_email: profile.contact_email || userEmail,
+              contact_phone: profile.contact_phone || "",
+              contact_position: profile.contact_position || "",
+            }));
+
+            if (profile.countries_of_operation) {
+              setCountriesOfOperation(profile.countries_of_operation);
+            }
+
+            if (profile.beneficial_owners) {
+              setBeneficialOwners(profile.beneficial_owners);
+            }
+
+            // Map documents back to uploadedFiles state
+            if (profile.documents) {
+              const docs: Record<string, { name: string; url: string } | null> = {};
+              Object.entries(profile.documents).forEach(([key, url]) => {
+                if (url) docs[key] = { name: `Current ${key.replace(/_/g, ' ')}`, url: url as string };
+              });
+              setUploadedFiles(prev => ({ ...prev, ...docs }));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch recovery data:", err);
+      }
+    };
+    fetchExistingData();
+  }, [userFullName, userEmail]);
+
   // ── Fetch sectors on mount ───────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/employer-dashboard/sectors")

@@ -8,7 +8,7 @@ import {
   CheckCircle2, XCircle, Clock, Mail,
   ArrowRight, RefreshCw, Lock,
 } from 'lucide-react';
-import { Button }                     from '@/components/ui/button';
+import { cn }                         from '@/lib/utils';
 import { Input }                      from '@/components/ui/input';
 import { Alert, AlertDescription }    from '@/components/ui/alert';
 
@@ -214,16 +214,19 @@ export default function VerifyEmailPage() {
               {userRole === 'employer' ? 'Head to your employer dashboard to onboard your team.' : 'Head to your dashboard to access your earned wages.'}
             </p>
 
-            <Button
+            <button
               type="button"
               onClick={() => router.replace(dashboardUrl)}
-              className="w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                "w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+              )}
             >
               <span className="flex items-center gap-2">
                 Go to Dashboard
                 <ArrowRight className="w-4 h-4" />
               </span>
-            </Button>
+            </button>
           </div>
         );
 
@@ -266,11 +269,14 @@ export default function VerifyEmailPage() {
                 />
                 <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               </div>
-              <Button
+              <button
                 type="button"
                 onClick={handleResend}
                 disabled={resendLoading || !recaptchaReady}
-                className="w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all disabled:opacity-60"
+                className={cn(
+                  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                  "w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all disabled:opacity-60"
+                )}
               >
                 {resendLoading ? (
                   <span className="flex items-center gap-2">
@@ -283,7 +289,7 @@ export default function VerifyEmailPage() {
                     Resend Verification Email
                   </span>
                 )}
-              </Button>
+              </button>
               <Link href="/" className="text-sm text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors text-center">
                 Back to Sign In
               </Link>
@@ -311,13 +317,16 @@ export default function VerifyEmailPage() {
             </p>
 
             <div className="flex flex-col gap-3">
-              <Button
+              <button
                 type="button"
                 onClick={() => setState('resend')}
-                className="w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+                className={cn(
+                  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                  "w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+                )}
               >
                 Request a new verification email
-              </Button>
+              </button>
               <Link href="/" className="w-full h-12 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-sm font-medium text-slate-600 dark:text-slate-400 hover:border-green-600 hover:text-green-600 transition-all">
                 Back to Sign In
               </Link>
@@ -369,11 +378,14 @@ export default function VerifyEmailPage() {
                   </div>
                 </div>
 
-                <Button
+                <button
                   type="button"
                   onClick={handleResend}
                   disabled={resendLoading || !recaptchaReady}
-                  className="w-full h-14 rounded-2xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold text-base shadow-lg shadow-green-600/25 transition-all disabled:opacity-60"
+                  className={cn(
+                    "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                    "w-full h-14 rounded-2xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold text-base shadow-lg shadow-green-600/25 transition-all disabled:opacity-60"
+                  )}
                 >
                   {resendLoading ? (
                     <span className="flex items-center gap-2">
@@ -391,7 +403,7 @@ export default function VerifyEmailPage() {
                       <ArrowRight className="w-5 h-5" />
                     </span>
                   )}
-                </Button>
+                </button>
 
                 <Link href="/" className="text-sm text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors text-center">
                   Back to Sign In

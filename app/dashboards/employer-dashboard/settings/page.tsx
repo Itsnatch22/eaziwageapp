@@ -8,7 +8,6 @@ import {
   MessageSquare, Phone, MapPin, Globe, X, Loader2,
   LucideIcon, User
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { 
@@ -178,18 +177,26 @@ const DocumentItem = ({ icon: Icon, label, fileName, status, onView, onReupload,
         {status || 'Not uploaded'}
       </span>
       {fileName && (
-        <Button variant="ghost" size="sm" onClick={onView}>
+        <button
+          className={cn(
+            "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3",
+            ""
+          )}
+          onClick={onView}
+        >
           <Eye className="w-4 h-4" />
-        </Button>
+        </button>
       )}
-      <Button 
-        variant="ghost" 
-        size="sm" 
+      <button 
+        className={cn(
+          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3",
+          ""
+        )}
         onClick={() => fileInputRef.current?.click()}
         disabled={isUploading}
       >
         {isUploading ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /> : <Upload className="w-4 h-4" />}
-      </Button>
+      </button>
     </div>
   </div>
   );
@@ -280,11 +287,22 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
           </div>
 
           <div className="flex gap-3">
-            <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl">Cancel</Button>
-            <Button 
+            <button
+              onClick={onClose}
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2",
+                "flex-1 rounded-xl"
+              )}
+            >
+              Cancel
+            </button>
+            <button 
               onClick={() => onSubmit(formData)} 
               disabled={isSubmitting || !formData.bank_name || !formData.bank_account_number}
-              className="flex-1 bg-primary text-white rounded-xl shadow-lg shadow-primary/25"
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                "flex-1 bg-primary text-white rounded-xl shadow-lg shadow-primary/25"
+              )}
             >
               {isSubmitting ? (
                 <>
@@ -292,7 +310,7 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
                   Submitting...
                 </>
               ) : 'Submit Request'}
-            </Button>
+            </button>
           </div>
         </div>
       </div>
@@ -709,15 +727,18 @@ export default function EmployerSettings() {
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white" data-testid="settings-title">Settings</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your company settings and EWA program configuration</p>
           </div>
-          <Button 
-            className="bg-primary text-white shadow-lg shadow-primary/25 hover:shadow-xl transition-shadow"
+          <button 
+            className={cn(
+              "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+              "bg-primary text-white shadow-lg shadow-primary/25 hover:shadow-xl transition-shadow"
+            )}
             onClick={handleSave}
             disabled={saving}
             data-testid="save-settings-btn"
           >
             <Save className="w-4 h-4 mr-2" />
             {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
+          </button>
         </div>
 
         {/* Main Content */}
@@ -1003,14 +1024,15 @@ export default function EmployerSettings() {
                           Bank account changes require approval from EaziWage for security purposes.
                         </p>
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <button 
                         onClick={() => setShowBankModal(true)}
-                        className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                        className={cn(
+                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3",
+                          "border-amber-300 text-amber-700 hover:bg-amber-100"
+                        )}
                       >
                         Request Change
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 </SettingsCard>
@@ -1325,9 +1347,14 @@ export default function EmployerSettings() {
                   </div>
                   <div className="mt-4 flex gap-2">
                     <a href="/terms.pdf" download className="flex-1 block">
-                      <Button variant="outline" className="w-full">
+                      <button 
+                        className={cn(
+                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2",
+                          "w-full"
+                        )}
+                      >
                         <Download className="w-4 h-4 mr-2" /> Download PDF
-                      </Button>
+                      </button>
                     </a>
                   </div>
                 </SettingsCard>
@@ -1350,9 +1377,14 @@ export default function EmployerSettings() {
                   </div>
                   <div className="mt-4 flex gap-2">
                     <a href="/data.pdf" download className="flex-1 block">
-                      <Button variant="outline" className="w-full">
+                      <button 
+                        className={cn(
+                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2",
+                          "w-full"
+                        )}
+                      >
                         <Download className="w-4 h-4 mr-2" /> Download PDF
-                      </Button>
+                      </button>
                     </a>
                   </div>
                 </SettingsCard>
@@ -1398,14 +1430,17 @@ export default function EmployerSettings() {
                           />
                         </div>
                       </div>
-                      <Button 
+                      <button 
                         onClick={handlePasswordUpdate}
                         disabled={updatingPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
-                        className="bg-primary text-white" 
+                        className={cn(
+                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                          "bg-primary text-white"
+                        )}
                         data-testid="update-password-btn"
                       >
                         {updatingPassword ? "Updating..." : "Update Password"}
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 </SettingsCard>

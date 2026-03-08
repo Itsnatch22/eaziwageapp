@@ -369,10 +369,12 @@ export default function KYCReviewPage() {
                 className="pl-12 h-12 bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 rounded-xl"
               />
             </div>
-            <Button variant="outline" className="h-12 px-6 rounded-xl" onClick={fetchData}>
+            <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 dark:bg-slate-800/60" 
+            onClick={fetchData}
+            >
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Refresh
-            </Button>
+            </button>
           </div>
         </div>
 

@@ -9,14 +9,27 @@ const DropdownMenuTrigger = React.forwardRef<
   HTMLButtonElement,
   React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }
 >(
-  ({ className, asChild, ...props }, ref) => (
-    <button
-      ref={ref}
-      className={cn(className)}
-      data-slot={asChild ? "dropdown-trigger-child" : "dropdown-trigger"}
-      {...props}
-    />
-  )
+  ({ className, asChild, children, ...props }, ref) => {
+    if (asChild && React.isValidElement(children)) {
+      const child = children as React.ReactElement<any>
+      return React.cloneElement<any>(child, {
+        ...props,
+        className: cn(className, child.props?.className),
+        'data-slot': 'dropdown-trigger-child',
+        ref: ref as any,
+      })
+    }
+    return (
+      <button
+        ref={ref}
+        className={cn(className)}
+        data-slot={asChild ? "dropdown-trigger-child" : "dropdown-trigger"}
+        {...props}
+      >
+        {children}
+      </button>
+    )
+  }
 )
 DropdownMenuTrigger.displayName = "DropdownMenuTrigger"
 

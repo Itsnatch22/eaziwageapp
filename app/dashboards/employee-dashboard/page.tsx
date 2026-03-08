@@ -8,7 +8,7 @@ import {
   CheckCircle2, History, Calendar,
   Building2, Zap, ChevronRight,
   Shield, Landmark, Loader2, Sparkles,
-  ArrowDownLeft, ArrowUpRight as ArrowUpRightIcon
+  ArrowDownLeft, ArrowUpRight as ArrowUpRightIcon, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
@@ -41,6 +41,7 @@ interface EmployeeSummary {
   status?: string;
   kyc_status?: string;
   currency?: string;
+  reviewer_notes: string;
 }
 
 // ─── Circular Dial ────────────────────────────────────────────────────────────
@@ -209,6 +210,28 @@ export default function EmployeeDashboardPage() {
   return (
     <EmployeePortalLayout title="Overview">
       <div className="max-w-5xl mx-auto space-y-6">
+
+        {/* Rejection Recovery Alert */}
+        {employee?.kyc_status === 'rejected' && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-start gap-4 text-left">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/40 rounded-2xl flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-red-900 dark:text-red-200 uppercase tracking-tight">Verification Rejected</h3>
+                <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                  Your identity documents were not approved. Reason: {employee?.reviewer_notes || "Please review the requirements and re-upload."}
+                </p>
+              </div>
+            </div>
+            <Link href="/dashboards/employee-dashboard/onboarding" className="w-full md:w-auto">
+              <Button className="w-full bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-widest rounded-2xl px-8 h-12 shadow-lg shadow-red-600/20 transition-all">
+                Fix Now <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {/* Hero */}
         <div className="grid lg:grid-cols-12 gap-6 items-start">

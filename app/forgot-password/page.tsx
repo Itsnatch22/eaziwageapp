@@ -8,7 +8,7 @@ import {
   ArrowRight, ArrowLeft, Mail, Lock,
   CheckCircle2, AlertCircle, Sun, Moon,
 } from 'lucide-react';
-import { Button }           from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Input }            from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -130,13 +130,16 @@ export default function ForgotPasswordPage() {
           </p>
 
           <div className="flex flex-col gap-3">
-            <Button
+            <button
               type="button"
               onClick={() => { setEmail(''); setPageState('idle'); }}
-              className="w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                "w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+              )}
             >
               Try a different email
-            </Button>
+            </button>
             <Link
               href="/"
               className="w-full h-12 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:border-green-600 hover:text-green-600 transition-all"
@@ -245,11 +248,14 @@ export default function ForgotPasswordPage() {
                 </div>
 
                 {/* Submit */}
-                <Button
+                <button
                   type="button"
                   onClick={handleSubmit}
                   disabled={isSubmitting || !recaptchaReady}
-                  className="w-full h-14 rounded-2xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold text-base shadow-lg shadow-green-600/25 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className={cn(
+                    "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                    "w-full h-14 rounded-2xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold text-base shadow-lg shadow-green-600/25 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                  )}
                 >
                   {isSubmitting ? (
                     <span className="flex items-center gap-2">
@@ -267,7 +273,7 @@ export default function ForgotPasswordPage() {
                       <ArrowRight className="w-5 h-5" />
                     </span>
                   )}
-                </Button>
+                </button>
 
                 {/* Back to login */}
                 <Link

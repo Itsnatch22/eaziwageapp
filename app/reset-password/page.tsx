@@ -8,7 +8,7 @@ import {
   CheckCircle2, XCircle, Eye, EyeOff,
   Lock, ArrowRight, ShieldCheck, KeyRound,
 } from 'lucide-react';
-import { Button }                  from '@/components/ui/button';
+import { cn }                  from '@/lib/utils';
 import { Input }                   from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -317,11 +317,14 @@ export default function ResetPasswordPage() {
                   )}
                 </div>
 
-                <Button
+                <button
                   type="button"
                   onClick={handleSubmit}
                   disabled={state === 'submitting' || !recaptchaReady}
-                  className="w-full h-14 rounded-2xl bg-linear-to-r from-green-700 via-green-600 to-green-500 hover:from-green-800 hover:via-green-700 hover:to-green-600 text-white font-semibold text-base shadow-lg shadow-green-600/25 transition-all disabled:opacity-60"
+                  className={cn(
+                    "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                    "w-full h-14 rounded-2xl bg-linear-to-r from-green-700 via-green-600 to-green-500 hover:from-green-800 hover:via-green-700 hover:to-green-600 text-white font-semibold text-base shadow-lg shadow-green-600/25 transition-all disabled:opacity-60"
+                  )}
                 >
                   {state === 'submitting' ? (
                     <span className="flex items-center gap-2">
@@ -339,7 +342,7 @@ export default function ResetPasswordPage() {
                       Set New Password
                     </span>
                   )}
-                </Button>
+                </button>
 
                 <Link
                   href="/"
@@ -377,16 +380,19 @@ export default function ResetPasswordPage() {
               All active sessions have been signed out for your security.
             </p>
 
-            <Button
+            <button
               type="button"
               onClick={() => router.replace('/')}
-              className="w-full h-12 rounded-xl bg-linear-to-r from-green-700 to-green-500 hover:from-green-800 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
+                "w-full h-12 rounded-xl bg-linear-to-r from-green-700 to-green-500 hover:from-green-800 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
+              )}
             >
               <span className="flex items-center gap-2">
                 Sign In Now
                 <ArrowRight className="w-4 h-4" />
               </span>
-            </Button>
+            </button>
           </div>
         );
 

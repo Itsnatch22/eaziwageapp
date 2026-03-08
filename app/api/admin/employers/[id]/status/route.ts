@@ -45,7 +45,7 @@ export async function PATCH(
   // Verify Admin Role
   const { data: profile } = await adminSupabase
     .from('profiles')
-    .select('role')
+    .select('role, full_name')
     .eq('id', user.id)
     .single();
 
@@ -144,6 +144,18 @@ export async function PATCH(
         ? `Your employer profile is now fully active.${resolvedCompanyCode ? ` Company code: ${resolvedCompanyCode}.` : ''}`
         : `Your employer profile status changed to ${status.replace(/_/g, ' ')}.${reason ? ` Reason: ${reason}` : ''}`,
     read: false,
+    created_at: new Date().toISOString(),
+  });
+
+  // ── 5. Record Audit Log ────────────────────────────────────────────────────
+  await adminSupabase.from('system_audit_logs').insert({
+    admin_id: user.id,
+    admin_name: profile?.full_name || 'Admin',
+    target_id: id,
+    target_type: 'employer',
+    action: 'account_status',
+    new_status: status,
+    reason: reason || null,
     created_at: new Date().toISOString(),
   });
 

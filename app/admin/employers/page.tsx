@@ -7,7 +7,6 @@ import {
   Mail, Phone, Calendar, MapPin, FileText, Briefcase,
   Ban, RefreshCw, DollarSign,
 } from 'lucide-react';
-import { Button }                  from '@/components/ui/button';
 import { Input }                   from '@/components/ui/input';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -956,16 +955,16 @@ export default function AdminEmployers() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="bg-white/60 dark:bg-slate-800/60"
+            <button
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 dark:bg-slate-800/60"
               onClick={fetchEmployers}
             >
               <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-            </Button>
-            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60">
+            </button>
+            <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 dark:bg-slate-800/60"
+            >
               <Download className="w-4 h-4 mr-2" /> Export
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -1048,24 +1047,20 @@ export default function AdminEmployers() {
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
+              <button
                 onClick={() => handleBulkAction('approved')}
                 disabled={bulkActionLoading}
-                className="bg-white/20 hover:bg-white/30 text-white border-0"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 dark:bg-slate-800/60"
               >
                 <CheckCircle2 className="w-4 h-4 mr-1.5" /> Approve All
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
+              </button>
+              <button
                 onClick={() => handleBulkAction('suspended')}
                 disabled={bulkActionLoading}
-                className="bg-white/20 hover:bg-white/30 text-white border-0"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 dark:bg-slate-800/60"
               >
                 <Ban className="w-4 h-4 mr-1.5" /> Suspend All
-              </Button>
+              </button>
               {bulkActionLoading && (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               )}

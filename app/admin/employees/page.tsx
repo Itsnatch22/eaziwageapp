@@ -1571,4 +1571,3 @@ export default function AdminEmployees() {
     </AdminPortalLayout>
   );
 }
-

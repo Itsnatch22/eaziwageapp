@@ -7,9 +7,9 @@ import {
  TrendingUp, ArrowRight, FileText, Wifi, Activity, AlertTriangle,
   DollarSign, BarChart3,
 } from 'lucide-react';
-import { Button }            from '@/components/ui/button';
 import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { formatCurrency, cn } from '@/lib/utils';
+import pusherClient from '@/lib/pusher-client';
 
 // Types
 type VariantColor = 'green' | 'slate' | 'black';
@@ -111,9 +111,9 @@ const AlertCard = ({ icon: Icon, title, count, description, link, variant }: {
         <p className="text-sm text-slate-600 dark:text-slate-400">{description}</p>
       </div>
       <Link href={link}>
-        <Button variant="ghost" size="sm" className={iconColors[variant]}>
+        <span className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent hover:text-accent-foreground h-9 px-3", iconColors[variant])}>
           <ArrowRight className="w-4 h-4" />
-        </Button>
+        </span>
       </Link>
     </div>
   );
@@ -154,6 +154,27 @@ export default function AdminDashboard() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!pusherClient) return;
+
+    const channel = pusherClient.subscribe('admin-notifications');
+    const handleUpdate = () => {
+      console.log('[Pusher] Admin dashboard update triggered');
+      // Re-fetch data without showing full-page loader for better UX
+      fetch('/api/admin/dashboard')
+        .then(res => res.json())
+        .then(data => setStats(data))
+        .catch(err => console.error('Silent refresh failed:', err));
+    };
+
+    channel.bind('new-notification', handleUpdate);
+
+    return () => {
+      channel.unbind('new-notification', handleUpdate);
+      pusherClient!.unsubscribe('admin-notifications');
+    };
+  }, []);
+
   if (loading) {
     return (
       <AdminPortalLayout>
@@ -172,9 +193,9 @@ export default function AdminDashboard() {
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Overview</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Platform-wide metrics and operations</p>
           </div>
-          <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60">
+          <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60">
             <BarChart3 className="w-4 h-4 mr-2" /> Reports
-          </Button>
+          </button>
         </div>
 
         {/* Alerts */}
@@ -202,10 +223,10 @@ export default function AdminDashboard() {
                   <p className="text-xs text-slate-500">{stats.suspicious_activity.total_open} open alerts</p>
                 </div>
               </div>
-              <Link href="/admin/fraud-detection">
-                <Button variant="ghost" size="sm" className="text-slate-700">
+          <Link href="/admin/fraud-detection">
+                <span className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent hover:text-accent-foreground h-9 px-3 text-slate-700">
                   View All <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
+                </span>
               </Link>
             </div>
             <div className="space-y-2">

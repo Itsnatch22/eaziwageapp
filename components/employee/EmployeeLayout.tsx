@@ -16,6 +16,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
+import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -353,94 +354,16 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
               )}
             </div>
 
-            <div className="relative" ref={notificationRef}>
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
-                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
-              >
-                <Bell className="w-4 h-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
-
-              {showNotifications && (
-                <div className="absolute right-0 top-12 w-88 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-white/10 overflow-hidden animate-in slide-in-from-top-2 fade-in">
-                  <div className="px-4 py-3 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">Notifications</p>
-                    {unreadCount > 0 && (
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full"
-                        style={{ background: '#10b98112', border: '1px solid #10b98120' }}>
-                        {unreadCount} new
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="max-h-80 overflow-y-auto custom-scrollbar">
-                    {isLoadingNotifications && notifications.length === 0 ? (
-                      <div className="py-12 text-center">
-                        <Loader2 className="w-6 h-6 text-emerald-500 animate-spin mx-auto mb-2" />
-                        <p className="text-xs text-slate-400">Loading…</p>
-                      </div>
-                    ) : notifications.length === 0 ? (
-                      <div className="py-12 text-center">
-                        <Bell className="w-10 h-10 text-slate-200 dark:text-white/10 mx-auto mb-2" />
-                        <p className="text-xs text-slate-400">No notifications yet</p>
-                      </div>
-                    ) : (
-                      notifications.map(notif => {
-                        const style = getNotificationStyle(notif.type);
-                        return (
-                          <div
-                            key={notif.id}
-                            className={cn(
-                              "px-4 py-3 border-b border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/2 transition-colors relative group cursor-pointer",
-                              !notif.read && "bg-emerald-50/30 dark:bg-emerald-500/5"
-                            )}
-                            onClick={() => !notif.read && handleMarkAsRead(notif.id)}
-                          >
-                            <div className="flex items-start gap-3 pr-6">
-                              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                                style={{ background: style.bg, border: `1px solid ${style.border}`, color: style.color }}>
-                                {style.icon}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={cn("text-xs font-semibold", notif.read ? "text-slate-500" : "text-slate-900 dark:text-white")}>
-                                  {notif.title}
-                                </p>
-                                <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">{notif.message}</p>
-                                <p className="text-[9px] text-slate-300 dark:text-white/20 mt-1 font-medium">
-                                  {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              </div>
-                              {!notif.read && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0" />}
-                            </div>
-                            <button
-                              onClick={(e) => handleDelete(e, notif.id)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
-                              aria-label="Delete notification"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  <div className="px-4 py-2.5 border-t border-slate-100 dark:border-white/10">
-                    <Link
-                      href="/dashboards/employee-dashboard/notifications"
-                      className="block w-full text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-500/5 transition-colors"
-                      onClick={() => setShowNotifications(false)}
-                    >
-                      View All
-                    </Link>
-                  </div>
-                </div>
+            <div className="flex items-center gap-2">
+              {user?.id && (
+                <NotificationDropdown 
+                  role="employee"
+                  userId={user.id}
+                  apiPath="/api/employee-dashboard/notifications"
+                  pusherChannel={`user-${user.id}`}
+                  viewAllHref="/dashboards/employee-dashboard/notifications"
+                  primaryColor="primary"
+                />
               )}
             </div>
           </div>

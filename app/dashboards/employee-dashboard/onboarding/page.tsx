@@ -451,13 +451,53 @@ export default function Onboarding() {
         const res = await fetch('/api/employee-dashboard/profile');
         if (res.ok) {
           const data = await res.json();
-          const status = String(data?.profile?.employee?.kyc_status || '').toLowerCase();
+          const profile = data?.profile?.employee;
+          const status = String(profile?.kyc_status || '').toLowerCase();
           
           // Block access if already approved or pending review
-          if (status === 'approved' || status === 'pending' || status === 'submitted' || status === 'under_review') {
-            router.replace('/dashboards/employee-dashboard');
-          }
+      
+
           setIdentity({ full_name: data?.profile?.full_name || '', email: data?.profile?.email || '' });
+
+          // If rejected, pre-fill form with existing data
+          if (status === 'rejected' && profile) {
+            setFormData(prev => ({
+              ...prev,
+              employer_id: profile.employer_id || '',
+              employee_code: profile.employee_code || '',
+              national_id: profile.national_id || '',
+              id_type: profile.id_type || 'national_id',
+              nationality: profile.nationality || '',
+              date_of_birth: profile.date_of_birth || '',
+              employment_type: profile.employment_type || '',
+              job_title: profile.job_title || '',
+              department: profile.department || '',
+              monthly_salary: profile.monthly_salary?.toString() || '',
+              bank_name: profile.bank_name || '',
+              bank_account: profile.bank_account || '',
+              mobile_money_provider: profile.mobile_money_provider || '',
+              mobile_money_number: profile.mobile_money_number || '',
+              country: profile.country || '',
+              tax_id: profile.tax_id || '',
+              address_line1: profile.address_line1 || '',
+              address_line2: profile.address_line2 || '',
+              city: profile.city || '',
+              postal_code: profile.postal_code || '',
+              start_date: profile.start_date || '',
+            }));
+
+            // Also try to restore file names (urls won't be valid for local state but we show the names)
+            setUploadedFiles(prev => ({
+              ...prev,
+              id_front: profile.id_front ? { name: 'Previous ID Front', url: profile.id_front } : null,
+              id_back: profile.id_back ? { name: 'Previous ID Back', url: profile.id_back } : null,
+              address_proof: profile.utility_bill ? { name: 'Previous Proof of Address', url: profile.utility_bill } : null,
+              tax_certificate: profile.tax_certificate ? { name: 'Previous Tax Certificate', url: profile.tax_certificate } : null,
+              payslip_1: profile.payslip ? { name: 'Previous Payslip', url: profile.payslip } : null,
+              bank_statement: profile.bank_statement ? { name: 'Previous Bank Statement', url: profile.bank_statement } : null,
+              employment_contract: profile.employment_contract ? { name: 'Previous Contract', url: profile.employment_contract } : null,
+            }));
+          }
         }
       } catch { /* silent */ }
     };
