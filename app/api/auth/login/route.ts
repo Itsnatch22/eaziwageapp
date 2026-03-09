@@ -169,9 +169,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip        = getClientIp(req);
   const userAgent = getUserAgent(req);
 
+  console.log('[login] === LOGIN ATTEMPT START ===');
+  console.log('[login] IP:', ip, 'User-Agent:', userAgent.substring(0, 50));
+
   // ── 1. Rate limiting ────────────────────────────────────────────────────────
   const rateResult = await checkRateLimit(rateLimiter, `login:${ip}`);
   if (!rateResult.success) {
+    console.log('[login] BLOCKED: Rate limit exceeded for IP:', ip);
     return NextResponse.json(
       { error: 'Too many login attempts from this location. Please try again later.' },
       { status: 429, headers: rateResult.headers },
@@ -196,10 +200,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const input: LoginInput = parsed.data;
+  console.log('[login] Email:', input.email);
 
   // ── 3. reCAPTCHA v3 ─────────────────────────────────────────────────────────
   const captchaOk = await verifyRecaptcha(input.recaptcha_token, ip);
   if (!captchaOk) {
+    console.log('[login] BLOCKED: reCAPTCHA failed for', input.email);
     return NextResponse.json(
       { error: 'Security check failed. Please refresh and try again.' },
       { status: 403, headers: rateResult.headers },
@@ -207,20 +213,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 4. Determine if this is an env-defined admin ────────────────────────────
-  // We resolve this early so the rest of the flow can branch cleanly.
   const adminEmails  = (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
   const isEnvAdmin   = adminEmails.includes(input.email.toLowerCase());
-  // NOTE: password is only checked during Supabase signInWithPassword below —
-  // we do NOT short-circuit on env password here to avoid timing differences.
+  
+  console.log('[login] Admin check:', {
+    email: input.email.toLowerCase(),
+    adminEmailsCount: adminEmails.length,
+    isEnvAdmin,
+    firstAdminEmail: adminEmails[0] || 'none'
+  });
 
   // ── 5. Look up the user record from the appropriate table ───────────────────
-  //
-  // Strategy:
-  //   • Admins  → system_admins (no RLS issue, service-role bypasses anyway)
-  //   • Others  → profiles
-  //
-  // We query system_admins first for env-admins to avoid touching the profiles
-  // table at all for that path (eliminates any RLS recursion risk for admins).
 
   type AdminRecord = {
     id:                    string;
@@ -245,6 +248,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let profileRecord: ProfileRecord | null = null;
 
   if (isEnvAdmin) {
+    console.log('[login] Querying system_admins for:', input.email);
     const { data, error } = await supabaseAdmin
       .from('system_admins')
       .select('id, full_name, email, locked_until, failed_login_attempts')
@@ -255,10 +259,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.error('[login] system_admins query error:', error);
     }
     adminRecord = data ?? null;
-
-    // Auto-provision: if env lists this admin but no system_admins row exists yet,
-    // create one after we verify the Supabase auth succeeds (see step 8 below).
+    console.log('[login] system_admins result:', adminRecord ? 'Found' : 'Not found', adminRecord?.id);
   } else {
+    console.log('[login] Querying profiles for:', input.email);
     const { data, error } = await supabaseAdmin
       .from('profiles')
       .select('id, full_name, role, role_normalized, email_verified, locked_until, failed_login_attempts, is_admin')
@@ -269,6 +272,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.error('[login] profiles query error:', error);
     }
     profileRecord = data ?? null;
+    console.log('[login] profiles result:', profileRecord ? 'Found' : 'Not found', profileRecord?.id);
   }
 
   // ── 6. Account lockout check ────────────────────────────────────────────────
@@ -277,6 +281,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const lockExpiry = new Date(lockedUntilStr);
     if (lockExpiry > new Date()) {
       const minutesLeft = Math.ceil((lockExpiry.getTime() - Date.now()) / 60_000);
+      console.log('[login] BLOCKED: Account locked for', minutesLeft, 'minutes');
       return NextResponse.json(
         {
           error: `Your account is temporarily locked due to too many failed attempts. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''} or check your email to unlock it.`,
@@ -287,6 +292,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── 7. Supabase sign-in ──────────────────────────────────────────────────────
+  console.log('[login] Attempting Supabase auth for:', input.email);
   const res = NextResponse.next();
   const supabaseAuth = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -310,12 +316,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // ── 8. Handle auth failure ───────────────────────────────────────────────────
   if (authError || !authData.session) {
+    console.log('[login] Auth FAILED:', authError?.message || 'No session');
+    console.log('[login] Auth error details:', {
+      code: authError?.code,
+      status: authError?.status,
+      message: authError?.message
+    });
+    
     const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
     const recordId   = isEnvAdmin ? adminRecord?.id   : profileRecord?.id;
     const recordName = isEnvAdmin ? (adminRecord?.full_name ?? input.email) : (profileRecord?.full_name ?? input.email);
 
     if (recordId) {
+      console.log('[login] Recording failed attempt for:', recordId);
       await recordFailedAttempt(recordId, recordName, input.email, isEnvAdmin, loginCtx);
+    } else {
+      console.log('[login] No record ID found, cannot track failed attempts');
     }
 
     return NextResponse.json(
@@ -325,10 +341,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { user } = authData;
+  console.log('[login] Auth SUCCESS for user:', user.id, user.email);
 
   // ── 9. Auto-provision system_admins row if missing ───────────────────────────
-  // At this point auth succeeded, so the password is correct.
   if (isEnvAdmin && !adminRecord) {
+    console.log('[login] Auto-provisioning system_admins for:', user.email);
     const { error: insertError } = await supabaseAdmin
       .from('system_admins')
       .insert({
@@ -338,8 +355,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       });
 
     if (insertError && insertError.code !== '23505') {
-      // 23505 = unique_violation (row already exists — race condition), safe to ignore
       console.error('[login] Failed to auto-provision system_admins row:', insertError);
+    } else {
+      console.log('[login] system_admins row created successfully');
     }
 
     // Re-fetch so we have the row for subsequent logic
@@ -353,6 +371,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // ── 10. Email verification check (non-admins only) ──────────────────────────
   if (!isEnvAdmin && profileRecord && !profileRecord.email_verified) {
+    console.log('[login] BLOCKED: Email not verified for', input.email);
     return NextResponse.json(
       {
         error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
@@ -365,6 +384,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // ── 11. Reset failed attempts on success ─────────────────────────────────────
   const successId = isEnvAdmin ? (adminRecord?.id ?? user.id) : profileRecord?.id;
   if (successId) {
+    console.log('[login] Clearing failed attempts for:', successId);
     await clearFailedAttempts(successId, isEnvAdmin);
   }
 
@@ -402,18 +422,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (isEnvAdmin) {
     responseRole = 'admin';
+    console.log('[login] Role set to: admin (env admin)');
   } else if (profileRecord) {
     // is_admin flag on profiles also grants admin role
     responseRole = profileRecord.is_admin
       ? 'admin'
       : (profileRecord.role_normalized || profileRecord.role || 'employee');
+    console.log('[login] Role set to:', responseRole);
   } else {
     // Profile missing for a non-admin user (orphaned auth user)
     console.warn(`[login] No profile found for authenticated user ${user.email} (${user.id})`);
     responseRole = user.user_metadata?.role ?? 'employee';
+    console.log('[login] Role fallback to:', responseRole);
   }
 
   // ── 14. Build success response ───────────────────────────────────────────────
+  console.log('[login] === LOGIN SUCCESS ===');
   const successResponse = NextResponse.json(
     {
       message: 'Signed in successfully.',

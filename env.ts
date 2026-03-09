@@ -4,7 +4,6 @@
  */
 
 interface EnvConfig {
-  // Public (client-side) variables
   NEXT_PUBLIC_SUPABASE_URL: string;
   NEXT_PUBLIC_SUPABASE_ANON_KEY: string;
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: string;
@@ -12,7 +11,6 @@ interface EnvConfig {
   NEXT_PUBLIC_PUSHER_APP_KEY: string;
   NEXT_PUBLIC_PUSHER_CLUSTER: string;
   
-  // Server-side only variables
   SUPABASE_SERVICE_ROLE_KEY: string;
   RECAPTCHA_SECRET_KEY: string;
   UPSTASH_REDIS_REST_URL: string;
