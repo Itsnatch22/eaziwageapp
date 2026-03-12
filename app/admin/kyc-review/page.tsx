@@ -24,7 +24,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -326,7 +325,7 @@ export default function KYCReviewPage() {
   };
 
   return (
-    <AdminPortalLayout>
+    <>
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
           <div>
@@ -431,7 +430,7 @@ export default function KYCReviewPage() {
         onReviewEmployer={handleReviewEmployer}
         loading={actionLoading}
       />
-    </AdminPortalLayout>
+    </>
   );
 }
 

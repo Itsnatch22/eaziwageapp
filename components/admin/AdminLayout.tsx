@@ -15,7 +15,6 @@ import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { logout } from '@/actions/auth';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuthStore } from '@/lib/stores/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -391,33 +390,52 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const isHydrated = true;
-
-  const authUser = useAuthStore(s => s.user);
-  const authLoading = useAuthStore(s => s.loading);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [sessionMissing, setSessionMissing] = useState(false);
+  const fetchInProgress = useRef(false);
   
   const router = useRouter();
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     // Wait for hydration before checking auth
     if (!isHydrated) return;
     
-    if (authLoading) return;
-
-    if (!authUser) {
-      router.replace('/');
-      return;
-    }
+    // If already authorized or check in progress, skip
+    if (isAuthorized !== null || fetchInProgress.current) return;
 
     async function fetchProfile() {
+      if (fetchInProgress.current) return;
+      fetchInProgress.current = true;
+
       try {
+        console.log('[AdminLayout] Fetching admin profile');
         const res = await fetch('/api/admin/me', {
           credentials: 'include',
         });
+
+        if (res.status === 401) {
+          console.warn('[AdminLayout] No active session');
+          setSessionMissing(true);
+          setIsAuthorized(false);
+          return;
+        }
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('[AdminLayout] API error:', res.status, errorText);
+          setIsAuthorized(false);
+          return;
+        }
+
         const data = await res.json();
 
-        if (!res.ok || data.error) {
-          console.error('Error fetching admin profile:', data.error);
+        if (data.error) {
+          console.error('[AdminLayout] Admin profile data error:', data.error);
+          if (data.code === 'AUTH_REQUIRED') setSessionMissing(true);
           setIsAuthorized(false);
           return;
         }
@@ -426,19 +444,24 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         
         // Check if user has an admin role
         const hasAdminRole = data.is_admin || 
-          (data.role_candidates && data.role_candidates.some((role: string) => allowedRoles.includes(role)));
+          (data.role_candidates && data.role_candidates.some((role: string) => allowedRoles.includes(role.toLowerCase())));
 
         if (!hasAdminRole) {
+          console.warn('[AdminLayout] User does not have admin role. Candidates:', data.role_candidates);
+          setIsAuthorized(false);
+          
           // Try to determine where to redirect based on role
           const role = data.profiles_role || data.app_metadata_role || data.user_metadata_role;
           if (role === 'employer') {
             router.replace('/dashboards/employer-dashboard');
-          } else {
+          } else if (role === 'employee') {
             router.replace('/dashboards/employee-dashboard');
           }
           return;
         }
 
+        console.log('[AdminLayout] Admin access granted for:', data.email);
+        setSessionMissing(false);
         setUserProfile({
           id: data.user_id,
           email: data.email,
@@ -448,15 +471,37 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         });
         setIsAuthorized(true);
       } catch (err) {
-        console.error('Admin layout check failed:', err);
+        console.error('[AdminLayout] Check failed:', err);
         setIsAuthorized(false);
+      } finally {
+        fetchInProgress.current = false;
       }
     }
 
     fetchProfile();
-  }, [authUser, authLoading, router, isHydrated]);
+  }, [router, isHydrated, isAuthorized]);
 
-  if (!isHydrated || authLoading || isAuthorized === null) {
+  if (sessionMissing) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center mb-6">
+          <Shield className="w-8 h-8 text-red-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Session Unavailable</h1>
+        <p className="text-slate-600 dark:text-slate-400 mb-8 text-center max-w-md">
+          We couldn't verify your session. Please sign in again.
+        </p>
+        <Link 
+          href="/"
+          className="px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-semibold hover:opacity-90 transition-opacity"
+        >
+          Back to Login
+        </Link>
+      </div>
+    );
+  }
+
+  if (!isHydrated || isAuthorized === null) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

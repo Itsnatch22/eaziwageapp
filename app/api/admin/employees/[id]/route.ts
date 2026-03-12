@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
 
 function createAdminClient() {
   const env = getEnv();
@@ -25,13 +25,11 @@ export async function GET(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { data: profile } = await adminSupabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || !isAdminRole(profile.role as any)) {
+    const adminAccess = await checkAdminAccess({ user, adminSupabase });
+    if (adminAccess.error) {
+      return NextResponse.json({ error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' }, { status: 500 });
+    }
+    if (!adminAccess.isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

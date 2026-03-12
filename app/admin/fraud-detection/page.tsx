@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import AdminPortalLayout from '@/components/admin/AdminLayout';
 import { Employee } from '@/lib/validations/kyc-validation';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1253,11 +1252,9 @@ export default function FraudDetection(): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminPortalLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-        </div>
-      </AdminPortalLayout>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+      </div>
     );
   }
 
@@ -1266,8 +1263,7 @@ export default function FraudDetection(): React.ReactElement {
   }
 
   return (
-    <AdminPortalLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
@@ -1346,6 +1342,5 @@ export default function FraudDetection(): React.ReactElement {
         {activeSection === 'process' && <SuspensionProcessSection />}
         {activeSection === 'kpis' && <KPIsSection />}
       </div>
-    </AdminPortalLayout>
   );
 }

@@ -14,7 +14,6 @@ import { Slider }                  from '@/components/ui/slider';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { AdminPortalLayout }       from '@/components/admin/AdminLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { toast }                   from 'sonner';
 
@@ -1313,7 +1312,7 @@ export default function AdminEmployees() {
   };
 
   return (
-    <AdminPortalLayout>
+    <>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-employees-page">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1568,6 +1567,6 @@ export default function AdminEmployees() {
         }}
         onAction={handleQuickAction}
       />
-    </AdminPortalLayout>
+    </>
   );
 }

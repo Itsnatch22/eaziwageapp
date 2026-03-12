@@ -8,7 +8,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 export async function GET(_req: NextRequest): Promise<NextResponse> {
@@ -28,8 +27,18 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
   });
 
   // Check if user is an env-defined admin
-  const adminEmails = (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+  // Strip quotes from ADMIN_EMAILS in case they exist
+  const adminEmails = (env.ADMIN_EMAILS || '')
+    .replace(/^"|"$/g, '') // Remove leading/trailing quotes
+    .split(',')
+    .map(e => e.trim().toLowerCase());
   const isEnvAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
+
+  console.log('[/api/admin/me] Email check:', {
+    userEmail: user.email?.toLowerCase(),
+    adminEmails,
+    isEnvAdmin
+  });
 
   // Check system_admins table for env admins
   let systemAdminRecord = null;
@@ -40,6 +49,8 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
       .eq('id', user.id)
       .maybeSingle<{ id: string; email: string; full_name: string | null; avatar_url: string | null }>();
     systemAdminRecord = sysAdmin;
+    
+    console.log('[/api/admin/me] System admin record:', systemAdminRecord ? 'Found' : 'Not found');
   }
 
   // Check profiles table for regular users
@@ -49,8 +60,11 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     .eq('id', user.id)
     .maybeSingle<{ id: string; email: string; full_name: string | null; role: string | null; avatar_url: string | null }>();
 
+  console.log('[/api/admin/me] Profile record:', profile ? 'Found' : 'Not found', profile?.role);
+
   // If user is env admin, they have admin access
   if (isEnvAdmin) {
+    console.log('[/api/admin/me] ✓ User is env admin, granting access');
     return NextResponse.json({
       user_id: user.id,
       email: user.email,
@@ -66,14 +80,15 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     });
   }
 
+  // For non-env admins, check if they have admin role in various places
   const roleCandidates = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
     .filter((r): r is string => typeof r === 'string' && r.length > 0)
     .map((r) => r.toLowerCase());
 
-  const isAdminRoleFinal = roleCandidates.some((role) => {
-    const parsed = UserRoleEnum.safeParse(role);
-    return parsed.success && isAdminRole(parsed.data);
-  });
+  const allowedRoles = ['admin', 'super_admin', 'compliance', 'employer_admin'];
+  const isAdminRoleFinal = roleCandidates.some((role) => allowedRoles.includes(role));
+
+  console.log('[/api/admin/me] Role candidates:', roleCandidates, 'Is admin:', isAdminRoleFinal);
 
   return NextResponse.json({
     user_id: user.id,
@@ -89,4 +104,3 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     allowed_roles: ['admin', 'super_admin', 'compliance', 'employer_admin'],
   });
 }
-

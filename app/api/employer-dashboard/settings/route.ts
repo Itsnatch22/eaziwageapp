@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
+import { getAdvanceLimit } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
@@ -52,6 +53,8 @@ export async function GET() {
   }
 
   // Return with default values for missing fields
+  const countryLimit = getAdvanceLimit(employer.country);
+  
   return NextResponse.json({
     employer: {
       ...employer,
@@ -61,7 +64,7 @@ export async function GET() {
       payroll_reminders: true,
       weekly_reports: false,
       // Default EWA settings (since these columns don't exist in DB)
-      max_advance_percentage: 50,
+      max_advance_percentage: Math.min(50, countryLimit),
       min_advance_amount: 500,
       max_advance_amount: 50000,
       advance_access_days: [1, 25],
@@ -152,6 +155,8 @@ export async function PUT(req: NextRequest) {
   }
 
   // Return with default values for fields that weren't saved
+  const finalCountryLimit = getAdvanceLimit(updated.country);
+
   return NextResponse.json({
     message: 'Settings updated successfully.',
     employer: {
@@ -160,11 +165,11 @@ export async function PUT(req: NextRequest) {
       advance_alerts: input.advanceAlerts ?? true,
       payroll_reminders: input.payrollReminders ?? true,
       weekly_reports: input.weeklyReports ?? false,
-      max_advance_percentage: input.maxAdvancePercentage ?? 50,
+      max_advance_percentage: Math.min(input.maxAdvancePercentage ?? 50, finalCountryLimit),
       min_advance_amount: input.minAdvanceAmount ?? 500,
       max_advance_amount: input.maxAdvanceAmount ?? 50000,
       advance_access_days: input.advanceAccessDays ?? [1, 25],
       cooldown_period: input.cooldownPeriod ?? 7,
     },
   });
-}
+  }

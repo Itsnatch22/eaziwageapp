@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import AdminPortalLayout from '@/components/admin/AdminLayout';
 import { useAuthStore } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 
@@ -2421,7 +2420,7 @@ const AdminSettings: React.FC = () => {
   };
 
   const tabs: { id: TabId | 'account'; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: 'account', label: 'Account Settings', icon: User },
+    { id: 'account', label: 'Profile', icon: User },
     { id: 'global', label: 'Global Settings', icon: Globe },
     { id: 'employer', label: 'Employer Config', icon: Building2 },
     { id: 'employee', label: 'Employee Config', icon: Users },
@@ -2431,20 +2430,16 @@ const AdminSettings: React.FC = () => {
     { id: 'legal', label: 'Legal Documents', icon: FileText },
     { id: 'audit', label: 'Audit Trail', icon: ClipboardList },
   ];
-
   if (loading) {
     return (
-      <AdminPortalLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-        </div>
-      </AdminPortalLayout>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+      </div>
     );
   }
 
   return (
-    <AdminPortalLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
@@ -2546,7 +2541,6 @@ const AdminSettings: React.FC = () => {
           <AuditTrailTab token={token} />
         )}
       </div>
-    </AdminPortalLayout>
   );
 }
 

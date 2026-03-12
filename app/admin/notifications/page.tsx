@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { Button }                  from '@/components/ui/button';
 import { Input }                   from '@/components/ui/input';
-import { AdminPortalLayout }       from '@/components/admin/AdminLayout';
 import { formatDateTime, cn }      from '@/lib/utils';
 import { toast }                   from 'sonner';
 import Link from 'next/link';
@@ -143,7 +142,7 @@ export default function AdminNotificationsPage() {
   });
 
   return (
-    <AdminPortalLayout>
+    <>
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -301,6 +300,6 @@ export default function AdminNotificationsPage() {
           )}
         </div>
       </div>
-    </AdminPortalLayout>
+    </>
   );
 }

@@ -7,7 +7,6 @@ import {
   Database,
 } from 'lucide-react';
 import { Button }            from '@/components/ui/button';
-import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { cn }                from '@/lib/utils';
 import { createClient } from '@supabase/supabase-js';
 
@@ -337,19 +336,16 @@ export default function AdminAPIHealth() {
 
   if (loading) {
     return (
-      <AdminPortalLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-14 h-14 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
-        </div>
-      </AdminPortalLayout>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-14 h-14 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
+      </div>
     );
   }
 
   return (
-    <AdminPortalLayout>
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
               API Health Monitor
@@ -392,8 +388,7 @@ export default function AdminAPIHealth() {
             Last updated: {new Date(data.last_updated).toLocaleString()}
           </div>
         )}
-      </div>
-    </AdminPortalLayout>
+    </div>
   );
 }
 

@@ -11,7 +11,6 @@ import { Input }                   from '@/components/ui/input';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { AdminPortalLayout }       from '@/components/admin/AdminLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { toast }                   from 'sonner';
 
@@ -939,7 +938,7 @@ export default function AdminEmployers() {
 
   // ── Filter ─────────────────────────────────────────────────────────────────
     return (
-    <AdminPortalLayout>
+    <>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-employers-page">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1153,7 +1152,7 @@ export default function AdminEmployers() {
         }}
         onAction={handleQuickAction}
       />
-    </AdminPortalLayout>
+    </>
   );
 }
 

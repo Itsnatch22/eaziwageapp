@@ -431,8 +431,14 @@ export default function EmployerOnboarding() {
   useEffect(() => {
     fetch("/api/employer-dashboard/sectors")
       .then((r) => r.json())
-      .then(setSectors)
-      .catch(() => console.error("Failed to fetch sectors"));
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSectors(data);
+        } else {
+          console.error("Sectors data is not an array:", data);
+        }
+      })
+      .catch((err) => console.error("Failed to fetch sectors:", err));
   }, []);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -1035,4 +1041,3 @@ export default function EmployerOnboarding() {
     </div>
   );
 }
-

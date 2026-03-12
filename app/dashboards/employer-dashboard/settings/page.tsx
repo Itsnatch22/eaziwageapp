@@ -17,7 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout'
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, getAdvanceLimit, getCurrencySymbol } from "@/lib/utils";
 import { useAuthStore } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import pusherClient from '@/lib/pusher-client';
@@ -39,6 +39,7 @@ interface EmployerProfile {
   postal_code?: string;
   county_region?: string;
   country?: string;
+  currency?: string;
   email_notifications?: boolean;
   advance_alerts?: boolean;
   payroll_reminders?: boolean;
@@ -671,7 +672,7 @@ export default function EmployerSettings() {
   };
 
   const tabs = [
-    { id: 'account', label: 'Your Profile', icon: User },
+    { id: 'account', label: 'Profile', icon: User },
     { id: 'company', label: 'Company Info', icon: Building2 },
     { id: 'kyc', label: 'KYC & Documents', icon: FileText },
     { id: 'ewa', label: 'EWA Settings', icon: CreditCard },
@@ -1027,7 +1028,7 @@ export default function EmployerSettings() {
                       <button 
                         onClick={() => setShowBankModal(true)}
                         className={cn(
-                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3",
+                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3",
                           "border-amber-300 text-amber-700 hover:bg-amber-100"
                         )}
                       >
@@ -1095,21 +1096,28 @@ export default function EmployerSettings() {
                       </div>
                       <Slider
                         value={[settings.maxAdvancePercentage]}
-                        onValueChange={(v) => setSettings(prev => ({ ...prev, maxAdvancePercentage: v[0] }))}
-                        max={100}
+                        onValueChange={(v) => {
+                          const maxLimit = getAdvanceLimit(employer?.country);
+                          const val = Math.min(v[0], maxLimit);
+                          setSettings(prev => ({ ...prev, maxAdvancePercentage: val }));
+                        }}
+                        max={getAdvanceLimit(employer?.country)}
                         min={10}
                         step={5}
                         className="w-full"
                         data-testid="max-advance-slider"
                       />
                       <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Employees can advance up to {settings.maxAdvancePercentage}% of their earned wages
+                        Employees can advance up to {settings.maxAdvancePercentage}% of their earned wages. 
+                        <span className="block mt-1 font-medium text-amber-600">
+                          (Statutory limit for {employer?.country || 'your country'}: {getAdvanceLimit(employer?.country)}%)
+                        </span>
                       </p>
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/30">
                       <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">Minimum Amount (KES)</Label>
+                        <Label className="text-slate-700 dark:text-slate-300">Minimum Amount ({getCurrencySymbol(employer?.currency || 'KES')})</Label>
                         <Input
                           type="number"
                           value={settings.minAdvanceAmount}
@@ -1119,7 +1127,7 @@ export default function EmployerSettings() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">Maximum Amount (KES)</Label>
+                        <Label className="text-slate-700 dark:text-slate-300">Maximum Amount ({getCurrencySymbol(employer?.currency || 'KES')})</Label>
                         <Input
                           type="number"
                           value={settings.maxAdvanceAmount}
@@ -1477,5 +1485,4 @@ export default function EmployerSettings() {
     </EmployerPortalLayout>
   );
 }
-
 

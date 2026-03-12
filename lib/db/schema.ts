@@ -107,9 +107,87 @@ export const payrollIntegrations = pgTable('payroll_integrations', {
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// Advances table (Wage requests)
+export const advances = pgTable('advances', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  employee_id: uuid('employee_id').notNull(), // References profiles/employees
+  employer_id: uuid('employer_id'),
+  organization_id: uuid('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  fee_amount: numeric('fee_amount', { precision: 12, scale: 2 }).default('0'),
+  reason: text('reason'),
+  
+  status: text('status').default('pending').notNull(),
+  reference: text('reference').unique(), // Merchant Reference (EWA-XXX)
+  internal_reference: text('internal_reference'), // Dusupay Reference
+  
+  requested_at: timestamp('requested_at').defaultNow(),
+  approved_at: timestamp('approved_at'),
+  approved_by: uuid('approved_by'),
+  disbursed_at: timestamp('disbursed_at'),
+  repaid_at: timestamp('repaid_at'),
+  
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  reference_idx: index('advances_reference_idx').on(table.reference),
+  employee_idx: index('advances_employee_idx').on(table.employee_id),
+  status_idx: index('advances_status_idx').on(table.status),
+}));
+
+// Dusupay Transactions Audit Table
+export const dusupayTransactions = pgTable('dusupay_transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  merchant_reference: text('merchant_reference').notNull().unique(),
+  internal_reference: text('internal_reference'),
+  event_type: text('event_type').notNull(),
+  status: text('status').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }),
+  currency: text('currency'),
+  raw_payload: jsonb('raw_payload').notNull(),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  merchant_ref_idx: index('dusupay_tx_merchant_ref_idx').on(table.merchant_reference),
+}));
+
+// Employer Wallets
+export const employerWallets = pgTable('employer_wallets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  employer_id: uuid('employer_id').notNull().unique(), // References employer_onboarding
+  balance: numeric('balance', { precision: 12, scale: 2 }).default('0').notNull(),
+  arrears_balance: numeric('arrears_balance', { precision: 12, scale: 2 }).default('0').notNull(),
+  currency: text('currency').default('KES').notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Wallet Transactions (Funding/Payouts)
+export const walletTransactions = pgTable('wallet_transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  wallet_id: uuid('wallet_id').notNull().references(() => employerWallets.id, { onDelete: 'cascade' }),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(), // Positive for deposits, negative for payouts
+  type: text('type').$type<'deposit' | 'withdrawal' | 'payout' | 'refund' | 'arrears_payment'>().notNull(),
+  status: text('status').default('pending').notNull(), // pending, completed, failed
+  reference: text('reference').unique(),
+  internal_reference: text('internal_reference'),
+  description: text('description'),
+  metadata: jsonb('metadata'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  wallet_idx: index('wallet_tx_wallet_idx').on(table.wallet_id),
+  reference_idx: index('wallet_tx_reference_idx').on(table.reference),
+}));
+
 // Type exports
 export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
 export type Organization = typeof organizations.$inferSelect;
 export type Policy = typeof policies.$inferSelect;
 export type PayrollIntegration = typeof payrollIntegrations.$inferSelect;
+export type Advance = typeof advances.$inferSelect;
+export type NewAdvance = typeof advances.$inferInsert;
+export type DusupayTransaction = typeof dusupayTransactions.$inferSelect;
+export type EmployerWallet = typeof employerWallets.$inferSelect;
+export type WalletTransaction = typeof walletTransactions.$inferSelect;

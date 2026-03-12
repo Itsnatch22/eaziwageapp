@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 function generateCompanyCode(sourceId: string): string {
@@ -43,27 +43,25 @@ export async function PATCH(
   });
 
   // Verify Admin Role
-  const { data: profile } = await adminSupabase
-    .from('profiles')
-    .select('role, full_name')
-    .eq('id', user.id)
-    .single();
-
-  const roleCandidates = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
-    .filter((r): r is string => typeof r === 'string' && r.length > 0)
-    .map((r) => r.toLowerCase());
-
-  if (!roleCandidates.some((r) => {
-    const parsed = UserRoleEnum.safeParse(r);
-    return parsed.success && isAdminRole(parsed.data);
-  })) {
+  const adminAccess = await checkAdminAccess({ user, adminSupabase });
+  if (adminAccess.error) {
+    return NextResponse.json({ error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' }, { status: 500 });
+  }
+  if (!adminAccess.isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const { data: profile } = await adminSupabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle<{ full_name: string | null }>();
+
   const body = await req.json();
-  const { status, employer_code, initial_credit_limit, reason } = body as {
+  const { status, employer_code, min_advance_amount, initial_credit_limit, reason } = body as {
     status: string;
     employer_code?: string;
+    min_advance_amount?: number;
     initial_credit_limit?: number;
     reason?: string;
   };
@@ -72,36 +70,79 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
-  const { data: employer, error: employerFetchError } = await adminSupabase
+  console.log(`[PATCH employer status] Attempting update for ID: ${id} to status: ${status}`);
+
+  // Try fetching from employer_onboarding first
+  let { data: employer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
-    .select('id,user_id,company_name,max_advance_amount')
+    .select('id,user_id,company_name,min_advance_amount')
     .eq('id', id)
     .maybeSingle();
 
-  if (employerFetchError || !employer) {
-    return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
+  // FALLBACK: If not found in onboarding, check the primary employers table
+  // (In case the ID provided is from the secondary table)
+  if (!employer && !employerFetchError) {
+    console.log(`[PATCH employer status] ID ${id} not found in onboarding, checking primary 'employers' table...`);
+    const { data: primaryEmp } = await adminSupabase
+      .from('employers')
+      .select('id,user_id,company_name,min_advance_amount')
+      .eq('id', id)
+      .maybeSingle();
+    
+    if (primaryEmp) {
+      // Find the onboarding record associated with this employer's user_id
+      const { data: fallbackOnboarding } = await adminSupabase
+        .from('employer_onboarding')
+        .select('id,user_id,company_name,min_advance_amount')
+        .eq('user_id', primaryEmp.user_id)
+        .maybeSingle();
+      
+      if (fallbackOnboarding) {
+        console.log(`[PATCH employer status] Found onboarding record ${fallbackOnboarding.id} via user_id ${primaryEmp.user_id}`);
+        employer = fallbackOnboarding;
+      }
+    }
   }
+
+  if (employerFetchError || !employer) {
+    console.error(`[PATCH employer status] Employer not found for ID: ${id}`, employerFetchError);
+    return NextResponse.json({ 
+      error: 'Employer record not found. The ID might be incorrect or the record was deleted.',
+      debug_id: id 
+    }, { status: 404 });
+  }
+
+  const activeId = employer.id; // The actual onboarding UUID to update
 
   const updatePayload: Record<string, unknown> = {
     status,
     updated_at: new Date().toISOString(),
   };
 
-  if (typeof initial_credit_limit === 'number' && Number.isFinite(initial_credit_limit) && initial_credit_limit > 0) {
-    updatePayload.max_advance_amount = Math.round(initial_credit_limit);
-  } else if (status === 'approved' && (!employer.max_advance_amount || Number(employer.max_advance_amount) <= 0)) {
-    updatePayload.max_advance_amount = 500000;
+  const resolvedMinAdvance =
+    typeof min_advance_amount === 'number' && Number.isFinite(min_advance_amount)
+      ? min_advance_amount
+      : (typeof initial_credit_limit === 'number' && Number.isFinite(initial_credit_limit)
+          ? initial_credit_limit
+          : undefined);
+
+  if (typeof resolvedMinAdvance === 'number' && resolvedMinAdvance > 0) {
+    updatePayload.min_advance_amount = Math.round(resolvedMinAdvance);
+  } else if (status === 'approved' && (!employer.min_advance_amount || Number(employer.min_advance_amount) <= 0)) {
+    updatePayload.min_advance_amount = 500;
   }
 
   const { error: updateError } = await adminSupabase
     .from('employer_onboarding')
     .update(updatePayload)
-    .eq('id', id);
+    .eq('id', activeId);
 
   if (updateError) {
     console.error('[PATCH employer status] Error:', updateError);
     return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
+
+  console.log(`[PATCH employer status] Successfully updated record ${activeId}`);
 
   // Activation workflow: ensure company code is present in profiles
   let resolvedCompanyCode: string | null = null;
@@ -129,7 +170,7 @@ export async function PATCH(
       company_name: employer.company_name,
       employer_code: resolvedCompanyCode,
       status: 'approved',
-      max_advance_amount: updatePayload.max_advance_amount ?? employer.max_advance_amount ?? 500000,
+      min_advance_amount: updatePayload.min_advance_amount ?? employer.min_advance_amount ?? 500,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
   }
@@ -151,7 +192,7 @@ export async function PATCH(
   await adminSupabase.from('system_audit_logs').insert({
     admin_id: user.id,
     admin_name: profile?.full_name || 'Admin',
-    target_id: id,
+    target_id: activeId,
     target_type: 'employer',
     action: 'account_status',
     new_status: status,
@@ -164,7 +205,7 @@ export async function PATCH(
     data: {
       status,
       company_code: resolvedCompanyCode,
-      initial_credit_limit: updatePayload.max_advance_amount ?? employer.max_advance_amount ?? null,
+      min_advance_amount: updatePayload.min_advance_amount ?? employer.min_advance_amount ?? null,
     },
   });
 }

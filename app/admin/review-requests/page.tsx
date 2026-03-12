@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
-import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import pusherClient from '@/lib/pusher-client';
@@ -444,7 +443,7 @@ export default function ReviewRequests() {
   };
 
   return (
-    <AdminPortalLayout>
+    <>
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -517,6 +516,6 @@ export default function ReviewRequests() {
         onClose={() => setSelectedRequest(null)}
         onSubmitResponse={handleSubmitResponse}
       />
-    </AdminPortalLayout>
+    </>
   );
 }

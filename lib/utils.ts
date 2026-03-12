@@ -112,11 +112,17 @@ export function calculateFeePercentage(crsTotal: number) {
 }
 
 export const COUNTRIES = [
-  { code: 'KE', name: 'Kenya', currency: 'KES', mobileProviders: ['M-PESA', 'Airtel Money'] },
-  { code: 'UG', name: 'Uganda', currency: 'UGX', mobileProviders: ['MTN Mobile Money', 'Airtel Money'] },
-  { code: 'TZ', name: 'Tanzania', currency: 'TZS', mobileProviders: ['M-PESA', 'Tigo Pesa', 'Airtel Money'] },
-  { code: 'RW', name: 'Rwanda', currency: 'RWF', mobileProviders: ['MTN Mobile Money', 'Airtel Money'] },
+  { code: 'KE', name: 'Kenya', currency: 'KES', mobileProviders: ['M-PESA', 'Airtel Money'], advanceLimit: 50 },
+  { code: 'UG', name: 'Uganda', currency: 'UGX', mobileProviders: ['MTN Mobile Money', 'Airtel Money'], advanceLimit: 60 },
+  { code: 'TZ', name: 'Tanzania', currency: 'TZS', mobileProviders: ['M-PESA', 'Tigo Pesa', 'Airtel Money'], advanceLimit: 30 },
+  { code: 'RW', name: 'Rwanda', currency: 'RWF', mobileProviders: ['MTN Mobile Money', 'Airtel Money'], advanceLimit: 45 },
 ];
+
+export function getAdvanceLimit(country: string | null | undefined): number {
+  const code = normalizeCountryCode(country);
+  const countryData = COUNTRIES.find(c => c.code === code);
+  return countryData?.advanceLimit ?? 50; // Default to 50%
+}
 
 export const EMPLOYMENT_TYPES = [
   { value: 'full-time', label: 'Full-time' },

@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 
 type IconSize = 'sm' | 'md';
@@ -237,17 +236,14 @@ export default function AdminReconciliation() {
 
   if (loading) {
     return (
-      <AdminPortalLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-14 h-14 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-        </div>
-      </AdminPortalLayout>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-14 h-14 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+      </div>
     );
   }
 
   return (
-    <AdminPortalLayout>
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -341,7 +337,6 @@ export default function AdminReconciliation() {
           )}
         </div>
       </div>
-    </AdminPortalLayout>
   );
 }
 

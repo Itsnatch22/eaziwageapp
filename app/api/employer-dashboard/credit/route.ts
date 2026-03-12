@@ -41,9 +41,8 @@ export async function GET(req: Request) {
   console.log('[credit-overview] Fetching employer for user:', user.id);
   const { data: employer, error: employerError } = await supabase
     .from('employer_onboarding')
-    .select('id, max_advance_amount')
+    .select('id')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -70,7 +69,17 @@ export async function GET(req: Request) {
     });
   }
 
-  console.log('[credit-overview] ✓ Employer found:', employer.id, 'Credit limit:', employer.max_advance_amount);
+  console.log('[credit-overview] ✓ Employer found:', employer.id);
+
+  // Step 1.5: Fetch actual wallet balance
+  const { data: wallet } = await supabase
+    .from('employer_wallets')
+    .select('balance')
+    .eq('employer_id', employer.id)
+    .maybeSingle();
+
+  const companyCreditLimit = Number(wallet?.balance ?? 0);
+  console.log('[credit-overview] ✓ Actual wallet balance found:', companyCreditLimit);
 
   // Step 2: Fetch employees
   console.log('[credit-overview] Fetching employees for employer:', employer.id);
@@ -94,7 +103,6 @@ export async function GET(req: Request) {
 
   if (employeeIds.length === 0) {
     console.log('[credit-overview] No employees, returning empty stats');
-    const companyCreditLimit = Number(employer.max_advance_amount ?? 0);
     return NextResponse.json({
       month: range.key,
       company_credit_limit: companyCreditLimit,
@@ -154,7 +162,6 @@ export async function GET(req: Request) {
     return sum + Number(row.amount ?? 0);
   }, 0);
 
-  const companyCreditLimit = Number(employer.max_advance_amount ?? 0);
   const totalOutstandingCredit = sumAmounts((outstandingQuery.data ?? []) as AdvanceAmountRow[]);
   const monthDisbursedAmount = sumAmounts((monthQuery.data ?? []) as AdvanceAmountRow[]);
   const remainingMonthlyLimit = Math.max(0, companyCreditLimit - monthDisbursedAmount);

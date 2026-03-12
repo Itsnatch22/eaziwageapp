@@ -1,4 +1,4 @@
-// app/admin/employers/page.tsx
+// app/admin/risk-scoring/page.tsx
 'use client'
 import React, { useState, useEffect } from 'react';
 import { 
@@ -24,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { cn, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -540,361 +539,357 @@ export default function AdminEmployersPage() {
 
   if (loading) {
     return (
-      <AdminPortalLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-slate-500">Loading employers...</p>
-          </div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">Loading employers...</p>
         </div>
-      </AdminPortalLayout>
+      </div>
     );
   }
 
   return (
-    <AdminPortalLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
-              Risk Scoring & Management
-            </h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">
-              Analyze and assess employer risk profiles based on EaziWage Framework
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {framework && (
-              <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium">
-                Framework {framework.version} ({framework.date})
-              </span>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchEmployers}
-              className="flex items-center gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </Button>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+            Risk Scoring & Management
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
+            Analyze and assess employer risk profiles based on EaziWage Framework
+          </p>
         </div>
-
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCard
-              icon={Building2}
-              label="Total Employers"
-              value={stats.total}
-              subtext={`${stats.active} approved, ${stats.risk_review || 0} in review`}
-              variant="purple"
-            />
-            <MetricCard
-              icon={Users}
-              label="Total Employees"
-              value={stats.total_employees.toLocaleString()}
-              subtext="Across all platforms"
-              variant="blue"
-            />
-            <MetricCard
-              icon={Shield}
-              label="Avg Risk Score"
-              value={stats.avg_risk_score.toFixed(2)}
-              subtext="Composite rating index"
-              variant="green"
-            />
-            <MetricCard
-              icon={DollarSign}
-              label="Avg Fee Rate"
-              value={`${stats.avg_application_fee.toFixed(2)}%`}
-              subtext="Based on current risk"
-              variant="amber"
-            />
-          </div>
-        )}
-
-        {/* Risk Distribution */}
-        {stats && (
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/20 rounded-xl flex items-center justify-center">
-                <Shield className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white">Risk Rating Distribution</h3>
-                <p className="text-sm text-slate-500">Portfolio health overview</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200/50 dark:border-emerald-500/30">
-                <div className="flex items-center justify-center mb-2">
-                  <RiskRatingBadge rating="A" size="md" />
-                </div>
-                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
-                  {stats.risk_distribution.low_risk}
-                </p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Low Risk</p>
-              </div>
-              <div className="text-center p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200/50 dark:border-blue-500/30">
-                <div className="flex items-center justify-center mb-2">
-                  <RiskRatingBadge rating="B" size="md" />
-                </div>
-                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                  {stats.risk_distribution.medium_risk}
-                </p>
-                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">Medium Risk</p>
-              </div>
-              <div className="text-center p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200/50 dark:border-amber-500/30">
-                <div className="flex items-center justify-center mb-2">
-                  <RiskRatingBadge rating="C" size="md" />
-                </div>
-                <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
-                  {stats.risk_distribution.high_risk}
-                </p>
-                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">High Risk</p>
-              </div>
-              <div className="text-center p-4 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200/50 dark:border-red-500/30">
-                <div className="flex items-center justify-center mb-2">
-                  <RiskRatingBadge rating="D" size="md" />
-                </div>
-                <p className="text-2xl font-bold text-red-700 dark:text-red-300">
-                  {stats.risk_distribution.very_high_risk}
-                </p>
-                <p className="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase tracking-wider">Very High Risk</p>
-              </div>
-            </div>
-
-            {stats.needs_risk_assessment > 0 && (
-              <div className="mt-6 p-4 bg-linear-to-r from-amber-500/10 to-orange-500/10 rounded-xl border border-amber-500/20 flex items-center justify-between">
-                <div className="flex items-center gap-3 text-amber-800 dark:text-amber-200">
-                  <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
-                    <AlertTriangle className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <span className="text-sm font-bold">Action Required</span>
-                    <p className="text-xs opacity-80">{stats.needs_risk_assessment} employers are awaiting risk assessment</p>
-                  </div>
-                </div>
-                <Button size="sm" variant="outline" className="bg-white/50 border-amber-500/20 text-amber-800 hover:bg-amber-500 hover:text-white transition-all">
-                  View List
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Filters and Search */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Search employers..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl"
-              />
-            </div>
-            
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {filters?.statuses.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={riskRatingFilter} onValueChange={setRiskRatingFilter}>
-              <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
-                <SelectValue placeholder="All Risk Ratings" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Risk Ratings</SelectItem>
-                {filters?.risk_ratings.map((rating) => (
-                  <SelectItem key={rating} value={rating}>
-                    Rating {rating}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={countryFilter} onValueChange={setCountryFilter}>
-              <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
-                <SelectValue placeholder="All Countries" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Countries</SelectItem>
-                {filters?.countries.map((country) => (
-                  <SelectItem key={country} value={country}>
-                    {country}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center gap-2">
+          {framework && (
+            <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium">
+              Framework {framework.version} ({framework.date})
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchEmployers}
+            className="flex items-center gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </Button>
         </div>
+      </div>
 
-        {/* Employers Table */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 border-0">
-                  <TableHead 
-                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 h-12"
-                    onClick={() => handleSort('company_name')}
-                  >
-                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                      Company
-                      {sortField === 'company_name' && (
-                        sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                      )}
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            icon={Building2}
+            label="Total Employers"
+            value={stats.total}
+            subtext={`${stats.active} approved, ${stats.risk_review || 0} in review`}
+            variant="purple"
+          />
+          <MetricCard
+            icon={Users}
+            label="Total Employees"
+            value={stats.total_employees.toLocaleString()}
+            subtext="Across all platforms"
+            variant="blue"
+          />
+          <MetricCard
+            icon={Shield}
+            label="Avg Risk Score"
+            value={stats.avg_risk_score.toFixed(2)}
+            subtext="Composite rating index"
+            variant="green"
+          />
+          <MetricCard
+            icon={DollarSign}
+            label="Avg Fee Rate"
+            value={`${stats.avg_application_fee.toFixed(2)}%`}
+            subtext="Based on current risk"
+            variant="amber"
+          />
+        </div>
+      )}
+
+      {/* Risk Distribution */}
+      {stats && (
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/20 rounded-xl flex items-center justify-center">
+              <Shield className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white">Risk Rating Distribution</h3>
+              <p className="text-sm text-slate-500">Portfolio health overview</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200/50 dark:border-emerald-500/30">
+              <div className="flex items-center justify-center mb-2">
+                <RiskRatingBadge rating="A" size="md" />
+              </div>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                {stats.risk_distribution.low_risk}
+              </p>
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Low Risk</p>
+            </div>
+            <div className="text-center p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200/50 dark:border-blue-500/30">
+              <div className="flex items-center justify-center mb-2">
+                <RiskRatingBadge rating="B" size="md" />
+              </div>
+              <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                {stats.risk_distribution.medium_risk}
+              </p>
+              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">Medium Risk</p>
+            </div>
+            <div className="text-center p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200/50 dark:border-amber-500/30">
+              <div className="flex items-center justify-center mb-2">
+                <RiskRatingBadge rating="C" size="md" />
+              </div>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
+                {stats.risk_distribution.high_risk}
+              </p>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">High Risk</p>
+            </div>
+            <div className="text-center p-4 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200/50 dark:border-red-500/30">
+              <div className="flex items-center justify-center mb-2">
+                <RiskRatingBadge rating="D" size="md" />
+              </div>
+              <p className="text-2xl font-bold text-red-700 dark:text-red-300">
+                {stats.risk_distribution.very_high_risk}
+              </p>
+              <p className="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase tracking-wider">Very High Risk</p>
+            </div>
+          </div>
+
+          {stats.needs_risk_assessment > 0 && (
+            <div className="mt-6 p-4 bg-linear-to-r from-amber-500/10 to-orange-500/10 rounded-xl border border-amber-500/20 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-amber-800 dark:text-amber-200">
+                <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <AlertTriangle className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <span className="text-sm font-bold">Action Required</span>
+                  <p className="text-xs opacity-80">{stats.needs_risk_assessment} employers are awaiting risk assessment</p>
+                </div>
+              </div>
+              <Button size="sm" variant="outline" className="bg-white/50 border-amber-500/20 text-amber-800 hover:bg-amber-500 hover:text-white transition-all">
+                View List
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Filters and Search */}
+      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              type="text"
+              placeholder="Search employers..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl"
+            />
+          </div>
+          
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {filters?.statuses.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={riskRatingFilter} onValueChange={setRiskRatingFilter}>
+            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
+              <SelectValue placeholder="All Risk Ratings" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Risk Ratings</SelectItem>
+              {filters?.risk_ratings.map((rating) => (
+                <SelectItem key={rating} value={rating}>
+                  Rating {rating}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={countryFilter} onValueChange={setCountryFilter}>
+            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
+              <SelectValue placeholder="All Countries" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Countries</SelectItem>
+              {filters?.countries.map((country) => (
+                <SelectItem key={country} value={country}>
+                  {country}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Employers Table */}
+      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 border-0">
+                <TableHead 
+                  className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 h-12"
+                  onClick={() => handleSort('company_name')}
+                >
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
+                    Company
+                    {sortField === 'company_name' && (
+                      sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider">Country</TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                  onClick={() => handleSort('risk_score')}
+                >
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
+                    Score
+                    {sortField === 'risk_score' && (
+                      sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider">Rating</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                  onClick={() => handleSort('application_fee')}
+                >
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
+                    App Fee
+                    {sortField === 'application_fee' && (
+                      sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedEmployers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-20">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center">
+                        <Building2 className="w-8 h-8 text-slate-300" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900 dark:text-white">No employers found</p>
+                        <p className="text-sm text-slate-400">Try adjusting your filters or search criteria</p>
+                      </div>
                     </div>
-                  </TableHead>
-                  <TableHead className="font-bold text-xs uppercase tracking-wider">Country</TableHead>
-                  <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
-                    onClick={() => handleSort('risk_score')}
-                  >
-                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                      Score
-                      {sortField === 'risk_score' && (
-                        sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                      )}
-                    </div>
-                  </TableHead>
-                  <TableHead className="font-bold text-xs uppercase tracking-wider">Rating</TableHead>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
-                    onClick={() => handleSort('application_fee')}
-                  >
-                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                      App Fee
-                      {sortField === 'application_fee' && (
-                        sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                      )}
-                    </div>
-                  </TableHead>
-                  <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedEmployers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-20">
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center">
-                          <Building2 className="w-8 h-8 text-slate-300" />
+              ) : (
+                sortedEmployers.map((employer) => (
+                  <TableRow 
+                    key={employer.id}
+                    className="hover:bg-purple-50/30 dark:hover:bg-purple-500/5 group border-slate-100 dark:border-slate-800"
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-linear-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xs shadow-md shadow-purple-600/20">
+                          {employer.company_name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 dark:text-white">No employers found</p>
-                          <p className="text-sm text-slate-400">Try adjusting your filters or search criteria</p>
+                          <p className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">
+                            {employer.company_name}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-mono">{employer.employer_code}</p>
                         </div>
                       </div>
                     </TableCell>
-                  </TableRow>
-                ) : (
-                  sortedEmployers.map((employer) => (
-                    <TableRow 
-                      key={employer.id}
-                      className="hover:bg-purple-50/30 dark:hover:bg-purple-500/5 group border-slate-100 dark:border-slate-800"
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 bg-linear-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xs shadow-md shadow-purple-600/20">
-                            {employer.company_name.substring(0, 2).toUpperCase()}
+                    <TableCell className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+                      {employer.country || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={employer.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "font-black text-sm",
+                          employer.risk_score >= 4.0 ? "text-emerald-600" :
+                          employer.risk_score >= 3.0 ? "text-blue-600" :
+                          employer.risk_score >= 2.6 ? "text-amber-600" : 
+                          (employer.risk_score === 0 ? "text-slate-400" : "text-red-600")
+                        )}>
+                          {employer.risk_score > 0 ? employer.risk_score.toFixed(2) : '-'}
+                        </span>
+                        {(!employer.has_risk_factors || employer.status === 'risk_review_in_progress') && (
+                          <div className="animate-pulse" title="Assessment needed">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">
-                              {employer.company_name}
-                            </p>
-                            <p className="text-[10px] text-slate-500 font-mono">{employer.employer_code}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600 dark:text-slate-400 font-medium">
-                        {employer.country || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={employer.status} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "font-black text-sm",
-                            employer.risk_score >= 4.0 ? "text-emerald-600" :
-                            employer.risk_score >= 3.0 ? "text-blue-600" :
-                            employer.risk_score >= 2.6 ? "text-amber-600" : 
-                            (employer.risk_score === 0 ? "text-slate-400" : "text-red-600")
-                          )}>
-                            {employer.risk_score > 0 ? employer.risk_score.toFixed(2) : '-'}
-                          </span>
-                          {(!employer.has_risk_factors || employer.status === 'risk_review_in_progress') && (
-                            <div className="animate-pulse" title="Assessment needed">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {employer.risk_score > 0 ? (
-                            <RiskRatingBadge rating={employer.risk_rating} showLabel />
-                        ) : (
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">In Progress</span>
                         )}
-                      </TableCell>
-                      <TableCell className="font-bold text-purple-600 text-sm">
-                        {employer.risk_score > 0 ? `${employer.application_fee.toFixed(2)}%` : '-'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          className="h-9 px-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all font-bold text-xs rounded-lg shadow-sm"
-                          onClick={() => handleAssessRisk(employer)}
-                        >
-                          <Shield className="w-3.5 h-3.5 mr-2" />
-                          Assess Risk
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {employer.risk_score > 0 ? (
+                          <RiskRatingBadge rating={employer.risk_rating} showLabel />
+                      ) : (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">In Progress</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-bold text-purple-600 text-sm">
+                      {employer.risk_score > 0 ? `${employer.application_fee.toFixed(2)}%` : '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        className="h-9 px-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all font-bold text-xs rounded-lg shadow-sm"
+                        onClick={() => handleAssessRisk(employer)}
+                      >
+                        <Shield className="w-3.5 h-3.5 mr-2" />
+                        Assess Risk
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
+      </div>
 
-        {/* Framework Info Footer */}
-        {framework && (
-          <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
-                <Info className="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="text-sm">
-                <p className="font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">Framework & Regulatory Notice ({framework.version})</p>
-                <p className="text-slate-600 dark:text-slate-400 leading-relaxed max-w-4xl">
-                  Risk scores are dynamic and weighted across five core categories. The fee impact is automatically calculated using the framework standard: 
-                  <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded mx-1 text-purple-600">
-                    Base({framework.base_fee}%) + Risk({framework.risk_factor}%) × (1 - Score/5)
-                  </span>. 
-                  Assessments should be reviewed quarterly or upon significant operational changes.
-                </p>
-              </div>
+      {/* Framework Info Footer */}
+      {framework && (
+        <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Info className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="text-sm">
+              <p className="font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">Framework & Regulatory Notice ({framework.version})</p>
+              <p className="text-slate-600 dark:text-slate-400 leading-relaxed max-w-4xl">
+                Risk scores are dynamic and weighted across five core categories. The fee impact is automatically calculated using the framework standard: 
+                <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded mx-1 text-purple-600">
+                  Base({framework.base_fee}%) + Risk({framework.risk_factor}%) × (1 - Score/5)
+                </span>. 
+                Assessments should be reviewed quarterly or upon significant operational changes.
+              </p>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <RiskAssessmentModal 
         employer={selectedEmployer}
@@ -906,6 +901,6 @@ export default function AdminEmployersPage() {
         onSuccess={fetchEmployers}
         framework={framework}
       />
-    </AdminPortalLayout>
+    </div>
   );
 }

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
@@ -61,27 +61,15 @@ export async function GET(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: profile, error: profileError } = await adminSupabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle<{ role: string | null }>();
-
-  if (profileError) {
+  const adminAccess = await checkAdminAccess({ user, adminSupabase });
+  if (adminAccess.error) {
     return NextResponse.json(
       { error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' },
       { status: 500, headers: rateResult.headers }
     );
   }
 
-  const roleCandidates = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
-    .filter((r): r is string => typeof r === 'string' && r.length > 0)
-    .map((r) => r.toLowerCase());
-
-  if (!roleCandidates.some((r) => {
-    const parsed = UserRoleEnum.safeParse(r);
-    return parsed.success && isAdminRole(parsed.data);
-  })) {
+  if (!adminAccess.isAdmin) {
     return NextResponse.json(
       { error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' },
       { status: 403, headers: rateResult.headers }
@@ -197,20 +185,12 @@ export async function PATCH(
   });
 
   // Verify Admin Role
-  const { data: profile } = await adminSupabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  const adminAccess = await checkAdminAccess({ user, adminSupabase });
+  if (adminAccess.error) {
+    return NextResponse.json({ error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' }, { status: 500 });
+  }
 
-  const roleCandidates = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
-    .filter((r): r is string => typeof r === 'string' && r.length > 0)
-    .map((r) => r.toLowerCase());
-
-  if (!roleCandidates.some((r) => {
-    const parsed = UserRoleEnum.safeParse(r);
-    return parsed.success && isAdminRole(parsed.data);
-  })) {
+  if (!adminAccess.isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

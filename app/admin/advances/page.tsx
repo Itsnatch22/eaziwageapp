@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { AdminPortalLayout } from '@/components/admin/AdminLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -554,7 +553,7 @@ export default function AdminAdvances(){
   };
     
   return (
-    <AdminPortalLayout>
+    <>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-advances-page">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -687,7 +686,7 @@ export default function AdminAdvances(){
         onDisburse={handleDisburse}
         loading={actionLoading}
       />
-    </AdminPortalLayout>
+    </>
   );
 }
 

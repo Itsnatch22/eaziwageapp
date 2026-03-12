@@ -3,7 +3,8 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { DocumentStatusEnum, isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { DocumentStatusEnum } from '@/lib/validations/kyc-validation';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
 
 function createAdminClient() {
   const env = getEnv();
@@ -26,24 +27,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await adminSupabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle<{ role: string | null }>();
-
-    if (profileError) {
+    const adminAccess = await checkAdminAccess({ user, adminSupabase });
+    if (adminAccess.error) {
       return NextResponse.json({ error: 'Failed to verify role', code: 'ROLE_CHECK_FAILED' }, { status: 500 });
     }
 
-    const roles = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
-      .filter((role): role is string => typeof role === 'string' && role.length > 0)
-      .map((role) => role.toLowerCase());
-
-    if (!roles.some((role) => {
-      const parsed = UserRoleEnum.safeParse(role);
-      return parsed.success && isAdminRole(parsed.data);
-    })) {
+    if (!adminAccess.isAdmin) {
       return NextResponse.json({ error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' }, { status: 403 });
     }
 

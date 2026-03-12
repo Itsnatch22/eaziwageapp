@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
-import { useAuthStore } from '@/lib/stores/auth';
+import { useAuthStore, updateUserAvatar } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
@@ -145,7 +145,7 @@ export default function EmployeeSettings() {
   };
 
   const tabs = [
-    { id: 'account', label: 'Personal Profile', icon: User },
+    { id: 'account', label: 'Profile', icon: User },
     { id: 'employment', label: 'Work & Company', icon: Building2 },
     { id: 'payment', label: 'Payment Methods', icon: CreditCard },
     { id: 'kyc', label: 'Identity & KYC', icon: Shield },
@@ -168,7 +168,20 @@ export default function EmployeeSettings() {
 
   return (
     <EmployeePageLayout>
-      <EmployeeHeader title="Settings" />
+      <EmployeeHeader 
+        title="Settings" 
+        rightContent={
+          activeTab === 'account' && (
+            <Button 
+              onClick={() => handleUpdateProfile({})}
+              disabled={saving}
+              className="bg-primary text-white"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          )
+        }
+      />
 
       <main className="max-w-6xl mx-auto px-4 pb-28 space-y-6">
         <div className="grid lg:grid-cols-4 gap-6">
@@ -199,8 +212,12 @@ export default function EmployeeSettings() {
                   <div className="flex flex-col items-center mb-8">
                     <AvatarUpload 
                       userId={profile?.id || user?.id} 
-                      currentAvatarUrl={profile?.avatar_url} 
+                      currentAvatarUrl={profile?.avatar_url || user?.avatar_url} 
                       fullName={profile?.full_name || user?.full_name}
+                      onUploadSuccess={(url) => {
+                        // Update the auth store so the layout avatar updates immediately
+                        updateUserAvatar(url);
+                      }}
                     />
                   </div>
 

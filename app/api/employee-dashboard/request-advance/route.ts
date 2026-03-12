@@ -3,6 +3,7 @@ import { calculateFeePercentage } from '@/lib/utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runFraudChecks } from '@/lib/fraud-engine';
+import { notifyEmployer, notifyAdmins } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -105,6 +106,11 @@ export async function POST(req: NextRequest) {
   const feeAmount = toMoney((requestedAmount * feePercentage) / 100);
   const netAmount = toMoney(requestedAmount - feeAmount);
 
+  // Generate a unique merchant reference for Dusupay tracking
+  const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
+  const random = Math.random().toString(36).substring(2, 7).toUpperCase();
+  const reference = `EWA-${timestamp}-${random}`;
+
   const payload = {
     employee_id: employee.id,
     amount: requestedAmount,
@@ -113,14 +119,17 @@ export async function POST(req: NextRequest) {
     net_amount: netAmount,
     disbursement_method: parsed.data.disbursement_method,
     status: 'pending',
+    reference: reference,
     requested_at: new Date().toISOString(),
+    employer_id: employee.employer_id, // Ensure employer_id is linked for dashboard visibility
   };
 
   const { data: inserted, error: insertError } = await supabase
     .from('advances')
     .insert(payload)
-    .select('id, status, amount, fee_amount, net_amount, disbursement_method, created_at')
+    .select('id, status, amount, fee_amount, net_amount, disbursement_method, reference, created_at')
     .single();
+
 
   if (insertError) {
     return NextResponse.json({ message: insertError.message }, { status: 500 });
@@ -132,6 +141,39 @@ export async function POST(req: NextRequest) {
       .from('fraud_alerts')
       .update({ transaction_id: inserted.id })
       .in('id', fraudResult.alerts.map(a => a.id));
+  }
+
+  // ── Trigger Notifications ───────────────────────────────────────────────────
+  try {
+    // 1. Notify Employer Admin(s)
+    const { data: employerAdmins } = await supabase
+      .from('employer_onboarding')
+      .select('user_id, company_name')
+      .eq('id', employee.employer_id);
+
+    if (employerAdmins && employerAdmins.length > 0) {
+      const emp = employerAdmins[0];
+      await notifyEmployer({
+        userId: emp.user_id,
+        type: 'advance',
+        title: 'New Advance Request',
+        message: `An employee has requested an advance of ${requestedAmount}. Please review it in your dashboard.`,
+        metadata: { advance_id: inserted.id, amount: requestedAmount }
+      });
+    }
+
+    // 2. Notify Admins if flagged
+    if (fraudResult.alerts.length > 0) {
+      await notifyAdmins({
+        type: 'flagged_advance',
+        title: '⚠️ Fraud Alert: Flagged Advance',
+        message: `A new advance request (ID: ${inserted.id}) has been flagged with ${fraudResult.alerts.length} alerts.`,
+        metadata: { advance_id: inserted.id, alerts: fraudResult.alerts }
+      });
+    }
+  } catch (notifyErr) {
+    console.error('[request-advance] Notification failed:', notifyErr);
+    // Continue since the transaction was successful
   }
 
   return NextResponse.json(

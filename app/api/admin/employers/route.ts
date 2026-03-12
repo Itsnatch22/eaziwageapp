@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
 
@@ -26,7 +26,7 @@ interface RiskFactors {
   pep_screening: number;
 }
 
-// ─── Framework Constants (from PDF) ───────────────────────────────────────────
+// â”€â”€â”€ Framework Constants (from PDF) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const CATEGORY_WEIGHTS = {
   legal_compliance:  0.20,  // 20%
@@ -62,7 +62,7 @@ const SUB_FACTOR_WEIGHTS = {
   },
 } as const;
 
-// ─── Helper Functions ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Helper Functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function toAdminStatus(status: string | null | undefined): string {
   if (status === 'approved' || status === 'rejected' || status === 'suspended' || status === 'risk_review_in_progress') return status;
@@ -71,7 +71,7 @@ function toAdminStatus(status: string | null | undefined): string {
 
 /**
  * Calculate Composite Risk Score (CRS) using weighted formula from PDF:
- * CRS_employer = Σ(Score_i × Weight_i) / Σ Weight_i
+ * CRS_employer = Î£(Score_i Ã— Weight_i) / Î£ Weight_i
  */
 function calculateCompositeRiskScore(rf: Partial<RiskFactors>): number {
   let totalWeightedScore = 0;
@@ -111,10 +111,10 @@ function calculateCompositeRiskScore(rf: Partial<RiskFactors>): number {
 
 /**
  * Determine risk rating based on CRS thresholds from PDF Table 6:
- * A: 4.0–5.0 (Low Risk)
- * B: 3.0–3.9 (Medium Risk)
- * C: 2.6–2.9 (High Risk)
- * D: 0.0–2.5 (Very High Risk)
+ * A: 4.0â€“5.0 (Low Risk)
+ * B: 3.0â€“3.9 (Medium Risk)
+ * C: 2.6â€“2.9 (High Risk)
+ * D: 0.0â€“2.5 (Very High Risk)
  */
 function getRiskRating(crs: number): 'A' | 'B' | 'C' | 'D' {
   if (crs >= 4.0) return 'A';
@@ -125,7 +125,7 @@ function getRiskRating(crs: number): 'A' | 'B' | 'C' | 'D' {
 
 /**
  * Calculate application fee using formula from PDF Section 4:
- * Application Fee (%) = Bf + (Rf × (1 - CRS_total/5))
+ * Application Fee (%) = Bf + (Rf Ã— (1 - CRS_total/5))
  * where Bf = 3.5% (Base Service Fee)
  * and   Rf = 3.0% (Risk Adjustment Factor)
  */
@@ -135,7 +135,7 @@ function calculateApplicationFee(crs: number): number {
   return BASE_FEE + (RISK_FACTOR * (1 - crs / 5));
 }
 
-// ─── Main Handler ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -165,38 +165,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const adminSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-
-  // ── Verify Admin Role ─────────────────────────────────────────────────────
-  const { data: profile, error: profileError } = await adminSupabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle<{ role: string | null }>();
-
-  if (profileError) {
+  // Verify admin role
+  const adminAccess = await checkAdminAccess({ user, adminSupabase });
+  if (adminAccess.error) {
     return NextResponse.json(
       { error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' },
       { status: 500, headers: rateResult.headers }
     );
   }
 
-  const roleCandidates = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
-    .filter((r): r is string => typeof r === 'string' && r.length > 0)
-    .map((r) => r.toLowerCase());
-
-  console.log('[DEBUG /api/admin/employers] user.id:', user.id, '| roleCandidates:', roleCandidates);
-  if (!roleCandidates.some((r) => {
-    const parsed = UserRoleEnum.safeParse(r);
-    return parsed.success && isAdminRole(parsed.data);
-  })) {
-    console.warn('[/api/admin/employers] FORBIDDEN — roleCandidates did not pass isAdminRole. Values:', roleCandidates);
+  console.log('[DEBUG /api/admin/employers] user.id:', user.id, '| roleCandidates:', adminAccess.roleCandidates);
+  if (!adminAccess.isAdmin) {
+    console.warn('[/api/admin/employers] FORBIDDEN â€” roleCandidates did not pass isAdminRole. Values:', adminAccess.roleCandidates);
     return NextResponse.json(
       {
         error: 'Forbidden. Admin access required.',
         code: 'FORBIDDEN',
         ...(process.env.NODE_ENV === 'development' && {
           debug: {
-            found_roles: roleCandidates,
+            found_roles: adminAccess.roleCandidates,
             allowed_roles: ['admin', 'super_admin', 'compliance', 'employer_admin'],
             hint: 'Update the profiles.role column in Supabase for this user to one of the allowed_roles values.',
           },
@@ -206,14 +193,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── Parse Query Parameters ────────────────────────────────────────────────
+  // Parse query parameters
   const searchParams = req.nextUrl.searchParams;
   const statusFilter = searchParams.get('status')?.trim() ?? '';
   const countryFilter = searchParams.get('country')?.trim() ?? '';
   const riskRatingFilter = searchParams.get('risk_rating')?.trim() ?? '';
   const searchFilter = searchParams.get('search')?.trim().toLowerCase() ?? '';
 
-  // ── Fetch Employers ───────────────────────────────────────────────────────
+  //Fetch Employers
   const { data: onboardingRows, error } = await adminSupabase
     .from('employer_onboarding')
     .select(
@@ -249,11 +236,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  console.log(`[GET /api/admin/employers] Found ${onboardingRows?.length || 0} onboarding records.`);
+  if (onboardingRows && onboardingRows.length > 0) {
+    console.log(`[GET /api/admin/employers] Sample ID: ${onboardingRows[0].id}`);
+  }
+
   const employerIds = (onboardingRows ?? []).map((row) => row.id);
   const userIds = (onboardingRows ?? []).map((row) => row.user_id).filter(Boolean);
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-  // ── Fetch Employer Codes from Profiles ─────────────────────────────────────
+  // â”€â”€ Fetch Employer Codes from Profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: profileCodes } = await adminSupabase
     .from('profiles')
     .select('id, company_code')
@@ -261,7 +253,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   
   const codesByUserId = new Map(profileCodes?.map(p => [p.id, p.company_code]) ?? []);
 
-  // ── Fetch Risk Factors for All Employers ──────────────────────────────────
+  // â”€â”€ Fetch Risk Factors for All Employers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: riskFactorsData } = await adminSupabase
     .from('employer_risk_factors')
     .select(`
@@ -290,7 +282,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     riskFactorsByEmployer.set(rf.employer_id, rf as RiskFactors & { employer_id: string; scored_at: string | null });
   });
 
-  // ── Fetch Employee & Advance Data ─────────────────────────────────────────
+  // â”€â”€ Fetch Employee & Advance Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [employeesResult, advancesResult] = await Promise.all([
     employerIds.length
       ? adminSupabase
@@ -325,7 +317,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   });
 
-  // ── Build Result with Risk Scoring ────────────────────────────────────────
+  // â”€â”€ Build Result with Risk Scoring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const result = (onboardingRows ?? []).map((row) => {
     const employeeMeta = employeesByEmployer.get(row.id) ?? { count: 0, payroll: 0 };
     const riskFactors = riskFactorsByEmployer.get(row.id);
@@ -379,7 +371,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     };
   });
 
-  // ── Calculate Statistics ──────────────────────────────────────────────────
+  // â”€â”€ Calculate Statistics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const countries = [...new Set(result.map((e) => e.country).filter(Boolean))].sort();
   const industries = [...new Set(result.map((e) => e.industry).filter(Boolean))].sort();
 
@@ -415,7 +407,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     base_currency: countryFilter ? (countries.find(c => c === countryFilter) || 'KES') : 'KES',
   };
 
-  // ── Apply Filters ─────────────────────────────────────────────────────────
+  // â”€â”€ Apply Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const filtered = result.filter((e) => {
     if (statusFilter && e.status !== statusFilter) return false;
     if (countryFilter && e.country !== countryFilter) return false;
@@ -431,7 +423,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return true;
   });
 
-  // ── Response ──────────────────────────────────────────────────────────────
+  // â”€â”€ Response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return NextResponse.json(
     {
       data: filtered,
@@ -452,3 +444,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     { status: 200, headers: rateResult.headers }
   );
 }
+
+
+
+

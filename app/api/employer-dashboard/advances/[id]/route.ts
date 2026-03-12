@@ -1,6 +1,7 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { notifyEmployee } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -61,7 +62,7 @@ export async function PATCH(
 
   const { data: target, error: targetError } = await supabase
     .from('advances')
-    .select('id, status, employee_id')
+    .select('id, status, employee_id, employee_onboarding(user_id)')
     .eq('id', id)
     .in('employee_id', employeeIds)
     .maybeSingle();
@@ -88,6 +89,24 @@ export async function PATCH(
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+
+  // ── Trigger Notifications ───────────────────────────────────────────────────
+  try {
+    const employeeUserId = (target.employee_onboarding as any)?.user_id;
+    if (employeeUserId) {
+        await notifyEmployee({
+            userId: employeeUserId,
+            type: 'advance_approval',
+            title: action === 'approve' ? 'Advance Approved!' : 'Advance Rejected',
+            message: action === 'approve' 
+                ? 'Your advance request has been approved and is now being processed for disbursement.'
+                : 'Your advance request was not approved. Check your dashboard for details.',
+            metadata: { advance_id: id, status: update.status }
+        });
+    }
+  } catch (notifyErr) {
+    console.error('[employer-advance-update] Notification failed:', notifyErr);
   }
 
   return NextResponse.json({

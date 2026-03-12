@@ -374,6 +374,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     generatedEmployerCode = generateEmployerCode();
   }
 
+  // ── 8b. Create employer record FIRST (if employer signup) ───────────────────
+  // This MUST happen before profile insert because profiles.company_code 
+  // has a foreign key constraint to employers.company_code
+  if (input.role === 'employer' && generatedEmployerCode) {
+    const { data: employerRecord, error: employerError } = await supabase
+      .from('employers')
+      .insert({
+        company_code: generatedEmployerCode,
+        company_name: input.company_name || '',
+        email:        input.email,
+        phone:        input.phone,
+        user_id:      userId,
+        employer_id:  userId, // Use user_id as employer_id
+        status:       'pending',
+        created_at:   new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (employerError) {
+      // Roll back auth user
+      await supabase.auth.admin.deleteUser(userId);
+      console.error('[db] employer insert error:', employerError);
+      return NextResponse.json(
+        { error: 'Failed to create employer account. Please try again.' },
+        { status: 500, headers: rateResult.headers },
+      );
+    }
+  }
+
   // ── 9. Insert profile row ────────────────────────────────────────────────────
   const { error: profileError } = await supabase
     .from('profiles')
@@ -392,7 +422,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
 
   if (profileError) {
-    // Roll back the auth user to avoid orphaned accounts
+    // Roll back the employer record (if created) and auth user
+    if (input.role === 'employer' && generatedEmployerCode) {
+      await supabase.from('employers').delete().eq('company_code', generatedEmployerCode);
+    }
     await supabase.auth.admin.deleteUser(userId);
     console.error('[db] profile insert error:', profileError);
     return NextResponse.json(
@@ -537,7 +570,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return successResponse;
 }
 
-// Reject non-POST methods cleanly
 export async function GET()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
 export async function PUT()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
 export async function DELETE() { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }
