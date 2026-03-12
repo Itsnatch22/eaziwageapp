@@ -380,7 +380,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (input.role === 'employer' && generatedEmployerCode) {
     const { data: employerRecord, error: employerError } = await supabase
       .from('employers')
-      .insert({
+      .upsert({
         company_code: generatedEmployerCode,
         company_name: input.company_name || '',
         email:        input.email,
@@ -389,7 +389,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         employer_id:  userId, // Use user_id as employer_id
         status:       'pending',
         created_at:   new Date().toISOString(),
-      })
+      }, { onConflict: 'company_code' })
       .select()
       .single();
 
@@ -407,7 +407,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // ── 9. Insert profile row ────────────────────────────────────────────────────
   const { error: profileError } = await supabase
     .from('profiles')
-    .insert({
+    .upsert({
       id:                 userId,
       full_name:          input.full_name,
       email:              input.email,
@@ -419,7 +419,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       company_name:       input.role === 'employer' ? input.company_name : null,
       email_verified:     true,
       created_at:         new Date().toISOString(),
-    });
+    }, { onConflict: 'id' });
 
   if (profileError) {
     // Roll back the employer record (if created) and auth user

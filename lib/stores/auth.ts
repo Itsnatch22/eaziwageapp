@@ -54,7 +54,14 @@ if (typeof window !== 'undefined') {
 
     const syncUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const result = await Promise.race([
+          supabase.auth.getUser(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Auth timeout')), 2000)
+          ),
+        ]) as Awaited<ReturnType<typeof supabase.auth.getUser>>;
+
+        const { data: { user } } = result;
         if (user) {
           // Fetch avatar_url from profiles table
           let avatar_url: string | undefined;

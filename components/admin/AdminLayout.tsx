@@ -397,6 +397,27 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   const router = useRouter();
 
   useEffect(() => {
+    if (!userProfile?.id || !pusherClient) return;
+    
+    const channel = pusherClient.subscribe('global-settings');
+    
+    const handleUpdate = (data: any) => {
+      toast.info('Global settings updated', {
+        description: 'A platform-wide configuration has been modified.',
+        icon: <Settings className="w-5 h-5 text-purple-600" />,
+      });
+    };
+
+    channel.bind('platform-updated', handleUpdate);
+    channel.bind('risk-updated', handleUpdate);
+    channel.bind('notifications-updated', handleUpdate);
+
+    return () => {
+      pusherClient!.unsubscribe('global-settings');
+    };
+  }, [userProfile?.id]);
+
+  useEffect(() => {
     setIsHydrated(true);
   }, []);
 

@@ -13,8 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { useAuthStore } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
+
 
 // ─── Type Definitions ─────────────────────────────────────────────────────────
 
@@ -1532,7 +1532,7 @@ const NotificationSettingsTab: React.FC<NotificationSettingsTabProps> = ({
             <Label className="text-sm font-medium">Fraud Alert Email Recipients</Label>
             <Input
               type="text"
-              value={settings.fraud_alert_emails || 'admin@eaziwage.com'}
+              value={settings.fraud_alert_emails || 'support@eaziwage.com'}
               onChange={(e) => onUpdate({ ...settings, fraud_alert_emails: e.target.value })}
               placeholder="email1@example.com, email2@example.com"
               className="mt-1"
@@ -2272,38 +2272,100 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
 
 // ─── Admin Profile Tab ────────────────────────────────────────────────────────
 
+interface AdminProfileData {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
+
 const AdminProfileTab: React.FC = () => {
-  const user = useAuthStore((state) => state.user);
-  
-  if (!user) return null;
+  const [profile, setProfile] = useState<AdminProfileData | null>(null);
+  const [profileLoading, setProfileLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchAdminProfile = async () => {
+      try {
+        const res = await fetch('/api/admin/me', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.error) {
+            setProfile({
+              user_id: data.user_id,
+              email: data.email,
+              full_name: data.full_name,
+              avatar_url: data.avatar_url,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch admin profile:', err);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    fetchAdminProfile();
+  }, []);
+
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-8 h-8 border-4 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-slate-500">Could not load profile. Please refresh the page.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <SectionCard title="Admin Profile" icon={User} description="Manage your personal admin account settings">
-        <div className="flex flex-col items-center mb-8">
-          <AvatarUpload 
-            userId={user.id} 
-            currentAvatarUrl={(user as any).avatar_url} 
-            fullName={(user as any).full_name || user.email}
-          />
-        </div>
+    <div className="space-y-6">
+      {/* Profile Section */}
+      <SectionCard title="Profile Information" icon={User} description="Your personal details">
+        <div className="space-y-6">
+          {/* Avatar Upload */}
+          <div className="flex items-center gap-6">
+            <AvatarUpload
+              currentAvatarUrl={profile.avatar_url ?? undefined}
+              userId={profile.user_id}
+              onUploadSuccess={(_url: string) => {
+                toast.success('Profile photo updated');
+              }}
+            />
+            <div className="flex-1">
+              <h3 className="font-semibold text-slate-900 dark:text-white">
+                {profile.full_name || 'Admin User'}
+              </h3>
+              <p className="text-sm text-slate-500">{profile.email}</p>
+            </div>
+          </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Full Name</Label>
-            <Input value={(user as any).full_name || ''} readOnly className="bg-slate-50 dark:bg-slate-900 border-slate-200" />
-          </div>
-          <div className="space-y-2">
-            <Label>Email Address</Label>
-            <Input value={user.email || ''} readOnly className="bg-slate-50 dark:bg-slate-900 border-slate-200" />
-          </div>
-          <div className="space-y-2">
-            <Label>Role</Label>
-            <Input value={(user as any).role || 'Admin'} readOnly className="bg-slate-50 dark:bg-slate-900 border-slate-200 capitalize" />
-          </div>
-          <div className="space-y-2">
-            <Label>User ID</Label>
-            <Input value={user.id} readOnly className="bg-slate-50 dark:bg-slate-900 border-slate-200 font-mono text-xs" />
+          {/* Name and Email Fields */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input
+                id="fullName"
+                disabled
+                defaultValue={profile.full_name || ''}
+                className="rounded-lg"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                defaultValue={profile.email || ''}
+                className="rounded-lg"
+                disabled
+              />
+            </div>
           </div>
         </div>
       </SectionCard>

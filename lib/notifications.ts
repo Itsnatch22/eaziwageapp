@@ -1,6 +1,9 @@
 import pusherServer from "./pusher-server";
 import { createClient } from "@supabase/supabase-js";
 import { getEnv } from "@/env";
+import { sendEmail } from "./email-service";
+import { DocumentApprovedEmail } from "./emails/AdminKYCNotification";
+import React from 'react';
 
 const env = getEnv();
 const supabaseAdmin = createClient(
@@ -51,6 +54,28 @@ export async function notifyAdmins(params: {
 
     // Trigger real-time event
     await pusherServer.trigger('admin-notifications', 'new-notification', data);
+
+    // ── Email Notification for Admins ──
+    const { data: adminEmails } = await supabaseAdmin
+      .from('system_admins')
+      .select('email');
+    
+    if (adminEmails && adminEmails.length > 0) {
+      for (const admin of adminEmails) {
+        if (admin.email) {
+          await sendEmail({
+            to: admin.email,
+            subject: `[ADMIN ALERT] ${params.title}`,
+            react: React.createElement(DocumentApprovedEmail, {
+              employeeName: 'Admin',
+              documentType: params.type.replace('_', ' '),
+              approvedDate: new Date().toLocaleDateString(),
+              dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin`,
+            })
+          }).catch(e => console.error(`[notifyAdmins] Email failed for ${admin.email}:`, e));
+        }
+      }
+    }
     
     return { success: true, data };
   } catch (err) {
@@ -88,6 +113,26 @@ export async function notifyEmployer(params: {
 
     // Trigger real-time event for specific employer channel
     await pusherServer.trigger(`employer-${params.userId}`, 'new-notification', data);
+
+    // ── Email Notification ──
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', params.userId)
+      .single();
+
+    if (profile?.email) {
+      await sendEmail({
+        to: profile.email,
+        subject: params.title,
+        react: React.createElement(DocumentApprovedEmail, {
+          employeeName: profile.full_name || 'Employer',
+          documentType: params.type === 'advance' ? 'New Advance Request' : 'System Update',
+          approvedDate: new Date().toLocaleDateString(),
+          dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboards/employer-dashboard`,
+        })
+      }).catch(e => console.error(`[notifyEmployer] Email failed:`, e));
+    }
     
     return { success: true, data };
   } catch (err) {
@@ -125,6 +170,26 @@ export async function notifyEmployee(params: {
 
     // Trigger real-time event for specific user channel
     await pusherServer.trigger(`user-${params.userId}`, 'new-notification', data);
+
+    // ── Email Notification ──
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', params.userId)
+      .single();
+
+    if (profile?.email) {
+      await sendEmail({
+        to: profile.email,
+        subject: params.title,
+        react: React.createElement(DocumentApprovedEmail, {
+          employeeName: profile.full_name || 'Employee',
+          documentType: params.type === 'advance_approval' ? 'Advance Request' : 'Profile Update',
+          approvedDate: new Date().toLocaleDateString(),
+          dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboards/employee-dashboard`,
+        })
+      }).catch(e => console.error(`[notifyEmployee] Email failed:`, e));
+    }
     
     return { success: true, data };
   } catch (err) {

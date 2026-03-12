@@ -18,7 +18,7 @@ import { Slider } from '@/components/ui/slider';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout'
 import { toast } from "sonner";
 import { cn, getAdvanceLimit, getCurrencySymbol } from "@/lib/utils";
-import { useAuthStore } from '@/lib/stores/auth';
+
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import pusherClient from '@/lib/pusher-client';
 
@@ -319,17 +319,22 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
   );
 };
 
-const EmployerProfileTab = ({ user }: { user: any }) => {
-  if (!user) return null;
+interface EmployerProfileTabProps {
+  employerId?: string;
+  fullName?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+}
 
+const EmployerProfileTab = ({ employerId, fullName, email, avatarUrl }: EmployerProfileTabProps) => {
   return (
     <div className="space-y-6">
       <SettingsCard icon={Users} title="Your Profile" description="Manage your personal profile and account settings">
         <div className="flex flex-col items-center mb-8">
           <AvatarUpload 
-            userId={user.id} 
-            currentAvatarUrl={(user as any).avatar_url} 
-            fullName={(user as any).full_name || user.email}
+            userId={employerId} 
+            currentAvatarUrl={avatarUrl ?? undefined} 
+            fullName={fullName || email || undefined}
           />
         </div>
 
@@ -337,7 +342,7 @@ const EmployerProfileTab = ({ user }: { user: any }) => {
           <div className="space-y-2">
             <Label className="text-slate-700 dark:text-slate-300">Full Name</Label>
             <Input 
-              value={(user as any).full_name || ''} 
+              value={fullName || ''} 
               readOnly 
               className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed" 
             />
@@ -345,7 +350,7 @@ const EmployerProfileTab = ({ user }: { user: any }) => {
           <div className="space-y-2">
             <Label className="text-slate-700 dark:text-slate-300">Email Address</Label>
             <Input 
-              value={user.email || ''} 
+              value={email || ''} 
               readOnly 
               className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed" 
             />
@@ -353,7 +358,7 @@ const EmployerProfileTab = ({ user }: { user: any }) => {
           <div className="space-y-2">
             <Label className="text-slate-700 dark:text-slate-300">Role</Label>
             <Input 
-              value={(user as any).role || 'Employer Admin'} 
+              value="Employer" 
               readOnly 
               className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed capitalize" 
             />
@@ -361,7 +366,7 @@ const EmployerProfileTab = ({ user }: { user: any }) => {
           <div className="space-y-2">
             <Label className="text-slate-700 dark:text-slate-300">Account ID</Label>
             <Input 
-              value={user.id} 
+              value={employerId || ''} 
               readOnly 
               className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed font-mono text-xs" 
             />
@@ -416,7 +421,6 @@ const getResponseErrorMessage = async (res: Response, fallback: string): Promise
 };
 
 export default function EmployerSettings() {
-    const user = useAuthStore((state) => state.user);
     const [employer, setEmployer] = useState<EmployerProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -601,9 +605,8 @@ export default function EmployerSettings() {
   }, []);
 
   useEffect(() => {
-    if (!user?.id || !employer?.id || !pusherClient) return;
+    if (!employer?.id || !pusherClient) return;
 
-    const userChannel = pusherClient.subscribe(`user-${user.id}`);
     const employerChannel = pusherClient.subscribe(`employer-${employer.id}`);
 
     const handleUpdate = (data: any) => {
@@ -611,16 +614,13 @@ export default function EmployerSettings() {
       void fetchData();
     };
 
-    userChannel.bind('kyc-update', handleUpdate);
     employerChannel.bind('kyc-update', handleUpdate);
 
     return () => {
-      userChannel.unbind('kyc-update', handleUpdate);
       employerChannel.unbind('kyc-update', handleUpdate);
-      pusherClient!.unsubscribe(`user-${user.id}`);
       pusherClient!.unsubscribe(`employer-${employer.id}`);
     };
-  }, [user?.id, employer?.id]);
+  }, [employer?.id]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -762,7 +762,14 @@ export default function EmployerSettings() {
           {/* Content Area */}
           <div className="lg:col-span-3 space-y-6">
             {/* Account Tab */}
-            {activeTab === 'account' && <EmployerProfileTab user={user} />}
+            {activeTab === 'account' && (
+              <EmployerProfileTab
+                employerId={employer?.id}
+                fullName={employer?.full_name || employer?.contact_person}
+                email={employer?.contact_email}
+                avatarUrl={(employer as any)?.avatar_url}
+              />
+            )}
 
             {/* Company Tab */}
             {activeTab === 'company' && (

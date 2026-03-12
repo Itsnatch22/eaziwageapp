@@ -3,12 +3,11 @@
 import React, { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from './avatar';
-import { Button } from './button';
-import { Loader2, Upload, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AvatarUploadProps {
-  userId: string;
+  userId: string | undefined;
   currentAvatarUrl?: string | null;
   fullName?: string | null;
   onUploadSuccess?: (url: string) => void;

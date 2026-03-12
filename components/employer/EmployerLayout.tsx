@@ -388,6 +388,24 @@ interface EmployerPortalLayoutProps {
 }
 export const EmployerPortalLayout = ({ children, employer = null }: EmployerPortalLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const user = useAuthStore((state) => state.user as EmployerUser | null);
+
+  useEffect(() => {
+    if (!user?.id || !pusherClient) return;
+    
+    const channel = pusherClient.subscribe(`employer-${user.id}`);
+    
+    channel.bind('settings-updated', (data: any) => {
+      toast.success('Organization settings updated', {
+        description: 'Your organization settings have been updated by an administrator.',
+        icon: <Settings className="w-5 h-5 text-blue-600" />,
+      });
+    });
+
+    return () => {
+      pusherClient?.unsubscribe(`employer-${user.id}`);
+    };
+  }, [user?.id]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300" data-testid="employer-dashboard">

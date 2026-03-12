@@ -15,18 +15,13 @@ function createAdminClient() {
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const targetId = searchParams.get('target_id');
-    
-    if (!targetId) {
-      return NextResponse.json({ error: 'target_id is required' }, { status: 400 });
-    }
-
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const access = await checkAdminAccess({ user, adminSupabase });
     if (!access.isAdmin) {
@@ -35,21 +30,30 @@ export async function GET(req: NextRequest) {
 
     const { data: logs, error } = await adminSupabase
       .from('system_audit_logs')
-      .select('*')
-      .eq('target_id', targetId)
-      .order('created_at', { ascending: false });
+      .select('admin_id, admin_name')
+      .order('admin_name', { ascending: true });
 
     if (error) {
-      // If table doesn't exist yet, return empty array instead of 500
       if (error.code === 'PGRST116' || error.code === '42P01') {
         return NextResponse.json([]);
       }
       throw error;
     }
 
-    return NextResponse.json(logs || []);
+    const adminMap = new Map<string, { id: string; name: string }>();
+    (logs || []).forEach((log) => {
+      if (!log.admin_id) return;
+      if (!adminMap.has(log.admin_id)) {
+        adminMap.set(log.admin_id, {
+          id: log.admin_id,
+          name: log.admin_name || 'Unknown',
+        });
+      }
+    });
+
+    return NextResponse.json(Array.from(adminMap.values()));
   } catch (error) {
-    console.error('[GET /api/admin/audit] Error:', error);
+    console.error('[GET /api/admin/audit-trail/admins] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

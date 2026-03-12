@@ -180,6 +180,62 @@ export const walletTransactions = pgTable('wallet_transactions', {
   reference_idx: index('wallet_tx_reference_idx').on(table.reference),
 }));
 
+// Global Settings (Platform-wide configuration)
+export const globalSettings = pgTable('global_settings', {
+  id: text('id').primaryKey().default('default'),
+  platform_settings: jsonb('platform_settings').notNull().default({}),
+  risk_settings: jsonb('risk_settings').notNull().default({}),
+  notification_settings: jsonb('notification_settings').notNull().default({}),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Blackout Periods
+export const blackoutPeriods = pgTable('blackout_periods', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  start_date: timestamp('start_date').notNull(),
+  end_date: timestamp('end_date').notNull(),
+  applies_to: text('applies_to').default('all').notNull(), // 'all' or country code 'KE', 'UG', etc.
+  reason: text('reason'),
+  is_active: numeric('is_active', { precision: 1, scale: 0 }).default('1').notNull(),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Legal Documents
+export const legalDocuments = pgTable('legal_documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  document_type: text('document_type').notNull(), // 'employee_terms', 'employer_partnership', 'privacy_policy'
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  version: text('version').notNull(),
+  effective_date: timestamp('effective_date').notNull(),
+  is_active: numeric('is_active', { precision: 1, scale: 0 }).default('1').notNull(),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  type_idx: index('legal_docs_type_idx').on(table.document_type),
+}));
+
+// System Audit Logs
+export const systemAuditLogs = pgTable('system_audit_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  admin_id: uuid('admin_id').notNull(),
+  admin_name: text('admin_name'),
+  target_id: text('target_id'),
+  target_type: text('target_type'),
+  action: text('action').notNull(),
+  old_value: jsonb('old_value'),
+  new_value: jsonb('new_value'),
+  reason: text('reason'),
+  metadata: jsonb('metadata'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  admin_idx: index('audit_admin_idx').on(table.admin_id),
+  target_idx: index('audit_target_idx').on(table.target_id, table.target_type),
+  action_idx: index('audit_action_idx').on(table.action),
+}));
+
 // Type exports
 export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
@@ -191,3 +247,7 @@ export type NewAdvance = typeof advances.$inferInsert;
 export type DusupayTransaction = typeof dusupayTransactions.$inferSelect;
 export type EmployerWallet = typeof employerWallets.$inferSelect;
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
+export type GlobalSettings = typeof globalSettings.$inferSelect;
+export type BlackoutPeriod = typeof blackoutPeriods.$inferSelect;
+export type LegalDocument = typeof legalDocuments.$inferSelect;
+export type SystemAuditLog = typeof systemAuditLogs.$inferSelect;

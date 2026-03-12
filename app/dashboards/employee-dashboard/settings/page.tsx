@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
-import { useAuthStore, updateUserAvatar } from '@/lib/stores/auth';
+import { updateUserAvatar } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
@@ -97,7 +97,6 @@ const FAQItem = ({ question, answer }: any) => {
 
 export default function EmployeeSettings() {
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('account');
@@ -211,9 +210,9 @@ export default function EmployeeSettings() {
                 <SettingsCard icon={User} title="Personal Information" description="Manage your basic account details">
                   <div className="flex flex-col items-center mb-8">
                     <AvatarUpload 
-                      userId={profile?.id || user?.id} 
-                      currentAvatarUrl={profile?.avatar_url || user?.avatar_url} 
-                      fullName={profile?.full_name || user?.full_name}
+                      userId={profile?.id} 
+                      currentAvatarUrl={profile?.avatar_url} 
+                      fullName={profile?.full_name}
                       onUploadSuccess={(url) => {
                         // Update the auth store so the layout avatar updates immediately
                         updateUserAvatar(url);

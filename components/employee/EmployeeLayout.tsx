@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Home, Wallet, History, User, LogOut, Bell, ChevronRight,
-  Trash2, Loader2, Menu, X, Shield,
+  Loader2, Menu, X, Shield,
   HelpCircle, CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,9 +17,8 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
-import { createClient } from '@/lib/supabase/client';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types 
 
 interface Notification {
   id: string;
@@ -37,7 +36,7 @@ interface EmployeeUser {
   avatar_url?: string;
 }
 
-// ─── Background ───────────────────────────────────────────────────────────────
+//  Background 
 
 export const EmployeeBackground = () => (
   <>
@@ -49,7 +48,7 @@ export const EmployeeBackground = () => (
   </>
 );
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
+//  Sidebar 
 
 interface SidebarNavProps {
   isOpen: boolean;
@@ -220,7 +219,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   );
 };
 
-// ─── Top Header ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Top Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface TopHeaderProps {
   onMenuClick: () => void;
@@ -382,7 +381,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   );
 };
 
-// ─── Floating Nav ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Floating Nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const FloatingNav = () => {
   const pathname = usePathname();
@@ -443,7 +442,7 @@ export const FloatingNav = () => {
   );
 };
 
-// ─── Main Layout ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface EmployeePortalLayoutProps {
   children: React.ReactNode;
@@ -452,69 +451,71 @@ interface EmployeePortalLayoutProps {
 
 export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sessionChecked, setSessionChecked] = useState(false);
-  const [directSessionValid, setDirectSessionValid] = useState<boolean | null>(null);
   const user = useAuthStore(s => s.user);
   const loading = useAuthStore(s => s.loading);
   const router = useRouter();
   const pathname = usePathname();
 
+  // Subscribe to Pusher for real-time updates
   useEffect(() => {
-    let mounted = true;
-    let timeout: NodeJS.Timeout;
+    if (!user?.id || !pusherClient) return;
 
-    const checkSession = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user: directUser }, error } = await supabase.auth.getUser();
-        if (!mounted) return;
-        setDirectSessionValid(error ? false : !!directUser);
-      } catch {
-        if (mounted) setDirectSessionValid(false);
-      } finally {
-        if (mounted) setSessionChecked(true);
-      }
+    const channel = pusherClient.subscribe(`user-${user.id}`);
+    
+    channel.bind('settings-updated', (data: any) => {
+      toast.success('Your account settings updated', {
+        description: 'An administrator has updated your account configuration.',
+        icon: <Shield className="w-5 h-5 text-emerald-500" />,
+      });
+    });
+
+    return () => {
+      pusherClient!.unsubscribe(`user-${user.id}`);
     };
+  }, [user?.id]);
 
-    if (!loading) {
-      timeout = setTimeout(() => { if (mounted) checkSession(); }, 100);
-    }
+  // Close sidebar on route change
+  useEffect(() => { 
+    setSidebarOpen(false); 
+  }, [pathname]);
 
-    return () => { mounted = false; clearTimeout(timeout); };
-  }, [loading]);
-
-  useEffect(() => { setSidebarOpen(false); }, [pathname]);
-
-  if (loading || !sessionChecked) return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Loading dashboard…</p>
-      </div>
-    </div>
-  );
-
-  if (!user && !directSessionValid) return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center px-6">
-      <div className="text-center max-w-sm space-y-4">
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
-          style={{ background: '#ef444412', border: '1px solid #ef444425' }}>
-          <Shield className="w-7 h-7 text-red-500" />
+  // Show loading state while auth is initializing
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Loading dashboard</p>
         </div>
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Session Unavailable</h2>
-        <p className="text-sm text-slate-500 leading-relaxed">
-          Your session could not be verified. Please refresh or log in again.
-        </p>
-        <button
-          onClick={() => router.push('/login')}
-          className="mt-2 px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm hover:scale-105 transition-all"
-        >
-          Go to Login
-        </button>
       </div>
-    </div>
-  );
+    );
+  }
 
+  // Show error state if no user after loading completes
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center px-6">
+        <div className="text-center max-w-sm space-y-4">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
+            style={{ background: '#ef444412', border: '1px solid #ef444425' }}>
+            <Shield className="w-7 h-7 text-red-500" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Session Unavailable</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Your session could not be verified. Please refresh or log in again.
+          </p>
+          <button
+            onClick={() => router.push('/')}
+            className="mt-2 px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm hover:scale-105 transition-all"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Render the authenticated layout
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <EmployeeBackground />
@@ -532,7 +533,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
   );
 }
 
-// ─── Compatibility Exports ────────────────────────────────────────────────────
+// Compatibility Exports 
 
 export { EmployeePortalLayout as EmployeePageLayout };
 
