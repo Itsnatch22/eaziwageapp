@@ -7,6 +7,7 @@ import {
   Loader2, Landmark, Search, ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ExportButton } from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
@@ -143,9 +144,19 @@ export default function Transactions() {
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Transaction History</p>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Recent Activity</h1>
           </div>
-          <Button variant="outline" className="h-10 px-5 rounded-xl text-[10px] font-bold uppercase tracking-widest border-slate-200 dark:border-white/10 w-fit">
-            <Download className="w-3.5 h-3.5 mr-2" /> Export
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportButton 
+              data={filteredItems}
+              filename="my-transactions"
+              headers={['Date', 'Amount', 'Status', 'Method']}
+              mapping={(t: TransactionItem) => [
+                new Date(t.created_at).toLocaleDateString(),
+                t.amount,
+                t.status,
+                t.method
+              ]}
+            />
+          </div>
         </div>
 
         {/* Stats */}

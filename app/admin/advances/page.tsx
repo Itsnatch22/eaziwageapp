@@ -6,6 +6,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { ExportButton } from '@/components/ui/ExportButton';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
@@ -569,10 +570,20 @@ export default function AdminAdvances(){
             onClick={fetchAdvances}>
               <RefreshCw className="w-4 h-4 mr-2" /> Refresh
             </button>
-            <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 dark:bg-slate-800/60"
-            >
-              <Download className="w-4 h-4 mr-2" /> Export
-            </button>
+            <ExportButton 
+              data={filteredAdvances}
+              filename="admin-advances"
+              headers={['Employee', 'Employer', 'Amount', 'Fee', 'Net', 'Status', 'Date']}
+              mapping={(a: Advance) => [
+                a.employee_name,
+                a.employer_name,
+                a.amount,
+                a.fee_amount,
+                a.net_amount,
+                a.status,
+                a.created_at
+              ]}
+            />
           </div>
         </div>
 

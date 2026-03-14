@@ -6,7 +6,7 @@ import {
   ChevronRight, CheckCircle2,
   Shield, CreditCard, Smartphone, 
   Mail, Phone, MapPin,
-  User,ScanFace,
+  User,Loader2,
   Briefcase, Landmark, Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -104,7 +104,29 @@ export default function EmployeeSettings() {
 
   // Settings states
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(true);
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  useEffect(() => {
+    async function fetchLogs() {
+      if (activeTab === 'security') {
+        setLogsLoading(true);
+        try {
+          const res = await fetch('/api/auth/activity-logs');
+          if (res.ok) {
+            const data = await res.json();
+            setActivityLogs(data.logs || []);
+          }
+        } finally {
+          setLogsLoading(false);
+        }
+      }
+    }
+    fetchLogs();
+  }, [activeTab]);
+
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -238,7 +260,7 @@ export default function EmployeeSettings() {
                       <Input value={employee?.country || 'Not set'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
                     </div>
                   </div>
-                  <p className="mt-4 text-[10px] text-slate-400 italic">To change verified personal details, please contact HR.</p>
+                  <p className="mt-4 text-[10px] text-slate-400 italic">To change verified personal details, please contact admin.</p>
                 </SettingsCard>
 
                 <SettingsCard icon={MapPin} title="Resident Address" description="Your current residential information">
@@ -414,6 +436,40 @@ export default function EmployeeSettings() {
             {/* Security Tab */}
             {activeTab === 'security' && (
               <div className="space-y-6">
+                <SettingsCard icon={Shield} title="Multi-Factor Authentication" description="Add an extra layer of security to your account">
+                  <ToggleItem 
+                    icon={Smartphone}
+                    label="Authenticator App (TOTP)"
+                    description="Use an app like Google Authenticator or Authy"
+                    checked={mfaEnabled}
+                    onToggle={() => setMfaEnabled(!mfaEnabled)}
+                  />
+                </SettingsCard>
+
+                <SettingsCard icon={History} title="Login History & Activity" description="Recent security-related events on your account">
+                  <div className="space-y-4">
+                    {logsLoading ? (
+                      <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+                    ) : activityLogs.length === 0 ? (
+                      <p className="text-xs text-slate-500 text-center py-4">No recent activity logged.</p>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-white/5">
+                        {activityLogs.map((log, idx) => (
+                          <div key={idx} className="py-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{log.action.replace('_', ' ')}</p>
+                              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest">
+                              {log.metadata?.ip || 'Verified'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </SettingsCard>
+
                 <SettingsCard icon={Lock} title="Password" description="Update your security credentials">
                   <div className="space-y-4">
                     <div className="grid sm:grid-cols-2 gap-4">
@@ -422,16 +478,6 @@ export default function EmployeeSettings() {
                     </div>
                     <Button className="bg-primary text-white">Update Password</Button>
                   </div>
-                </SettingsCard>
-
-                <SettingsCard icon={ScanFace} title="Biometrics" description="Fast and secure authentication">
-                  <ToggleItem 
-                    icon={Shield}
-                    label="Face ID Login"
-                    description="Use facial recognition to sign in"
-                    checked={biometricEnabled}
-                    onToggle={() => setBiometricEnabled(!biometricEnabled)}
-                  />
                 </SettingsCard>
               </div>
             )}

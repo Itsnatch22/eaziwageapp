@@ -9,6 +9,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
+import { ExportButton } from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -412,7 +413,7 @@ const EmployeeRow: React.FC<{
     />
     <div className="flex-1 min-w-0">
       <p className="font-semibold text-slate-900 dark:text-white truncate">
-        {employee.full_name || `Employee ${employee.employee_code}`}
+        {employee.full_name || (employee as any).name || `Employee ${employee.employee_code || ''}`}
       </p>
       <p className="text-xs text-slate-500 dark:text-slate-400">
         {employee.job_title} • {employee.department || 'General'}
@@ -1095,9 +1096,21 @@ const EmployerEmployees: React.FC = () => {
         {filteredEmployees.length > 0 && (
           <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
             <span>Showing {filteredEmployees.length} of {employees.length} employees</span>
-            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60" onClick={handleExportCSV}>
-              <Download className="w-4 h-4 mr-2" />Export CSV
-            </Button>
+            <ExportButton 
+              data={filteredEmployees}
+              filename={`employees-${new Date().toISOString().split('T')[0]}`}
+              headers={['Name', 'Code', 'Job Title', 'Department', 'Salary', 'KYC Status', 'Status', 'Country']}
+              mapping={(e: Employee) => [
+                e.full_name ?? '',
+                e.employee_code ?? '',
+                e.job_title ?? '',
+                e.department ?? '',
+                e.monthly_salary ?? 0,
+                e.kyc_status ?? '',
+                e.status ?? '',
+                e.country ?? ''
+              ]}
+            />
           </div>
         )}
       </div>

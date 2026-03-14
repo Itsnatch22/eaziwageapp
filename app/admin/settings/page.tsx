@@ -199,7 +199,7 @@ interface Pagination {
 }
 
 // Tab Types
-type TabId = 'global' | 'employer' | 'employee' | 'risk' | 'notifications' | 'blackouts' | 'legal' | 'audit';
+type TabId = 'global' | 'employer' | 'employee' | 'risk' | 'notifications' | 'blackouts' | 'legal' | 'audit' | 'security';
 
 interface Tab {
   id: TabId;
@@ -2405,6 +2405,29 @@ const AdminSettings: React.FC = () => {
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({});
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({});
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
+  
+  // Security States
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [securityLogs, setSecurityLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  useEffect(() => {
+    async function fetchSecurityLogs() {
+      if (activeTab === 'security') {
+        setLogsLoading(true);
+        try {
+          const res = await fetch('/api/auth/activity-logs');
+          if (res.ok) {
+            const data = await res.json();
+            setSecurityLogs(data.logs || []);
+          }
+        } finally {
+          setLogsLoading(false);
+        }
+      }
+    }
+    fetchSecurityLogs();
+  }, [activeTab]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('eaziwage_token');
@@ -2489,9 +2512,11 @@ const AdminSettings: React.FC = () => {
     { id: 'risk', label: 'Risk & Compliance', icon: Shield },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'blackouts', label: 'Blackout Periods', icon: CalendarOff },
-    { id: 'legal', label: 'Legal Documents', icon: FileText },
+    { id: 'legal', label: 'Legal Docs', icon: FileCheck },
     { id: 'audit', label: 'Audit Trail', icon: ClipboardList },
-  ];
+    { id: 'security', label: 'Security', icon: Lock },
+    ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -2601,6 +2626,44 @@ const AdminSettings: React.FC = () => {
         )}
         {activeTab === 'audit' && (
           <AuditTrailTab token={token} />
+        )}
+        {activeTab === 'security' && (
+          <div className="space-y-6">
+            <SectionCard title="Admin Multi-Factor Authentication" icon={Shield} description="Secure your admin access with TOTP">
+              <Toggle
+                label="Authenticator App (TOTP)"
+                description="Require a code from an app like Google Authenticator to log in"
+                enabled={mfaEnabled}
+                onChange={(v) => setMfaEnabled(v)}
+              />
+            </SectionCard>
+
+            <SectionCard title="Your Recent Activity" icon={History} description="Security-related events for your account">
+              <div className="space-y-4">
+                {logsLoading ? (
+                  <div className="flex justify-center py-8"><RefreshCw className="w-6 h-6 animate-spin text-purple-500" /></div>
+                ) : securityLogs.length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center py-8">No security events recorded.</p>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {securityLogs.map((log, idx) => (
+                      <div key={idx} className="py-4 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white capitalize">{log.action.replace('_', ' ')}</p>
+                          <p className="text-xs text-slate-500 mt-1">{new Date(log.created_at).toLocaleString()}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                            {log.metadata?.ip || 'Verified'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </SectionCard>
+          </div>
         )}
       </div>
   );

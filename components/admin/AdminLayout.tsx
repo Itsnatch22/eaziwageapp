@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building2, CreditCard, BarChart3, Settings, LogOut,
-  Bell, Menu, X, ChevronRight, Shield, CheckCircle2, Wifi,
-  AlertTriangle, Loader2, Trash2, MessageSquare, HelpCircle, ClipboardCheck
+  Bell, Menu, X, ChevronRight, Shield, CheckCircle2, Wifi, Search, Sparkles,
+  AlertTriangle, Loader2, DollarSign, MessageSquare, HelpCircle, ClipboardCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import pusherClient from '@/lib/pusher-client';
@@ -16,6 +16,8 @@ import { logout } from '@/actions/auth';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CommandPalette } from './CommandPalette';
+import { OnboardingGuide } from '../layout/OnboardingGuide';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +78,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
     { label: 'Notifications',   href: '/admin/notifications',    icon: Bell },
     { label: 'Fraud Detection', href: '/admin/fraud-detection',  icon: AlertTriangle },
     { label: 'Reconciliation',  href: '/admin/reconciliation',   icon: BarChart3 },
+    { label: 'Billing & Revenue', href: '/admin/billing',        icon: DollarSign },
     { label: 'System Health',   href: '/admin/api-health',       icon: Wifi },
     { label: 'Settings',        href: '/admin/settings',         icon: Settings },
   ];
@@ -348,6 +351,15 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors mr-2"
+            >
+              <Search className="w-4 h-4" />
+              <span className="text-xs font-bold uppercase tracking-widest">Search</span>
+              <kbd className="text-[10px] font-bold opacity-50 ml-1">⌘K</kbd>
+            </button>
+
+            <button
               onClick={() => setActiveChat({ id: 'system-support', name: 'Support Channel' })}
               className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
             >
@@ -556,7 +568,17 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <AdminBackground />
-      
+      <CommandPalette />
+      <OnboardingGuide 
+        guideKey="admin-overview"
+        steps={[
+          { title: "Admin Control Center", description: "Monitor the entire EaziWage platform from here. High-level stats at your fingertips.", icon: <Shield className="w-10 h-10 text-emerald-500" /> },
+          { title: "Manage Partners", description: "Review and manage employers and their employee bases seamlessly.", icon: <Building2 className="w-10 h-10 text-emerald-500" /> },
+          { title: "Financial Oversight", description: "Track platform revenue, fee collection, and disbursement health across all organizations.", icon: <BarChart3 className="w-10 h-10 text-emerald-500" /> },
+          { title: "Global Search", description: "Press ⌘K anytime to search for any employer, employee, or transaction reference.", icon: <Sparkles className="w-10 h-10 text-emerald-500" /> },
+        ]}
+      />
+
       <AdminSidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} userProfile={userProfile} />
       
       <div className="lg:ml-72 relative">

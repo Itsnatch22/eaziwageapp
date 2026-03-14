@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { UserRoleEnum, isAdminRole } from '@/lib/validations/kyc-validation';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
 import pusherServer from '@/lib/pusher-server';
 
 export const runtime = 'nodejs';
@@ -21,20 +21,11 @@ async function verifyAdmin() {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return { error: 'Unauthorized', status: 401 };
 
-  const { data: profile } = await adminSupabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  const roles = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
-    .filter((role): role is string => typeof role === 'string' && role.length > 0)
-    .map((role) => role.toLowerCase());
-
-  if (!roles.some((role) => {
-    const parsed = UserRoleEnum.safeParse(role);
-    return parsed.success && isAdminRole(parsed.data);
-  })) {
+  const adminAccess = await checkAdminAccess({ user, adminSupabase });
+  if (adminAccess.error) {
+    return { error: 'Failed to verify admin role.', status: 500 };
+  }
+  if (!adminAccess.isAdmin) {
     return { error: 'Forbidden. Admin access required.', status: 403 };
   }
 
@@ -57,11 +48,30 @@ export async function GET(req: NextRequest) {
   // 2. Fetch KYC Document Requests (that are pending)
   const { data: kycDocs, error: kycError } = await adminSupabase
     .from('employee_kyc_documents')
-    .select('*, profiles(full_name)')
+    .select('*')
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
   if (kycError) console.error('Error fetching KYC docs:', kycError);
+
+  const kycUserIds = Array.from(new Set((kycDocs || [])
+    .map((k: { user_id?: string | null }) => k.user_id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)));
+
+  let kycProfilesById: Record<string, { full_name: string | null }> = {};
+  if (kycUserIds.length > 0) {
+    const { data: profiles } = await adminSupabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', kycUserIds);
+
+    if (profiles) {
+      kycProfilesById = profiles.reduce((acc, p) => {
+        if (p.id) acc[p.id] = { full_name: p.full_name ?? null };
+        return acc;
+      }, {} as Record<string, { full_name: string | null }>);
+    }
+  }
 
   // 3. Fetch Bank Change Requests
   const { data: bankRequests, error: bankError } = await adminSupabase
@@ -88,8 +98,8 @@ export async function GET(req: NextRequest) {
   const formattedKyc = (kycDocs || []).map(k => ({
     id: k.id,
     type: 'kyc_review',
-    subject: `KYC Review: ${k.profiles?.full_name}`,
-    employee_name: k.profiles?.full_name,
+    subject: `KYC Review: ${kycProfilesById[k.user_id]?.full_name || 'Unknown'}`,
+    employee_name: kycProfilesById[k.user_id]?.full_name,
     message: `Document Type: ${k.document_type}. Number: ${k.document_number || 'N/A'}`,
     status: k.status,
     priority: 'medium',

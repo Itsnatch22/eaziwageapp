@@ -1,7 +1,7 @@
 "use client"
 import { 
   LayoutDashboard, Users, CreditCard, BarChart3, Settings, LogOut, 
-  Bell, Menu, X, ChevronRight, Upload, HelpCircle, Shield, Trash2, MessageSquare
+  Bell, Menu, X, ChevronRight, Upload, HelpCircle, Shield, Wallet, MessageSquare, Building2
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
@@ -19,6 +19,7 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
+import { OnboardingGuide } from '../layout/OnboardingGuide';
 
 export const EmployerBackground = () => (
   <>
@@ -164,6 +165,8 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
     { href: '/dashboards/employer-dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboards/employer-dashboard/employees', label: 'Employees', icon: Users },
     { href: '/dashboards/employer-dashboard/payroll', label: 'Payroll', icon: Upload },
+    { href: '/dashboards/employer-dashboard/wallet', label: 'Wallet & Funding', icon: Wallet },
+    { href: '/dashboards/employer-dashboard/messages', label: 'Communication', icon: MessageSquare },
     { href: '/dashboards/employer-dashboard/advances', label: 'Advances', icon: CreditCard },
     { href: '/dashboards/employer-dashboard/reports', label: 'Reports', icon: BarChart3 },
     { href: '/dashboards/employer-dashboard/risk-insights', label: 'Risk Insights', icon: Shield },
@@ -410,6 +413,15 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300" data-testid="employer-dashboard">
       <EmployerBackground />
+      <OnboardingGuide 
+        guideKey="employer-overview"
+        steps={[
+          { title: "Employer Portal", description: "Manage your workforce and EWA program from this central hub.", icon: <Building2 className="w-10 h-10 text-emerald-500" /> },
+          { title: "Manage Employees", description: "Onboard new staff, verify details, and monitor participation rates.", icon: <Users className="w-10 h-10 text-emerald-500" /> },
+          { title: "Wallet & Funding", description: "Pre-fund your organization's wallet to enable instant disbursements for your team.", icon: <Wallet className="w-10 h-10 text-emerald-500" /> },
+          { title: "Internal Communication", description: "Send announcements and updates directly to your employees' dashboards.", icon: <MessageSquare className="w-10 h-10 text-emerald-500" /> },
+        ]}
+      />
       
       <SidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       

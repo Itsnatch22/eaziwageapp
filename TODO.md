@@ -1,13 +1,8 @@
-# Fix Nested Button Hydration Error - TODO
+# TODO: Fix TypeScript build error in admin settings
 
-## Task
-Fix the hydration error caused by `<button>` being a descendant of `<button>` in the employee notifications page.
-
-## Steps
-- [x] 1. Fix `components/ui/dropdown-menu.tsx` - Implement proper `asChild` handling in `DropdownMenuTrigger`
-- [x] 2. Fix `components/ui/button.tsx` - Implement proper `asChild` handling in `Button` component
-- [x] 3. Test the fix by running the build
-
-## Status
-- [x] Completed
+## Steps:
+- [x] 1. Update TabId type in app/admin/settings/page.tsx to include 'security'
+- [x] 2. Verify `npm run build` succeeds without TypeScript errors
+- [x] 3. Test security tab functionality post-build
+- [x] 4. Complete task
 

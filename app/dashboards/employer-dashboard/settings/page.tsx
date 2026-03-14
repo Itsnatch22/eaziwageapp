@@ -3,10 +3,10 @@ import React, { useState, useEffect } from "react"
 import { 
   Building2, Users, CreditCard, Bell,
   Shield, Clock, Save, AlertCircle, CheckCircle2,
-  Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight,
+  Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight, Activity,
   FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
   MessageSquare, Phone, MapPin, Globe, X, Loader2,
-  LucideIcon, User
+  LucideIcon, User, Smartphone
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -484,6 +484,27 @@ export default function EmployerSettings() {
 
     const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
     const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  useEffect(() => {
+    async function fetchLogs() {
+      if (activeTab === 'security') {
+        setLogsLoading(true);
+        try {
+          const res = await fetch('/api/auth/activity-logs');
+          if (res.ok) {
+            const data = await res.json();
+            setActivityLogs(data.logs || []);
+          }
+        } finally {
+          setLogsLoading(false);
+        }
+      }
+    }
+    fetchLogs();
+  }, [activeTab]);
 
     const handlePasswordUpdate = async () => {
       if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -1409,6 +1430,40 @@ export default function EmployerSettings() {
             {/* Security Tab */}
             {activeTab === 'security' && (
               <>
+                <SettingsCard icon={Shield} title="Multi-Factor Authentication" description="Add an extra layer of security to your organization account">
+                  <ToggleItem 
+                    icon={Smartphone}
+                    label="Two-Factor Authentication (TOTP)"
+                    description="Secure your account with an authenticator app"
+                    checked={mfaEnabled}
+                    onToggle={() => setMfaEnabled(!mfaEnabled)}
+                  />
+                </SettingsCard>
+
+                <SettingsCard icon={Activity} title="Organization Security Logs" description="Recent security-related events for your account">
+                  <div className="space-y-4">
+                    {logsLoading ? (
+                      <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+                    ) : activityLogs.length === 0 ? (
+                      <p className="text-xs text-slate-500 text-center py-4">No recent organization security events.</p>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-white/5">
+                        {activityLogs.map((log, idx) => (
+                          <div key={idx} className="py-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{log.action.replace('_', ' ')}</p>
+                              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest">
+                              {log.metadata?.ip || 'Verified'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </SettingsCard>
+
                 <SettingsCard icon={Lock} title="Password" description="Update your account password">
                   <div className="space-y-4">
                     <div className="space-y-2">

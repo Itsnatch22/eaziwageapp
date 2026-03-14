@@ -62,32 +62,50 @@ export async function POST(req: NextRequest) {
       errors: [] as { email: string; message: string }[]
     };
 
+    // Track duplicates within the batch
+    const seenEmails = new Set<string>();
+    const seenCodes = new Set<string>();
+
     // 3. Process Batch
-    // For each employee in CSV:
-    // a. Check if a profile with that email exists
-    // b. If exists, check if already linked to this employer in employee_onboarding
-    // c. If not linked, create a pending onboarding record
-    
     for (const emp of employees) {
+      const email = emp.email.toLowerCase();
+      
+      // Batch duplicate check
+      if (seenEmails.has(email)) {
+        results.failed++;
+        results.errors.push({ email, message: 'Duplicate email in this file' });
+        continue;
+      }
+      if (seenCodes.has(emp.employee_code)) {
+        results.failed++;
+        results.errors.push({ email, message: `Duplicate employee code in this file: ${emp.employee_code}` });
+        continue;
+      }
+      seenEmails.add(email);
+      seenCodes.add(emp.employee_code);
+
       try {
-        // Find existing user by email
+        // Find existing user by email in profiles
         const { data: existingProfile } = await adminSupabase
           .from('profiles')
           .select('id')
-          .eq('email', emp.email.toLowerCase())
+          .eq('email', email)
           .maybeSingle();
 
-        // Check if already has onboarding record for THIS employer
-        const { data: existingOnboarding } = await adminSupabase
+        // Check if already has onboarding record for THIS employer OR if employee code is taken
+        const { data: duplicateCheck, error: duplicateError } = await adminSupabase
           .from('employee_onboarding')
-          .select('id')
+          .select('id, email_placeholder, employee_code')
           .eq('employer_id', employer.id)
-          .eq(existingProfile ? 'user_id' : 'id', existingProfile ? existingProfile.id : '00000000-0000-0000-0000-000000000000') // Dummy check if no profile
+          .or(`email_placeholder.eq.${email},employee_code.eq.${emp.employee_code}`)
           .maybeSingle();
 
-        if (existingOnboarding) {
+        if (duplicateCheck) {
           results.failed++;
-          results.errors.push({ email: emp.email, message: 'Already on-boarded or pending' });
+          const reason = duplicateCheck.email_placeholder === email 
+            ? 'Email already exists for this employer' 
+            : `Employee code ${emp.employee_code} is already in use`;
+          results.errors.push({ email, message: reason });
           continue;
         }
 

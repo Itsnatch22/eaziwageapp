@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Home, Wallet, History, User, LogOut, Bell, ChevronRight,
   Loader2, Menu, X, Shield,
-  HelpCircle, CheckCircle2
+  HelpCircle, CheckCircle2, Sparkles, Landmark
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -17,6 +17,8 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
+import { OnboardingGuide } from '../layout/OnboardingGuide';
+
 // Types 
 
 interface Notification {
@@ -66,6 +68,10 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
     { label: 'Home',             href: '/dashboards/employee-dashboard',                 icon: Home },
     { label: 'Request Advance',  href: '/dashboards/employee-dashboard/request-advance', icon: Wallet },
     { label: 'Transactions',     href: '/dashboards/employee-dashboard/transactions',    icon: History },
+    { label: 'Employment',       href: '/dashboards/employee-dashboard/employment',      icon: Shield },
+    { label: 'Payment Methods',  href: '/dashboards/employee-dashboard/payment-methods', icon: Landmark },
+    { label: 'Wellness Tools',   href: '/dashboards/employee-dashboard/wellness',         icon: Sparkles },
+    { label: 'Help Center',      href: '/dashboards/employee-dashboard/support',          icon: HelpCircle },
     { label: 'Profile Settings', href: '/dashboards/employee-dashboard/settings',        icon: User },
   ];
 
@@ -428,6 +434,15 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <EmployeeBackground />
+      <OnboardingGuide 
+        guideKey="employee-overview"
+        steps={[
+          { title: "Welcome to EaziWage!", description: "Your companion for financial flexibility. Get instant access to your earned wages.", icon: <Sparkles className="w-10 h-10 text-emerald-500" /> },
+          { title: "Withdraw Funds", description: "Request an advance against your earned wages anytime, anywhere. Funds arrive instantly.", icon: <Wallet className="w-10 h-10 text-emerald-500" /> },
+          { title: "Track Transactions", description: "Monitor your withdrawal history and repayment status in real-time.", icon: <History className="w-10 h-10 text-emerald-500" /> },
+          { title: "Financial Wellness", description: "Use our budgeting tools to plan your expenses and stay on top of your goals.", icon: <CheckCircle2 className="w-10 h-10 text-emerald-500" /> },
+        ]}
+      />
 
       <EmployeeSidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
 
