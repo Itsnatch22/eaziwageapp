@@ -33,6 +33,17 @@ export const resendLimiter = new Ratelimit({
 });
 
 /**
+ * Rate limiter for contact form submissions
+ * Limits to 5 contact attempts per hour per IP
+ */
+export const contactLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "1 h"),
+  analytics: true,
+  prefix: "ratelimit:contact",
+});
+
+/**
  * Rate limiter for general API endpoints
  * Limits to 100 requests per minute per IP
  */

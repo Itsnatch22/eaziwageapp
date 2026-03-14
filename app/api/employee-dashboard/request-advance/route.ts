@@ -25,6 +25,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('organization_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
   const raw = await req.json().catch(() => null);
   const parsed = requestSchema.safeParse(raw);
   if (!parsed.success) {
@@ -56,6 +62,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { message: 'Your account must be approved before requesting an advance.' },
       { status: 403 },
+    );
+  }
+
+  const organizationId = profile?.organization_id ?? employee.employer_id;
+  if (profileError || !organizationId) {
+    return NextResponse.json(
+      { message: 'Organization not found for this user.' },
+      { status: 400 },
     );
   }
 
@@ -113,6 +127,7 @@ export async function POST(req: NextRequest) {
 
   const payload = {
     employee_id: employee.id,
+    organization_id: organizationId,
     amount: requestedAmount,
     fee_percentage: feePercentage,
     fee_amount: feeAmount,

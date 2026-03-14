@@ -13,6 +13,9 @@ create table public.advances (
   cleared_by uuid null,
   employer_id uuid null,
   updated_at timestamp with time zone null default now(),
+  reference text null,
+  internal_reference text null,
+  disbursed_at timestamp with time zone null,
   constraint advances_pkey primary key (id),
   constraint advances_organization_id_fkey foreign KEY (organization_id) references organizations (id) on delete CASCADE,
   constraint advances_status_check check (
@@ -22,7 +25,11 @@ create table public.advances (
           'pending'::text,
           'approved'::text,
           'denied'::text,
-          'repaid'::text
+          'repaid'::text,
+          'completed'::text,
+          'failed'::text,
+          'disbursed'::text,
+          'processing'::text
         ]
       )
     )

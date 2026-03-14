@@ -66,7 +66,6 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
     { label: 'Home',             href: '/dashboards/employee-dashboard',                 icon: Home },
     { label: 'Request Advance',  href: '/dashboards/employee-dashboard/request-advance', icon: Wallet },
     { label: 'Transactions',     href: '/dashboards/employee-dashboard/transactions',    icon: History },
-    { label: 'KYC Verification', href: '/dashboards/employee-dashboard/onboarding',      icon: Shield },
     { label: 'Profile Settings', href: '/dashboards/employee-dashboard/settings',        icon: User },
   ];
 

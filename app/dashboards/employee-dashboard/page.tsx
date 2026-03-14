@@ -42,6 +42,7 @@ interface EmployeeSummary {
   kyc_status?: string;
   currency?: string;
   reviewer_notes: string;
+  employer_id?: string;
 }
 
 // ─── Circular Dial ────────────────────────────────────────────────────────────
