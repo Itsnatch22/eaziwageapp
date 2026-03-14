@@ -54,14 +54,22 @@ if (typeof window !== 'undefined') {
 
     const syncUser = async () => {
       try {
+        // Get user with a more generous timeout (5 seconds instead of 2)
         const result = await Promise.race([
           supabase.auth.getUser(),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Auth timeout')), 2000)
+            setTimeout(() => reject(new Error('Auth timeout')), 5000)
           ),
         ]) as Awaited<ReturnType<typeof supabase.auth.getUser>>;
 
-        const { data: { user } } = result;
+        const { data: { user }, error } = result;
+        
+        if (error) {
+          console.error('Error getting user:', error);
+          setState({ user: null, loading: false });
+          return;
+        }
+
         if (user) {
           // Fetch avatar_url from profiles table
           let avatar_url: string | undefined;
@@ -73,7 +81,7 @@ if (typeof window !== 'undefined') {
               .single();
             avatar_url = profile?.avatar_url;
           } catch (e) {
-            // Ignore profile fetch errors
+            // Ignore profile fetch errors - it's okay if this fails
             console.log('Could not fetch profile avatar');
           }
           
@@ -88,13 +96,18 @@ if (typeof window !== 'undefined') {
         }
       } catch (error) {
         console.error('Error syncing user:', error);
+        // Set loading to false even on error to prevent infinite loading
         setState({ user: null, loading: false });
       }
     };
 
-    syncUser();
+    // Run initial sync
+    await syncUser();
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event);
+      
       if (session?.user) {
         // Fetch avatar_url from profiles table on auth state change
         let avatar_url: string | undefined;
@@ -115,11 +128,23 @@ if (typeof window !== 'undefined') {
           avatar_url: avatar_url || session.user.user_metadata?.avatar_url,
         };
         setState({ user: enhancedUser, loading: false });
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         setState({ user: null, loading: false });
+      } else {
+        // For other events without a session, keep current state but ensure loading is false
+        setState({ loading: false });
       }
     });
+
+    // Cleanup on unmount (though this rarely happens in practice)
+    return () => {
+      subscription.unsubscribe();
+    };
   };
 
-  initializeAuth();
+  initializeAuth().catch((err) => {
+    console.error('Failed to initialize auth:', err);
+    // Ensure loading is set to false even if initialization fails
+    setState({ user: null, loading: false });
+  });
 }

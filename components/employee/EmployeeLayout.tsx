@@ -17,7 +17,6 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
-
 // Types 
 
 interface Notification {
@@ -195,31 +194,32 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
             <div className="flex items-center gap-3 mb-3">
               <Avatar className="w-10 h-10 rounded-xl border border-slate-100 dark:border-white/10">
                 <AvatarImage src={user?.avatar_url} alt={fullName} />
-                <AvatarFallback className="rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs">
+                <AvatarFallback className="bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{fullName}</p>
-                <p className="text-[10px] text-slate-400 truncate">{user?.email || 'No email'}</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{fullName}</p>
+                <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
               </div>
             </div>
+
             <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/15 transition-all text-xs font-bold border border-red-100 dark:border-red-500/20"
-              aria-label="Logout from account"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 transition-all text-sm font-semibold"
             >
               <LogOut className="w-3.5 h-3.5" />
-              Logout
+              Sign Out
             </button>
           </div>
+
         </div>
       </aside>
     </>
   );
 };
 
-// â”€â”€â”€ Top Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Top Header ───────────────────────────────────────────────────────────────
 
 interface TopHeaderProps {
   onMenuClick: () => void;
@@ -228,143 +228,53 @@ interface TopHeaderProps {
 }
 
 const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
-  const notificationRef = useRef<HTMLDivElement>(null);
-  const isLoadingRef = useRef(false);
+  const pathname = usePathname();
 
-  const loadNotifications = useCallback(async () => {
-    if (isLoadingRef.current) return;
-    isLoadingRef.current = true;
-    setIsLoadingNotifications(true);
-    try {
-      const res = await fetch('/api/employee-dashboard/notifications', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setNotifications(data.notifications || []);
-      } else if (res.status !== 401) {
-        // silent fail for 401, log others
-        console.warn('Notifications fetch failed:', res.status);
-      }
-    } catch {
-      // silent
-    } finally {
-      isLoadingRef.current = false;
-      setIsLoadingNotifications(false);
-    }
-  }, []);
-
-  useEffect(() => { loadNotifications(); }, [loadNotifications]);
-
-  useEffect(() => {
-    if (!user?.id || !pusherClient) return;
-    const channel = pusherClient.subscribe(`user-${user.id}`);
-
-    const handleNew = (data: Notification) => {
-      setNotifications(prev => {
-        if (prev.some(n => n.id === data.id)) return prev;
-        return [data, ...prev].slice(0, 20);
-      });
-      toast(data.title, { description: data.message, icon: <Bell className="w-4 h-4 text-emerald-500" /> });
-    };
-
-    const handleDeleted = (data: { id: string }) => {
-      setNotifications(prev => prev.filter(n => n.id !== data.id));
-    };
-
-    channel.bind('new-notification', handleNew);
-    channel.bind('notification-deleted', handleDeleted);
-
-    return () => {
-      channel.unbind('new-notification', handleNew);
-      channel.unbind('notification-deleted', handleDeleted);
-      pusherClient!.unsubscribe(`user-${user.id}`);
-    };
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!showNotifications) return;
-    const handler = (e: MouseEvent) => {
-      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showNotifications]);
-
-  const handleDelete = useCallback(async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setNotifications(prev => prev.filter(n => n.id !== id));
-    try {
-      const res = await fetch(`/api/employee-dashboard/notifications?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE', credentials: 'include',
-      });
-      if (!res.ok) {
-        await loadNotifications();
-        toast.error('Failed to delete notification');
-      }
-    } catch {
-      await loadNotifications();
-      toast.error('Failed to delete notification');
-    }
-  }, [loadNotifications]);
-
-  const handleMarkAsRead = useCallback(async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    try {
-      await fetch(`/api/employee-dashboard/notifications/${encodeURIComponent(id)}/read`, {
-        method: 'PATCH', credentials: 'include',
-      });
-    } catch { /* silent */ }
-  }, []);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const getNotificationStyle = (type: Notification['type']) => {
-    switch (type) {
-      case 'advance_approval': return { bg: '#10b98112', border: '#10b98125', color: '#10b981', icon: <CheckCircle2 className="w-3.5 h-3.5" /> };
-      case 'kyc_update':       return { bg: '#1e293b12', border: '#1e293b25', color: '#475569', icon: <Shield className="w-3.5 h-3.5" /> };
-      default:                 return { bg: '#10b98108', border: '#10b98115', color: '#64748b', icon: <Bell className="w-3.5 h-3.5" /> };
-    }
+  const getPageTitle = () => {
+    if (title) return title;
+    if (pathname === '/dashboards/employee-dashboard') return 'Dashboard';
+    if (pathname?.includes('request-advance')) return 'Request Advance';
+    if (pathname?.includes('transactions')) return 'Transactions';
+    if (pathname?.includes('onboarding')) return 'KYC Verification';
+    if (pathname?.includes('settings')) return 'Settings';
+    return 'Employee Portal';
   };
 
   return (
     <>
-      <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border-b border-slate-200/50 dark:border-white/10">
-        <div className="px-4 lg:px-8 py-3.5">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={onMenuClick}
-                className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
-                aria-label="Open navigation menu"
-              >
-                <Menu className="w-4 h-4" />
-              </button>
+      <header className="sticky top-0 z-30 px-4 lg:px-8 py-4 lg:py-6 backdrop-blur-xl bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/50 dark:border-white/10">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onMenuClick}
+              className="p-2 rounded-xl bg-white dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 lg:hidden transition-all border border-slate-200 dark:border-white/10"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
 
-              {title && (
-                <div>
-                  <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">{title}</h1>
-                  <p className="text-[10px] text-slate-400 font-medium">Employee Portal</p>
-                </div>
-              )}
+            <div>
+              <h1 className="text-xl lg:text-2xl font-bold text-slate-900 dark:text-white leading-tight">
+                {getPageTitle()}
+              </h1>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+                Employee Portal
+              </p>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2">
-              {user?.id && (
-                <NotificationDropdown 
-                  role="employee"
-                  userId={user.id}
-                  apiPath="/api/employee-dashboard/notifications"
-                  pusherChannel={`user-${user.id}`}
-                  viewAllHref="/dashboards/employee-dashboard/notifications"
-                  primaryColor="primary"
-                />
-              )}
-            </div>
+          <div className="flex items-center gap-2">
+            {user?.id && (
+              <NotificationDropdown 
+                role="employee"
+                userId={user.id}
+                apiPath="/api/employee-dashboard/notifications"
+                pusherChannel={`user-${user.id}`}
+                viewAllHref="/dashboards/employee-dashboard/notifications"
+                primaryColor="primary"
+              />
+            )}
           </div>
         </div>
       </header>
@@ -381,7 +291,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   );
 };
 
-// â”€â”€â”€ Floating Nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Floating Nav ─────────────────────────────────────────────────────────────
 
 export const FloatingNav = () => {
   const pathname = usePathname();
@@ -442,7 +352,7 @@ export const FloatingNav = () => {
   );
 };
 
-// â”€â”€â”€ Main Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main Layout ──────────────────────────────────────────────────────────────
 
 interface EmployeePortalLayoutProps {
   children: React.ReactNode;
@@ -502,7 +412,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
           </div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Session Unavailable</h2>
           <p className="text-sm text-slate-500 leading-relaxed">
-            Your session could not be verified. Please refresh or log in again.
+            Your session could not be verified. Please log in again.
           </p>
           <button
             onClick={() => router.push('/')}

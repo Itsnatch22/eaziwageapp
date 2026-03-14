@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { EmployeeSchema, isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { EmployeeSchema } from '@/lib/validations/kyc-validation';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
 
 const QueryParamsSchema = z.object({
   employer_id: z.string().uuid().optional(),
@@ -59,34 +60,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Check if user has admin role
-    const { data: profile, error: profileError } = await adminSupabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle<{ role: string | null }>();
-
-    if (profileError) {
-      console.error('[GET /api/admin/employees] Profile lookup error:', profileError);
+    const adminAccess = await checkAdminAccess({ user, adminSupabase });
+    if (adminAccess.error) {
+      console.error('[GET /api/admin/employees] Role check error:', adminAccess.error);
       return NextResponse.json(
         { error: 'Failed to verify admin role.', code: 'ROLE_CHECK_FAILED' },
         { status: 500, headers: rateResult.headers }
       );
     }
 
-    const candidateRoles = [
-      profile?.role,
-      user.app_metadata?.role,
-      user.user_metadata?.role,
-    ]
-      .filter((role): role is string => typeof role === 'string' && role.length > 0)
-      .map((role) => role.toLowerCase());
-
-    const isAdmin = candidateRoles.some((role) => {
-      const parsed = UserRoleEnum.safeParse(role);
-      return parsed.success && isAdminRole(parsed.data);
-    });
-    if (!isAdmin) {
+    if (!adminAccess.isAdmin) {
       return NextResponse.json(
         { error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' },
         { status: 403, headers: rateResult.headers }
@@ -184,22 +167,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const parsed = EmployeeSchema.safeParse(flattened);
       return parsed.success ? parsed.data : flattened;
     }).filter(Boolean);
-
-    return NextResponse.json(
-      {
-        data: validatedEmployees,
-        pagination: {
-          total: count || 0,
-          limit,
-          offset,
-          hasMore: (count || 0) > offset + limit,
-        },
-      },
-      {
-        status: 200,
-        headers: rateResult.headers,
-      }
-    );
 
     return NextResponse.json(
       {
