@@ -245,6 +245,8 @@ interface OnboardingFormData {
   city: string;
   postal_code: string;
   start_date: string;
+  joining_month: string;
+  joining_year: string;
 }
 
 interface Employer {
@@ -443,6 +445,7 @@ export default function Onboarding() {
     mobile_money_provider: '', mobile_money_number: '', country: '',
     tax_id: '', address_line1: '', address_line2: '', city: '',
     postal_code: '', start_date: '',
+    joining_month: '', joining_year: '',
   });
 
   useEffect(() => {
@@ -621,10 +624,21 @@ export default function Onboarding() {
       const docUrls: Record<string, string> = {};
       Object.entries(uploadedFiles).forEach(([k, v]) => { if (v?.url) docUrls[k] = v.url; });
 
+      // Construct start_date from joining_month and joining_year
+      let finalStartDate = formData.start_date;
+      if (formData.joining_month && formData.joining_year) {
+        finalStartDate = `${formData.joining_year}-${formData.joining_month}-01`;
+      }
+
       const res = await fetch('/api/employee-dashboard/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, ...docUrls, monthly_salary: parseFloat(formData.monthly_salary) || 0 }),
+        body: JSON.stringify({ 
+          ...formData, 
+          ...docUrls, 
+          start_date: finalStartDate,
+          monthly_salary: parseFloat(formData.monthly_salary) || 0 
+        }),
       });
 
       if (!res.ok) {
@@ -665,7 +679,7 @@ export default function Onboarding() {
       case 3: return !!(formData.national_id && formData.date_of_birth && uploadedFiles.id_front);
       case 4: return !!(formData.country && formData.address_line1 && formData.city && uploadedFiles.address_proof);
       case 5: return true;
-      case 6: return !!(formData.employer_id && formData.job_title && uploadedFiles.payslip_1);
+      case 6: return !!(formData.employer_id && formData.job_title && formData.joining_month && formData.joining_year && uploadedFiles.payslip_1);
       case 7: return !!(formData.mobile_money_number && formData.bank_account && uploadedFiles.bank_statement);
       default: return false;
     }
@@ -1073,6 +1087,34 @@ export default function Onboarding() {
               <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Monthly Salary (Gross)</Label>
               <Input type="number" value={formData.monthly_salary} onChange={e => updateField('monthly_salary', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="Enter amount..." />
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Joining Date</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <Select value={formData.joining_month} onValueChange={v => updateField('joining_month', v)}>
+                  <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {["January", "February", "March", "April", "May", "Jun", "July", "August", "September", "October", "November", "December"].map((m, i) => (
+                      <SelectItem key={m} value={(i + 1).toString().padStart(2, '0')}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={formData.joining_year} onValueChange={v => updateField('joining_year', v)}>
+                  <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {Array.from({ length: 30 }, (_, i) => (new Date().getFullYear() - i).toString()).map(y => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-[9px] text-slate-500 font-medium mt-1">Select the month and year you joined the company.</p>
+            </div>
+
             <FileUploader label="Latest Payslip" onUpload={(f: File) => handleFileUpload(f, 'payslip_1')} uploadedFile={uploadedFiles.payslip_1} uploading={uploadingFile === 'payslip_1'} required />
           </div>
         </div>

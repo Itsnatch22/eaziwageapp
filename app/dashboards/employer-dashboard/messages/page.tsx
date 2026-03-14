@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Send, MessageSquare, History, Users, AlertCircle, 
-  CheckCircle2, Loader2, Megaphone, Trash2, Search, Calendar
+  CheckCircle2, Loader2, Megaphone, Trash2, Search, Calendar, 
 } from 'lucide-react';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatDateTime, cn } from '@/lib/utils';
@@ -127,7 +127,7 @@ const MessagesPage = () => {
                     placeholder="Type your message here..."
                     value={message}
                     onChange={e => setMessage(e.target.value)}
-                    className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 rounded-xl min-h-[150px] resize-none"
+                    className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 rounded-xl min-h-37.5 resize-none"
                     required
                   />
                 </div>

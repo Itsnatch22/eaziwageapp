@@ -85,6 +85,17 @@ const EmploymentDetails = () => {
 
   const { employment, policy } = data;
 
+  const formatJoiningDate = (dateString: string) => {
+    if (!dateString) return 'Not specified';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Not specified';
+    
+    return date.toLocaleDateString('en-US', { 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
   return (
     <EmployeePortalLayout title="Employment Details">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -134,7 +145,7 @@ const EmploymentDetails = () => {
            <DetailCard 
               icon={Calendar} 
               label="Joining Date" 
-              value={new Date(employment.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} 
+              value={formatJoiningDate(employment.start_date)} 
               subValue={`Employment: ${employment.employment_type?.replace('_', ' ')}`}
               variant="purple"
            />

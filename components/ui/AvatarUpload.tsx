@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { updateUserAvatar } from '@/lib/stores/auth';
 import { Avatar, AvatarFallback, AvatarImage } from './avatar';
 import { Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -75,6 +76,9 @@ export function AvatarUpload({
       if (updateError) {
         throw updateError;
       }
+
+      // 5. Sync with global auth store
+      updateUserAvatar(publicUrl);
 
       toast.success('Profile picture updated successfully');
       if (onUploadSuccess) {

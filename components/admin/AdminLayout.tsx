@@ -18,6 +18,7 @@ import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommandPalette } from './CommandPalette';
 import { OnboardingGuide } from '../layout/OnboardingGuide';
+import { useAuthStore } from '@/lib/stores/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -400,6 +401,7 @@ interface AdminPortalLayoutProps {
 
 export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const globalUser = useAuthStore(state => state.user);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -407,6 +409,14 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   const fetchInProgress = useRef(false);
   
   const router = useRouter();
+
+  useEffect(() => {
+    if (globalUser && userProfile && globalUser.id === userProfile.id) {
+      if (globalUser.avatar_url !== userProfile.avatar_url) {
+        setUserProfile(prev => prev ? { ...prev, avatar_url: globalUser.avatar_url } : null);
+      }
+    }
+  }, [globalUser, userProfile]);
 
   useEffect(() => {
     if (!userProfile?.id || !pusherClient) return;
