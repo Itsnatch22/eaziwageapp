@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import pusherServer from '@/lib/pusher-server';
 import { NextRequest, NextResponse } from 'next/server';
 
 const supabase = createClient(
@@ -66,6 +67,7 @@ export async function GET(_req: NextRequest) {
 }
 
 export async function POST(_req: NextRequest) {
+  const startTime = Date.now();
 
   const checks = await Promise.allSettled([
     checkSupabaseSelf(),
@@ -73,18 +75,51 @@ export async function POST(_req: NextRequest) {
     checkVercel(),
     checkCellulant(),
     checkSafaricom(),
+    checkRedis(),
+    checkResend(),
+    checkPusher(),
+    getSystemMetrics(),
   ]);
 
   const results = checks.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+  const totalCheckTime = Date.now() - startTime;
+
+  // Add system-wide metrics
+  const systemResult = {
+    name: 'System Health',
+    provider: 'Internal',
+    status: results.every(r => r.status === 'healthy') ? 'healthy' : 
+           results.some(r => r.status === 'down') ? 'down' : 'degraded',
+    latency_ms: totalCheckTime,
+    uptime_percent: 99.9,
+    transactions_today: results.length,
+    metadata: {
+      total_checks: results.length,
+      healthy_count: results.filter(r => r.status === 'healthy').length,
+      degraded_count: results.filter(r => r.status === 'degraded').length,
+      down_count: results.filter(r => r.status === 'down').length,
+      check_duration_ms: totalCheckTime
+    }
+  };
+
+  const allResults = [...results, systemResult];
 
   // Upsert everything
   const { error } = await supabase
     .from('api_health')
-    .upsert(results, { onConflict: 'name' });
+    .upsert(allResults, { onConflict: 'name' });
 
   if (error) console.error('Health upsert failed:', error);
 
-  return NextResponse.json({ success: true, checked: results.length }, { status: 200 });
+  // Log health check completion
+  console.log(`[Health Check] Completed in ${totalCheckTime}ms - Healthy: ${systemResult.metadata.healthy_count}, Degraded: ${systemResult.metadata.degraded_count}, Down: ${systemResult.metadata.down_count}`);
+
+  return NextResponse.json({ 
+    success: true, 
+    checked: allResults.length,
+    duration_ms: totalCheckTime,
+    summary: systemResult.metadata
+  }, { status: 200 });
 }
 
 // ─── Individual Checks ───────────────────────────────────────────────────────
@@ -176,5 +211,90 @@ async function checkSafaricom() {
     };
   } catch {
     return { name: 'M-Pesa Daraja', provider: 'Safaricom', status: 'down' as const, latency_ms: Date.now() - start };
+  }
+}
+
+async function checkRedis() {
+  const start = Date.now();
+  try {
+    const { Redis } = await import('@upstash/redis');
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    });
+    
+    await redis.ping();
+    return {
+      name: 'Redis Cache',
+      provider: 'Upstash',
+      status: 'healthy' as const,
+      latency_ms: Date.now() - start,
+    };
+  } catch {
+    return { name: 'Redis Cache', provider: 'Upstash', status: 'down' as const, latency_ms: Date.now() - start };
+  }
+}
+
+async function checkResend() {
+  const start = Date.now();
+  try {
+    const { Resend } = await import('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY!);
+    
+    // Test API access by getting domains
+    await resend.domains.list();
+    return {
+      name: 'Resend Email',
+      provider: 'Resend',
+      status: 'healthy' as const,
+      latency_ms: Date.now() - start,
+    };
+  } catch {
+    return { name: 'Resend Email', provider: 'Resend', status: 'down' as const, latency_ms: Date.now() - start };
+  }
+}
+
+async function checkPusher() {
+  const start = Date.now();
+  try {
+    const auth = pusherServer.authenticate('test-channel', 'test-0001:12345');
+    const latency = Date.now() - start;
+    return {
+      name: 'Pusher WebSocket',
+      provider: 'Pusher',
+      status: !!auth ? 'healthy' as const : 'degraded' as const,
+      latency_ms: latency,
+    };
+  } catch {
+    return {
+      name: 'Pusher WebSocket',
+      provider: 'Pusher',
+      status: 'down' as const,
+      latency_ms: Date.now() - start,
+    };
+  }
+}
+
+async function getSystemMetrics() {
+  const start = Date.now();
+  try {
+    const memUsage = process.memoryUsage();
+    const cpuUsage = process.cpuUsage();
+    
+    return {
+      name: 'System Metrics',
+      provider: 'Node.js',
+      status: 'healthy' as const,
+      latency_ms: Date.now() - start,
+      metadata: {
+        memory_usage_mb: Math.round(memUsage.heapUsed / 1024 / 1024),
+        memory_total_mb: Math.round(memUsage.heapTotal / 1024 / 1024),
+        cpu_user: cpuUsage.user,
+        cpu_system: cpuUsage.system,
+        uptime_seconds: Math.round(process.uptime()),
+      }
+    };
+  } catch {
+    return { name: 'System Metrics', provider: 'Node.js', status: 'down' as const, latency_ms: Date.now() - start };
   }
 }

@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Building2, Users, CreditCard, Shield, CheckCircle2,
- TrendingUp, ArrowRight, FileText, Wifi, Activity, AlertTriangle, 
- DollarSign, BarChart3,
+  TrendingUp, ArrowRight, FileText, Wifi, Activity, AlertTriangle, 
+  DollarSign, BarChart3, RefreshCw,
 } from 'lucide-react';import { formatCurrency, cn } from '@/lib/utils';
 import pusherClient from '@/lib/pusher-client';
 
@@ -118,16 +118,44 @@ const AlertCard = ({ icon: Icon, title, count, description, link, variant }: {
 };
 
 const APIHealthCard = ({ api }: { api: { name: string; status: APIStatus; latency_ms: number; uptime_percent: number } }) => {
-  const statusColors = { healthy: 'bg-green-500', degraded: 'bg-slate-500', down: 'bg-slate-600' };
+  const statusConfig = {
+    healthy: { color: 'bg-green-500', text: 'text-green-600', label: 'Operational' },
+    degraded: { color: 'bg-slate-500', text: 'text-slate-600', label: 'Degraded' },
+    down: { color: 'bg-slate-600', text: 'text-slate-700', label: 'Down' }
+  };
+
+  const config = statusConfig[api.status];
+
   return (
-    <div className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+    <div className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-200/30 dark:border-slate-700/20">
       <div className="flex items-center gap-3">
-        <div className={cn('w-2.5 h-2.5 rounded-full', statusColors[api.status], api.status === 'healthy' && 'animate-pulse')} />
-        <p className="text-sm font-medium text-slate-900 dark:text-white">{api.name}</p>
+        <div className="flex items-center gap-2">
+          <div className={cn('w-2 h-2 rounded-full', config.color, api.status === 'healthy' && 'animate-pulse')} />
+          <div>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">{api.name}</span>
+            <span className={cn('text-xs', config.text)}>{config.label}</span>
+          </div>
+        </div>
       </div>
-      <div className="text-right">
-        <p className="text-sm font-bold text-slate-900 dark:text-white">{api.latency_ms}ms</p>
-        <p className="text-xs text-slate-500">{api.uptime_percent}% uptime</p>
+      <div className="flex items-center gap-4 text-xs">
+        <div className="text-right">
+          <span className={cn('font-medium', 
+            api.latency_ms < 150 ? 'text-green-600' : 
+            api.latency_ms < 300 ? 'text-slate-600' : 'text-slate-700'
+          )}>
+            {api.latency_ms}ms
+          </span>
+          <span className="text-slate-500 block">Latency</span>
+        </div>
+        <div className="text-right">
+          <span className={cn('font-medium',
+            api.uptime_percent >= 99.5 ? 'text-green-600' :
+            api.uptime_percent >= 98 ? 'text-slate-600' : 'text-slate-700'
+          )}>
+            {api.uptime_percent}%
+          </span>
+          <span className="text-slate-500 block">Uptime</span>
+        </div>
       </div>
     </div>
   );
@@ -137,13 +165,58 @@ const APIHealthCard = ({ api }: { api: { name: string; status: APIStatus; latenc
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cacheStatus, setCacheStatus] = useState<'HIT' | 'MISS' | null>(null);
+  const [refreshingCache, setRefreshingCache] = useState(false);
   const avgEmployerRisk = stats?.risk?.avg_employer_score ?? 3.5;
+
+  // Define handlers before they are used
+  const handleUpdate = () => {
+    console.log('[Pusher] Admin dashboard update triggered');
+    // Re-fetch data without showing full-page loader for better UX
+    fetch('/api/admin/dashboard')
+      .then(async res => {
+        const data = await res.json();
+        setStats(data);
+        // Update cache status
+        const cacheHeader = res.headers.get('X-Cache');
+        setCacheStatus(cacheHeader as 'HIT' | 'MISS' | null);
+        return data;
+      })
+      .catch(err => console.error('Silent refresh failed:', err));
+  };
+
+  const handleCacheRefresh = async () => {
+    setRefreshingCache(true);
+    try {
+      const res = await fetch('/api/admin/dashboard', { method: 'POST' });
+      if (res.ok) {
+        console.log('[AdminDashboard] Cache cleared successfully');
+        // After clearing cache, fetch fresh data
+        const dataRes = await fetch('/api/admin/dashboard');
+        if (dataRes.ok) {
+          const data = await dataRes.json();
+          setStats(data);
+          setCacheStatus('MISS');
+        }
+      }
+    } catch (err) {
+      console.error('[AdminDashboard] Cache refresh failed:', err);
+    } finally {
+      setRefreshingCache(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch('/api/admin/dashboard');
-        if (res.ok) setStats(await res.json());
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+          // Set cache status from response headers
+          const cacheHeader = res.headers.get('X-Cache');
+          setCacheStatus(cacheHeader as 'HIT' | 'MISS' | null);
+        }
       } catch (err) {
         console.error('[AdminDashboard] fetch failed:', err);
       } finally {
@@ -156,15 +229,6 @@ export default function AdminDashboard() {
     if (!pusherClient) return;
 
     const channel = pusherClient.subscribe('admin-notifications');
-    const handleUpdate = () => {
-      console.log('[Pusher] Admin dashboard update triggered');
-      // Re-fetch data without showing full-page loader for better UX
-      fetch('/api/admin/dashboard')
-        .then(res => res.json())
-        .then(data => setStats(data))
-        .catch(err => console.error('Silent refresh failed:', err));
-    };
-
     channel.bind('new-notification', handleUpdate);
 
     return () => {
@@ -186,11 +250,34 @@ export default function AdminDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Overview</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Platform-wide metrics and operations</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+            Platform-wide metrics and operations
+            {cacheStatus && (
+              <span className={cn(
+                "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
+                cacheStatus === 'HIT' 
+                  ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300' 
+                  : 'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-300'
+              )}>
+                <span className={cn('w-2 h-2 rounded-full', cacheStatus === 'HIT' ? 'bg-green-500' : 'bg-slate-500')} />
+                Cache {cacheStatus}
+              </span>
+            )}
+          </p>
         </div>
-        <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60">
-          <BarChart3 className="w-4 h-4 mr-2" /> Reports
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60"
+            onClick={handleCacheRefresh}
+            disabled={refreshingCache}
+          >
+            <RefreshCw className={cn('w-4 h-4 mr-2', refreshingCache && 'animate-spin')} /> 
+            {refreshingCache ? 'Clearing Cache...' : 'Clear Cache'}
+          </button>
+          <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60">
+            <BarChart3 className="w-4 h-4 mr-2" /> Reports
+          </button>
+        </div>
       </div>
 
       {/* Alerts */}

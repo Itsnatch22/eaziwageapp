@@ -12,6 +12,7 @@ const currencyLocaleMap: Record<string, string> = {
   RWF: 'en-RW',
   TZS: 'sw-TZ',
   UGX: 'en-UG',
+  USD: 'en-US',
 };
 
 const currencySymbolMap: Record<string, string> = {
@@ -19,7 +20,10 @@ const currencySymbolMap: Record<string, string> = {
   RWF: 'RF',
   TZS: 'TSh',
   UGX: 'USh',
+  USD: '$',
 };
+
+export const DEFAULT_ADMIN_CURRENCY = 'USD';
 
 const countryCurrencyMap: Record<string, string> = {
   KE: 'KES',

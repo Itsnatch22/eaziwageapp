@@ -9,7 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area, Legend 
 } from 'recharts';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 // --- Types ---
@@ -123,28 +123,28 @@ export default function BillingPage() {
         <MetricCard 
           icon={DollarSign} 
           label="Total Revenue" 
-          value={formatCurrency(data.summary.total_revenue, 'KES')} 
+          value={formatCurrency(data.summary.total_revenue, DEFAULT_ADMIN_CURRENCY)} 
           variant="purple"
           subtext="Cumulative platform fees earned"
         />
         <MetricCard 
           icon={CreditCard} 
           label="Total Disbursed" 
-          value={formatCurrency(data.summary.total_disbursed, 'KES')} 
+          value={formatCurrency(data.summary.total_disbursed, DEFAULT_ADMIN_CURRENCY)} 
           variant="blue"
           subtext="All-time advances processed"
         />
         <MetricCard 
           icon={Wallet} 
           label="Wallet Balances" 
-          value={formatCurrency(data.summary.total_wallet_balance, 'KES')} 
+          value={formatCurrency(data.summary.total_wallet_balance, DEFAULT_ADMIN_CURRENCY)} 
           variant="green"
           subtext="Total employer funds on platform"
         />
         <MetricCard 
           icon={BarChart3} 
           label="Arrears" 
-          value={formatCurrency(data.summary.total_arrears, 'KES')} 
+          value={formatCurrency(data.summary.total_arrears, DEFAULT_ADMIN_CURRENCY)} 
           variant="amber"
           subtext="Outstanding repayments due"
         />
@@ -283,7 +283,7 @@ export default function BillingPage() {
                     <span className="font-semibold text-slate-900 dark:text-white">{gen.company_name}</span>
                   </td>
                   <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                    {formatCurrency(gen.revenue, 'KES')}
+                    {formatCurrency(gen.revenue, DEFAULT_ADMIN_CURRENCY)}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-xs font-bold text-purple-600">

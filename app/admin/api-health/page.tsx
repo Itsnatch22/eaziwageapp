@@ -23,6 +23,7 @@ interface APIIntegration {
   transactions_today?: number;
   syncs_today?:       number;
   last_check:         string;
+  metadata?:          Record<string, any>;
 }
 
 interface APIHealthData {
@@ -174,6 +175,46 @@ const APICard: React.FC<APICardProps> = ({ api, icon: Icon }) => {
           </p>
         </div>
       </div>
+
+      {/* System Metrics Display */}
+      {api.name === 'System Metrics' && api.metadata && (
+        <div className="mt-4 p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+          <h4 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">System Information</h4>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Memory Usage:</span>
+              <span className="font-medium">{api.metadata.memory_usage_mb}MB</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Total Memory:</span>
+              <span className="font-medium">{api.metadata.memory_total_mb}MB</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Uptime:</span>
+              <span className="font-medium">{Math.floor(api.metadata.uptime_seconds / 3600)}h {Math.floor((api.metadata.uptime_seconds % 3600) / 60)}m</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Process ID:</span>
+              <span className="font-medium">{process.pid}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Additional Metadata Display */}
+      {api.metadata && Object.keys(api.metadata).length > 0 && api.name !== 'System Metrics' && (
+        <div className="mt-4 p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+          <h4 className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Additional Information</h4>
+          <div className="space-y-2 text-xs">
+            {Object.entries(api.metadata).map(([key, value]) => (
+              <div key={key} className="flex justify-between">
+                <span className="text-slate-500 capitalize">{key.replace(/_/g, ' ')}:</span>
+                <span className="font-medium">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between text-sm">
         <span className="text-slate-500">Last checked</span>
@@ -330,7 +371,11 @@ export default function AdminAPIHealth() {
     if (lower.includes('bank')) return CreditCard;
     if (lower.includes('payroll') || lower.includes('vercel')) return Server;
     if (lower.includes('supabase')) return Database;
-    if (lower.includes('twilio') ||  lower.includes('cellulant')) return Activity;
+    if (lower.includes('twilio') || lower.includes('cellulant')) return Activity;
+    if (lower.includes('redis') || lower.includes('cache')) return Database;
+    if (lower.includes('resend') || lower.includes('email')) return Activity;
+    if (lower.includes('pusher') || lower.includes('websocket')) return Activity;
+    if (lower.includes('system') || lower.includes('metrics')) return Server;
     return Activity;
   };
 

@@ -8,10 +8,13 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
 
 type IconSize = 'sm' | 'md';
 type IconComponent = React.ComponentType<{ className?: string }>;
+
+const formatAdminCurrency = (value: string | number | bigint) =>
+  formatCurrency(value, DEFAULT_ADMIN_CURRENCY);
 
 // Gradient Icon Box
 interface GradientIconBoxProps {
@@ -113,11 +116,11 @@ const EmployerReconRow = ({ employer, onExpand, expanded }: EmployerReconRowProp
             <p className="text-sm text-slate-500">{employer.total_advances} advances</p>
           </div>
           <div className="text-right hidden sm:block">
-            <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employer.total_amount + employer.total_fees)}</p>
+            <p className="font-bold text-slate-900 dark:text-white">{formatAdminCurrency(employer.total_amount + employer.total_fees)}</p>
             <p className="text-xs text-slate-500">Total owed</p>
           </div>
           <div className="text-right hidden sm:block">
-            <p className="font-bold text-emerald-600">{formatCurrency(employer.recouped)}</p>
+            <p className="font-bold text-emerald-600">{formatAdminCurrency(employer.recouped)}</p>
             <p className="text-xs text-slate-500">Recouped</p>
           </div>
           <div className="text-right">
@@ -137,19 +140,19 @@ const EmployerReconRow = ({ employer, onExpand, expanded }: EmployerReconRowProp
           <div className="grid sm:grid-cols-4 gap-4 mb-4">
             <div className="p-3 bg-white/60 dark:bg-slate-900/40 rounded-xl">
               <p className="text-xs text-slate-500">Principal</p>
-              <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employer.total_amount)}</p>
+              <p className="font-bold text-slate-900 dark:text-white">{formatAdminCurrency(employer.total_amount)}</p>
             </div>
             <div className="p-3 bg-white/60 dark:bg-slate-900/40 rounded-xl">
               <p className="text-xs text-slate-500">Fees</p>
-              <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(employer.total_fees)}</p>
+              <p className="font-bold text-slate-900 dark:text-white">{formatAdminCurrency(employer.total_fees)}</p>
             </div>
             <div className="p-3 bg-white/60 dark:bg-slate-900/40 rounded-xl">
               <p className="text-xs text-slate-500">Pending Recoupment</p>
-              <p className="font-bold text-amber-600">{formatCurrency(employer.pending_recoupment)}</p>
+              <p className="font-bold text-amber-600">{formatAdminCurrency(employer.pending_recoupment)}</p>
             </div>
             <div className="p-3 bg-white/60 dark:bg-slate-900/40 rounded-xl">
               <p className="text-xs text-slate-500">Recouped</p>
-              <p className="font-bold text-emerald-600">{formatCurrency(employer.recouped)}</p>
+              <p className="font-bold text-emerald-600">{formatAdminCurrency(employer.recouped)}</p>
             </div>
           </div>
 
@@ -165,7 +168,7 @@ const EmployerReconRow = ({ employer, onExpand, expanded }: EmployerReconRowProp
                   <span className="text-slate-600 dark:text-slate-400">{adv.employee_name}</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(adv.amount)}</span>
+                  <span className="font-medium text-slate-900 dark:text-white">{formatAdminCurrency(adv.amount)}</span>
                   <StatusBadge status={adv.status === 'repaid' ? 'recouped' : 'pending'} />
                 </div>
               </div>
@@ -273,20 +276,20 @@ export default function AdminReconciliation() {
           <SummaryCard 
             icon={DollarSign}
             label="Total Disbursed"
-            value={formatCurrency(data?.summary?.total_disbursed || 0)}
-            subvalue={`Fees: ${formatCurrency(data?.summary?.total_fees || 0)}`}
+            value={formatAdminCurrency(data?.summary?.total_disbursed || 0)}
+            subvalue={`Fees: ${formatAdminCurrency(data?.summary?.total_fees || 0)}`}
             variant="green"
           />
           <SummaryCard 
             icon={Clock}
             label="Pending Recoupment"
-            value={formatCurrency(data?.summary?.pending_recoupment || 0)}
+            value={formatAdminCurrency(data?.summary?.pending_recoupment || 0)}
             variant="amber"
           />
           <SummaryCard 
             icon={CheckCircle2}
             label="Total Recouped"
-            value={formatCurrency(data?.summary?.total_recouped || 0)}
+            value={formatAdminCurrency(data?.summary?.total_recouped || 0)}
             variant="green"
           />
         </div>

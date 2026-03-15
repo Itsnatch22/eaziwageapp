@@ -264,7 +264,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
                 {getPageTitle()}
               </h1>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
-                Employee Portal
+                {user?.user_metadata?.full_name || 'Employee'}
               </p>
             </div>
           </div>

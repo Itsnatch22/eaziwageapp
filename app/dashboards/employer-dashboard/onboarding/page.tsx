@@ -122,11 +122,16 @@ const FileUploader = ({
   label, description, onUpload, uploadedFile, uploading, testId, required = false, optional = false,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    validateAndUpload(file);
+  };
 
+  const validateAndUpload = (file: File) => {
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
     if (!allowedTypes.includes(file.type)) {
       toast.error("Please upload a valid image (JPEG, PNG) or PDF file");
@@ -139,6 +144,42 @@ const FileUploader = ({
     onUpload(file);
   };
 
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragIn = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev + 1);
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setDragActive(true);
+    }
+  };
+
+  const handleDragOut = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev - 1);
+    if (dragCounter === 1) {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      validateAndUpload(file);
+    }
+    
+    setDragActive(false);
+    setDragCounter(0);
+  };
+
   return (
     <div className="space-y-2">
       <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium flex items-center gap-1">
@@ -149,8 +190,16 @@ const FileUploader = ({
       <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleFileSelect} className="hidden" data-testid={testId} />
       <div
         onClick={() => !uploading && fileInputRef.current?.click()}
+        onDragEnter={handleDragIn}
+        onDragLeave={handleDragOut}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
         className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-          uploadedFile ? "border-primary bg-primary/5 dark:bg-primary/10" : "border-slate-200 dark:border-slate-700 hover:border-primary/50"
+          dragActive 
+            ? "border-primary bg-primary/5 dark:bg-primary/10 scale-[1.02]" 
+            : uploadedFile 
+              ? "border-primary bg-primary/5 dark:bg-primary/10" 
+              : "border-slate-200 dark:border-slate-700 hover:border-primary/50"
         }`}
       >
         {uploading ? (
@@ -170,10 +219,16 @@ const FileUploader = ({
               <p className="text-xs text-slate-500">Click to replace</p>
             </div>
           </div>
+        ) : dragActive ? (
+          <div className="flex flex-col items-center gap-2 py-2">
+            <Upload className="w-8 h-8 text-primary animate-pulse" />
+            <p className="text-sm text-primary font-medium">Drop file here</p>
+            <p className="text-xs text-slate-400">Release to upload</p>
+          </div>
         ) : (
           <>
             <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm text-slate-600 dark:text-slate-400">Click to upload</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Click to upload or drag & drop</p>
             {description && <p className="text-xs text-slate-400 mt-1">{description}</p>}
           </>
         )}

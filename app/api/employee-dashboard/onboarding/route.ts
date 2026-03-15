@@ -108,6 +108,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ── Generate unique employee code ───────────────────────────────────────
+  function generateEmployeeCode(employerId: string, userId: string): string {
+    const employerPrefix = employerId.slice(-4).toUpperCase();
+    const userSuffix = userId.slice(-6).toUpperCase();
+    const timestamp = Date.now().toString(36).slice(-3).toUpperCase();
+    return `EMP-${employerPrefix}-${userSuffix}-${timestamp}`;
+  }
+
   // ── Upsert employee KYC record ────────────────────────────────────────────
   const {
     employer_id,
@@ -142,10 +150,13 @@ export async function POST(req: NextRequest) {
     employment_contract,
   } = data;
 
+  // Generate employee code automatically if not provided
+  const generatedEmployeeCode = employee_code || generateEmployeeCode(employer_id, user.id);
+
   const upsertPayload = {
     user_id: user.id,
     employer_id,
-    employee_code: employee_code || null,
+    employee_code: generatedEmployeeCode,
     national_id,
     id_type,
     nationality: nationality || null,
@@ -206,7 +217,7 @@ export async function POST(req: NextRequest) {
       .upsert({
         user_id: user.id,
         employer_id,
-        employee_code: employee_code || null,
+        employee_code: generatedEmployeeCode,
         full_name: employeeName,
         email: user.email,
         phone: user.user_metadata?.phone || null,
@@ -305,7 +316,10 @@ export async function POST(req: NextRequest) {
     .catch((e) => console.error('[resend]', e)); // non-fatal
 
   return NextResponse.json(
-    { message: 'KYC application submitted successfully.' },
+    { 
+      message: 'KYC application submitted successfully.',
+      employee_code: generatedEmployeeCode
+    },
     { status: 201 },
   );
 }

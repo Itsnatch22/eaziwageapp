@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient }             from '@supabase/supabase-js';
 import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { Redis }                   from '@upstash/redis';
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
@@ -17,11 +18,34 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 2. Auth check (admin-only) ────────────────────────────────────────────
-  // TODO: Replace with actual admin auth middleware/session check
+  // ── 3. Initialize Redis cache ───────────────────────────────────────────
+  const env = getEnv();
+  const redis = new Redis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  });
 
-  // ── 3. Supabase service-role client ───────────────────────────────────────
-  const env      = getEnv();
+  const CACHE_TTL = 300; // 5 minutes cache
+  const cacheKey = 'admin:dashboard:stats';
+
+  // ── 4. Check cache first ─────────────────────────────────────────────
+  try {
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData && typeof cachedData === 'object') {
+      console.log('[Dashboard] Cache hit - returning cached data');
+      return NextResponse.json(cachedData, { 
+        status: 200, 
+        headers: { 
+          ...rateResult.headers,
+          'X-Cache': 'HIT'
+        } 
+      });
+    }
+  } catch (cacheError) {
+    console.warn('[Dashboard] Cache check failed:', cacheError);
+  }
+
+  // ── 5. Supabase service-role client ───────────────────────────────────────
   const supabase = createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
@@ -74,11 +98,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     // Employees
     const { count: employeeTotal } = await supabase
-      .from('employees')
+      .from('employee_onboarding')
       .select('id', { count: 'exact', head: true });
 
     const { count: employeeActive } = await supabase
-      .from('employees')
+      .from('employee_onboarding')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'approved');
 
@@ -102,7 +126,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const employerTrend = `+${employerTrendValue}%`;
 
     const { count: employeeThisMonth } = await supabase
-      .from('employees')
+      .from('employee_onboarding')
       .select('id', { count: 'exact', head: true })
       .gte('created_at', startOfMonth);
     
@@ -177,54 +201,108 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }, {});
 
 
-    // ── 10. Build response ─────────────────────────────────────────────────────
-    return NextResponse.json(
-      {
-        employers: {
-          total:  employerTotal || 0,
-          active: employerActive || 0,
-          trend: employerTrend,
-          trendUp: employerTrendValue >= 0,
-        },
-        employees: {
-          total:  employeeTotal || 0,
-          active: employeeActive || 0,
-          trend: employeeTrend,
-          trendUp: employeeTrendValue >= 0,
-        },
-        advances: {
-          total_count:     advanceTotal || 0,
-          pending_count:   advancePending || 0,
-          total_disbursed: totalDisbursed,
-          total_fees:      totalFees,
-        },
-        kyc_pending: {
-          employers: employerPending || 0,
-          employees: employeeKYCPending || 0,
-        },
-        pending_reviews: totalPendingReviews,
-        suspicious_activity: {
-          total_open: activeFraudAlerts || 0,
-          alerts: latestFraudAlerts || [],
-        },
-        pending_reconciliation: pendingReconciliation || 0,
-        monthly: {
-          disbursed:     monthlyDisbursed,
-          advance_count: (monthlyAdvances || []).length,
-          fees:          monthlyFees,
-        },
-        risk: {
-          avg_employer_score: avgEmployerScore,
-        },
-        api_health: apiHealthStats,
+    // ── 10. Build response data ─────────────────────────────────────────────
+    const responseData = {
+      employers: {
+        total:  employerTotal || 0,
+        active: employerActive || 0,
+        trend: employerTrend,
+        trendUp: employerTrendValue >= 0,
       },
-      { status: 200, headers: rateResult.headers },
-    );
+      employees: {
+        total:  employeeTotal || 0,
+        active: employeeActive || 0,
+        trend: employeeTrend,
+        trendUp: employeeTrendValue >= 0,
+      },
+      advances: {
+        total_count:     advanceTotal || 0,
+        pending_count:   advancePending || 0,
+        total_disbursed: totalDisbursed,
+        total_fees:      totalFees,
+      },
+      kyc_pending: {
+        employers: employerPending || 0,
+        employees: employeeKYCPending || 0,
+      },
+      pending_reviews: totalPendingReviews,
+      suspicious_activity: {
+        total_open: activeFraudAlerts || 0,
+        alerts: latestFraudAlerts || [],
+      },
+      pending_reconciliation: pendingReconciliation || 0,
+      monthly: {
+        disbursed:     monthlyDisbursed,
+        advance_count: (monthlyAdvances || []).length,
+        fees:          monthlyFees,
+      },
+      risk: {
+        avg_employer_score: avgEmployerScore,
+      },
+      api_health: apiHealthStats,
+    };
+
+    // ── 11. Store in cache ─────────────────────────────────────────────────
+    try {
+      await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(responseData));
+      console.log('[Dashboard] Data cached successfully');
+    } catch (cacheError) {
+      console.warn('[Dashboard] Failed to cache data:', cacheError);
+    }
+
+    // ── 12. Return response ─────────────────────────────────────────────────
+    return NextResponse.json(responseData, { 
+      status: 200, 
+      headers: { 
+        ...rateResult.headers,
+        'X-Cache': 'MISS'
+      } 
+    });
   } catch (error) {
     console.error('[GET /api/admin/dashboard] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch dashboard stats.', code: 'SERVER_ERROR' },
       { status: 500 },
+    );
+  }
+}
+
+// ─── Cache Invalidation Endpoint ─────────────────────────────────────────────────
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  // Rate limiting
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const rateResult = await checkRateLimit(apiLimiter, `admin-dashboard-cache:${ip}`);
+
+  if (!rateResult.success) {
+    return NextResponse.json(
+      { error: 'Too many requests.', code: 'RATE_LIMITED' },
+      { status: 429, headers: rateResult.headers },
+    );
+  }
+
+  // Initialize Redis
+  const env = getEnv();
+  const redis = new Redis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  });
+
+  const cacheKey = 'admin:dashboard:stats';
+
+  try {
+    await redis.del(cacheKey);
+    console.log('[Dashboard] Cache invalidated successfully');
+    
+    return NextResponse.json(
+      { success: true, message: 'Dashboard cache cleared successfully' },
+      { status: 200, headers: rateResult.headers }
+    );
+  } catch (error) {
+    console.error('[Dashboard] Cache invalidation failed:', error);
+    return NextResponse.json(
+      { error: 'Failed to clear cache.', code: 'CACHE_ERROR' },
+      { status: 500, headers: rateResult.headers }
     );
   }
 }
