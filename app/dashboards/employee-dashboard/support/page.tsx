@@ -103,7 +103,7 @@ const SupportPage = () => {
                 <p className="text-slate-500 text-sm leading-relaxed mb-6">Visit our main contact page for corporate inquiries or partnerships.</p>
               </div>
               <Button variant="outline" onClick={() => window.open('/contact', '_blank')} className="rounded-2xl h-12 px-6 border-slate-200 dark:border-white/10">
-                Go to /contact <ExternalLink className="w-4 h-4 ml-2" />
+                Go to contact <ExternalLink className="w-4 h-4 ml-2" />
               </Button>
            </div>
         </div>
