@@ -262,10 +262,10 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
             </button>
 
             <div>
-              <h1 className="text-xl lg:text-2xl font-bold text-slate-900 dark:text-white leading-tight">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 {greeting}
-              </h1>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+              </p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
                 {user?.user_metadata?.full_name || 'Employee'}
               </p>
             </div>
