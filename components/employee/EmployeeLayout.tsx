@@ -83,7 +83,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   const handleLogout = useCallback(async () => {
     try {
       await logout();
-      router.push('/login');
+      router.push('/');
     } catch {
       toast.error('Failed to logout. Please try again.');
     }
@@ -235,6 +235,8 @@ interface TopHeaderProps {
 const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
   const pathname = usePathname();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
   const getPageTitle = () => {
     if (title) return title;
@@ -261,7 +263,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
 
             <div>
               <h1 className="text-xl lg:text-2xl font-bold text-slate-900 dark:text-white leading-tight">
-                {getPageTitle()}
+                {greeting}
               </h1>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
                 {user?.user_metadata?.full_name || 'Employee'}
