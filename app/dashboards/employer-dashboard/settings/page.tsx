@@ -9,6 +9,7 @@ import {
   LucideIcon, User, Smartphone
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { logout } from '@/actions/auth';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -733,8 +734,11 @@ export default function EmployerSettings() {
     try {
       const res = await fetch('/api/employer-dashboard/termination/terminate', { method: 'POST' });
       if (res.ok) {
-        toast.success("Termination process initiated.");
-        router.push('/dashboards/employer-dashboard/terminated');
+        toast.success("Your account has been terminated.");
+        
+        // Sign out and redirect to login (NOT onboarding)
+        await logout();
+        router.push('/login');
       } else {
         toast.error("Failed to terminate account");
       }

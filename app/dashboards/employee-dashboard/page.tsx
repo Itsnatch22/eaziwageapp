@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
+import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 
@@ -128,6 +129,13 @@ export default function EmployeeDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const [hasTriggeredOnboardingConfetti, setHasTriggeredOnboardingConfetti] = useState(false);
+
+  // Confetti for onboarding completion
+  const { showConfetti, triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
+    key: user?.id ? ConfettiKeys.onboarding(user.id) : '',
+    intensity: 'light',
+  });
 
   const fetchStats = async () => {
     try {
@@ -139,6 +147,12 @@ export default function EmployeeDashboardPage() {
       }
       setStats(data.stats);
       setEmployee(data.employee);
+      
+      // Check if onboarding is complete (employee status is approved) and trigger confetti for first time
+      if (data.employee?.status === 'approved' && user?.id && !hasTriggeredOnboardingConfetti) {
+        triggerConfetti();
+        setHasTriggeredOnboardingConfetti(true);
+      }
     } catch {
       setError('Failed to load');
     } finally {
@@ -210,6 +224,7 @@ export default function EmployeeDashboardPage() {
 
   return (
     <EmployeePortalLayout title="Overview">
+      {ConfettiComponent}
       <div className="max-w-5xl mx-auto space-y-6">
 
         {/* Rejection Recovery Alert */}

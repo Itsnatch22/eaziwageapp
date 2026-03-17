@@ -68,6 +68,21 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
     setMounted(true);
   }, []);
 
+  // Cache busting for avatar URL - force refresh when avatar changes
+  const userProfileAny = userProfile as any;
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(userProfileAny?.avatar_url);
+  useEffect(() => {
+    if (userProfileAny?.avatar_url) {
+      const timestamp = Date.now();
+      const newUrl = userProfileAny.avatar_url.includes('?') 
+        ? `${userProfileAny.avatar_url}&t=${timestamp}`
+        : `${userProfileAny.avatar_url}?t=${timestamp}`;
+      setAvatarUrl(newUrl);
+    } else {
+      setAvatarUrl(undefined);
+    }
+  }, [userProfileAny?.avatar_url]);
+
   const menuItems = [
     { label: 'Overview',        href: '/admin',                  icon: LayoutDashboard },
     { label: 'Advances',        href: '/admin/advances',         icon: CreditCard },
@@ -198,7 +213,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
           <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <div className="flex items-center gap-3 mb-4">
               <Avatar className="w-11 h-11 rounded-xl shadow-md border border-slate-100 dark:border-slate-800">
-                <AvatarImage src={(userProfile as any)?.avatar_url} alt={fullName} />
+                <AvatarImage src={avatarUrl} alt={fullName} />
                 <AvatarFallback className="bg-linear-to-br from-green-600 to-emerald-600 text-white font-bold text-sm">
                   {initials}
                 </AvatarFallback>

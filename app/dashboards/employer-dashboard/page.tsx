@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
+import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import pusherClient from '@/lib/pusher-client';
 import { useAuthStore } from '@/lib/stores/auth';
 
@@ -318,6 +319,12 @@ export default function EmployerDashboard() {
   const [error,    setError]    = useState<string | null>(null);
   const router = useRouter();
 
+  // Confetti for first employee onboarded
+  const { showConfetti, triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
+    key: employer?.id ? ConfettiKeys.firstEmployee(employer.id) : '',
+    intensity: 'medium',
+  });
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -360,7 +367,13 @@ export default function EmployerDashboard() {
       }
       if (employeeRes.ok) {
         const j = await employeeRes.json();
-        if (j.stats) setEmployeeStats(j.stats);
+        if (j.stats) {
+          setEmployeeStats(j.stats);
+          // Check if this is the first employee onboarded - trigger confetti
+          if (j.stats.total_employees === 1 && employer?.id) {
+            triggerConfetti();
+          }
+        }
       }
     } catch (err: unknown) {
       setError('Failed to load dashboard.');
@@ -435,6 +448,7 @@ export default function EmployerDashboard() {
 
   return (
     <EmployerPortalLayout employer={employer}>
+      {ConfettiComponent}
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* Rejection Recovery Alert */}

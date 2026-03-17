@@ -11,6 +11,7 @@ import { ExportButton } from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
+import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -81,6 +82,13 @@ export default function Transactions() {
   const [currency, setCurrency] = useState('KES');
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [userId, setUserId] = useState<string>('');
+
+  // Confetti for first successful advance
+  const { showConfetti, triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
+    key: userId ? ConfettiKeys.firstAdvance(userId) : '',
+    intensity: 'high',
+  });
 
   useEffect(() => {
     const fetchAdvances = async () => {
@@ -91,10 +99,27 @@ export default function Transactions() {
           fetch('/api/employee-dashboard/overview'),
         ]);
         const txData = await txRes.json();
-        setAdvances(Array.isArray(txData) ? txData : []);
+        const advancesData = Array.isArray(txData) ? txData : [];
+        setAdvances(advancesData);
+        
         if (overviewRes.ok) {
           const overviewData = await overviewRes.json();
           setCurrency(overviewData?.employee?.currency || 'KES');
+          
+          // Get user ID for confetti tracking
+          const employeeUserId = overviewData?.employee?.user_id || overviewData?.employee?.id;
+          if (employeeUserId) {
+            setUserId(employeeUserId);
+            
+            // Check if this is the first successful advance
+            const successfulAdvances = advancesData.filter(
+              (a: Advance) => a.status === 'completed' || a.status === 'disbursed'
+            );
+            if (successfulAdvances.length === 1) {
+              // This is the first successful advance - trigger confetti
+              triggerConfetti();
+            }
+          }
         }
       } catch {
         toast.error('Failed to sync transactions');
@@ -103,7 +128,7 @@ export default function Transactions() {
       }
     };
     fetchAdvances();
-  }, []);
+  }, [triggerConfetti]);
 
   const allItems: TransactionItem[] = advances
     .map((a) => ({ id: a.id, type: 'advance' as const, amount: a.amount, status: a.status, method: a.disbursement_method, created_at: a.created_at }))
@@ -136,6 +161,7 @@ export default function Transactions() {
 
   return (
     <EmployeePortalLayout title="Ledger">
+      {ConfettiComponent}
       <div className="max-w-4xl mx-auto space-y-6">
 
         {/* Header */}

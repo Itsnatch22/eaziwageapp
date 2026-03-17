@@ -153,6 +153,21 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
     setMounted(true);
   }, []);
 
+  // Cache busting for avatar URL - force refresh when avatar changes
+  const userAny = user as any;
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(userAny?.avatar_url);
+  useEffect(() => {
+    if (userAny?.avatar_url) {
+      const timestamp = Date.now();
+      const newUrl = userAny.avatar_url.includes('?') 
+        ? `${userAny.avatar_url}&t=${timestamp}`
+        : `${userAny.avatar_url}?t=${timestamp}`;
+      setAvatarUrl(newUrl);
+    } else {
+      setAvatarUrl(undefined);
+    }
+  }, [userAny?.avatar_url]);
+
   const fullName = mounted ? (user?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Employer') : 'Employer';
   const userEmail = mounted ? (user?.email || 'No email') : 'No email';
   const initials = mounted ? (fullName
@@ -283,7 +298,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
           <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <div className="flex items-center gap-3 mb-4">
               <Avatar className="w-11 h-11 rounded-xl shadow-md border border-slate-100 dark:border-slate-800">
-                <AvatarImage src={(user as any)?.avatar_url} alt={fullName} />
+                <AvatarImage src={avatarUrl} alt={fullName} />
                 <AvatarFallback className="bg-linear-to-br from-primary to-emerald-600 text-white font-bold text-sm">
                   {initials}
                 </AvatarFallback>
@@ -395,11 +410,24 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   const user = useAuthStore((state) => state.user as EmployerUser | null);
   const pathname = usePathname();
   const router = useRouter();
+  
+  // Cache busting for avatar URL - force refresh when avatar changes
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>((user as any)?.avatar_url);
+  useEffect(() => {
+    if ((user as any)?.avatar_url) {
+      const timestamp = Date.now();
+      const newUrl = (user as any).avatar_url.includes('?') 
+        ? `${(user as any).avatar_url}&t=${timestamp}`
+        : `${(user as any).avatar_url}?t=${timestamp}`;
+      setAvatarUrl(newUrl);
+    } else {
+      setAvatarUrl(undefined);
+    }
+  }, [(user as any)?.avatar_url]);
 
   useEffect(() => {
     const checkAccess = async () => {
       if (!user?.id) return;
-      if (pathname === '/dashboards/employer-dashboard/terminated') return;
       if (pathname === '/dashboards/employer-dashboard/onboarding') return;
 
       try {
@@ -420,8 +448,8 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
             return;
             
           case 'terminated':
-            // Employer was terminated - redirect to terminated page
-            router.push('/dashboards/employer-dashboard/terminated');
+            // Employer was terminated - redirect to login (not onboarding or terminated page)
+            router.push('/');
             return;
             
           case 'not_onboarded':

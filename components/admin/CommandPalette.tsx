@@ -4,14 +4,34 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Search, Users, Building2, CreditCard, 
-  ArrowRight, Command, X, Loader2, Sparkles
+  ArrowRight, Command, X, Loader2, Sparkles,
+  Settings, Shield, FileCheck, DollarSign, Activity,
+  Bell, GitBranch, UsersRound, Wallet, AlertTriangle,
+  BarChart3, FileText
 } from 'lucide-react';
 import { useDebounce } from 'use-debounce';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
+// Navigation items for admin dashboard
+const adminNavItems = [
+  { id: 'dashboard', title: 'Dashboard', href: '/admin', icon: BarChart3 },
+  { id: 'advances', title: 'Advances', href: '/admin/advances', icon: CreditCard },
+  { id: 'employees', title: 'Employees', href: '/admin/employees', icon: Users },
+  { id: 'employers', title: 'Employers', href: '/admin/employers', icon: Building2 },
+  { id: 'billing', title: 'Billing', href: '/admin/billing', icon: DollarSign },
+  { id: 'fraud-detection', title: 'Fraud Detection', href: '/admin/fraud-detection', icon: Shield },
+  { id: 'kyc-review', title: 'KYC Review', href: '/admin/kyc-review', icon: FileCheck },
+  { id: 'reconciliation', title: 'Reconciliation', href: '/admin/reconciliation', icon: GitBranch },
+  { id: 'review-requests', title: 'Review Requests', href: '/admin/review-requests', icon: FileText },
+  { id: 'risk-scoring', title: 'Risk Scoring', href: '/admin/risk-scoring', icon: AlertTriangle },
+  { id: 'settings', title: 'Settings', href: '/admin/settings', icon: Settings },
+  { id: 'notifications', title: 'Notifications', href: '/admin/notifications', icon: Bell },
+  { id: 'api-health', title: 'API Health', href: '/admin/api-health', icon: Activity },
+];
+
 interface SearchResult {
-  type: 'employer' | 'employee' | 'advance';
+  type: 'employer' | 'employee' | 'advance' | 'navigation';
   id: string;
   title: string;
   href: string;
@@ -51,10 +71,23 @@ export function CommandPalette() {
     }
   }, [isOpen]);
 
-  // Fetch results
+  // Fetch results - includes both API search and navigation items
   useEffect(() => {
+    const query = debouncedQuery.toLowerCase();
+    
+    // Always include navigation items that match the query
+    const matchedNavItems: SearchResult[] = adminNavItems
+      .filter(item => item.title.toLowerCase().includes(query))
+      .map(item => ({
+        type: 'navigation' as const,
+        id: item.id,
+        title: item.title,
+        href: item.href,
+      }));
+
     if (!debouncedQuery || debouncedQuery.length < 2) {
-      setResults([]);
+      // When query is empty or too short, show navigation items only
+      setResults(matchedNavItems);
       return;
     }
 
@@ -62,13 +95,18 @@ export function CommandPalette() {
       setLoading(true);
       try {
         const res = await fetch(`/api/admin/search?q=${encodeURIComponent(debouncedQuery)}`);
+        let apiResults: SearchResult[] = [];
         if (res.ok) {
           const data = await res.json();
-          setResults(data.results || []);
-          setSelectedIndex(0);
+          apiResults = data.results || [];
         }
+        // Combine navigation items with API results
+        setResults([...matchedNavItems, ...apiResults]);
+        setSelectedIndex(0);
       } catch (err) {
         console.error('Search error:', err);
+        // Still show navigation items on error
+        setResults(matchedNavItems);
       } finally {
         setLoading(false);
       }
@@ -99,6 +137,7 @@ export function CommandPalette() {
       case 'employer': return <Building2 className="w-4 h-4 text-blue-500" />;
       case 'employee': return <Users className="w-4 h-4 text-green-500" />;
       case 'advance':  return <CreditCard className="w-4 h-4 text-purple-500" />;
+      case 'navigation': return <ArrowRight className="w-4 h-4 text-orange-500" />;
       default:         return <ArrowRight className="w-4 h-4 text-slate-400" />;
     }
   };
@@ -131,7 +170,7 @@ export function CommandPalette() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Search for employers, employees, or advances..."
+                placeholder="Search for anything in the admin dashboard..."
                 className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-white placeholder:text-slate-400 text-lg"
               />
               <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500">
@@ -141,7 +180,7 @@ export function CommandPalette() {
             </div>
 
             {/* Results */}
-            <div className="max-h-[400px] overflow-y-auto p-2 custom-scrollbar">
+            <div className="max-h-100 overflow-y-auto p-2 custom-scrollbar">
               {loading ? (
                 <div className="flex flex-col items-center py-12 gap-3">
                   <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
@@ -196,11 +235,15 @@ export function CommandPalette() {
                   <p className="text-xs text-slate-500 mt-1">Start typing to find anything on EaziWage</p>
                   
                   <div className="mt-6 grid grid-cols-3 gap-2">
-                    {['Employers', 'Employees', 'Advances'].map((label) => (
-                      <div key={label} className="px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-800 text-[10px] font-bold text-slate-400">
-                        {label}
-                      </div>
-                    ))}
+                    {adminNavItems.slice(0, 6).map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <div key={item.id} className="px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-800 text-[10px] font-bold text-slate-400 flex items-center gap-1.5">
+                          <Icon className="w-3 h-3" />
+                          {item.title}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -13,6 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
+import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import { formatDateTime, DOCUMENT_TYPES, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -54,14 +55,40 @@ export default function EmployeeKYC() {
     const [selectedType, setSelectedType] = useState('');
     const [documentNumber, setDocumentNumber] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [userId, setUserId] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    // Confetti for KYC approval
+    const { showConfetti, triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
+        key: userId ? ConfettiKeys.kycApproved(userId) : '',
+        intensity: 'medium',
+    });
 
     const fetchDocuments = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/employee-dashboard/kyc/documents');
-            const data = await response.json();
-            setDocuments(data.documents || []);
+            const [docsRes, overviewRes] = await Promise.all([
+                fetch('/api/employee-dashboard/kyc/documents'),
+                fetch('/api/employee-dashboard/overview'),
+            ]);
+            const data = await docsRes.json();
+            const docs = data.documents || [];
+            setDocuments(docs);
+            
+            // Get user ID for confetti tracking
+            if (overviewRes.ok) {
+                const overviewData = await overviewRes.json();
+                const employeeUserId = overviewData?.employee?.user_id || overviewData?.employee?.id;
+                if (employeeUserId) {
+                    setUserId(employeeUserId);
+                    
+                    // Check if KYC is approved - trigger confetti for first time approval
+                    const hasApprovedDoc = docs.some((d: Document) => d.status === 'approved');
+                    if (hasApprovedDoc) {
+                        triggerConfetti();
+                    }
+                }
+            }
         } catch (error) {
             toast.error('Failed to load documents');
         } finally {
@@ -131,6 +158,7 @@ export default function EmployeeKYC() {
 
     return (
     <EmployeePortalLayout title="Verification Hub">
+      {ConfettiComponent}
       <div className="max-w-5xl mx-auto space-y-8">
         
         {/* Header Section */}

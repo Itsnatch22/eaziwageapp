@@ -93,6 +93,21 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   const initials = mounted
     ? (fullName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U')
     : 'U';
+  
+  // Cache busting for avatar URL - force refresh when avatar changes
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(user?.avatar_url);
+  useEffect(() => {
+    if (user?.avatar_url) {
+      // Add timestamp to force browser to fetch new image
+      const timestamp = Date.now();
+      const newUrl = user.avatar_url.includes('?') 
+        ? `${user.avatar_url}&t=${timestamp}`
+        : `${user.avatar_url}?t=${timestamp}`;
+      setAvatarUrl(newUrl);
+    } else {
+      setAvatarUrl(undefined);
+    }
+  }, [user?.avatar_url]);
 
   return (
     <>
@@ -198,7 +213,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
           <div className="p-4 border-t border-slate-100 dark:border-white/10 shrink-0 mb-20 lg:mb-0">
             <div className="flex items-center gap-3 mb-3">
               <Avatar className="w-10 h-10 rounded-xl border border-slate-100 dark:border-white/10">
-                <AvatarImage src={user?.avatar_url} alt={fullName} />
+                <AvatarImage src={avatarUrl} alt={fullName} />
                 <AvatarFallback className="bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl">
                   {initials}
                 </AvatarFallback>
