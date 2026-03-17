@@ -7,7 +7,7 @@ export const runtime = 'nodejs'; // needs FormData / file streaming
 
 const BUCKET = 'employer-documents';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/xlsx', 'application/csv'];
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   // ── Validate file ─────────────────────────────────────────────────────────
   if (!ALLOWED_MIME.includes(file.type)) {
     return NextResponse.json(
-      { error: 'Invalid file type. Upload JPEG, PNG, WEBP or PDF.' },
+      { error: 'Invalid file type. Upload JPEG, PNG, WEBP, PDF, XLSX, or CSV.' },
       { status: 422 },
     );
   }

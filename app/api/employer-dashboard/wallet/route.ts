@@ -22,16 +22,37 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Get Employer Record
+    // 1. Get Employer Record (must be approved and not deleted)
     const { data: employer, error: employerError } = await adminSupabase
       .from('employer_onboarding')
-      .select('id')
+      .select('id, status, deleted_at')
       .eq('user_id', user.id)
       .eq('status', 'approved')
+      .is('deleted_at', null)
       .maybeSingle();
 
-    if (employerError || !employer) {
-      return NextResponse.json({ error: 'Approved employer not found' }, { status: 403 });
+    if (employerError) {
+      console.error('[Wallet API] Employer fetch error:', employerError);
+      return NextResponse.json({ error: 'Failed to fetch employer data' }, { status: 500 });
+    }
+
+    if (!employer) {
+      // Check if employer exists but is not approved or was deleted
+      const { data: anyEmployer } = await adminSupabase
+        .from('employer_onboarding')
+        .select('id, status, deleted_at')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (!anyEmployer) {
+        return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
+      }
+      
+      if (anyEmployer.deleted_at) {
+        return NextResponse.json({ error: 'Account has been terminated' }, { status: 403 });
+      }
+      
+      return NextResponse.json({ error: 'Employer not approved. Please complete onboarding.' }, { status: 403 });
     }
 
     // 2. Get Wallet

@@ -13,13 +13,14 @@ import Image from 'next/image';
 import { logout } from '@/actions/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import React,{ useState, useRef, useEffect, useCallback }from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { OnboardingGuide } from '../layout/OnboardingGuide';
+
 
 export const EmployerBackground = () => (
   <>
@@ -392,6 +393,53 @@ interface EmployerPortalLayoutProps {
 export const EmployerPortalLayout = ({ children, employer = null }: EmployerPortalLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const user = useAuthStore((state) => state.user as EmployerUser | null);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!user?.id) return;
+      if (pathname === '/dashboards/employer-dashboard/terminated') return;
+      if (pathname === '/dashboards/employer-dashboard/onboarding') return;
+
+      try {
+        // Use dedicated status endpoint to check employer status including termination
+        const res = await fetch('/api/employer-dashboard/status');
+        
+        if (!res.ok) {
+          // Error - redirect to onboarding as fallback
+          router.push('/dashboards/employer-dashboard/onboarding');
+          return;
+        }
+        
+        const data = await res.json();
+        
+        switch (data.status) {
+          case 'active':
+            // User has access - stay on current page
+            return;
+            
+          case 'terminated':
+            // Employer was terminated - redirect to terminated page
+            router.push('/dashboards/employer-dashboard/terminated');
+            return;
+            
+          case 'not_onboarded':
+          case 'draft':
+          case 'pending':
+          case 'submitted':
+          case 'rejected':
+          default:
+            // Not yet onboarded or pending approval - go to onboarding
+            router.push('/dashboards/employer-dashboard/onboarding');
+            return;
+        }
+      } catch (err) {
+        console.error('Access check failed', err);
+      }
+    };
+    void checkAccess();
+  }, [user?.id, pathname, router]);
 
   useEffect(() => {
     if (!user?.id || !pusherClient) return;

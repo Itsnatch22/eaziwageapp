@@ -38,6 +38,7 @@ interface Employer {
   total_advances:      number;
   monthly_payroll:     number;
   risk_score:          number | null;
+  deleted_at:          string | null;
   created_at:          string;
   updated_at:          string;
 }
@@ -173,6 +174,11 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
       bg:    'bg-slate-100 dark:bg-slate-500/20', 
       text:  'text-slate-700 dark:text-slate-300', 
       label: 'Inactive',
+    },
+    termination_pending: {
+      bg:    'bg-amber-100 dark:bg-amber-500/20',
+      text:  'text-amber-700 dark:text-amber-300',
+      label: 'Termination Pending',
     },
   };
 

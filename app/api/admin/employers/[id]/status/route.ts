@@ -75,7 +75,7 @@ export async function PATCH(
   // Try fetching from employer_onboarding first
   let { data: employer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
-    .select('id,user_id,company_name,min_advance_amount')
+    .select('id,user_id,company_name,min_advance_amount,currency')
     .eq('id', id)
     .maybeSingle();
 
@@ -93,7 +93,7 @@ export async function PATCH(
       // Find the onboarding record associated with this employer's user_id
       const { data: fallbackOnboarding } = await adminSupabase
         .from('employer_onboarding')
-        .select('id,user_id,company_name,min_advance_amount')
+        .select('id,user_id,company_name,min_advance_amount,currency')
         .eq('user_id', primaryEmp.user_id)
         .maybeSingle();
       
@@ -171,6 +171,7 @@ export async function PATCH(
       employer_code: resolvedCompanyCode,
       status: 'approved',
       min_advance_amount: updatePayload.min_advance_amount ?? employer.min_advance_amount ?? 500,
+      currency: employer.currency,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
   }

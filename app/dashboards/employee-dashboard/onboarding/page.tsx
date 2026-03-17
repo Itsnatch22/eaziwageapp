@@ -15,7 +15,6 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EMPLOYMENT_TYPES, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -333,7 +332,7 @@ const StepIndicator = ({ steps, currentStep }: StepIndicatorProps) => (
 );
 
 const FileUploader = ({
-  label, accept = 'image/*,application/pdf', description, onUpload,
+  label, accept = 'image/*,application/pdf,application/xlsx,application/csv', description, onUpload,
   uploadedFile, uploading, required = false, testId
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -347,9 +346,9 @@ const FileUploader = ({
   };
 
   const validateAndUpload = (file: File) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/xlsx', 'application/csv'];
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Please upload a valid image or PDF');
+      toast.error('Please upload a valid image, PDF, XLSX, or CSV file');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {

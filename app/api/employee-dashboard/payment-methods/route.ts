@@ -32,6 +32,25 @@ export async function GET(req: NextRequest) {
       methods: profile?.payment_methods || [] 
     });
   } catch (error) {
+    console.error('Payment methods GET error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    // Handle specific database errors
+    if (error instanceof Error) {
+      if (error.message.includes('column "payment_methods" does not exist')) {
+        return NextResponse.json({ 
+          error: 'Database schema not updated. Please contact administrator.' 
+        }, { status: 500 });
+      }
+      if (error.message.includes('profiles')) {
+        return NextResponse.json({ 
+          error: 'Profile table not found. Please contact administrator.' 
+        }, { status: 500 });
+      }
+    }
+    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -62,7 +81,7 @@ export async function POST(req: NextRequest) {
     // Add unique ID and handle primary flag
     const newMethod = {
       ...method,
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substring(2, 11),
       created_at: new Date().toISOString(),
       is_primary: currentMethods.length === 0 || method.is_primary
     };
@@ -82,6 +101,36 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, method: newMethod });
   } catch (error) {
+    // Extract user ID from auth for logging purposes
+    let userId = 'unknown';
+    try {
+      const supabase = await createRouteHandlerClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      userId = authUser?.id || 'unknown';
+    } catch {
+      // Ignore auth errors in catch block
+    }
+    
+    console.error('Payment methods POST error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      userId
+    });
+    
+    // Handle specific database errors
+    if (error instanceof Error) {
+      if (error.message.includes('column "payment_methods" does not exist')) {
+        return NextResponse.json({ 
+          error: 'Database schema not updated. Please contact administrator.' 
+        }, { status: 500 });
+      }
+      if (error.message.includes('profiles')) {
+        return NextResponse.json({ 
+          error: 'Profile table not found. Please contact administrator.' 
+        }, { status: 500 });
+      }
+    }
+    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -117,6 +166,40 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    // Extract user ID from auth for logging purposes
+    let userId = 'unknown';
+    try {
+      const supabase = await createRouteHandlerClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      userId = authUser?.id || 'unknown';
+    } catch {
+      // Ignore auth errors in catch block
+    }
+    
+    // methodId is captured from the URL before the try block
+    const methodIdToLog = new URL(req.url).searchParams.get('id') || 'unknown';
+    
+    console.error('Payment methods DELETE error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+      methodId: methodIdToLog
+    });
+    
+    // Handle specific database errors
+    if (error instanceof Error) {
+      if (error.message.includes('column "payment_methods" does not exist')) {
+        return NextResponse.json({ 
+          error: 'Database schema not updated. Please contact administrator.' 
+        }, { status: 500 });
+      }
+      if (error.message.includes('profiles')) {
+        return NextResponse.json({ 
+          error: 'Profile table not found. Please contact administrator.' 
+        }, { status: 500 });
+      }
+    }
+    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

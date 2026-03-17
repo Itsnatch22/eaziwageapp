@@ -15,10 +15,10 @@ import { toast } from 'sonner';
 
 type VariantColor = 'purple' | 'green' | 'amber' | 'red' | 'blue';
 
-type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'rejected';
+type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'rejected' | 'processing' | 'completed' | 'failed' | 'repaid';
 
 const statusStyles: Record<
-  AdvanceStatus,
+  string,
   { bg: string; icon: string }
 > = {
   pending: {
@@ -29,13 +29,29 @@ const statusStyles: Record<
     bg: 'bg-blue-100 dark:bg-blue-500/20',
     icon: 'text-blue-600',
   },
+  processing: {
+    bg: 'bg-blue-100 dark:bg-blue-500/20',
+    icon: 'text-blue-600',
+  },
   disbursed: {
+    bg: 'bg-emerald-100 dark:bg-emerald-500/20',
+    icon: 'text-emerald-600',
+  },
+  completed: {
     bg: 'bg-emerald-100 dark:bg-emerald-500/20',
     icon: 'text-emerald-600',
   },
   rejected: {
     bg: 'bg-red-100 dark:bg-red-500/20',
     icon: 'text-red-600',
+  },
+  failed: {
+    bg: 'bg-red-100 dark:bg-red-500/20',
+    icon: 'text-red-600',
+  },
+  repaid: {
+    bg: 'bg-slate-100 dark:bg-slate-500/20',
+    icon: 'text-slate-700',
   },
 };
 
@@ -64,7 +80,7 @@ interface MetricCardProps {
 }
 
 interface StatusBadgeProps {
-  status: 'pending' | 'approved' | 'disbursed' | 'rejected' | 'repaid';
+  status: 'pending' | 'approved' | 'disbursed' | 'rejected' | 'processing' | 'completed' | 'failed' | 'repaid';
 }
 
 interface FilterButtonProps {
@@ -210,9 +226,12 @@ export function AdvanceRow({
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const config = {
+  const config: Record<string, { bg: string; text: string }> = {
     pending: { bg: 'bg-amber-100 dark:bg-amber-500/20', text: 'text-amber-700 dark:text-amber-300' },
     approved: { bg: 'bg-blue-100 dark:bg-blue-500/20', text: 'text-blue-700 dark:text-blue-300' },
+    processing: { bg: 'bg-blue-100 dark:bg-blue-500/20', text: 'text-blue-700 dark:text-blue-300' },
+    completed: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300' },
+    failed: { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' },
     disbursed: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300' },
     rejected: { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' },
     repaid: { bg: 'bg-slate-100 dark:bg-slate-500/20', text: 'text-slate-700 dark:text-slate-300' },

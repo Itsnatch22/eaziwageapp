@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { notifyEmployee } from '@/lib/notifications';
+import { payoutService } from '@/lib/services/payout-service';
 
 export const runtime = 'nodejs';
 
@@ -62,7 +63,7 @@ export async function PATCH(
 
   const { data: target, error: targetError } = await supabase
     .from('advances')
-    .select('id, status, employee_id, employee_onboarding(user_id)')
+    .select('id, status, amount, employee_id, employee_onboarding(user_id)')
     .eq('id', id)
     .in('employee_id', employeeIds)
     .maybeSingle();
@@ -77,18 +78,40 @@ export async function PATCH(
 
   const action = parsed.data.action;
   const nowIso = new Date().toISOString();
-  const update =
-    action === 'approve'
-      ? { status: 'approved', approved_at: nowIso, approved_by: user.id }
-      : { status: 'rejected' };
+  
+  if (action === 'approve') {
+    try {
+      // 1. Reserve funds in employer wallet
+      await payoutService.reserveFunds(employer.id, target.amount, id);
 
-  const { error: updateError } = await supabase
-    .from('advances')
-    .update(update)
-    .eq('id', id);
+      // 2. Update advance status to approved
+      const { error: updateError } = await supabase
+        .from('advances')
+        .update({ status: 'approved', approved_at: nowIso, approved_by: user.id })
+        .eq('id', id);
 
-  if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+      if (updateError) throw updateError;
+
+      // 3. Trigger asynchronous disbursement
+      // Note: In production, this might be handled by a background worker or queue.
+      // For now, we initiate it immediately but don't wait for completion to respond to UI.
+      payoutService.disburseAdvance(id).catch(err => {
+        console.error(`[Advance Approval] Disbursement failed for ${id}:`, err);
+      });
+
+    } catch (err: any) {
+      console.error(`[Advance Approval] Error: ${err.message}`);
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+  } else {
+    const { error: updateError } = await supabase
+      .from('advances')
+      .update({ status: 'rejected' })
+      .eq('id', id);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
   }
 
   // ── Trigger Notifications ───────────────────────────────────────────────────
@@ -102,7 +125,7 @@ export async function PATCH(
             message: action === 'approve' 
                 ? 'Your advance request has been approved and is now being processed for disbursement.'
                 : 'Your advance request was not approved. Check your dashboard for details.',
-            metadata: { advance_id: id, status: update.status }
+            metadata: { advance_id: id, status: action === 'approve' ? 'approved' : 'rejected' }
         });
     }
   } catch (notifyErr) {
@@ -110,7 +133,7 @@ export async function PATCH(
   }
 
   return NextResponse.json({
-    message: action === 'approve' ? 'Advance approved' : 'Advance rejected',
-    status: update.status,
+    message: action === 'approve' ? 'Advance approved and disbursement initiated' : 'Advance rejected',
+    status: action === 'approve' ? 'approved' : 'rejected',
   });
 }

@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect } from "react"
-import { 
+import {
   Building2, Users, CreditCard, Bell,
   Shield, Clock, Save, AlertCircle, CheckCircle2,
   Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight, Activity,
@@ -8,17 +8,18 @@ import {
   MessageSquare, Phone, MapPin, Globe, X, Loader2,
   LucideIcon, User, Smartphone
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { 
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
+import { Button } from '@/components/ui/button';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout'
 import { toast } from "sonner";
 import { cn, getAdvanceLimit, getCurrencySymbol } from "@/lib/utils";
-
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import pusherClient from '@/lib/pusher-client';
 
@@ -56,13 +57,51 @@ interface EmployerProfile {
   industry?: string;
   sector?: string;
   documents?: Record<string, string>;
+  avatar_url?: string;
 }
 
+interface Settings {
+  maxAdvancePercentage: number;
+  minAdvanceAmount: number;
+  maxAdvanceAmount: number;
+  advanceAccessDays: [number, number];
+  cooldownPeriod: number;
+  emailNotifications: boolean;
+  advanceAlerts: boolean;
+  payrollReminders: boolean;
+  weeklyReports: boolean;
+  payrollCycle: string;
+}
+
+interface Profile {
+  maxAdvancePercentage: number;
+  minAdvanceAmount: number;
+  maxAdvanceAmount: number;
+  advanceAccessDays: [number, number];
+  cooldownPeriod: number;
+  emailNotifications: boolean;
+  advanceAlerts: boolean;
+  payrollReminders: boolean;
+  weeklyReports: boolean;
+  companyName: string;
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string;
+  payrollCycle: string;
+  physicalAddress: string;
+  city: string;
+  postalCode: string;
+  countyRegion: string;
+  country: string;
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 interface TabButtonProps {
-    icon: LucideIcon;
-    label: string;
-    active: boolean;
-    onClick: () => void;
+  icon: LucideIcon;
+  label: string;
+  active: boolean;
+  onClick: () => void;
 }
 
 const TabButton = ({ active, onClick, icon: Icon, label }: TabButtonProps) => (
@@ -70,7 +109,7 @@ const TabButton = ({ active, onClick, icon: Icon, label }: TabButtonProps) => (
     onClick={onClick}
     className={cn(
       "flex items-center gap-3 px-4 py-3 rounded-xl transition-all w-full",
-      active 
+      active
         ? "bg-primary text-white shadow-lg shadow-primary/25"
         : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50"
     )}
@@ -87,12 +126,13 @@ const TabButton = ({ active, onClick, icon: Icon, label }: TabButtonProps) => (
 );
 
 interface SettingsCardProps {
-    icon: LucideIcon;
-    title: string;
-    description: string;
-    children: React.ReactNode;
-    locked?: boolean;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  locked?: boolean;
 }
+
 const SettingsCard = ({ icon: Icon, title, description, children, locked = false }: SettingsCardProps) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
     <div className="flex items-center gap-3 mb-6">
@@ -113,14 +153,15 @@ const SettingsCard = ({ icon: Icon, title, description, children, locked = false
   </div>
 );
 
-interface ToogleItemProps {
-    icon: LucideIcon;
-    label: string;
-    description: string;
-    checked: boolean;
-    onToggle: (checked: boolean) => void;
+interface ToggleItemProps {
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  checked: boolean;
+  onToggle: (checked: boolean) => void;
 }
-const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: ToogleItemProps) => (
+
+const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: ToggleItemProps) => (
   <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
     <div className="flex items-center gap-4">
       <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-sm">
@@ -136,77 +177,87 @@ const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: Toogl
 );
 
 interface DocumentItemProps {
-    icon: LucideIcon;
-    label: string;
-    fileName?: string | null;
-    status?: string | null;
-    onView: () => void;
-    onReupload: (file: File) => void | Promise<void>;
+  icon: LucideIcon;
+  label: string;
+  fileName?: string | null;
+  status?: string | null;
+  onView: () => void;
+  onReupload: (file: File) => void | Promise<void>;
+  accept?: string;
+  isUploading?: boolean;
 }
-const DocumentItem = ({ icon: Icon, label, fileName, status, onView, onReupload, accept = ".pdf,.jpg,.jpeg,.png", isUploading = false }: DocumentItemProps & { accept?: string, isUploading?: boolean }) => {
+
+const DocumentItem = ({
+  icon: Icon,
+  label,
+  fileName,
+  status,
+  onView,
+  onReupload,
+  accept = ".pdf,.jpg,.jpeg,.png",
+  isUploading = false,
+}: DocumentItemProps) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   return (
-  <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl relative overflow-hidden">
-    <input
-      type="file"
-      className="hidden"
-      ref={fileInputRef}
-      accept={accept}
-      onChange={(e) => {
-        if (e.target.files?.[0]) {
-          void onReupload(e.target.files[0]);
-        }
-      }}
-    />
-    <div className="flex items-center gap-4">
-      <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-        <Icon className="w-5 h-5 text-white" />
+    <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl relative overflow-hidden">
+      <input
+        type="file"
+        className="hidden"
+        ref={fileInputRef}
+        accept={accept}
+        onChange={(e) => {
+          if (e.target.files?.[0]) void onReupload(e.target.files[0]);
+        }}
+      />
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <p className="font-medium text-slate-900 dark:text-white">{label}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{fileName || 'Not uploaded'}</p>
+        </div>
       </div>
-      <div>
-        <p className="font-medium text-slate-900 dark:text-white">{label}</p>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{fileName || 'Not uploaded'}</p>
-      </div>
-    </div>
-    <div className="flex items-center gap-2">
-      <span className={cn(
-        "px-2 py-1 rounded-full text-xs font-medium",
-        status === 'approved' ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" :
-        status === 'pending' ? "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300" :
-        "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-      )}>
-        {status || 'Not uploaded'}
-      </span>
-      {fileName && (
-        <button
-          className={cn(
-            "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3",
-            ""
-          )}
-          onClick={onView}
-        >
-          <Eye className="w-4 h-4" />
-        </button>
-      )}
-      <button 
-        className={cn(
-          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3",
-          ""
+      <div className="flex items-center gap-2">
+        <span className={cn(
+          "px-2 py-1 rounded-full text-xs font-medium",
+          status === 'approved'
+            ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+            : status === 'pending'
+              ? "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
+              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+        )}>
+          {status || 'Not uploaded'}
+        </span>
+        {fileName && (
+          <button
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-9 px-3 transition-colors"
+            onClick={onView}
+          >
+            <Eye className="w-4 h-4" />
+          </button>
         )}
-        onClick={() => fileInputRef.current?.click()}
-        disabled={isUploading}
-      >
-        {isUploading ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /> : <Upload className="w-4 h-4" />}
-      </button>
+        <button
+          className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-9 px-3 transition-colors disabled:pointer-events-none disabled:opacity-50"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+        >
+          {isUploading
+            ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            : <Upload className="w-4 h-4" />
+          }
+        </button>
+      </div>
     </div>
-  </div>
   );
 };
 
-interface FAQItemProps{
-    question: string;
-    answer: string;
+interface FAQItemProps {
+  question: string;
+  answer: string;
 }
+
 const FAQItem = ({ question, answer }: FAQItemProps) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -219,9 +270,7 @@ const FAQItem = ({ question, answer }: FAQItemProps) => {
         <ChevronRight className={cn("w-5 h-5 text-slate-400 transition-transform", isOpen && "rotate-90")} />
       </button>
       {isOpen && (
-        <div className="pb-4 text-slate-600 dark:text-slate-400 text-sm">
-          {answer}
-        </div>
+        <div className="pb-4 text-slate-600 dark:text-slate-400 text-sm">{answer}</div>
       )}
     </div>
   );
@@ -257,7 +306,7 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>New Bank Name</Label>
-            <Input 
+            <Input
               placeholder="e.g. Standard Chartered"
               value={formData.bank_name}
               onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
@@ -265,7 +314,7 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
           </div>
           <div className="space-y-2">
             <Label>New Account Number</Label>
-            <Input 
+            <Input
               placeholder="e.g. 0100XXXXXXX"
               value={formData.bank_account_number}
               onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })}
@@ -273,7 +322,7 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
           </div>
           <div className="space-y-2">
             <Label>Reason for Change</Label>
-            <textarea 
+            <textarea
               className="w-full min-h-24 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               placeholder="Briefly explain why you're changing bank details..."
               value={formData.reason}
@@ -281,7 +330,7 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
             />
           </div>
 
-          <div className="p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20 mb-4">
+          <div className="p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20">
             <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
               <strong>Note:</strong> For security reasons, bank changes are manually reviewed. You may be contacted by our compliance team for verification.
             </p>
@@ -290,26 +339,17 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2",
-                "flex-1 rounded-xl"
-              )}
+              className="flex-1 inline-flex items-center justify-center rounded-xl border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium transition-colors"
             >
               Cancel
             </button>
-            <button 
-              onClick={() => onSubmit(formData)} 
+            <button
+              onClick={() => onSubmit(formData)}
               disabled={isSubmitting || !formData.bank_name || !formData.bank_account_number}
-              className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
-                "flex-1 bg-primary text-white rounded-xl shadow-lg shadow-primary/25"
-              )}
+              className="flex-1 inline-flex items-center justify-center rounded-xl bg-primary text-white hover:bg-primary/90 h-10 px-4 py-2 text-sm font-medium shadow-lg shadow-primary/25 disabled:pointer-events-none disabled:opacity-50 transition-colors"
             >
               {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Submitting...
-                </>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</>
               ) : 'Submit Request'}
             </button>
           </div>
@@ -319,6 +359,8 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
   );
 };
 
+// ─── Profile Tab ──────────────────────────────────────────────────────────────
+
 interface EmployerProfileTabProps {
   employerId?: string;
   fullName?: string | null;
@@ -326,87 +368,67 @@ interface EmployerProfileTabProps {
   avatarUrl?: string | null;
 }
 
-const EmployerProfileTab = ({ employerId, fullName, email, avatarUrl }: EmployerProfileTabProps) => {
-  return (
-    <div className="space-y-6">
-      <SettingsCard icon={Users} title="Your Profile" description="Manage your personal profile and account settings">
-        <div className="flex flex-col items-center mb-8">
-          <AvatarUpload 
-            userId={employerId} 
-            currentAvatarUrl={avatarUrl ?? undefined} 
-            fullName={fullName || email || undefined}
-          />
+const EmployerProfileTab = ({ employerId, fullName, email, avatarUrl }: EmployerProfileTabProps) => (
+  <div className="space-y-6">
+    <SettingsCard icon={Users} title="Your Profile" description="Manage your personal profile and account settings">
+      <div className="flex flex-col items-center mb-8">
+        <AvatarUpload
+          userId={employerId}
+          currentAvatarUrl={avatarUrl ?? undefined}
+          fullName={fullName || email || undefined}
+        />
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-slate-700 dark:text-slate-300">Full Name</Label>
+          <Input value={fullName || ''} readOnly className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed" />
         </div>
+        <div className="space-y-2">
+          <Label className="text-slate-700 dark:text-slate-300">Email Address</Label>
+          <Input value={email || ''} readOnly className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed" />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-700 dark:text-slate-300">Role</Label>
+          <Input value="Employer" readOnly className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed capitalize" />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-700 dark:text-slate-300">Account ID</Label>
+          <Input value={employerId || ''} readOnly className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed font-mono text-xs" />
+        </div>
+      </div>
+    </SettingsCard>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label className="text-slate-700 dark:text-slate-300">Full Name</Label>
-            <Input 
-              value={fullName || ''} 
-              readOnly 
-              className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed" 
-            />
+    <SettingsCard icon={Shield} title="Account Security" description="Verify your account protection">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div>
+            <p className="font-medium text-slate-900 dark:text-white">Email Verified</p>
+            <p className="text-sm text-slate-500">Your primary email is confirmed</p>
           </div>
-          <div className="space-y-2">
-            <Label className="text-slate-700 dark:text-slate-300">Email Address</Label>
-            <Input 
-              value={email || ''} 
-              readOnly 
-              className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed" 
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-slate-700 dark:text-slate-300">Role</Label>
-            <Input 
-              value="Employer" 
-              readOnly 
-              className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed capitalize" 
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-slate-700 dark:text-slate-300">Account ID</Label>
-            <Input 
-              value={employerId || ''} 
-              readOnly 
-              className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed font-mono text-xs" 
-            />
+          <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm">
+            <CheckCircle2 className="w-4 h-4" />Verified
           </div>
         </div>
-      </SettingsCard>
+        <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div>
+            <p className="font-medium text-slate-900 dark:text-white">Active Session</p>
+            <p className="text-sm text-slate-500">Current browser session is secure</p>
+          </div>
+          <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm">
+            <Shield className="w-4 h-4" />Secure
+          </div>
+        </div>
+      </div>
+    </SettingsCard>
+  </div>
+);
 
-      <SettingsCard icon={Shield} title="Account Security" description="Verify your account protection">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="font-medium text-slate-900 dark:text-white">Email Verified</p>
-              <p className="text-sm text-slate-500">Your primary email is confirmed</p>
-            </div>
-            <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm">
-              <CheckCircle2 className="w-4 h-4" />
-              Verified
-            </div>
-          </div>
-          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="font-medium text-slate-900 dark:text-white">Active Session</p>
-              <p className="text-sm text-slate-500">Current browser session is secure</p>
-            </div>
-            <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm">
-              <Shield className="w-4 h-4" />
-              Secure
-            </div>
-          </div>
-        </div>
-      </SettingsCard>
-    </div>
-  );
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getResponseErrorMessage = async (res: Response, fallback: string): Promise<string> => {
   try {
     const text = await res.text();
     if (!text) return fallback;
-
     try {
       const parsed = JSON.parse(text) as { error?: unknown; message?: unknown };
       if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error;
@@ -420,126 +442,77 @@ const getResponseErrorMessage = async (res: Response, fallback: string): Promise
   }
 };
 
+const PAYROLL_CYCLE_LABELS: Record<string, string> = {
+  monthly: 'Monthly',
+  'bi-weekly': 'Bi-Weekly',
+  weekly: 'Weekly',
+};
+
+const COUNTRY_LABELS: Record<string, string> = {
+  KE: 'Kenya',
+  UG: 'Uganda',
+  TZ: 'Tanzania',
+  RW: 'Rwanda',
+};
+
+const faqItems = [
+  {
+    question: "How do I add new employees to EaziWage?",
+    answer: "Navigate to the Employees page and click 'Add Employee'. You can add employees individually or upload a CSV file for bulk import. Each employee will receive an invitation to complete their KYC process."
+  },
+  {
+    question: "What documents are required for employer verification?",
+    answer: "You need: Certificate of Incorporation, KRA PIN Certificate, CR12 Document (Company Directors), Business Permit, and Proof of Bank Account. Audited Financials are recommended for better risk scoring."
+  },
+  {
+    question: "How is the advance fee calculated?",
+    answer: "The fee ranges from 3.5% to 6.5% based on your company's risk score. Better documentation, verified payroll integration, and good repayment history result in lower fees."
+  },
+  {
+    question: "Can I set different advance limits for different employees?",
+    answer: "Yes! Go to Employees > Click on an employee > EWA Settings. You can customize max advance percentage, amount limits, and cooldown periods per employee."
+  },
+  {
+    question: "How do payroll deductions work?",
+    answer: "Advances are automatically deducted from the next payroll cycle. You'll receive a reconciliation report before each payday showing total deductions to process."
+  },
+  {
+    question: "What happens if an employee leaves the company?",
+    answer: "Any outstanding advances become due immediately. The final settlement will include the deduction. Contact support for cases where the final salary doesn't cover the advance."
+  }
+];
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function EmployerSettings() {
-    const [employer, setEmployer] = useState<EmployerProfile | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState('account');
-    const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
-    const [showBankModal, setShowBankModal] = useState(false);
+  const router = useRouter();
 
-    const [settings, setSettings] = useState({
-      maxAdvancePercentage: 50,
-      minAdvanceAmount: 500,
-      maxAdvanceAmount: 50000,
-      advanceAccessDays: [1, 25] as [number, number],
-      cooldownPeriod: 7,
-      emailNotifications: true,
-      advanceAlerts: true,
-      payrollReminders: true,
-      weeklyReports: false,
-      payrollCycle: 'monthly'
-    });
-
-    const handleFileUpload = async (file: File, docKey: string) => {
-      setUploadingDoc(docKey);
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("documentType", docKey);
-
-        const res = await fetch("/api/employer-dashboard/settings/documents", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const errorMessage = await getResponseErrorMessage(res, "Failed to upload document");
-          throw new Error(errorMessage);
-        }
-
-        const data = await res.json();
-        
-        // Update local state with new Document properties
-        setEmployer((prev: EmployerProfile | null) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            documents: {
-              ...prev.documents,
-              [docKey]: data.fileUrl,
-            },
-          };
-        });
-
-        toast.success(`${docKey.replace(/_/g, ' ')} uploaded successfully!`);
-      } catch (err: unknown) {
-        console.error("Upload error:", err);
-        const message = err instanceof Error ? err.message : "Failed to upload document";
-        toast.error(message);
-      } finally {
-        setUploadingDoc(null);
-      }
-    };
-
-    const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
-    const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [employer, setEmployer] = useState<EmployerProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('account');
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [showBankModal, setShowBankModal] = useState(false);
   const [mfaEnabled, setMfaEnabled] = useState(false);
-  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [activityLogs, setActivityLogs] = useState<Array<{ action: string; created_at: string; metadata?: { ip?: string } }>>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
 
-  useEffect(() => {
-    async function fetchLogs() {
-      if (activeTab === 'security') {
-        setLogsLoading(true);
-        try {
-          const res = await fetch('/api/auth/activity-logs');
-          if (res.ok) {
-            const data = await res.json();
-            setActivityLogs(data.logs || []);
-          }
-        } finally {
-          setLogsLoading(false);
-        }
-      }
-    }
-    fetchLogs();
-  }, [activeTab]);
+  const [settings, setSettings] = useState<Settings>({
+    maxAdvancePercentage: 50,
+    minAdvanceAmount: 500,
+    maxAdvanceAmount: 50000,
+    advanceAccessDays: [1, 25],
+    cooldownPeriod: 7,
+    emailNotifications: true,
+    advanceAlerts: true,
+    payrollReminders: true,
+    weeklyReports: false,
+    payrollCycle: 'monthly',
+  });
 
-    const handlePasswordUpdate = async () => {
-      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-        toast.error("Passwords do not match");
-        return;
-      }
-      if (passwordForm.newPassword.length < 8) {
-        toast.error("Password must be at least 8 characters");
-        return;
-      }
-
-      setUpdatingPassword(true);
-      try {
-        const res = await fetch("/api/employer-dashboard/security/password", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ newPassword: passwordForm.newPassword }),
-        });
-        
-        if (res.ok) {
-          toast.success("Password updated successfully");
-          setPasswordForm({ newPassword: '', confirmPassword: '' });
-        } else {
-          const errorMessage = await getResponseErrorMessage(res, "Failed to update password");
-          toast.error(errorMessage);
-        }
-      } catch (err) {
-        console.error("Password update error:", err);
-        toast.error("Failed to update password");
-      } finally {
-        setUpdatingPassword(false);
-      }
-    };
-
-  const [profile, setProfile] = useState({
+  const [profile, setProfile] = useState<Profile>({
     maxAdvancePercentage: 50,
     minAdvanceAmount: 500,
     maxAdvanceAmount: 50000,
@@ -554,13 +527,14 @@ export default function EmployerSettings() {
     contactEmail: '',
     contactPhone: '',
     payrollCycle: 'monthly',
-    // Address fields
     physicalAddress: '',
     city: '',
     postalCode: '',
     countyRegion: '',
-    country: 'KE'
+    country: 'KE',
   });
+
+  // ─── Data fetching ───────────────────────────────────────────────────────
 
   const fetchData = async () => {
     setLoading(true);
@@ -621,76 +595,157 @@ export default function EmployerSettings() {
     }
   };
 
-  useEffect(() => {
-    void fetchData();
-  }, []);
+  useEffect(() => { void fetchData(); }, []);
 
+  // Pusher subscription
   useEffect(() => {
     if (!employer?.id || !pusherClient) return;
-
-    const employerChannel = pusherClient.subscribe(`employer-${employer.id}`);
-
-    const handleUpdate = (data: any) => {
-      console.log('[Pusher] KYC update received:', data);
-      void fetchData();
-    };
-
-    employerChannel.bind('kyc-update', handleUpdate);
-
+    const channel = pusherClient.subscribe(`employer-${employer.id}`);
+    const handleUpdate = () => { void fetchData(); };
+    channel.bind('kyc-update', handleUpdate);
     return () => {
-      employerChannel.unbind('kyc-update', handleUpdate);
+      channel.unbind('kyc-update', handleUpdate);
       pusherClient!.unsubscribe(`employer-${employer.id}`);
     };
   }, [employer?.id]);
 
+  // Activity logs
+  useEffect(() => {
+    if (activeTab !== 'security') return;
+    setLogsLoading(true);
+    fetch('/api/auth/activity-logs')
+      .then((res) => res.ok ? res.json() : { logs: [] })
+      .then((data) => setActivityLogs(data.logs || []))
+      .catch(() => setActivityLogs([]))
+      .finally(() => setLogsLoading(false));
+  }, [activeTab]);
+
+  // ─── Handlers ────────────────────────────────────────────────────────────
+
+  const handleFileUpload = async (file: File, docKey: string) => {
+    setUploadingDoc(docKey);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("documentType", docKey);
+
+      const res = await fetch("/api/employer-dashboard/settings/documents", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error(await getResponseErrorMessage(res, "Failed to upload document"));
+
+      const data = await res.json();
+      setEmployer((prev) => prev ? {
+        ...prev,
+        documents: { ...prev.documents, [docKey]: data.fileUrl },
+      } : prev);
+
+      toast.success(`${docKey.replace(/_/g, ' ')} uploaded successfully!`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload document");
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-        const res = await fetch("/api/employer-dashboard/profile", {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(profile),
-        });
-        if (res.ok) {
-            toast.success("Profile saved successfully");
-        } else {
-            const errorMessage = await getResponseErrorMessage(res, "Failed to save profile");
-            toast.error(errorMessage);
-        }
+      const res = await fetch("/api/employer-dashboard/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      if (res.ok) {
+        toast.success("Profile saved successfully");
+      } else {
+        toast.error(await getResponseErrorMessage(res, "Failed to save profile"));
+      }
     } catch (err) {
-        console.error("Failed to save profile:", err);
-        toast.error("Failed to save profile");
+      console.error("Failed to save profile:", err);
+      toast.error("Failed to save profile");
     } finally {
-        setSaving(false);
+      setSaving(false);
     }
   };
 
   const handleBankChangeRequest = async (data: { bank_name: string; bank_account_number: string; reason: string }) => {
     setSaving(true);
     try {
-        const res = await fetch("/api/employer-dashboard/settings/bank-change-request", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(data),
-        });
-        if (res.ok) {
-            toast.success("Bank change request sent successfully");
-            setShowBankModal(false);
-        } else {
-            const errorMessage = await getResponseErrorMessage(res, "Failed to send bank change request");
-            toast.error(errorMessage);
-        }
+      const res = await fetch("/api/employer-dashboard/settings/bank-change-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        toast.success("Bank change request sent successfully");
+        setShowBankModal(false);
+      } else {
+        toast.error(await getResponseErrorMessage(res, "Failed to send bank change request"));
+      }
     } catch (err) {
-        console.error("Failed to send bank change request:", err);
-        toast.error("Failed to send bank change request");
+      console.error("Failed to send bank change request:", err);
+      toast.error("Failed to send bank change request");
     } finally {
-        setSaving(false);
+      setSaving(false);
     }
   };
+
+  const handlePasswordUpdate = async () => {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    setUpdatingPassword(true);
+    try {
+      const res = await fetch("/api/employer-dashboard/security/password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: passwordForm.newPassword }),
+      });
+      if (res.ok) {
+        toast.success("Password updated successfully");
+        setPasswordForm({ newPassword: '', confirmPassword: '' });
+      } else {
+        toast.error(await getResponseErrorMessage(res, "Failed to update password"));
+      }
+    } catch (err) {
+      console.error("Password update error:", err);
+      toast.error("Failed to update password");
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
+  const handleTerminateAccount = async () => {
+    const confirmed = window.confirm(
+      "Are you absolutely sure? This will disable all employee access and hide your organization data. You will have 30 days to restore it."
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/employer-dashboard/termination/terminate', { method: 'POST' });
+      if (res.ok) {
+        toast.success("Termination process initiated.");
+        router.push('/dashboards/employer-dashboard/terminated');
+      } else {
+        toast.error("Failed to terminate account");
+      }
+    } catch (err) {
+      toast.error("Failed to terminate account");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ─── Config ───────────────────────────────────────────────────────────────
 
   const tabs = [
     { id: 'account', label: 'Profile', icon: User },
@@ -700,35 +755,23 @@ export default function EmployerSettings() {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'help', label: 'Help Centre', icon: HelpCircle },
     { id: 'terms', label: 'Terms & Privacy', icon: Shield },
-    { id: 'security', label: 'Security', icon: Lock }
+    { id: 'security', label: 'Security', icon: Lock },
   ];
 
-  const faqItems = [
-    { 
-      question: "How do I add new employees to EaziWage?", 
-      answer: "Navigate to the Employees page and click 'Add Employee'. You can add employees individually or upload a CSV file for bulk import. Each employee will receive an invitation to complete their KYC process."
-    },
-    { 
-      question: "What documents are required for employer verification?", 
-      answer: "You need: Certificate of Incorporation, KRA PIN Certificate, CR12 Document (Company Directors), Business Permit, and Proof of Bank Account. Audited Financials are recommended for better risk scoring."
-    },
-    { 
-      question: "How is the advance fee calculated?", 
-      answer: "The fee ranges from 3.5% to 6.5% based on your company's risk score. Better documentation, verified payroll integration, and good repayment history result in lower fees."
-    },
-    { 
-      question: "Can I set different advance limits for different employees?", 
-      answer: "Yes! Go to Employees > Click on an employee > EWA Settings. You can customize max advance percentage, amount limits, and cooldown periods per employee."
-    },
-    { 
-      question: "How do payroll deductions work?", 
-      answer: "Advances are automatically deducted from the next payroll cycle. You'll receive a reconciliation report before each payday showing total deductions to process."
-    },
-    { 
-      question: "What happens if an employee leaves the company?", 
-      answer: "Any outstanding advances become due immediately. The final settlement will include the deduction. Contact support for cases where the final salary doesn't cover the advance."
-    }
+  const documents: Array<{
+    key: string;
+    label: string;
+    statusOverride?: 'approved' | 'pending';
+  }> = [
+    { key: 'certificate_of_incorporation', label: 'Certificate of Incorporation' },
+    { key: 'kra_pin_certificate', label: 'KRA PIN Certificate' },
+    { key: 'cr12_document', label: 'CR12 Document', statusOverride: 'pending' },
+    { key: 'business_permit', label: 'Business Permit' },
+    { key: 'audited_financials', label: 'Audited Financials', statusOverride: 'pending' },
+    { key: 'employment_contract_template', label: 'Employment Contract Template' },
   ];
+
+  // ─── Loading state ────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -740,32 +783,38 @@ export default function EmployerSettings() {
     );
   }
 
+  const currencySymbol = getCurrencySymbol(employer?.currency || 'KES');
+  const advanceLimit = getAdvanceLimit(employer?.country);
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white" data-testid="settings-title">Settings</h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your company settings and EWA program configuration</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white" data-testid="settings-title">
+              Settings
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">
+              Manage your company settings and EWA program configuration
+            </p>
           </div>
-          <button 
-            className={cn(
-              "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
-              "bg-primary text-white shadow-lg shadow-primary/25 hover:shadow-xl transition-shadow"
-            )}
+          <Button
             onClick={handleSave}
             disabled={saving}
             data-testid="save-settings-btn"
+            className="bg-primary text-white shadow-lg shadow-primary/25 hover:shadow-xl transition-shadow"
           >
             <Save className="w-4 h-4 mr-2" />
             {saving ? 'Saving...' : 'Save Changes'}
-          </button>
+          </Button>
         </div>
 
-        {/* Main Content */}
+        {/* Main grid */}
         <div className="grid lg:grid-cols-4 gap-6">
-          {/* Sidebar Tabs */}
+          {/* Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-3 border border-slate-200/50 dark:border-slate-700/30 space-y-2">
               {tabs.map((tab) => (
@@ -780,19 +829,20 @@ export default function EmployerSettings() {
             </div>
           </div>
 
-          {/* Content Area */}
+          {/* Content */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Account Tab */}
+
+            {/* ── Account ── */}
             {activeTab === 'account' && (
               <EmployerProfileTab
                 employerId={employer?.id}
                 fullName={employer?.full_name || employer?.contact_person}
                 email={employer?.contact_email}
-                avatarUrl={(employer as any)?.avatar_url}
+                avatarUrl={employer?.avatar_url}
               />
             )}
 
-            {/* Company Tab */}
+            {/* ── Company ── */}
             {activeTab === 'company' && (
               <>
                 <SettingsCard icon={Building2} title="Company Information" description="Update your company details">
@@ -810,7 +860,7 @@ export default function EmployerSettings() {
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Payroll Cycle</Label>
                       <Input
-                        value={profile.payrollCycle === 'monthly' ? 'Monthly' : profile.payrollCycle === 'bi-weekly' ? 'Bi-Weekly' : profile.payrollCycle === 'weekly' ? 'Weekly' : settings.payrollCycle}
+                        value={PAYROLL_CYCLE_LABELS[profile.payrollCycle] || profile.payrollCycle}
                         readOnly
                         className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed capitalize"
                         data-testid="payroll-cycle-select"
@@ -818,8 +868,7 @@ export default function EmployerSettings() {
                       <p className="text-xs text-slate-500">Contact support to change payroll cycle</p>
                     </div>
                   </div>
-                  
-                  {/* Employer Code */}
+
                   <div className="mt-4 p-4 bg-linear-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 rounded-xl border border-primary/20">
                     <Label className="text-slate-700 dark:text-slate-300 text-sm">Employer Code</Label>
                     <div className="flex items-center gap-3 mt-2">
@@ -831,8 +880,7 @@ export default function EmployerSettings() {
                   </div>
                 </SettingsCard>
 
-                {/* Address Section */}
-                <SettingsCard icon={MapPin} title="Business Address" description="Update your company's physical address">
+                <SettingsCard icon={MapPin} title="Business Address" description="Your company's physical address">
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Physical Address</Label>
@@ -847,45 +895,21 @@ export default function EmployerSettings() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">City</Label>
-                        <Input
-                          value={profile.city}
-                          readOnly
-                          placeholder="Nairobi"
-                          className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
-                          data-testid="city-input"
-                        />
+                        <Input value={profile.city} readOnly placeholder="Nairobi" className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed" data-testid="city-input" />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Postal Code</Label>
-                        <Input
-                          value={profile.postalCode}
-                          readOnly
-                          placeholder="00100"
-                          className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
-                          data-testid="postal-code-input"
-                        />
+                        <Input value={profile.postalCode} readOnly placeholder="00100" className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed" data-testid="postal-code-input" />
                       </div>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">County/Region</Label>
-                        <Input
-                          value={profile.countyRegion}
-                          readOnly
-                          placeholder="Your county or region"
-                          className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
-                          data-testid="county-input"
-                        />
+                        <Input value={profile.countyRegion} readOnly placeholder="Your county or region" className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed" data-testid="county-input" />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Country</Label>
-                        <Input
-                          value={profile.country === 'KE' ? 'Kenya' : profile.country === 'UG' ? 'Uganda' : profile.country === 'TZ' ? 'Tanzania' : profile.country === 'RW' ? 'Rwanda' : profile.country}
-                          readOnly
-                          placeholder="Country"
-                          className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
-                          data-testid="country-input"
-                        />
+                        <Input value={COUNTRY_LABELS[profile.country] || profile.country} readOnly className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed" data-testid="country-input" />
                       </div>
                     </div>
                     <p className="text-xs text-slate-500">Contact support to change your business address</p>
@@ -896,65 +920,46 @@ export default function EmployerSettings() {
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Contact Person</Label>
-                      <Input
-                        value={profile.contactPerson}
-                        readOnly
-                        placeholder="Full name"
-                        className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
-                        data-testid="contact-person-input"
-                      />
+                      <Input value={profile.contactPerson} readOnly placeholder="Full name" className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed" data-testid="contact-person-input" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Phone Number</Label>
-                      <Input
-                        value={profile.contactPhone}
-                        readOnly
-                        placeholder="+254 700 000 000"
-                        className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
-                        data-testid="contact-phone-input"
-                      />
+                      <Input value={profile.contactPhone} readOnly placeholder="+254 700 000 000" className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed" data-testid="contact-phone-input" />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label className="text-slate-700 dark:text-slate-300">Email Address</Label>
-                      <Input
-                        type="email"
-                        value={profile.contactEmail}
-                        readOnly
-                        placeholder="email@company.com"
-                        className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
-                        data-testid="contact-email-input"
-                      />
+                      <Input type="email" value={profile.contactEmail} readOnly placeholder="email@company.com" className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed" data-testid="contact-email-input" />
                     </div>
                   </div>
                   <p className="text-xs text-slate-500 mt-4">Contact support to change your primary contact information</p>
                 </SettingsCard>
 
-                {/* Verification Status */}
+                {/* Verification status banner */}
                 <div className={cn(
                   "rounded-2xl p-6 border",
-                  employer?.status === 'approved' 
+                  employer?.status === 'approved'
                     ? "bg-linear-to-br from-emerald-500/5 to-teal-500/5 border-emerald-500/20"
                     : "bg-linear-to-br from-amber-500/5 to-orange-500/5 border-amber-500/20"
                 )}>
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "w-14 h-14 rounded-2xl flex items-center justify-center",
-                      employer?.status === 'approved' 
+                      employer?.status === 'approved'
                         ? "bg-emerald-100 dark:bg-emerald-500/20"
                         : "bg-amber-100 dark:bg-amber-500/20"
                     )}>
-                      {employer?.status === 'approved' ? (
-                        <CheckCircle2 className="w-7 h-7 text-emerald-600" />
-                      ) : (
-                        <Clock className="w-7 h-7 text-amber-600" />
-                      )}
+                      {employer?.status === 'approved'
+                        ? <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+                        : <Clock className="w-7 h-7 text-amber-600" />
+                      }
                     </div>
                     <div>
                       <h3 className="font-semibold text-slate-900 dark:text-white">
-                        Verification Status: {(employer?.status ?? 'pending').charAt(0).toUpperCase() + (employer?.status ?? 'pending').slice(1)}
+                        Verification Status:{' '}
+                        {(employer?.status ?? 'pending').charAt(0).toUpperCase() + (employer?.status ?? 'pending').slice(1)}
                       </h3>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        {employer?.status === 'approved' 
+                        {employer?.status === 'approved'
                           ? 'Your company is fully verified and can access all EaziWage features.'
                           : 'Your company verification is in progress. Some features may be limited until approval.'}
                       </p>
@@ -964,65 +969,27 @@ export default function EmployerSettings() {
               </>
             )}
 
-            {/* KYC & Documents Tab */}
+            {/* ── KYC ── */}
             {activeTab === 'kyc' && (
               <>
                 <SettingsCard icon={FileText} title="Company Documents" description="View and manage your uploaded KYC documents">
                   <div className="space-y-3">
-                    <DocumentItem 
-                      icon={FileText} 
-                      label="Certificate of Incorporation" 
-                      fileName={employer?.documents?.certificate_of_incorporation ? "certificate_of_incorporation.pdf" : null}
-                      status={employer?.documents?.certificate_of_incorporation ? "approved" : null}
-                      onReupload={(file) => handleFileUpload(file, 'certificate_of_incorporation')}
-                      isUploading={uploadingDoc === 'certificate_of_incorporation'}
-                      onView={() => employer?.documents?.certificate_of_incorporation && window.open(employer.documents.certificate_of_incorporation, '_blank')}
-                    />
-                    <DocumentItem 
-                      icon={FileText} 
-                      label="KRA PIN Certificate" 
-                      fileName={employer?.documents?.kra_pin_certificate ? "kra_pin.pdf" : null}
-                      status={employer?.documents?.kra_pin_certificate ? "approved" : null}
-                      onReupload={(file) => handleFileUpload(file, 'kra_pin_certificate')}
-                      isUploading={uploadingDoc === 'kra_pin_certificate'}
-                      onView={() => employer?.documents?.kra_pin_certificate && window.open(employer.documents.kra_pin_certificate, '_blank')}
-                    />
-                    <DocumentItem 
-                      icon={FileText} 
-                      label="CR12 Document" 
-                      fileName={employer?.documents?.cr12_document ? "cr12_document.pdf" : null}
-                      status={employer?.documents?.cr12_document ? "pending" : null}
-                      onReupload={(file) => handleFileUpload(file, 'cr12_document')}
-                      isUploading={uploadingDoc === 'cr12_document'}
-                      onView={() => employer?.documents?.cr12_document && window.open(employer.documents.cr12_document, '_blank')}
-                    />
-                    <DocumentItem 
-                      icon={FileText} 
-                      label="Business Permit" 
-                      fileName={employer?.documents?.business_permit ? "business_permit.pdf" : null}
-                      status={employer?.documents?.business_permit ? "approved" : null}
-                      onReupload={(file) => handleFileUpload(file, 'business_permit')}
-                      isUploading={uploadingDoc === 'business_permit'}
-                      onView={() => employer?.documents?.business_permit && window.open(employer.documents.business_permit, '_blank')}
-                    />
-                    <DocumentItem 
-                      icon={FileText} 
-                      label="Audited Financials" 
-                      fileName={employer?.documents?.audited_financials ? "audited_financials.pdf" : null}
-                      status={employer?.documents?.audited_financials ? "pending" : null}
-                      onReupload={(file) => handleFileUpload(file, 'audited_financials')}
-                      isUploading={uploadingDoc === 'audited_financials'}
-                      onView={() => employer?.documents?.audited_financials && window.open(employer.documents.audited_financials, '_blank')}
-                    />
-                    <DocumentItem 
-                      icon={FileText} 
-                      label="Employment Contract Template" 
-                      fileName={employer?.documents?.employment_contract_template ? "contract_template.pdf" : null}
-                      status={employer?.documents?.employment_contract_template ? "approved" : null}
-                      onReupload={(file) => handleFileUpload(file, 'employment_contract_template')}
-                      isUploading={uploadingDoc === 'employment_contract_template'}
-                      onView={() => employer?.documents?.employment_contract_template && window.open(employer.documents.employment_contract_template, '_blank')}
-                    />
+                    {documents.map(({ key, label, statusOverride }) => {
+                      const url = employer?.documents?.[key];
+                      const status = url ? (statusOverride ?? 'approved') : null;
+                      return (
+                        <DocumentItem
+                          key={key}
+                          icon={FileText}
+                          label={label}
+                          fileName={url ? `${key}.pdf` : null}
+                          status={status}
+                          onReupload={(file) => handleFileUpload(file, key)}
+                          isUploading={uploadingDoc === key}
+                          onView={() => url && window.open(url, '_blank')}
+                        />
+                      );
+                    })}
                   </div>
                 </SettingsCard>
 
@@ -1031,11 +998,7 @@ export default function EmployerSettings() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Bank Name</Label>
-                        <Input
-                          value={employer?.bank_name || ''}
-                          disabled
-                          className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                        />
+                        <Input value={employer?.bank_name || ''} disabled className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700" />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Account Number</Label>
@@ -1048,17 +1011,12 @@ export default function EmployerSettings() {
                     </div>
                     <div className="flex items-center gap-4 p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20">
                       <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm text-amber-800 dark:text-amber-200">
-                          Bank account changes require approval from EaziWage for security purposes.
-                        </p>
-                      </div>
-                      <button 
+                      <p className="flex-1 text-sm text-amber-800 dark:text-amber-200">
+                        Bank account changes require approval from EaziWage for security purposes.
+                      </p>
+                      <button
                         onClick={() => setShowBankModal(true)}
-                        className={cn(
-                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3",
-                          "border-amber-300 text-amber-700 hover:bg-amber-100"
-                        )}
+                        className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-amber-300 text-amber-700 hover:bg-amber-100 h-9 px-3 transition-colors"
                       >
                         Request Change
                       </button>
@@ -1066,53 +1024,35 @@ export default function EmployerSettings() {
                   </div>
                 </SettingsCard>
 
-                <SettingsCard icon={Building2} title="Business Information" description="Edit your company details">
+                <SettingsCard icon={Building2} title="Business Information" description="Registered company details">
                   <div className="space-y-4">
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Registration Number</Label>
-                        <Input
-                          value={employer?.registration_number || ''}
-                          disabled
-                          className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                        />
+                        <Input value={employer?.registration_number || ''} disabled className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700" />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Tax ID (KRA PIN)</Label>
-                        <Input
-                          value={employer?.tax_id || ''}
-                          disabled
-                          className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                        />
+                        <Input value={employer?.tax_id || ''} disabled className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700" />
                       </div>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Industry</Label>
-                        <Input
-                          value={employer?.industry?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || ''}
-                          disabled
-                          className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                        />
+                        <Input value={employer?.industry?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || ''} disabled className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700" />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-300">Sector</Label>
-                        <Input
-                          value={employer?.sector?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || ''}
-                          disabled
-                          className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                        />
+                        <Input value={employer?.sector?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || ''} disabled className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700" />
                       </div>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      To update registration details, please contact support.
-                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">To update registration details, please contact support.</p>
                   </div>
                 </SettingsCard>
               </>
             )}
 
-            {/* EWA Settings Tab */}
+            {/* ── EWA ── */}
             {activeTab === 'ewa' && (
               <>
                 <SettingsCard icon={Percent} title="Advance Limits" description="Control how much employees can advance">
@@ -1125,41 +1065,40 @@ export default function EmployerSettings() {
                       <Slider
                         value={[settings.maxAdvancePercentage]}
                         onValueChange={(v) => {
-                          const maxLimit = getAdvanceLimit(employer?.country);
-                          const val = Math.min(v[0], maxLimit);
-                          setSettings(prev => ({ ...prev, maxAdvancePercentage: val }));
+                          const val = Math.min(v[0], advanceLimit);
+                          setSettings((prev) => ({ ...prev, maxAdvancePercentage: val }));
                         }}
-                        max={getAdvanceLimit(employer?.country)}
+                        max={advanceLimit}
                         min={10}
                         step={5}
                         className="w-full"
                         data-testid="max-advance-slider"
                       />
                       <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Employees can advance up to {settings.maxAdvancePercentage}% of their earned wages. 
+                        Employees can advance up to {settings.maxAdvancePercentage}% of their earned wages.
                         <span className="block mt-1 font-medium text-amber-600">
-                          (Statutory limit for {employer?.country || 'your country'}: {getAdvanceLimit(employer?.country)}%)
+                          (Statutory limit for {employer?.country || 'your country'}: {advanceLimit}%)
                         </span>
                       </p>
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/30">
                       <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">Minimum Amount ({getCurrencySymbol(employer?.currency || 'KES')})</Label>
+                        <Label className="text-slate-700 dark:text-slate-300">Minimum Amount ({currencySymbol})</Label>
                         <Input
                           type="number"
                           value={settings.minAdvanceAmount}
-                          onChange={(e) => setSettings(prev => ({ ...prev, minAdvanceAmount: parseInt(e.target.value) || 0 }))}
+                          onChange={(e) => setSettings((prev) => ({ ...prev, minAdvanceAmount: parseInt(e.target.value) || 0 }))}
                           className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
                           data-testid="min-advance-input"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-300">Maximum Amount ({getCurrencySymbol(employer?.currency || 'KES')})</Label>
+                        <Label className="text-slate-700 dark:text-slate-300">Maximum Amount ({currencySymbol})</Label>
                         <Input
                           type="number"
                           value={settings.maxAdvanceAmount}
-                          onChange={(e) => setSettings(prev => ({ ...prev, maxAdvanceAmount: parseInt(e.target.value) || 0 }))}
+                          onChange={(e) => setSettings((prev) => ({ ...prev, maxAdvanceAmount: parseInt(e.target.value) || 0 }))}
                           className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
                           data-testid="max-advance-input"
                         />
@@ -1175,15 +1114,18 @@ export default function EmployerSettings() {
                       <div className="grid sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <span className="text-sm text-slate-500 dark:text-slate-400">From Day</span>
-                          <Select 
+                          <Select
                             value={settings.advanceAccessDays[0].toString()}
-                            onValueChange={(v) => setSettings(prev => ({ ...prev, advanceAccessDays: [parseInt(v), prev.advanceAccessDays[1]] }))}
+                            onValueChange={(v) => setSettings((prev) => ({
+                              ...prev,
+                              advanceAccessDays: [parseInt(v), prev.advanceAccessDays[1]],
+                            }))}
                           >
                             <SelectTrigger className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                              {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
                                 <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
                               ))}
                             </SelectContent>
@@ -1191,15 +1133,18 @@ export default function EmployerSettings() {
                         </div>
                         <div className="space-y-2">
                           <span className="text-sm text-slate-500 dark:text-slate-400">To Day</span>
-                          <Select 
+                          <Select
                             value={settings.advanceAccessDays[1].toString()}
-                            onValueChange={(v) => setSettings(prev => ({ ...prev, advanceAccessDays: [prev.advanceAccessDays[0], parseInt(v)] }))}
+                            onValueChange={(v) => setSettings((prev) => ({
+                              ...prev,
+                              advanceAccessDays: [prev.advanceAccessDays[0], parseInt(v)],
+                            }))}
                           >
                             <SelectTrigger className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                              {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
                                 <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
                               ))}
                             </SelectContent>
@@ -1216,7 +1161,7 @@ export default function EmployerSettings() {
                       <Input
                         type="number"
                         value={settings.cooldownPeriod}
-                        onChange={(e) => setSettings(prev => ({ ...prev, cooldownPeriod: parseInt(e.target.value) || 0 }))}
+                        onChange={(e) => setSettings((prev) => ({ ...prev, cooldownPeriod: parseInt(e.target.value) || 0 }))}
                         min={0}
                         max={30}
                         className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 max-w-xs"
@@ -1245,47 +1190,47 @@ export default function EmployerSettings() {
               </>
             )}
 
-            {/* Notifications Tab */}
+            {/* ── Notifications ── */}
             {activeTab === 'notifications' && (
               <SettingsCard icon={Bell} title="Notification Preferences" description="Choose what updates you want to receive">
                 <div className="space-y-4">
-                  <ToggleItem 
+                  <ToggleItem
                     icon={Mail}
                     label="Email Notifications"
                     description="Receive important updates via email"
                     checked={settings.emailNotifications}
                     onToggle={(v) => {
-                      setSettings(prev => ({ ...prev, emailNotifications: v }));
+                      setSettings((prev) => ({ ...prev, emailNotifications: v }));
                       toast.success(v ? 'Email notifications enabled' : 'Email notifications disabled');
                     }}
                   />
-                  <ToggleItem 
+                  <ToggleItem
                     icon={CreditCard}
                     label="Advance Alerts"
                     description="Get notified when employees request advances"
                     checked={settings.advanceAlerts}
                     onToggle={(v) => {
-                      setSettings(prev => ({ ...prev, advanceAlerts: v }));
+                      setSettings((prev) => ({ ...prev, advanceAlerts: v }));
                       toast.success(v ? 'Advance alerts enabled' : 'Advance alerts disabled');
                     }}
                   />
-                  <ToggleItem 
+                  <ToggleItem
                     icon={Calendar}
                     label="Payroll Reminders"
                     description="Reminders to upload monthly payroll data"
                     checked={settings.payrollReminders}
                     onToggle={(v) => {
-                      setSettings(prev => ({ ...prev, payrollReminders: v }));
+                      setSettings((prev) => ({ ...prev, payrollReminders: v }));
                       toast.success(v ? 'Payroll reminders enabled' : 'Payroll reminders disabled');
                     }}
                   />
-                  <ToggleItem 
+                  <ToggleItem
                     icon={BarChart3}
                     label="Weekly Reports"
                     description="Receive weekly summary reports via email"
                     checked={settings.weeklyReports}
                     onToggle={(v) => {
-                      setSettings(prev => ({ ...prev, weeklyReports: v }));
+                      setSettings((prev) => ({ ...prev, weeklyReports: v }));
                       toast.success(v ? 'Weekly reports enabled' : 'Weekly reports disabled');
                     }}
                   />
@@ -1293,7 +1238,7 @@ export default function EmployerSettings() {
               </SettingsCard>
             )}
 
-            {/* Help Centre Tab */}
+            {/* ── Help ── */}
             {activeTab === 'help' && (
               <>
                 <SettingsCard icon={HelpCircle} title="Frequently Asked Questions" description="Quick answers to common questions">
@@ -1307,7 +1252,7 @@ export default function EmployerSettings() {
                 <SettingsCard icon={MessageSquare} title="Contact Support" description="Get in touch with our team">
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
                           <Mail className="w-5 h-5 text-white" />
                         </div>
@@ -1318,7 +1263,7 @@ export default function EmployerSettings() {
                       </div>
                     </div>
                     <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
                           <Phone className="w-5 h-5 text-white" />
                         </div>
@@ -1333,62 +1278,60 @@ export default function EmployerSettings() {
 
                 <SettingsCard icon={Globe} title="Resources" description="Helpful documentation and guides">
                   <div className="space-y-3">
-                    <a href="#" className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-white" />
+                    {[
+                      { label: 'Employer Guide', description: 'Complete setup and usage guide' },
+                      { label: 'API Documentation', description: 'For payroll integration' },
+                    ].map(({ label, description }) => (
+                      <a
+                        key={label}
+                        href="#"
+                        className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-900 dark:text-white">{label}</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-white">Employer Guide</p>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">Complete setup and usage guide</p>
-                        </div>
-                      </div>
-                      <ExternalLink className="w-5 h-5 text-slate-400" />
-                    </a>
-                    <a href="#" className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-white">API Documentation</p>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">For payroll integration</p>
-                        </div>
-                      </div>
-                      <ExternalLink className="w-5 h-5 text-slate-400" />
-                    </a>
+                        <ExternalLink className="w-5 h-5 text-slate-400" />
+                      </a>
+                    ))}
                   </div>
                 </SettingsCard>
               </>
             )}
 
-            {/* Terms & Privacy Tab */}
+            {/* ── Terms ── */}
             {activeTab === 'terms' && (
               <>
                 <SettingsCard icon={FileText} title="Terms of Service" description="Your agreement with EaziWage">
-                  <div className="prose prose-slate dark:prose-invert max-w-none text-sm">
-                    <p className="text-slate-600 dark:text-slate-400">
-                      By using EaziWage services, you agree to our Terms of Service which govern the relationship between your company and EaziWage Ltd. The full terms are available below.
-                    </p>
-                    <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl max-h-48 overflow-y-auto text-xs text-slate-500 dark:text-slate-400">
-                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-2">1. Service Agreement</h4>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    By using EaziWage services, you agree to our Terms of Service which govern the relationship between your company and EaziWage Ltd.
+                  </p>
+                  <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl max-h-48 overflow-y-auto text-xs text-slate-500 dark:text-slate-400 space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">1. Service Agreement</h4>
                       <p>EaziWage provides earned wage access services to employers and their employees. By registering, you agree to facilitate wage advances to your employees through our platform.</p>
-                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">2. Employer Obligations</h4>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">2. Employer Obligations</h4>
                       <p>As an employer, you agree to: (a) Provide accurate payroll data; (b) Deduct advances from employee salaries; (c) Maintain employee consent records; (d) Comply with local labor laws.</p>
-                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">3. Fees and Charges</h4>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">3. Fees and Charges</h4>
                       <p>Fees are calculated based on risk assessment and disclosed to employees before each advance. Employers are not charged for the service.</p>
-                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">4. Termination</h4>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">4. Termination</h4>
                       <p>Either party may terminate with 30 days notice. Outstanding advances must be settled before termination.</p>
                     </div>
                   </div>
-                  <div className="mt-4 flex gap-2">
-                    <a href="/terms.pdf" download className="flex-1 block">
-                      <button 
-                        className={cn(
-                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2",
-                          "w-full"
-                        )}
-                      >
+                  <div className="mt-4">
+                    <a href="/terms.pdf" download className="block">
+                      <button className="w-full inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium transition-colors">
                         <Download className="w-4 h-4 mr-2" /> Download PDF
                       </button>
                     </a>
@@ -1396,29 +1339,30 @@ export default function EmployerSettings() {
                 </SettingsCard>
 
                 <SettingsCard icon={Shield} title="Privacy Policy" description="How we handle your data">
-                  <div className="prose prose-slate dark:prose-invert max-w-none text-sm">
-                    <p className="text-slate-600 dark:text-slate-400">
-                      EaziWage is committed to protecting your privacy and the privacy of your employees. Our Privacy Policy outlines how we collect, use, and protect data.
-                    </p>
-                    <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl max-h-48 overflow-y-auto text-xs text-slate-500 dark:text-slate-400">
-                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-2">Data We Collect</h4>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    EaziWage is committed to protecting your privacy and the privacy of your employees.
+                  </p>
+                  <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl max-h-48 overflow-y-auto text-xs text-slate-500 dark:text-slate-400 space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">Data We Collect</h4>
                       <p>Company registration details, employee information (name, ID, salary), bank account details, transaction history.</p>
-                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">How We Use Data</h4>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">How We Use Data</h4>
                       <p>To provide wage access services, verify identities, calculate risk scores, process payments, and comply with regulations.</p>
-                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">Data Protection</h4>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">Data Protection</h4>
                       <p>All data is encrypted at rest and in transit. We comply with Kenya&apos;s Data Protection Act 2019 and international standards.</p>
-                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2">Data Sharing</h4>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">Data Sharing</h4>
                       <p>We do not sell data. Data may be shared with: payment processors, regulatory authorities (as required), and service providers under contract.</p>
                     </div>
                   </div>
-                  <div className="mt-4 flex gap-2">
-                    <a href="/data.pdf" download className="flex-1 block">
-                      <button 
-                        className={cn(
-                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2",
-                          "w-full"
-                        )}
-                      >
+                  <div className="mt-4">
+                    <a href="/data.pdf" download className="block">
+                      <button className="w-full inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium transition-colors">
                         <Download className="w-4 h-4 mr-2" /> Download PDF
                       </button>
                     </a>
@@ -1427,117 +1371,118 @@ export default function EmployerSettings() {
               </>
             )}
 
-            {/* Security Tab */}
+            {/* ── Security ── */}
             {activeTab === 'security' && (
               <>
-                <SettingsCard icon={Shield} title="Multi-Factor Authentication" description="Add an extra layer of security to your organization account">
-                  <ToggleItem 
+                <SettingsCard icon={Shield} title="Multi-Factor Authentication" description="Add an extra layer of security to your account">
+                  <ToggleItem
                     icon={Smartphone}
                     label="Two-Factor Authentication (TOTP)"
                     description="Secure your account with an authenticator app"
                     checked={mfaEnabled}
-                    onToggle={() => setMfaEnabled(!mfaEnabled)}
+                    onToggle={(v) => setMfaEnabled(v)}
                   />
                 </SettingsCard>
 
-                <SettingsCard icon={Activity} title="Organization Security Logs" description="Recent security-related events for your account">
-                  <div className="space-y-4">
-                    {logsLoading ? (
-                      <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-                    ) : activityLogs.length === 0 ? (
-                      <p className="text-xs text-slate-500 text-center py-4">No recent organization security events.</p>
-                    ) : (
-                      <div className="divide-y divide-slate-100 dark:divide-white/5">
-                        {activityLogs.map((log, idx) => (
-                          <div key={idx} className="py-3 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{log.action.replace('_', ' ')}</p>
-                              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest">
-                              {log.metadata?.ip || 'Verified'}
-                            </span>
+                <SettingsCard icon={Activity} title="Security Logs" description="Recent security-related events for your account">
+                  {logsLoading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    </div>
+                  ) : activityLogs.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-4">No recent security events.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-white/5">
+                      {activityLogs.map((log, idx) => (
+                        <div key={idx} className="py-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">
+                              {log.action.replace('_', ' ')}
+                            </p>
+                            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
+                              {new Date(log.created_at).toLocaleString()}
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest">
+                            {log.metadata?.ip || 'Verified'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </SettingsCard>
 
                 <SettingsCard icon={Lock} title="Password" description="Update your account password">
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Current Password</Label>
-                      <Input 
-                        type="password" 
+                      <Input
+                        type="password"
                         placeholder="Enter current password"
                         className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
-                        data-testid="current-password" 
+                        data-testid="current-password"
                       />
                     </div>
-                    <div className="space-y-4">
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-slate-700 dark:text-slate-300">New Password</Label>
-                          <Input 
-                            type="password" 
-                            placeholder="Enter new password"
-                            value={passwordForm.newPassword}
-                            onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                            className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
-                            data-testid="new-password" 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-slate-700 dark:text-slate-300">Confirm Password</Label>
-                          <Input 
-                            type="password" 
-                            placeholder="Confirm new password"
-                            value={passwordForm.confirmPassword}
-                            onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                            className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
-                            data-testid="confirm-password" 
-                          />
-                        </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 dark:text-slate-300">New Password</Label>
+                        <Input
+                          type="password"
+                          placeholder="Enter new password"
+                          value={passwordForm.newPassword}
+                          onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                          className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                          data-testid="new-password"
+                        />
                       </div>
-                      <button 
-                        onClick={handlePasswordUpdate}
-                        disabled={updatingPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
-                        className={cn(
-                          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
-                          "bg-primary text-white"
-                        )}
-                        data-testid="update-password-btn"
-                      >
-                        {updatingPassword ? "Updating..." : "Update Password"}
-                      </button>
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 dark:text-slate-300">Confirm Password</Label>
+                        <Input
+                          type="password"
+                          placeholder="Confirm new password"
+                          value={passwordForm.confirmPassword}
+                          onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                          className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
+                          data-testid="confirm-password"
+                        />
+                      </div>
                     </div>
+                    <Button
+                      onClick={handlePasswordUpdate}
+                      disabled={updatingPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
+                      className="bg-primary text-white"
+                      data-testid="update-password-btn"
+                    >
+                      {updatingPassword ? "Updating..." : "Update Password"}
+                    </Button>
                   </div>
                 </SettingsCard>
 
-                {/*
-                <SettingsCard icon={Shield} title="Security Settings" description="Additional security options">
-                  <div className="space-y-4">
-                    <SecurityItem 
-                      icon={Shield}
-                      label="Two-Factor Authentication"
-                      description="Add an extra layer of security"
-                      actionLabel="Enable"
-                    />
-                    <SecurityItem 
-                      icon={Clock}
-                      label="Login Activity"
-                      description="View recent login attempts"
-                      actionLabel="View"
-                    />
+                {/* Danger Zone */}
+                <div className="pt-8 mt-8 border-t border-red-500/20">
+                  <div className="bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-900/30 p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex-1 space-y-2 text-center md:text-left">
+                      <h3 className="text-xl font-bold text-red-600 dark:text-red-400">Danger Zone</h3>
+                      <p className="text-sm text-red-700/70 dark:text-red-400/60 max-w-md">
+                        Terminating your account will disable all employee access and hide your data. You will have 30 days to restore your account before permanent deletion.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleTerminateAccount}
+                      disabled={saving}
+                      className="bg-red-600 hover:bg-red-700 text-white h-12 px-8 rounded-xl font-bold shadow-xl shadow-red-600/20"
+                    >
+                      Delete Account
+                    </Button>
                   </div>
-                </SettingsCard>
-                */}
+                </div>
               </>
             )}
+
           </div>
         </div>
       </div>
+
       <BankChangeModal
         isOpen={showBankModal}
         onClose={() => setShowBankModal(false)}
@@ -1547,4 +1492,3 @@ export default function EmployerSettings() {
     </EmployerPortalLayout>
   );
 }
-

@@ -152,9 +152,11 @@ export const DocumentUploadSchema = z.object({
           'image/webp',
           'application/pdf',
           'application/docx',
+          'application/xlsx',
+          'application/csv',
         ].includes(file.type),
       {
-        message: 'File must be JPEG, PNG, WEBP, PDF or DOCX',
+        message: 'File must be JPEG, PNG, WEBP, PDF, DOCX, XLSX, or CSV',
       }
     ),
   document_type: DocumentTypeEnum,

@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { employeeOnboardingSchema } from '@/lib/validations/employee-validation';
+import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
 import pusherServer from '@/lib/pusher-server';
 import { getEnv } from '@/env';
@@ -153,6 +154,9 @@ export async function POST(req: NextRequest) {
   // Generate employee code automatically if not provided
   const generatedEmployeeCode = employee_code || generateEmployeeCode(employer_id, user.id);
 
+  // Calculate currency based on country
+  const employeeCurrency = getCurrencyFromCountry(country);
+
   const upsertPayload = {
     user_id: user.id,
     employer_id,
@@ -176,6 +180,7 @@ export async function POST(req: NextRequest) {
     bank_account,
     mobile_money_provider,
     mobile_money_number,
+    currency: employeeCurrency,
     // Documents
     face_id: face_id || null,
     id_front: id_front || null,
@@ -224,6 +229,7 @@ export async function POST(req: NextRequest) {
         job_title,
         department: department || null,
         monthly_salary,
+        currency: employeeCurrency,
         status: 'pending',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });

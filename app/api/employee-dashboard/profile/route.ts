@@ -52,7 +52,8 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
         *,
         employer_onboarding!employer_id (
             company_name,
-            user_id
+            user_id,
+            currency
         )
     `)
     .eq('user_id', userId)
@@ -82,6 +83,7 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
         company_name: onboarding?.employer_onboarding?.company_name || 'Unlinked',
         employer_person_name: employerPersonName,
         kyc_status: onboarding?.status || employee?.kyc_status || 'pending',
+        currency: onboarding?.currency || employee?.currency || 'KES',
     };
 
     return {

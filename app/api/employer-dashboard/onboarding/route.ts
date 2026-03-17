@@ -3,6 +3,7 @@ import { createRouteHandlerClient as createClient } from '@/utils/supabase/serve
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { onboardingSubmitSchema, stepUpdateSchema } from '@/lib/validations/employer-onboarding';
+import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployerOnboardingConfirmation from '@/lib/emails/EmployerOnboardingConfirmation';
 import pusherServer from '@/lib/pusher-server';
 
@@ -82,11 +83,15 @@ export async function POST(req: NextRequest) {
   try {
     const onboardingId = await getOrCreateDraft(supabase, user.id);
 
+    // Calculate currency based on country
+    const employerCurrency = getCurrencyFromCountry(fields.country);
+
     // ── Upsert main onboarding row ────────────────────────────────────────
     const { error: upsertError } = await supabase
       .from('employer_onboarding')
       .update({
         ...fields,
+        currency: employerCurrency,
         // Document URLs
         certificate_of_incorporation: certificate_of_incorporation || null,
         business_registration: business_registration || null,
