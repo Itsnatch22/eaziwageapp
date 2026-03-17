@@ -13,7 +13,7 @@ interface ReportData {
     total: number;
     disbursed: number;
     pending: number;
-    rejected: number;
+    denied: number;
     total_amount: number;
     total_fees: number;
     avg_amount: number;
@@ -41,7 +41,7 @@ function toCsvRows(type: ExportType, data: ReportData): Array<Array<string | num
       ['Total Requests', data.advances.total],
       ['Disbursed', data.advances.disbursed],
       ['Pending', data.advances.pending],
-      ['Rejected', data.advances.rejected],
+      ['Denied', data.advances.denied],
       ['Total Amount Disbursed', data.advances.total_amount],
       ['Total Fees Collected', data.advances.total_fees],
       ['Average Advance Amount', data.advances.avg_amount.toFixed(2)],
@@ -99,7 +99,7 @@ function toCsvRows(type: ExportType, data: ReportData): Array<Array<string | num
     ['Advances', 'Total Requests', data.advances.total],
     ['Advances', 'Disbursed', data.advances.disbursed],
     ['Advances', 'Pending', data.advances.pending],
-    ['Advances', 'Rejected', data.advances.rejected],
+    ['Advances', 'Denied', data.advances.denied],
     ['Advances', 'Total Amount', data.advances.total_amount],
     ['Advances', 'Total Fees', data.advances.total_fees],
     ['Employees', 'Total', data.employees.total],

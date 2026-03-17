@@ -21,7 +21,7 @@ function endOf(d: Date): Date {
 
 type DateRange = { from: Date; to: Date; label: string };
 type EmployeeStatus = 'approved' | 'pending' | 'rejected' | 'inactive' | 'suspended' | string;
-type AdvanceStatus = 'disbursed' | 'approved' | 'pending' | 'rejected' | string;
+type AdvanceStatus = 'disbursed' | 'approved' | 'pending' | 'denied' | string;
 type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
 
 interface EmployeeRow {
@@ -191,7 +191,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             period:  { label: range.label, from: range.from.toISOString(), to: range.to.toISOString() },
             currency: getCurrencyFromCountry(registrationCountryCode, 'KES'),
             advances: {
-              total: 0, disbursed: 0, pending: 0, rejected: 0,
+              total: 0, disbursed: 0, pending: 0, denied: 0,
               total_amount: 0, total_fees: 0, avg_amount: 0,
               by_method: { mobile_money: 0, bank_transfer: 0 },
             },
@@ -211,9 +211,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         data: {
           period:  { label: range.label, from: range.from.toISOString(), to: range.to.toISOString() },
           currency: getCurrencyFromCountry(registrationCountryCode, 'KES'),
-          advances: {
-            total: 0, disbursed: 0, pending: 0, rejected: 0,
-            total_amount: 0, total_fees: 0, avg_amount: 0,
+            advances: {
+              total: 0, disbursed: 0, pending: 0, denied: 0,
+              total_amount: 0, total_fees: 0, avg_amount: 0,
             by_method: { mobile_money: 0, bank_transfer: 0 },
           },
           employees: { total: 0, active: 0, with_advances: 0, utilization_rate: 0 },
@@ -298,7 +298,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const all = advances;
   const disbursed = all.filter((a) => a.status === 'disbursed' || a.status === 'approved');
   const pending = all.filter((a) => a.status === 'pending');
-  const rejected = all.filter((a) => a.status === 'rejected');
+  const rejected = all.filter((a) => a.status === 'denied');
 
   const totalAmount = disbursed.reduce((s, a) => s + Number(a.amount ?? 0), 0);
   const totalFees = disbursed.reduce((s, a) => s + Number(a.fee_amount ?? 0), 0);
@@ -404,7 +404,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         total:        all.length,
         disbursed:    disbursed.length,
         pending:      pending.length,
-        rejected:     rejected.length,
+        denied:       rejected.length,
         total_amount: totalAmount,
         total_fees:   totalFees,
         avg_amount:   avgAmount,

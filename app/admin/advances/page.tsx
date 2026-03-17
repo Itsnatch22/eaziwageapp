@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 
 type VariantColor = 'purple' | 'green' | 'amber' | 'red' | 'blue';
 
-type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'rejected' | 'processing' | 'completed' | 'failed' | 'repaid';
+type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'denied' | 'processing' | 'completed' | 'failed' | 'repaid';
 
 const statusStyles: Record<
   string,
@@ -41,7 +41,7 @@ const statusStyles: Record<
     bg: 'bg-emerald-100 dark:bg-emerald-500/20',
     icon: 'text-emerald-600',
   },
-  rejected: {
+  denied: {
     bg: 'bg-red-100 dark:bg-red-500/20',
     icon: 'text-red-600',
   },
@@ -80,7 +80,7 @@ interface MetricCardProps {
 }
 
 interface StatusBadgeProps {
-  status: 'pending' | 'approved' | 'disbursed' | 'rejected' | 'processing' | 'completed' | 'failed' | 'repaid';
+  status: 'pending' | 'approved' | 'disbursed' | 'denied' | 'processing' | 'completed' | 'failed' | 'repaid';
 }
 
 interface FilterButtonProps {
@@ -233,7 +233,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     completed: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300' },
     failed: { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' },
     disbursed: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300' },
-    rejected: { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' },
+    denied: { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' },
     repaid: { bg: 'bg-slate-100 dark:bg-slate-500/20', text: 'text-slate-700 dark:text-slate-300' },
   };
 
@@ -641,8 +641,8 @@ export default function AdminAdvances(){
               <FilterButton active={statusFilter === 'disbursed'} onClick={() => setStatusFilter('disbursed')}>
                 Disbursed
               </FilterButton>
-              <FilterButton active={statusFilter === 'rejected'} onClick={() => setStatusFilter('rejected')}>
-                Rejected
+              <FilterButton active={statusFilter === 'denied'} onClick={() => setStatusFilter('denied')}>
+                Denied
               </FilterButton>
             </div>
           </div>
