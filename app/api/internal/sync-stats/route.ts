@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     const { count: activeEmployers, error: employersError } = await supabaseAdmin
       .from("employers")
       .select("*", { count: "exact", head: true })
-      .eq("status", "active");
+      .eq("status", "approved");
 
     if (employersError) throw new Error(`employers count failed: ${employersError.message}`);
 
