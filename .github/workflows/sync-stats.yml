@@ -1,0 +1,36 @@
+# eaziwageapp — .github/workflows/sync-stats.yml
+#
+# Runs every 6 hours and hits the sync-stats route to aggregate
+# live data into public_stats for the marketing site.
+#
+# Setup:
+#   1. Go to eaziwageapp repo → Settings → Secrets and variables → Actions
+#   2. Add a secret named CRON_SECRET with the same value as your .env
+
+name: Sync Public Stats
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # every 6 hours
+  workflow_dispatch:        # allows manual trigger from GitHub Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger sync-stats route
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://app.eaziwage.com/api/internal/sync-stats)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Response: $BODY"
+          echo "Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Sync failed with status $HTTP_CODE"
+            exit 1
+          fi
