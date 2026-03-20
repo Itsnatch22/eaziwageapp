@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight, Eye, EyeOff, Lock, Check, User, Mail,
   Building2, Search, X, Phone, AlertTriangle, ChevronDown,
@@ -228,13 +228,14 @@ function CompanySearchModal({ employers, onSelect, onNotFound, onClose }: Compan
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
-
+  const searchParams = useSearchParams();
+  
   // — Form state —
   const [accountType,   setAccountType]   = useState<AccountType>('employee');
   const [fullName,      setFullName]       = useState('');
-  const [email,         setEmail]          = useState('');
+  const [email,         setEmail]          = useState(searchParams.get('email') ?? '');
   const [mobileNumber,  setMobileNumber]   = useState('');
   const [dialCode,      setDialCode]       = useState<DialCode>(DIALING_CODES[0]);
   const [companyCode,   setCompanyCode]    = useState('');
@@ -792,3 +793,10 @@ export default function RegisterPage() {
 }
 
 
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  )
+}
