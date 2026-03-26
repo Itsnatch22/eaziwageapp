@@ -236,8 +236,8 @@ export default function EmployeeSettings() {
                       currentAvatarUrl={profile?.avatar_url} 
                       fullName={profile?.full_name}
                       onUploadSuccess={(url) => {
-                        // Update the auth store so the layout avatar updates immediately
-                        updateUserAvatar(url);
+                        // The component now handles store sync internally
+                        console.log('Avatar updated in settings:', url);
                       }}
                     />
                   </div>

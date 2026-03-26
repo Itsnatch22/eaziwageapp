@@ -1,6 +1,8 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
+import { getEnv } from '@/env';
+import { Redis } from '@upstash/redis';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +13,29 @@ export async function GET() {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // ── 2. Initialize Redis cache ───────────────────────────────────────────
+  const env = getEnv();
+  const redis = new Redis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  });
+
+  const CACHE_TTL = 60; // 1 minute cache
+  const cacheKey = `employee:overview:${user.id}`;
+
+  // ── 3. Check cache first ─────────────────────────────────────────────
+  try {
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      console.log(`[EmployeeOverview] Cache hit for ${user.id}`);
+      return NextResponse.json(cachedData, { 
+        headers: { 'X-Cache': 'HIT' } 
+      });
+    }
+  } catch (cacheError) {
+    console.warn('[EmployeeOverview] Cache check failed:', cacheError);
   }
 
   // 2. Fetch employee data
@@ -92,7 +117,7 @@ export async function GET() {
   );
 
   // 5. Build response in unison with existing dashboard patterns
-  return NextResponse.json({
+  const responseData = {
     employee: {
       id: employee.id,
       full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
@@ -114,5 +139,15 @@ export async function GET() {
         email: user.email,
         profile_picture_url: user.user_metadata?.avatar_url,
     }
+  };
+
+  try {
+    await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(responseData));
+  } catch (cacheError) {
+    console.warn('[EmployeeOverview] Cache set failed:', cacheError);
+  }
+
+  return NextResponse.json(responseData, { 
+    headers: { 'X-Cache': 'MISS' } 
   });
 }

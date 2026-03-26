@@ -34,48 +34,100 @@ export function AvatarUpload({
     .slice(0, 2);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     try {
+      console.log('AvatarUpload: File change detected');
       setUploading(true);
 
       if (!event.target.files || event.target.files.length === 0) {
+        console.warn('AvatarUpload: No file selected');
+        setUploading(false);
         return;
       }
 
       const file = event.target.files[0];
-      const fileExt = file.name.split('.').pop();
+      
+      // Enforce 2MB limit on client side
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('File too large. Max size is 2MB');
+        setUploading(false);
+        return;
+      }
+
+      if (!userId) {
+        console.error('AvatarUpload: User ID is missing');
+        toast.error('Authentication error. Please try again.');
+        setUploading(false);
+        return;
+      }
+
+      const fileExt = file.name.split('.').pop() || 'jpg';
       const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       const filePath = `${userId}/${fileName}`;
 
-      // 1. Create a local preview
+      console.log(`AvatarUpload: Starting upload for user ${userId} to path ${filePath}`);
+
+      // 1. Create a local preview immediately
       const objectUrl = URL.createObjectURL(file);
       setPreviewUrl(objectUrl);
 
-      // 2. Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
+      // 2. Upload to Supabase Storage with a timeout
+      const uploadPromise = supabase.storage
         .from('avatars')
         .upload(filePath, file, {
           upsert: true,
           contentType: file.type,
         });
 
+      // Add a 15-second timeout to the upload
+      const result = await Promise.race([
+        uploadPromise,
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Upload timed out. Please check your connection.')), 15000);
+        })
+      ]) as any;
+
+      if (timeoutId) clearTimeout(timeoutId);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Session at upload time:', session?.user?.id);
+
+      const { error: uploadError } = result;
       if (uploadError) {
+        console.error('AvatarUpload: Storage upload error:', uploadError);
         throw uploadError;
       }
 
+      console.log('AvatarUpload: Upload successful, getting public URL');
+
       // 3. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: urlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
+
+      if (!urlData || !urlData.publicUrl) {
+        throw new Error('Failed to get public URL');
+      }
+
+      const publicUrl = urlData.publicUrl;
+      console.log(`AvatarUpload: Public URL: ${publicUrl}`);
 
       // 4. Update Profile in Database
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: publicUrl })
+        .update({ 
+          avatar_url: publicUrl,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', userId);
 
       if (updateError) {
+        console.error('AvatarUpload: Profile update error:', updateError);
         throw updateError;
       }
+
+      console.log('AvatarUpload: Profile updated successfully');
 
       // 5. Sync with global auth store
       updateUserAvatar(publicUrl);
@@ -85,11 +137,13 @@ export function AvatarUpload({
         onUploadSuccess(publicUrl);
       }
     } catch (error: any) {
-      console.error('Error uploading avatar:', error);
+      if (timeoutId) clearTimeout(timeoutId);
+      console.error('AvatarUpload: Final catch error:', error);
       toast.error(error.message || 'Failed to upload image');
       setPreviewUrl(null);
     } finally {
       setUploading(false);
+      console.log('AvatarUpload: Done');
     }
   };
 

@@ -2,6 +2,8 @@ import { createRouteHandlerClient as createClient } from '@/utils/supabase/serve
 import { NextRequest, NextResponse } from 'next/server';
 import { ReportsQuerySchema } from '@/lib/validations/employer-reports';
 import { getCurrencyFromCountry } from '@/lib/utils';
+import { getEnv } from '@/env';
+import { Redis } from '@upstash/redis';
 
 export const runtime = 'nodejs';
 
@@ -148,6 +150,29 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const range = getPeriodRange(period, month);
   const prevRange = getPreviousRange(range);
 
+  // ── 3. Initialize Redis cache ───────────────────────────────────────────
+  const env = getEnv();
+  const redis = new Redis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  });
+
+  const CACHE_TTL = 60; // 1 minute cache
+  const cacheKey = `employer:reports:${user.id}:${period}:${month ?? 'none'}`;
+
+  // ── 4. Check cache first ─────────────────────────────────────────────
+  try {
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      console.log(`[Reports] Cache hit for ${user.id}`);
+      return NextResponse.json(cachedData, { 
+        headers: { 'X-Cache': 'HIT' } 
+      });
+    }
+  } catch (cacheError) {
+    console.warn('[Reports] Cache check failed:', cacheError);
+  }
+
   // ── Resolve employer ────────────────────────────────────────────────────────
   let employer: { id: string; country: string | null; risk_score: number | null; risk_rating: string | null } | null = null;
   
@@ -252,71 +277,67 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const allEmployeeIds = employeeRows.map((e) => e.id);
   const activeCount = employeeRows.filter((e) => e.status === 'approved').length;
 
-  // ── Fetch advances (current period) ────────────────────────────────────────
-  let advances: { id: string; employee_id: string; amount: number | string | null; fee_amount: number | string | null; status: string; disbursement_method: string | null; created_at: string }[] = [];
-  try {
-    if (allEmployeeIds.length > 0) {
-      const { data: advData, error: advErr } = await supabase
-          .from('advances')
-          .select('id, employee_id, amount, fee_amount, status, disbursement_method, created_at')
-          .in('employee_id', allEmployeeIds)
-          .gte('created_at', range.from.toISOString())
-          .lte('created_at', range.to.toISOString());
+  // ── Fetch advances stats (current period) via RPC ──────────────────────────
+  let summary = {
+    total_count: 0,
+    disbursed_count: 0,
+    pending_count: 0,
+    denied_count: 0,
+    total_amount: 0,
+    total_fees: 0,
+    avg_amount: 0,
+    by_mobile_money: 0,
+    by_bank_transfer: 0,
+    unique_employees_with_advances: 0
+  };
 
-      if (advErr) {
-        console.error('[reports] Error fetching advances:', advErr);
-        // Continue with empty advances
-      } else {
-        advances = (advData ?? []) as typeof advances;
-      }
+  try {
+    const { data: rpcData, error: rpcErr } = await supabase
+      .rpc('get_employer_advance_summary', {
+        p_employer_id: employerId,
+        p_from: range.from.toISOString(),
+        p_to: range.to.toISOString()
+      });
+
+    if (rpcErr) {
+      console.error('[reports] RPC Error (current):', rpcErr);
+    } else if (rpcData) {
+      summary = rpcData;
     }
   } catch (err) {
-    console.error('[reports] Exception fetching advances:', err);
-    // Continue with empty advances
+    console.error('[reports] RPC Exception (current):', err);
   }
 
-  // ── Fetch advances (previous period for % change) ──────────────────────────
-  let prevAdvances: { amount: number | string | null; fee_amount: number | string | null; status: string }[] = [];
-  try {
-    if (allEmployeeIds.length > 0) {
-      const { data: prevAdvData } = await supabase
-          .from('advances')
-          .select('amount, fee_amount, status')
-          .in('employee_id', allEmployeeIds)
-          .in('status', ['disbursed', 'approved'])
-          .gte('created_at', prevRange.from.toISOString())
-          .lte('created_at', prevRange.to.toISOString());
+  // ── Fetch advances stats (previous period) via RPC ─────────────────────────
+  let prevSummary = {
+    total_amount: 0,
+    total_fees: 0
+  };
 
-      prevAdvances = (prevAdvData ?? []) as typeof prevAdvances;
+  try {
+    const { data: prevRpcData, error: prevRpcErr } = await supabase
+      .rpc('get_employer_advance_summary', {
+        p_employer_id: employerId,
+        p_from: prevRange.from.toISOString(),
+        p_to: prevRange.to.toISOString()
+      });
+
+    if (prevRpcErr) {
+      console.error('[reports] RPC Error (previous):', prevRpcErr);
+    } else if (prevRpcData) {
+      prevSummary = {
+        total_amount: prevRpcData.total_amount,
+        total_fees: prevRpcData.total_fees
+      };
     }
   } catch (err) {
-    console.error('[reports] Exception fetching previous advances:', err);
-    // Continue with empty previous advances
+    console.error('[reports] RPC Exception (previous):', err);
   }
-
-  // ── Compute advance summary ─────────────────────────────────────────────────
-  const all = advances;
-  const disbursed = all.filter((a) => a.status === 'disbursed' || a.status === 'approved');
-  const pending = all.filter((a) => a.status === 'pending');
-  const rejected = all.filter((a) => a.status === 'denied');
-
-  const totalAmount = disbursed.reduce((s, a) => s + Number(a.amount ?? 0), 0);
-  const totalFees = disbursed.reduce((s, a) => s + Number(a.fee_amount ?? 0), 0);
-  const avgAmount = disbursed.length > 0 ? totalAmount / disbursed.length : 0;
-
-  const byMobileMoney = all.filter((a) => a.disbursement_method === 'mobile_money').length;
-  const byBankTransfer = all.filter((a) => a.disbursement_method === 'bank_transfer').length;
-
-  // ── Previous period totals ──────────────────────────────────────────────────
-  const prevAll = prevAdvances;
-  const prevTotalAmount = prevAll.reduce((s, a) => s + Number(a.amount ?? 0), 0);
-  const prevTotalFees = prevAll.reduce((s, a) => s + Number(a.fee_amount ?? 0), 0);
 
   // ── Employee utilization ────────────────────────────────────────────────────
-  const uniqueEmployeesWithAdvances = new Set(all.map((a) => a.employee_id)).size;
   const totalEmployees   = allEmployeeIds.length;
   const utilizationRate  = totalEmployees > 0
-    ? Math.round((uniqueEmployeesWithAdvances / totalEmployees) * 1000) / 10
+    ? Math.round((summary.unique_employees_with_advances / totalEmployees) * 1000) / 10
     : 0;
 
   // ── Monthly trend (last 6 calendar months) ─────────────────────────────────
@@ -392,7 +413,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── Build response ──────────────────────────────────────────────────────────
-  return NextResponse.json({
+  const responseData = {
     data: {
       period: {
         label: range.label,
@@ -401,32 +422,42 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       },
       currency,
       advances: {
-        total:        all.length,
-        disbursed:    disbursed.length,
-        pending:      pending.length,
-        denied:       rejected.length,
-        total_amount: totalAmount,
-        total_fees:   totalFees,
-        avg_amount:   avgAmount,
+        total:        summary.total_count,
+        disbursed:    summary.disbursed_count,
+        pending:      summary.pending_count,
+        denied:       summary.denied_count,
+        total_amount: summary.total_amount,
+        total_fees:   summary.total_fees,
+        avg_amount:   summary.avg_amount,
         by_method: {
-          mobile_money:  byMobileMoney,
-          bank_transfer: byBankTransfer,
+          mobile_money:  summary.by_mobile_money,
+          bank_transfer: summary.by_bank_transfer,
         },
       },
       employees: {
         total:            totalEmployees,
         active:           activeCount,
-        with_advances:    uniqueEmployeesWithAdvances,
+        with_advances:    summary.unique_employees_with_advances,
         utilization_rate: utilizationRate,
       },
       risk_score:  employer.risk_score  != null ? Number(employer.risk_score)  : null,
       risk_rating: employer.risk_rating ?? null,
       previous_period: {
-        total_amount: prevTotalAmount,
-        total_fees:   prevTotalFees,
+        total_amount: prevSummary.total_amount,
+        total_fees:   prevSummary.total_fees,
       },
       monthly_trend: monthlyTrend,
       last_sync: lastSync,
     },
+  };
+
+  try {
+    await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(responseData));
+  } catch (cacheError) {
+    console.warn('[Reports] Cache set failed:', cacheError);
+  }
+
+  return NextResponse.json(responseData, { 
+    headers: { 'X-Cache': 'MISS' } 
   });
-}
+  }
