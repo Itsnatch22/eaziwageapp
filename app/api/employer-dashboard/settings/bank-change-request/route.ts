@@ -15,13 +15,10 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
 
-    // 1. Auth check
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // 2. Verify employer role
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -32,7 +29,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden. Employer access required.' }, { status: 403 });
     }
 
-    // 3. Get employer details
     const { data: employer } = await supabase
       .from('employer_onboarding')
       .select('id, company_name, bank_name, bank_account_number')
@@ -43,7 +39,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Employer record not found' }, { status: 404 });
     }
 
-    // 4. Parse & validate body
     const body = await req.json().catch(() => ({}));
     const parsed = bankChangeSchema.safeParse(body);
     if (!parsed.success) {
@@ -52,7 +47,6 @@ export async function POST(req: NextRequest) {
 
     const { bank_name, bank_account_number, reason } = parsed.data;
 
-    // 5. Create Bank Change Request record
     const { data: requestRecord, error: requestError } = await supabase
       .from('bank_change_requests')
       .insert({
@@ -70,10 +64,8 @@ export async function POST(req: NextRequest) {
 
     if (requestError) {
       console.error('[bank-change-request] DB error:', requestError);
-      // We'll still try to send notification if table doesn't exist, but maybe log it
     }
 
-    // 6. Create admin notification (using service role to bypass RLS)
     const env = getEnv();
     const adminSupabase = createClient(
       env.NEXT_PUBLIC_SUPABASE_URL,
@@ -108,7 +100,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
     }
 
-    // 7. Trigger real-time notification for admins
     if (adminNotif) {
       await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
     }

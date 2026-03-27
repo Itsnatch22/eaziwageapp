@@ -37,7 +37,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (error) throw error;
     
-    // Return both existing columns and the settings JSONB
     return NextResponse.json({
       settings: data.settings || {
         advance_limit_percent: data.max_advance_percentage,
@@ -63,7 +62,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { data: current } = await adminSupabase.from('employer_onboarding').select('*').eq('id', id).single();
 
-    // Map back some fields for backward compatibility if columns exist
     const updateData: any = {
       settings: validated,
       updated_at: new Date().toISOString()

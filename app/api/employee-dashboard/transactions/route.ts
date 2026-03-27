@@ -6,13 +6,10 @@ export const runtime = 'nodejs';
 export async function GET() {
   const supabase = await createClient();
 
-  // 1. Auth check
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  // 2. Fetch employee
   const { data: employee } = await supabase
     .from('employee_onboarding')
     .select('id')
@@ -23,7 +20,6 @@ export async function GET() {
     return NextResponse.json([]);
   }
 
-  // 3. Fetch all advances/transactions
   const { data: transactions, error } = await supabase
     .from('advances')
     .select('*')

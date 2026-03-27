@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
         .order('created_at', { ascending: false });
 
     if (error) {
-        // Return dummy data in case the table is missing or errors out so the UI still displays correctly.
         return NextResponse.json({
             notifications: [
               { id: 1, type: 'advance', title: 'New Advance Request', message: 'John Kamau requested KES 15,000 advance', time: '2 hours ago', read: false },
@@ -64,10 +63,8 @@ export async function PUT(req: NextRequest) {
         const { id } = await req.json();
 
         if (id) {
-            // Mark specific notification as read
             await supabase.from('notifications').update({ read: true }).eq('id', id).eq('user_id', user.id);
         } else {
-            // Mark all as read
             await supabase.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
         }
         
@@ -96,7 +93,6 @@ export async function DELETE(req: NextRequest) {
 
         if (error) throw error;
 
-        // Trigger real-time deletion sync
         await pusherServer.trigger(`employer-${user.id}`, 'notification-deleted', { id });
 
         return NextResponse.json({ success: true });

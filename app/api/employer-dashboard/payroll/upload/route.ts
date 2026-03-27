@@ -5,8 +5,7 @@ import { uploadPayrollSchema, type PayrollRow } from '@/lib/validations/payroll-
 
 export const runtime = 'nodejs';
 
-// ── Business rule constants ───────────────────────────────────────────────────
-const MAX_SALARY_MULTIPLIER = 3;  // warn if upload salary > 3× onboarding salary
+const MAX_SALARY_MULTIPLIER = 3;
 const MIN_DAYS_WORKED = 1;
 const MAX_DAYS_WORKED = 31;
 
@@ -18,7 +17,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Resolve employer ──────────────────────────────────────────────────────
   const { data: employer } = await supabase
     .from('employer_onboarding')
     .select('id')
@@ -31,7 +29,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
   }
 
-  // ── Parse + schema-validate body ─────────────────────────────────────────
   const raw = await req.json().catch(() => null);
   if (!raw) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
@@ -45,7 +42,6 @@ export async function POST(req: NextRequest) {
 
   const { month, employees: rows, file_name, file_size_bytes } = parsed.data;
 
-  // ── Upsert upload record (pending) ────────────────────────────────────────
   const { data: upload, error: uploadErr } = await supabase
     .from('payroll_uploads')
     .upsert(
@@ -72,7 +68,6 @@ export async function POST(req: NextRequest) {
 
   const uploadId = upload.id;
 
-  // ── Load employer's known employees for validation ────────────────────────
   const { data: knownEmployees } = await supabase
     .from('employee_onboarding')
     .select('id, employee_code, monthly_salary, status')
@@ -82,7 +77,6 @@ export async function POST(req: NextRequest) {
     (knownEmployees ?? []).map(e => [e.employee_code, e])
   );
 
-  // ── Per-row validation ────────────────────────────────────────────────────
   type RowResult = {
     upload_id:      string;
     employer_id:    string;
@@ -113,7 +107,6 @@ export async function POST(req: NextRequest) {
 
     const known = employeeMap.get(row.employee_code);
 
-    // ── Hard errors ────────────────────────────────────────────────────────
     if (!known) {
       errors.push({ field: 'employee_code', message: `Employee code '${row.employee_code}' not found in your workforce` });
     } else if (known.status !== 'approved') {
@@ -141,7 +134,6 @@ export async function POST(req: NextRequest) {
       errors.push({ field: 'deductions', message: 'deductions cannot exceed gross_salary' });
     }
 
-    // ── Soft warnings (non-blocking) ────────────────────────────────────────
     if (known && row.gross_salary > (known.monthly_salary ?? 0) * MAX_SALARY_MULTIPLIER) {
       warnings.push({
         field: 'gross_salary',
@@ -185,8 +177,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── Bulk-insert row results ───────────────────────────────────────────────
-  // Delete previous rows for this upload (handles re-uploads)
   await supabase.from('payroll_upload_rows').delete().eq('upload_id', uploadId);
 
   if (rowResults.length > 0) {
@@ -199,7 +189,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Compute financial totals over VALID rows only ─────────────────────────
   const validRows = rowResults.filter(r => r.row_status !== 'invalid');
   const totalGross = validRows.reduce((s, r) => s + r.gross_salary, 0);
   const totalNet   = validRows.reduce((s, r) => s + r.net_salary, 0);
@@ -211,7 +200,6 @@ export async function POST(req: NextRequest) {
     ? 'partial'
     : 'processed';
 
-  // ── Update upload record with results ─────────────────────────────────────
   await supabase
     .from('payroll_uploads')
     .update({

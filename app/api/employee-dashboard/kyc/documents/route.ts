@@ -1,4 +1,3 @@
-// app/api/employee-dashboard/kyc/documents/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
@@ -31,7 +30,6 @@ export async function GET(req: NextRequest) {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
-    // Authenticate user
     const {
       data: { user },
       error: authError,
@@ -44,7 +42,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get user profile to check role
     const { data: profile, error: profileError } = await adminSupabase
       .from('profiles')
       .select('role, full_name, email')
@@ -59,11 +56,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Parse query parameters
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get('status');
 
-    // Validate status if provided
     let status: string | null = null;
     if (statusParam) {
       const parsed = DocumentStatusEnum.safeParse(statusParam);
@@ -76,7 +71,6 @@ export async function GET(req: NextRequest) {
       status = parsed.data;
     }
 
-    // Build query
     let query = adminSupabase
       .from('employee_kyc_documents')
       .select(`
@@ -96,7 +90,6 @@ export async function GET(req: NextRequest) {
       `)
       .order('created_at', { ascending: false });
 
-    // Employee route should only expose the current user's documents
     query = query.eq('user_id', user.id);
 
     if (status) {
@@ -113,7 +106,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Validate response data
     const validatedData = data?.map((doc) => {
       const parsed = KYCDocumentSchema.safeParse(doc);
       return parsed.success ? parsed.data : null;
@@ -139,14 +131,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    // Get profile (safe)
     const { data: profile } = await adminSupabase
       .from('profiles')
       .select('full_name, email')
       .eq('id', user.id)
       .maybeSingle();
 
-    // Parse FormData
     const form = await req.formData();
     const file = form.get('file') as File | null;
     const rawDocType = form.get('document_type') as string | null;
@@ -163,7 +153,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate document type
     const parsedDocType = DocumentTypeEnum.safeParse(rawDocType);
     if (!parsedDocType.success) {
       return NextResponse.json(
@@ -177,20 +166,16 @@ export async function POST(req: NextRequest) {
     }
     const documentType = parsedDocType.data;
 
-    // Validate MIME type (image/jpeg is explicitly allowed)
     if (!ALLOWED_MIME_TYPES.some((allowed) => allowed === file.type)) {
       return NextResponse.json(
-        { error: 'Invalid file type. Allowed: JPEG, PNG, WEBP, PDF', code: 'INVALID_FILE_TYPE' },
+        { error: 'Invalid file type. Allowed: JPEG, PNG, WEBP, PDF, CSV, XLSX', code: 'INVALID_FILE_TYPE' },
         { status: 422 }
       );
     }
-
-    // Validate size
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json({ error: 'File size must be under 5 MB.', code: 'FILE_TOO_LARGE' }, { status: 422 });
     }
 
-    // Upload
     const ext = file.name.split('.').pop() ?? 'bin';
     const timestamp = Date.now();
     const storagePath = `${user.id}/${documentType}/${timestamp}.${ext}`;
@@ -205,7 +190,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Upload failed', code: 'UPLOAD_ERROR' }, { status: 500 });
     }
 
-    // Signed URL (1 year)
     const { data: signedData } = await adminSupabase.storage
       .from(BUCKET)
       .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
@@ -214,7 +198,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Could not generate URL', code: 'SIGNED_URL_ERROR' }, { status: 500 });
     }
 
-    // Save metadata
     const { data: savedDoc, error: saveError } = await adminSupabase
       .from('employee_kyc_documents')
       .upsert(
@@ -239,7 +222,6 @@ export async function POST(req: NextRequest) {
     const parsedResult = KYCDocumentSchema.safeParse(savedDoc);
     if (!parsedResult.success) {
         console.error('[KYC Upload] Schema validation failed:', parsedResult.error.format());
-        // Return the doc anyway but maybe log the mismatch
         return NextResponse.json({ 
             ...savedDoc, 
             warning: 'Schema validation mismatch',
@@ -279,9 +261,7 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    // ── Create Real-time Notifications ──────────────────────────────────────
     try {
-      // Fetch employer info
       const { data: empOnboarding } = await adminSupabase
         .from('employee_onboarding')
         .select('employer_id')
@@ -296,7 +276,6 @@ export async function POST(req: NextRequest) {
           .maybeSingle();
 
         if (employer?.user_id) {
-          // 1. Employer Notification
           const { data: empNotif, error: empNotifError } = await adminSupabase
             .from('notifications')
             .insert({
@@ -313,7 +292,6 @@ export async function POST(req: NextRequest) {
             await pusherServer.trigger(`employer-${employer.user_id}`, 'new-notification', empNotif);
           }
 
-          // 2. Admin Notification
           const { data: adminNotif, error: adminNotifError } = await adminSupabase
             .from('admin_notifications')
             .insert({

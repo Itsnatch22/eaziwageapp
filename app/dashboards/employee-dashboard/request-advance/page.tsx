@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { formatCurrency, calculateFeePercentage, cn, getCurrencySymbol } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useCurrency } from '@/hooks/useCurrency';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Label } from '@/components/ui/label';
 
@@ -111,6 +112,7 @@ const CircularAmountSelector = ({ value, max, currency = 'KES' }: { value: numbe
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function RequestAdvance() {
+  const { currency } = useCurrency();
   const router = useRouter();
   const [employee, setEmployee] = useState<EmployeeProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,7 +140,7 @@ export default function RequestAdvance() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const maxAmount = Math.min(employee?.advance_limit || 0, employee?.earned_wages || 0);
-  const currency = employee?.currency || 'KES';
+  
   const feePercentage = calculateFeePercentage(employee?.risk_score || 3.0);
   const feeAmount = amount * (feePercentage / 100);
   const netAmount = amount - feeAmount;

@@ -64,7 +64,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to load KYC documents', code: 'QUERY_ERROR' }, { status: 500 });
     }
 
-    // Also fetch employer onboarding applications
     let empOnboardingQuery = adminSupabase
       .from('employer_onboarding')
       .select('*')
@@ -74,7 +73,6 @@ export async function GET(req: NextRequest) {
     
     const { data: employerApps, error: empAppsError } = await empOnboardingQuery;
 
-    // Fetch employee onboarding records (from bulk uploads or manual invites)
     let employeeOnboardingQuery = adminSupabase
       .from('employee_onboarding')
       .select(`
@@ -88,7 +86,6 @@ export async function GET(req: NextRequest) {
     if (status) employeeOnboardingQuery = employeeOnboardingQuery.eq('status', status);
     const { data: employeeApps } = await employeeOnboardingQuery;
 
-    // Fetch "Unlinked" employees (registered without a company code)
     const { data: unlinkedProfiles } = await adminSupabase
       .from('profiles')
       .select('*')

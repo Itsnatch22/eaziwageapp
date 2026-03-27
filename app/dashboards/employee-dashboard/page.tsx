@@ -16,6 +16,7 @@ import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
+import { useCurrency } from '@/hooks/useCurrency';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,6 +124,7 @@ const StatBlock = ({ icon: Icon, label, value, sub, variant = 'blue' }: {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function EmployeeDashboardPage() {
+  const { currency } = useCurrency();
   const user = useAuthStore((state) => state.user);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [employee, setEmployee] = useState<EmployeeSummary | null>(null);
@@ -220,7 +222,6 @@ export default function EmployeeDashboardPage() {
   const kycPending = employee?.kyc_status === 'pending' || employee?.kyc_status === 'submitted';
   const isVerified = employee?.kyc_status === 'approved' && employee?.status === 'approved';
   const payday = getNextPayday();
-  const currency = employee?.currency;
 
   return (
     <EmployeePortalLayout title="Overview">

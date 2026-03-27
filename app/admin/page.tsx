@@ -8,6 +8,7 @@ import {
   DollarSign, BarChart3, RefreshCw,
 } from 'lucide-react';import { formatCurrency, cn } from '@/lib/utils';
 import pusherClient from '@/lib/pusher-client';
+import { useCurrency } from '@/hooks/useCurrency';
 
 // Types
 type VariantColor = 'green' | 'slate' | 'black';
@@ -163,6 +164,7 @@ const APIHealthCard = ({ api }: { api: { name: string; status: APIStatus; latenc
 
 // Main
 export default function AdminDashboard() {
+  const { currency } = useCurrency();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [cacheStatus, setCacheStatus] = useState<'HIT' | 'MISS' | null>(null);
@@ -333,7 +335,7 @@ export default function AdminDashboard() {
         <MetricCard icon={Building2} label="Total Employers" value={stats?.employers.total || 0} subtext={`${stats?.employers.active || 0} active`} trend={stats?.employers.trend} trendUp={stats?.employers.trendUp} variant="green" />
         <MetricCard icon={Users} label="Total Employees" value={stats?.employees.total || 0} subtext={`${stats?.employees.active || 0} active`} trend={stats?.employees.trend} trendUp={stats?.employees.trendUp} variant="slate" />
         <MetricCard icon={CreditCard} label="Total Advances" value={stats?.advances.total_count || 0} subtext={`${stats?.advances.pending_count || 0} pending`} variant="green" />
-        <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats?.advances.total_disbursed || 0, 'USD')} subtext={`Fees: ${formatCurrency(stats?.advances.total_fees || 0, 'USD')}`} variant="slate" />
+        <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats?.advances.total_disbursed || 0, currency)} subtext={`Fees: ${formatCurrency(stats?.advances.total_fees || 0, currency)}`} variant="slate" />
       </div>
 
       {/* Secondary */}
@@ -349,12 +351,12 @@ export default function AdminDashboard() {
           <div className="grid sm:grid-cols-3 gap-4">
             <div className="p-4 bg-linear-to-br from-green-500/5 to-green-600/5 dark:from-green-500/10 dark:to-green-600/10 rounded-xl border border-green-200/30 dark:border-green-700/20">
               <p className="text-sm text-slate-500 dark:text-slate-400">Disbursed This Month</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{formatCurrency(stats?.monthly.disbursed || 0, 'USD')}</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{formatCurrency(stats?.monthly.disbursed || 0, currency)}</p>
               <p className="text-xs text-slate-400 mt-1">{stats?.monthly.advance_count || 0} advances</p>
             </div>
             <div className="p-4 bg-linear-to-br from-green-500/5 to-green-600/5 dark:from-green-500/10 dark:to-green-600/10 rounded-xl border border-green-200/30">
               <p className="text-sm text-slate-500 dark:text-slate-400">Platform Fees</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(stats?.monthly.fees || 0, 'USD')}</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(stats?.monthly.fees || 0, currency)}</p>
               <p className="text-xs text-slate-400 mt-1">Revenue this month</p>
             </div>
             <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">

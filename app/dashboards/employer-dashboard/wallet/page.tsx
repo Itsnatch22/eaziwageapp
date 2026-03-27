@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
@@ -28,6 +29,7 @@ interface WalletData {
 }
 
 const WalletPage = () => {
+  const { currency } = useCurrency();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,7 +113,7 @@ const WalletPage = () => {
             </div>
             <p className="text-white/80 font-medium mb-1">Available Balance</p>
             <h2 className="text-4xl font-bold tracking-tight">
-              {loading ? "..." : formatCurrency(wallet?.balance || 0, wallet?.currency || 'KES')}
+              {loading ? "..." : formatCurrency(wallet?.balance || 0, currency)}
             </h2>
             <div className="mt-6 flex items-center gap-2 text-sm bg-white/10 w-fit px-3 py-1 rounded-full backdrop-blur-sm">
               <CheckCircle2 className="w-4 h-4" /> Ready for disbursement
@@ -124,7 +126,7 @@ const WalletPage = () => {
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Outstanding Arrears</p>
             </div>
             <h3 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {loading ? "..." : formatCurrency(wallet?.arrears_balance || 0, wallet?.currency || 'KES')}
+              {loading ? "..." : formatCurrency(wallet?.arrears_balance || 0, currency)}
             </h3>
             <p className="text-xs text-slate-500 mt-2">To be recouped from next payroll or top-up.</p>
           </div>
@@ -137,7 +139,7 @@ const WalletPage = () => {
                 <div>
                   <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Total Disbursed</p>
                   <p className="text-xl font-bold text-slate-900 dark:text-white">
-                     {formatCurrency(transactions.filter(t => t.type === 'payout' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount), 0), 'KES')}
+                     {formatCurrency(transactions.filter(t => t.type === 'payout' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount), 0), currency)}
                   </p>
                 </div>
              </div>
@@ -203,7 +205,7 @@ const WalletPage = () => {
                         "px-6 py-4 whitespace-nowrap font-bold",
                         tx.amount > 0 ? "text-emerald-600" : "text-slate-900 dark:text-white"
                       )}>
-                        {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount, wallet?.currency || 'KES')}
+                        {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount, currency)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest", getStatusColor(tx.status))}>

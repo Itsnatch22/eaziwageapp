@@ -9,8 +9,6 @@ import { resendLimiter, checkRateLimit }         from '@/lib/rate-limit';
 import { createToken }                           from '@/lib/token';
 import WelcomeEmail                              from '@/lib/emails/WelcomeEmail';
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -20,21 +18,15 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const FROM_EMAIL    = 'EaziWage <noreply@eaziwage.com>';
 const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const TOKEN_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
-
 const Schema = z.object({
   email:           z.string().email('Please enter a valid email address').max(254),
   recaptcha_token: z.string().min(1, 'reCAPTCHA token is required'),
 });
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -56,14 +48,9 @@ async function verifyRecaptcha(token: string, ip: string): Promise<boolean> {
   } catch { return false; }
 }
 
-// ─── POST /api/auth/verify-email/resend ──────────────────────────────────────
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
 
-  // ── 1. Rate limit — uses resendLimiter: 3 resends per hour per email ─────────
-  // We'll derive the key from the email after parsing, but first check by IP
-  // as a spam guard before we even parse the body.
   const ipRate = await checkRateLimit(resendLimiter, `resend-verify-ip:${ip}`);
   if (!ipRate.success) {
     return NextResponse.json(
@@ -72,7 +59,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 2. Parse & validate ─────────────────────────────────────────────────────
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid request body' }, { status: 400 }); }
@@ -87,7 +73,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { email, recaptcha_token } = parsed.data;
 
-  // ── 3. Per-email rate limit (3 resends / hour) ───────────────────────────────
   const emailRate = await checkRateLimit(resendLimiter, `resend-verify-email:${email}`);
   if (!emailRate.success) {
     return NextResponse.json(
@@ -96,7 +81,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 4. reCAPTCHA ────────────────────────────────────────────────────────────
   if (!(await verifyRecaptcha(recaptcha_token, ip))) {
     return NextResponse.json(
       { error: 'Security check failed. Please refresh and try again.' },
@@ -104,8 +88,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 5. Look up profile ───────────────────────────────────────────────────────
-  // Always return 200 to prevent email enumeration.
   const { data: profile } = await supabase
     .from('profiles')
     .select('id, full_name, email, role, email_verified')
@@ -119,7 +101,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Already verified — no need to resend
   if (profile.email_verified) {
     return NextResponse.json(
       { message: 'If an unverified account exists for this email, a new verification link has been sent.' },
@@ -127,14 +108,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 6. Invalidate existing unused tokens for this user ───────────────────────
   await supabase
     .from('email_verifications')
     .update({ used_at: new Date().toISOString() })
     .eq('user_id', profile.id)
     .is('used_at', null);
 
-  // ── 7. Create fresh token ────────────────────────────────────────────────────
   const { token, tokenHash } = createToken();
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
 
@@ -155,7 +134,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 8. Send email ────────────────────────────────────────────────────────────
   const verificationUrl = `${BASE_URL}/verify-email?token=${token}`;
   const role = profile.role as 'employee' | 'employer';
 
@@ -181,7 +159,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (emailError) {
     console.error('[verify-email/resend] Email error:', emailError);
-    // Non-fatal — user gets the same success response
   }
 
   return NextResponse.json(

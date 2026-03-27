@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { payoutService } from '@/lib/services/payout-service';
 
-/**
- * Admin Disbursement Route
- * POST /api/admin/advances/[id]/disburse
- */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

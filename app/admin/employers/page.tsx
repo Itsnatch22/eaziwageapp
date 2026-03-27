@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 import { toast }                   from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -247,6 +248,7 @@ const FilterButton: React.FC<FilterButtonProps> = ({ active, onClick, children }
 
 interface EmployerRowProps {
   employer:       Employer;
+  currency:       string;
   isSelected:     boolean;
   onToggleSelect: (id: string) => void;
   onViewDetails:  (employer: Employer) => void;
@@ -255,10 +257,11 @@ interface EmployerRowProps {
 
 const EmployerRow: React.FC<EmployerRowProps> = ({ 
   employer, 
+  currency,
   isSelected, 
   onToggleSelect, 
   onViewDetails, 
-  onQuickAction,
+  onQuickAction, 
 }) => (
   <div
     className={cn(
@@ -301,7 +304,7 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
     
     {/* Monthly Advances */}
     <div className="text-right hidden md:block w-28 shrink-0">
-      <p className="font-bold text-green-600">{formatCurrency(employer.total_advances)}</p>
+      <p className="font-bold text-green-600">{formatCurrency(employer.total_advances, currency)}</p>
       <p className="text-xs text-slate-500">Advances</p>
     </div>
     
@@ -344,6 +347,7 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
 
 interface EmployerDetailModalProps {
   employer:  Employer | null;
+  currency:  string;
   isOpen:    boolean;
   onClose:   () => void;
   onRefresh: () => void;
@@ -351,9 +355,10 @@ interface EmployerDetailModalProps {
 
 const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({ 
   employer, 
+  currency,
   isOpen, 
   onClose, 
-  onRefresh,
+  onRefresh, 
 }) => {
   const [activeTab,      setActiveTab]      = useState<TabKey>('overview');
   const [loading,        setLoading]        = useState(false);
@@ -490,13 +495,13 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 </div>
                 <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl text-center">
                   <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(data.total_advances)}
+                    {formatCurrency(data.total_advances, currency)}
                   </p>
                   <p className="text-xs text-slate-500">Total Advances</p>
                 </div>
                 <div className="p-4 bg-slate-50/50 dark:bg-slate-900/20 rounded-xl text-center">
                   <p className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-                    {formatCurrency(data.monthly_payroll)}
+                    {formatCurrency(data.monthly_payroll, currency)}
                   </p>
                   <p className="text-xs text-slate-500">Monthly Payroll</p>
                 </div>
@@ -611,7 +616,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                           {emp.full_name || emp.employee_code}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {emp.job_title} • {formatCurrency(emp.monthly_salary)}
+                          {emp.job_title} • {formatCurrency(emp.monthly_salary, currency)}
                         </p>
                       </div>
                       <StatusBadge status={emp.status} />
@@ -797,6 +802,7 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminEmployers() {
+  const { currency } = useCurrency();
   const [employers,         setEmployers]         = useState<Employer[]>([]);
   const [stats,             setStats]             = useState<Stats>({
     total: 0,
@@ -1114,6 +1120,7 @@ export default function AdminEmployers() {
                 <EmployerRow 
                   key={employer.id} 
                   employer={employer}
+                  currency={currency}
                   isSelected={selectedIds.has(employer.id)}
                   onToggleSelect={toggleSelectOne}
                   onViewDetails={e => {
@@ -1141,6 +1148,7 @@ export default function AdminEmployers() {
       {/* Modals */}
       <EmployerDetailModal 
         employer={selectedEmployer}
+        currency={currency}
         isOpen={showDetailModal}
         onClose={() => {
           setShowDetailModal(false);

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,7 +124,8 @@ const ProgressItem = ({ label, value, total, color }: ProgressItemProps) => {
   );
 };
 
-const MiniBarChart = ({ trend, currency = 'KES' }: { trend: ReportsData['monthly_trend']; currency?: string }) => {
+const MiniBarChart = ({ trend }: { trend: ReportsData['monthly_trend'] }) => {
+  const { currency } = useCurrency();
   const max = Math.max(...trend.map(t => t.amount), 1);
   return (
     <div className="flex items-end gap-2 h-24">
@@ -220,6 +222,7 @@ async function downloadReportFile(
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EmployerReports() {
+  const { currency } = useCurrency();
   const [data,    setData]    = useState<ReportsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
@@ -365,21 +368,21 @@ export default function EmployerReports() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title="Total Disbursed"
-            value={formatCurrency(adv?.total_amount ?? 0, data?.currency)}
+            value={formatCurrency(adv?.total_amount ?? 0, currency)}
             change={amountChange?.label}
             changeType={amountChange?.type}
             icon={DollarSign}
           />
           <MetricCard
             title="Total Fees Collected"
-            value={formatCurrency(adv?.total_fees ?? 0, data?.currency)}
+            value={formatCurrency(adv?.total_fees ?? 0, currency)}
             change={feesChange?.label}
             changeType={feesChange?.type}
             icon={Wallet}
           />
           <MetricCard
             title="Avg. Advance Amount"
-            value={formatCurrency(adv?.avg_amount ?? 0, data?.currency)}
+            value={formatCurrency(adv?.avg_amount ?? 0, currency)}
             icon={Activity}
           />
           <MetricCard
@@ -401,7 +404,7 @@ export default function EmployerReports() {
                 <p className="text-sm text-slate-500 dark:text-slate-400">Last 6 months</p>
               </div>
             </div>
-            <MiniBarChart trend={data.monthly_trend} currency={data.currency} />
+            <MiniBarChart trend={data.monthly_trend} />
           </div>
         )}
 
@@ -509,8 +512,8 @@ export default function EmployerReports() {
               <SummaryRow label="Disbursed"         value={adv?.disbursed ?? 0}  valueColor="text-emerald-600" />
               <SummaryRow label="Pending"           value={adv?.pending ?? 0}    valueColor="text-amber-600" />
               <SummaryRow label="Rejected"          value={adv?.rejected ?? 0}   valueColor="text-red-600" />
-              <SummaryRow label="Total Amount"      value={formatCurrency(adv?.total_amount ?? 0, data?.currency)} valueColor="text-primary" />
-              <SummaryRow label="Total Fees"        value={formatCurrency(adv?.total_fees ?? 0, data?.currency)} />
+              <SummaryRow label="Total Amount"      value={formatCurrency(adv?.total_amount ?? 0, currency)} valueColor="text-primary" />
+              <SummaryRow label="Total Fees"        value={formatCurrency(adv?.total_fees ?? 0, currency)} />
             </div>
           </div>
 

@@ -11,6 +11,7 @@ import { ExportButton } from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
+import { useCurrency } from '@/hooks/useCurrency';
 import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -77,9 +78,9 @@ const formatDate = (dateString: string) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
+  const { currency } = useCurrency();
   const [advances, setAdvances] = useState<Advance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currency, setCurrency] = useState('KES');
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [userId, setUserId] = useState<string>('');
@@ -104,7 +105,6 @@ export default function Transactions() {
         
         if (overviewRes.ok) {
           const overviewData = await overviewRes.json();
-          setCurrency(overviewData?.employee?.currency || 'KES');
           
           // Get user ID for confetti tracking
           const employeeUserId = overviewData?.employee?.user_id || overviewData?.employee?.id;

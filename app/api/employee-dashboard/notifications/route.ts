@@ -4,9 +4,6 @@ import pusherServer from "@/lib/pusher-server";
 
 export const runtime = "nodejs";
 
-/**
- * GET /api/employee-dashboard/notifications
- */
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
@@ -40,9 +37,6 @@ export async function GET() {
   }
 }
 
-/**
- * PUT /api/employee-dashboard/notifications (Mark as read)
- */
 export async function PUT(req: NextRequest) {
     try {
         const supabase = await createRouteHandlerClient();
@@ -96,9 +90,6 @@ export async function PUT(req: NextRequest) {
     }
 }
 
-/**
- * DELETE /api/employee-dashboard/notifications
- */
 export async function DELETE(req: NextRequest) {
     try {
         const supabase = await createRouteHandlerClient();
@@ -127,11 +118,9 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Failed to delete notification", details: error.message }, { status: 500 });
         }
 
-        // Trigger real-time deletion sync
         try {
             await pusherServer.trigger(`user-${user.id}`, 'notification-deleted', { id });
         } catch (pusherErr) {
-            // Log pusher error but don't fail the request
             console.error('[notifications DELETE] Pusher error:', pusherErr);
         }
 

@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
+import { useCurrency } from '@/hooks/useCurrency';
 import { formatCurrency, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import pusherClient from '@/lib/pusher-client';
@@ -716,6 +717,8 @@ const Skeleton: React.FC<{ className?: string }> = ({ className }) => (
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const EmployerEmployees: React.FC = () => {
+  const { currency } = useCurrency();
+  const [selectedCurrency, setSelectedCurrency] = useState<string>(currency);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employer, setEmployer] = useState<Employer | null>(null);
   const [stats, setStats] = useState<ExtendedStats | null>(null);
@@ -727,7 +730,6 @@ const EmployerEmployees: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [selectedCurrency, setSelectedCurrency] = useState('KES');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);

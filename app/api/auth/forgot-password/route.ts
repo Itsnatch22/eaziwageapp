@@ -9,8 +9,6 @@ import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { createToken }                 from '@/lib/token';
 import PasswordResetEmail              from '@/lib/emails/PasswordResetEmail';
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -20,21 +18,15 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const FROM_EMAIL    = 'EaziWage <noreply@eaziwage.com>';
 const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const TOKEN_TTL_MS  = 60 * 60 * 1000; // 1 hour
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
-
 const Schema = z.object({
   email:           z.string().email('Please enter a valid email address').max(254),
   recaptcha_token: z.string().min(1, 'reCAPTCHA token is required'),
 });
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -56,12 +48,9 @@ async function verifyRecaptcha(token: string, ip: string): Promise<boolean> {
   } catch { return false; }
 }
 
-// ─── Route Handler ────────────────────────────────────────────────────────────
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
 
-  // ── 1. Rate limit — 5 attempts per hour per IP ──────────────────────────────
   const rate = await checkRateLimit(rateLimiter, `forgot-password:${ip}`);
   if (!rate.success) {
     return NextResponse.json(
@@ -70,7 +59,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 2. Parse & validate ─────────────────────────────────────────────────────
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid request body' }, { status: 400 }); }
@@ -86,7 +74,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const normalizedEmail = parsed.data.email.trim().toLowerCase();
   const { recaptcha_token } = parsed.data;
 
-  // ── 3. reCAPTCHA ────────────────────────────────────────────────────────────
   const isRecaptchaValid = await verifyRecaptcha(recaptcha_token, ip);
   console.log('[forgot-password] reCAPTCHA validation:', { 
     email: normalizedEmail, 
@@ -101,8 +88,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 4. Look up profile ───────────────────────────────────────────────────────
-  // FIXED: Query profile.profiles schema
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id, full_name, email')
@@ -117,7 +102,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   if (!profile) {
-    // Deliberate: same response whether email exists or not (prevents enumeration)
     console.log('[forgot-password] No profile found - returning success to prevent enumeration');
     return NextResponse.json(
       { message: 'If an account exists for this email, a reset link has been sent.' },
@@ -125,7 +109,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 5. Invalidate any existing reset tokens for this user ───────────────────
   const { error: invalidateError } = await supabase
     .from('password_resets')
     .update({ used_at: new Date().toISOString() })
@@ -136,7 +119,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     console.error('[forgot-password] Error invalidating old tokens:', invalidateError);
   }
 
-  // ── 6. Create new reset token ────────────────────────────────────────────────
   const { token, tokenHash } = createToken();
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
 
@@ -162,7 +144,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     expiresAt: expiresAt.toISOString() 
   });
 
-  // ── 7. Send email ────────────────────────────────────────────────────────────
   const resetUrl = `${BASE_URL}/reset-password?token=${token}`;
   
   let html: string;
@@ -199,7 +180,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       from: FROM_EMAIL,
     });
     
-    // Return error to user instead of silent failure
     return NextResponse.json(
       { error: 'Failed to send reset email. Please try again or contact support.' },
       { status: 500, headers: rate.headers },

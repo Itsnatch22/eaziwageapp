@@ -66,14 +66,12 @@ export async function GET() {
   const country = typedOrg?.country || 'KE';
   const maxPct = COUNTRY_PCT[country] || 0.5;
 
-  // Employees
   const { data: employees } = await supabase
     .from('profiles')
     .select('*')
 	    .eq('organization_id', typedProfile.organization_id)
 	    .eq('role', 'employee');
 
-  // All advances this month
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const { data: advances } = await supabase
     .from('advances')

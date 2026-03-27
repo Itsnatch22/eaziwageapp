@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Reason is required' }, { status: 400 });
     }
 
-    // Get Employer ID
     const { data: employer } = await adminSupabase
       .from('employer_onboarding')
       .select('id')

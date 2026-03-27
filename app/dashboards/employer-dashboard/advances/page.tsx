@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { cn, formatCurrency, formatDateTime } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 
 type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'rejected' | 'repaid' | string;
 
@@ -86,6 +87,7 @@ interface EmployerData {
 }
 
 export default function EmployerAdvancesPage() {
+  const { currency } = useCurrency();
   const [advances, setAdvances] = useState<AdvanceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
@@ -209,14 +211,14 @@ export default function EmployerAdvancesPage() {
             icon={CreditCard}
             label="Total Requests"
             value={stats.total}
-            subtext={formatCurrency(stats.totalAmount, employer?.currency)}
+            subtext={formatCurrency(stats.totalAmount, currency)}
             valueColor="text-primary"
           />
           <MetricCard
             icon={Clock}
             label="Pending Review"
             value={stats.pendingCount}
-            subtext={formatCurrency(stats.pendingAmount, employer?.currency)}
+            subtext={formatCurrency(stats.pendingAmount, currency)}
             valueColor="text-amber-600"
           />
           <MetricCard
@@ -305,15 +307,15 @@ export default function EmployerAdvancesPage() {
 
                     <div className="text-left xl:text-right">
                       <p className="font-bold text-slate-900 dark:text-white">
-                        {formatCurrency(advance.amount, employer?.currency)}
+                        {formatCurrency(advance.amount, currency)}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Fee: {advance.fee_percentage ?? 0}% ({formatCurrency(advance.fee_amount || 0, employer?.currency)})
+                        Fee: {advance.fee_percentage ?? 0}% ({formatCurrency(advance.fee_amount || 0, currency)})
                       </p>
                     </div>
 
                     <div className="text-left xl:text-right">
-                      <p className="font-semibold text-primary">{formatCurrency(advance.net_amount || 0, employer?.currency)}</p>
+                      <p className="font-semibold text-primary">{formatCurrency(advance.net_amount || 0, currency)}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
                         {(advance.disbursement_method || '').replace('_', ' ')}
                       </p>
@@ -361,5 +363,6 @@ export default function EmployerAdvancesPage() {
     </EmployerPortalLayout>
   );
 }
+
 
 

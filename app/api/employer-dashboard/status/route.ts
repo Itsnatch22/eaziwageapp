@@ -1,5 +1,3 @@
-// app/api/employer-dashboard/status/route.ts
-// Returns employer status including termination info for access control
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
@@ -12,7 +10,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check employer status (includes deleted_at for termination check)
     const { data: employer, error } = await supabase
       .from('employer_onboarding')
       .select('id, status, deleted_at')

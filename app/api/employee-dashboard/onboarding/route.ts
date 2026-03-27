@@ -21,13 +21,9 @@ function createAdminClient() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/employee-dashboard/onboarding
-// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const supabase = await createRouteHandlerClient();
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const {
     data: { user },
     error: authError,
@@ -37,13 +33,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Parse & validate ──────────────────────────────────────────────────────
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-
-  // Coerce monthly_salary to number before validation
   const coerced = {
     ...body,
     monthly_salary: parseFloat(body.monthly_salary) || 0,
@@ -63,7 +56,6 @@ export async function POST(req: NextRequest) {
 
   console.log('Verifying employer_id:', data.employer_id);
   
-  // ── Verify the employer exists and is registered (Using Admin Client to bypass RLS) ──
   const { data: onboardingEmp } = await adminSupabase
     .from('employer_onboarding')
     .select('id, company_name, status, user_id')
@@ -74,7 +66,6 @@ export async function POST(req: NextRequest) {
   let employer = onboardingEmp;
 
   if (!employer) {
-    // Fallback check in the primary employers table
     const { data: syncedEmp } = await adminSupabase
       .from('employers')
       .select('id, company_name, status, user_id')
@@ -95,7 +86,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Check for duplicate application ──────────────────────────────────────
   const { data: existing } = await supabase
     .from('employee_onboarding')
     .select('id, status')
@@ -109,7 +99,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Generate unique employee code ───────────────────────────────────────
   function generateEmployeeCode(employerId: string, userId: string): string {
     const employerPrefix = employerId.slice(-4).toUpperCase();
     const userSuffix = userId.slice(-6).toUpperCase();
@@ -117,7 +106,6 @@ export async function POST(req: NextRequest) {
     return `EMP-${employerPrefix}-${userSuffix}-${timestamp}`;
   }
 
-  // ── Upsert employee KYC record ────────────────────────────────────────────
   const {
     employer_id,
     employee_code,
@@ -151,10 +139,8 @@ export async function POST(req: NextRequest) {
     employment_contract,
   } = data;
 
-  // Generate employee code automatically if not provided
   const generatedEmployeeCode = employee_code || generateEmployeeCode(employer_id, user.id);
 
-  // Calculate currency based on country
   const employeeCurrency = getCurrencyFromCountry(country);
 
   const upsertPayload = {
@@ -209,13 +195,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
 
-  // ── Get user profile for the email ───────────────────────────────────────
   const employeeName =
     (user.user_metadata?.full_name as string | undefined) ??
     user.email?.split('@')[0] ??
     'there';
-
-  // ── Sync to employees table for admin visibility ─────────────────────────
   try {
     await supabase
       .from('employees')
@@ -234,7 +217,6 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
-    // Sync documents to employee_kyc_documents
     const docSyncs = [];
     const idDocType = data.id_type === 'passport' ? 'passport' : 'national_id';
     
@@ -253,11 +235,8 @@ export async function POST(req: NextRequest) {
     console.error('[onboarding/sync-employees]', err);
   }
 
-  // ── Create Notifications ──────────────────────────────────────────────────
   try {
-    // 1. Employer Notification & Real-time update
     if (employer.id) {
-      // Trigger update on the COMPANY channel (for overview metrics)
       await pusherServer.trigger(`employer-${employer.id}`, 'employee-kyc-update', {
         employee_name: employeeName,
         status: 'pending'
@@ -282,7 +261,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Admin Notification
     const { data: adminNotif, error: adminNotifError } = await supabase
       .from('admin_notifications')
       .insert({
@@ -304,10 +282,8 @@ export async function POST(req: NextRequest) {
     }
   } catch (notifErr) {
     console.error('[onboarding/notifications]', notifErr);
-    // Non-fatal, continue to email
   }
 
-  // ── Send confirmation email ───────────────────────────────────────────────
   await resend.emails
     .send({
       from: 'EaziWage <onboarding@contact.eaziwage.com>',
@@ -330,10 +306,6 @@ export async function POST(req: NextRequest) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/employee-dashboard/onboarding
-// Returns the current user's existing KYC application (status check / resume)
-// ─────────────────────────────────────────────────────────────────────────────
 export async function GET() {
   const supabase = await createRouteHandlerClient();
 

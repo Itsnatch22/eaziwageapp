@@ -16,7 +16,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Only select columns that exist in employer_onboarding table
   const { data: employer, error } = await supabase
     .from('employer_onboarding')
     .select(`
@@ -52,13 +51,11 @@ export async function GET() {
     return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
   }
 
-  // Return with default values for missing fields
   const countryLimit = getAdvanceLimit(employer.country);
   
   return NextResponse.json({
     employer: {
       ...employer,
-      // Default notification settings (since these columns don't exist in DB)
       email_notifications: true,
       advance_alerts: true,
       payroll_reminders: true,
@@ -107,7 +104,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
   }
 
-  // Only update columns that exist in the table
   const updates = {
     company_name: input.companyName ?? null,
     contact_person: input.contactPerson ?? null,
@@ -119,8 +115,6 @@ export async function PUT(req: NextRequest) {
     postal_code: input.postalCode ?? null,
     county_region: input.countyRegion ?? null,
     country: input.country ?? null,
-    // Note: Notification and EWA settings are not saved since columns don't exist
-    // If you need these, create a separate table for employer_settings
     updated_at: new Date().toISOString(),
   };
 

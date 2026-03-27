@@ -1,15 +1,8 @@
-// app/api/seed/demo-employees/route.ts
-//
-// POST /api/seed/demo-employees
-//
-// Seeds 60 realistic demo employees linked to the authenticated employer.
-// Only works for approved employers. Idempotent: won't seed twice.
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
 
-export const runtime = 'nodejs'; // needs crypto for UUIDs
+export const runtime = 'nodejs';
 
 const DEPARTMENTS = [
   'Engineering', 'Sales', 'Marketing', 'Finance', 'Operations',
@@ -72,7 +65,6 @@ export async function POST() {
   try {
     const supabase = await createClient();
 
-    // ── Auth ──────────────────────────────────────────────────────────────────
     const {
       data: { user },
       error: authError,
@@ -87,7 +79,6 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // ── Resolve employer ──────────────────────────────────────────────────────
     const { data: employer, error: employerError } = await supabase
       .from('employer_onboarding')
       .select('id, company_name, country')
@@ -109,7 +100,6 @@ export async function POST() {
       );
     }
 
-    // ── Idempotency: don't seed if already have 50+ ───────────────────────────
     const { count, error: countError } = await supabase
       .from('employee_onboarding')
       .select('id', { count: 'exact', head: true })
@@ -126,7 +116,6 @@ export async function POST() {
       });
     }
 
-    // ── Build 60 employees with unique demo users ─────────────────────────────
     const country = employer.country ?? 'KE';
     const cities  = CITIES[country] ?? CITIES.KE;
 
@@ -140,7 +129,6 @@ export async function POST() {
       const kycStatus = pick(KYC_STATUSES);
       const email     = `demo.employee.${i + 1}.${employer.id.substring(0, 8)}@example.com`;
 
-      // Create a demo user account for this employee using supabaseAdmin
       const { data: demoUser, error: userError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password: `DemoPass${Math.random().toString(36).substring(2, 15)}!`,
@@ -154,7 +142,6 @@ export async function POST() {
 
       if (userError) {
         console.error(`[seed/demo-employees] Failed to create user ${i + 1}:`, userError);
-        // Continue with remaining users instead of failing completely
         continue;
       }
 
@@ -164,7 +151,7 @@ export async function POST() {
       }
 
       rows.push({
-        user_id:         demoUser.user.id, // ✅ Unique user_id for each employee
+        user_id:         demoUser.user.id, // Unique user_id for each employee
         employer_id:     employer.id,
         employee_code:   `EMP-${String(i + 1).padStart(4, '0')}`,
         national_id:     `DEMO-${String(i + 1).padStart(6, '0')}`,

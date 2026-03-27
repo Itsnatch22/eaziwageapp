@@ -3,9 +3,6 @@ import { dusupay, PayoutStatus } from '@/lib/dusupay';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyEmployee, notifyEmployer } from '@/lib/notifications';
 
-/**
- * Dusupay Webhook Handler (V2 - Includes Wallet Support)
- */
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   console.log(`[Dusupay Webhook] Received request from ${ip}`);
@@ -33,7 +30,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing reference' }, { status: 400 });
     }
 
-    // 1. Audit Log (Idempotent)
     await supabaseAdmin.from('dusupay_transactions').upsert({
       merchant_reference: merchantReference,
       internal_reference: internalReference,
@@ -44,11 +40,9 @@ export async function POST(req: NextRequest) {
       raw_payload: body,
     }, { onConflict: 'merchant_reference' });
 
-    // 2. Handle Collection (Employer Funding)
     if (event.startsWith('collection.')) {
       await handleCollectionEvent(event, payload, merchantReference, internalReference);
     } 
-    // 3. Handle Payout (Advance Disbursement)
     else {
       await handlePayoutEvent(event, payload, merchantReference, internalReference);
     }
@@ -61,11 +55,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/**
- * Handles Employer Wallet Funding
- */
 async function handleCollectionEvent(event: string, payload: any, merchantRef: string, internalRef: string) {
-  // Expected Reference Format: DEP-{EMPLOYER_ID}-{TIMESTAMP}
   if (!merchantRef.startsWith('DEP-')) return;
 
   const parts = merchantRef.split('-');
@@ -74,7 +64,6 @@ async function handleCollectionEvent(event: string, payload: any, merchantRef: s
 
   if (!employerId) return;
 
-  // Find or Create Wallet
   const { data: wallet } = await supabaseAdmin
     .from('employer_wallets')
     .select('id')
@@ -82,7 +71,6 @@ async function handleCollectionEvent(event: string, payload: any, merchantRef: s
     .maybeSingle();
 
   if (!wallet) {
-    // Should ideally exist, but we can create it
     const { data: newWallet } = await supabaseAdmin
       .from('employer_wallets')
       .insert({ employer_id: employerId, balance: 0 })
@@ -93,7 +81,6 @@ async function handleCollectionEvent(event: string, payload: any, merchantRef: s
 
   const walletId = wallet?.id || (await supabaseAdmin.from('employer_wallets').select('id').eq('employer_id', employerId).single()).data?.id;
 
-  // Upsert Transaction Record
   const status = (event === 'collection.completed' || payload.status === 'COMPLETED') ? 'completed' : 'failed';
   
   await supabaseAdmin
@@ -109,7 +96,6 @@ async function handleCollectionEvent(event: string, payload: any, merchantRef: s
       metadata: payload
     }, { onConflict: 'reference' });
 
-  // ── Trigger Notifications ───────────────────────────────────────────────────
   try {
     const { data: employer } = await supabaseAdmin
       .from('employer_onboarding')
@@ -135,15 +121,10 @@ async function handleCollectionEvent(event: string, payload: any, merchantRef: s
   console.log(`[Dusupay Webhook] Wallet funding ${status} for Employer: ${employerId}`);
 }
 
-/**
- * Handles Advance Disbursements
- */
 async function handlePayoutEvent(event: string, payload: any, merchantRef: string, internalRef: string) {
   const isCompleted = event === 'transaction.completed' || payload.status === PayoutStatus.COMPLETED;
   const isFailed = ['transaction.failed', 'request.failed'].includes(event) || 
                    [PayoutStatus.FAILED, PayoutStatus.CANCELLED].includes(payload.status);
-
-  // 1. Update Advance Request Status
   let newStatus = isCompleted ? 'completed' : isFailed ? 'failed' : 'processing';
   
   const { data: advance } = await supabaseAdmin
@@ -159,7 +140,6 @@ async function handlePayoutEvent(event: string, payload: any, merchantRef: strin
       ...(isCompleted && { disbursed_at: new Date().toISOString() })
     }).eq('id', advance.id);
 
-    // ── Trigger Notifications ───────────────────────────────────────────────────
     try {
       const employeeUserId = (advance.employee_onboarding as any)?.user_id;
       if (employeeUserId) {
@@ -177,7 +157,6 @@ async function handlePayoutEvent(event: string, payload: any, merchantRef: strin
       console.error('[webhook-payout] Notification failed:', notifyErr);
     }
 
-    // 2. If Disbursement Completed, Record Wallet Withdrawal
     if (isCompleted && advance.employer_id) {
       const { data: wallet } = await supabaseAdmin
         .from('employer_wallets')

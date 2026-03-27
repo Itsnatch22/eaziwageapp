@@ -7,11 +7,7 @@ import { apiLimiter, checkRateLimit }  from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import pusherServer from '@/lib/pusher-server';
 
-// ─── Environment ──────────────────────────────────────────────────────────────
-
 const env = getEnv();
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Notification {
   id:         string;
@@ -23,8 +19,6 @@ interface Notification {
   metadata?:  Record<string, unknown>;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function getClientIp(req: NextRequest): string {
   return (
     req.headers.get('x-real-ip')                     ??
@@ -34,10 +28,6 @@ function getClientIp(req: NextRequest): string {
   ).trim();
 }
 
-/**
- * Checks if a user is an admin by querying the system_admins table.
- * Uses service role client to bypass RLS.
- */
 async function isSystemAdmin(userId: string): Promise<boolean> {
   const env = getEnv();
   const adminSupabase = createSupabaseClient(
@@ -55,12 +45,8 @@ async function isSystemAdmin(userId: string): Promise<boolean> {
   return systemAdmin?.is_admin === true;
 }
 
-// ─── GET /api/admin/notifications ─────────────────────────────────────────────
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
-
-  // ── 1. Rate limit — 100 requests per minute (general API limiter) ───────────
   const rate = await checkRateLimit(apiLimiter, `admin-notifications:${ip}`);
   if (!rate.success) {
     return NextResponse.json(
@@ -69,7 +55,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 2. Build SSR Supabase client (reads session from cookies) ───────────────
   const response = NextResponse.next();
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -95,7 +80,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 3. Verify admin access ───────────────────────────────────────────────────
   const isAdmin = await isSystemAdmin(user.id);
 
   if (!isAdmin) {
@@ -105,9 +89,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 4. Fetch notifications ───────────────────────────────────────────────────
-  // RLS policy ensures only admins can read from this table.
-  // We order by created_at descending and limit to 50 most recent.
   const { data: notifications, error: notifError } = await supabase
     .from('admin_notifications')
     .select('id, type, title, message, read, created_at, metadata')
@@ -128,12 +109,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 }
 
-// ─── POST /api/admin/notifications — Mark notification(s) as read ─────────────
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
-
-  // Rate limit
   const rate = await checkRateLimit(apiLimiter, `admin-notifications:${ip}`);
   if (!rate.success) {
     return NextResponse.json(
@@ -142,7 +119,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Build SSR client
   const response = NextResponse.next();
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -165,14 +141,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Verify admin
   const isAdmin = await isSystemAdmin(user.id);
 
   if (!isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Parse body
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid request body' }, { status: 400 }); }
@@ -186,12 +160,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Mark as read
   const { error: updateError } = await supabase
     .from('admin_notifications')
     .update({ read: true })
     .in('id', notification_ids)
-    .eq('read', false); // Only update unread ones
+    .eq('read', false);
 
   if (updateError) {
     console.error('[admin-notifications] Mark read error:', updateError);
@@ -218,7 +191,6 @@ export async function DELETE(req: NextRequest) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        // Verify Admin
         const isAdmin = await isSystemAdmin(user.id);
         if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -230,7 +202,6 @@ export async function DELETE(req: NextRequest) {
         const { error } = await adminSupabase.from('admin_notifications').delete().eq('id', id);
         if (error) throw error;
 
-        // Trigger real-time deletion
         await pusherServer.trigger('admin-notifications', 'notification-deleted', { id });
 
         return NextResponse.json({ success: true });

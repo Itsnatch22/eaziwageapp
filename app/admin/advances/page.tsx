@@ -11,6 +11,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 
 type VariantColor = 'purple' | 'green' | 'amber' | 'red' | 'blue';
@@ -57,6 +58,7 @@ const statusStyles: Record<
 
 interface AdvanceDetailModalProps {
   advance: Advance | null;
+  currency: string;
   onClose: () => void;
   isOpen: boolean;
   loading?: boolean;
@@ -115,6 +117,7 @@ interface Advance {
 
 interface AdvanceRowProps {
   advance: Advance;
+  currency: string;
   onViewDetails: (advance: Advance) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
@@ -123,6 +126,7 @@ interface AdvanceRowProps {
 
 export function AdvanceRow({
   advance,
+  currency,
   onViewDetails,
   onApprove,
   onReject,
@@ -150,15 +154,15 @@ export function AdvanceRow({
       </div>
 
       <div className="text-right w-28">
-        <p className="font-bold">{formatCurrency(advance.amount, 'USD')}</p>
+        <p className="font-bold">{formatCurrency(advance.amount, currency)}</p>
         <p className="text-xs text-slate-500">
-          Fee: {formatCurrency(advance.fee_amount, 'USD')}
+          Fee: {formatCurrency(advance.fee_amount, currency)}
         </p>
       </div>
 
       <div className="text-right w-28 hidden md:block">
         <p className="font-bold text-purple-600">
-          {formatCurrency(advance.net_amount, 'USD')}
+          {formatCurrency(advance.net_amount, currency)}
         </p>
         <p className="text-xs text-slate-500">Net</p>
       </div>
@@ -328,6 +332,7 @@ export function FilterButton({ onClick, count = 0, active, children }: FilterBut
 
 export function AdvanceDetailModal({
   advance,
+  currency,
   onClose,
   onApprove,
   onReject,
@@ -367,15 +372,15 @@ export function AdvanceDetailModal({
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-2">
             <div className="flex justify-between">
               <span className="text-slate-600 dark:text-slate-400">Amount Requested</span>
-              <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(advance.amount, 'USD')}</span>
+              <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(advance.amount, currency)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-600 dark:text-slate-400">Service Fee ({advance.fee_percentage?.toFixed(1)}%)</span>
-              <span className="font-medium text-red-600">-{formatCurrency(advance.fee_amount, 'USD')}</span>
+              <span className="font-medium text-red-600">-{formatCurrency(advance.fee_amount, currency)}</span>
             </div>
             <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2">
               <span className="font-semibold text-slate-900 dark:text-white">Net Amount</span>
-              <span className="font-bold text-purple-600">{formatCurrency(advance.net_amount, 'USD')}</span>
+              <span className="font-bold text-purple-600">{formatCurrency(advance.net_amount, currency)}</span>
             </div>
           </div>
           
@@ -455,6 +460,7 @@ export function AdvanceDetailModal({
 }
 
 export default function AdminAdvances(){
+  const { currency } = useCurrency();
   const [advances, setAdvances] = useState<Advance[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAdvance, setSelectedAdvance] = useState<Advance | null>(null);
@@ -682,6 +688,7 @@ export default function AdminAdvances(){
                 <AdvanceRow 
                   key={advance.id} 
                   advance={advance}
+                  currency={currency}
                   onViewDetails={(a) => {
                     setSelectedAdvance(a);
                     setShowDetailModal(true);
@@ -706,6 +713,7 @@ export default function AdminAdvances(){
       {/* Detail Modal */}
       <AdvanceDetailModal
         advance={selectedAdvance}
+        currency={currency}
         isOpen={showDetailModal}
         onClose={() => {
           setShowDetailModal(false);

@@ -7,6 +7,7 @@ import {
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface EmploymentData {
   employment: {
@@ -50,6 +51,7 @@ const DetailCard = ({ icon: Icon, label, value, subValue, variant = 'blue' }: an
 };
 
 const EmploymentDetails = () => {
+  const { currency } = useCurrency();
   const [data, setData] = useState<EmploymentData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -138,7 +140,7 @@ const EmploymentDetails = () => {
            <DetailCard 
               icon={DollarSign} 
               label="Monthly Gross Salary" 
-              value={formatCurrency(employment.monthly_salary, 'KES')} 
+              value={formatCurrency(employment.monthly_salary, currency)} 
               subValue="Fixed Base Salary"
               variant="emerald"
            />
@@ -153,7 +155,7 @@ const EmploymentDetails = () => {
               icon={Shield} 
               label="EWA Limit" 
               value={`${policy.withdrawal_limit_percent}%`} 
-              subValue={`Max advance per cycle: ${formatCurrency(employment.monthly_salary * (policy.withdrawal_limit_percent / 100), 'KES')}`}
+              subValue={`Max advance per cycle: ${formatCurrency(employment.monthly_salary * (policy.withdrawal_limit_percent / 100), currency)}`}
               variant="blue"
            />
         </div>
@@ -173,7 +175,7 @@ const EmploymentDetails = () => {
                     <div className="w-2 h-2 rounded-full bg-emerald-500" />
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Auto-Approval Threshold</span>
                  </div>
-                 <span className="text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(policy.auto_approval_threshold, 'KES')}</span>
+                 <span className="text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(policy.auto_approval_threshold, currency)}</span>
               </div>
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-2xl">
                  <div className="flex items-center gap-3">

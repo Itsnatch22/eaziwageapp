@@ -1,4 +1,3 @@
-// app/api/overview/approved/route.ts
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -39,7 +38,6 @@ export async function GET() {
 
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-  // Fetch approved advances with employee profiles
   const { data: approved } = await supabase
     .from('advances')
     .select(`

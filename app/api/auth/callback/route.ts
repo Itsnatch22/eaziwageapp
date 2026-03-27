@@ -6,7 +6,6 @@ import { createClient } from '@supabase/supabase-js';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  // if "next" is in search params, use it as the redirection URL
   const next = searchParams.get('next') ?? '/';
   const role = searchParams.get('role') ?? 'employee';
 
@@ -38,7 +37,6 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error && data.user) {
-      // Check if user has a profile, if not create one as employee
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -52,7 +50,6 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (!profile) {
-        // Create default profile for employee
         await supabaseAdmin
           .from('profiles')
           .insert({
@@ -66,7 +63,6 @@ export async function GET(request: Request) {
           });
       }
 
-      // Redirect to the appropriate dashboard
       const userRole = profile?.role_normalized || profile?.role || role;
       let destination = next;
       if (next === '/') {
@@ -79,6 +75,5 @@ export async function GET(request: Request) {
     }
   }
 
-  // return the user to an error page with instructions
   return NextResponse.redirect(`${origin}/?error=AuthCallbackError`);
 }

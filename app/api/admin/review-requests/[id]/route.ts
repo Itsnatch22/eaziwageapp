@@ -67,7 +67,6 @@ export async function PATCH(
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 
-    // Trigger Pusher for employer
     if (request.employer_onboarding?.user_id) {
         await pusherServer.trigger(
             `user-${request.employer_onboarding.user_id}`,
@@ -93,7 +92,6 @@ export async function PATCH(
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 
-    // Trigger Pusher for employee
     await pusherServer.trigger(
         `user-${document.user_id}`,
         'kyc-update',
@@ -103,7 +101,6 @@ export async function PATCH(
     return NextResponse.json({ message: 'KYC status updated', data: document });
 
   } else if (type === 'bank_change') {
-    // 1. Fetch the request to get new details and employer_id
     const { data: bRequest, error: fetchError } = await adminSupabase
       .from('bank_change_requests')
       .select('*')
@@ -112,7 +109,6 @@ export async function PATCH(
 
     if (fetchError || !bRequest) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
 
-    // 2. If approved, update the employer record
     if (status === 'approved') {
       const updateData = {
         bank_name: bRequest.new_bank_name,
@@ -120,20 +116,17 @@ export async function PATCH(
         updated_at: new Date().toISOString()
       };
 
-      // Update employer_onboarding
       await adminSupabase
         .from('employer_onboarding')
         .update(updateData)
         .eq('id', bRequest.employer_id);
 
-      // Update employers sync table
       await adminSupabase
         .from('employers')
         .update(updateData)
         .eq('id', bRequest.employer_id);
     }
 
-    // 3. Update the request status
     const { data: updatedRequest, error: updateError } = await adminSupabase
       .from('bank_change_requests')
       .update({
@@ -148,7 +141,6 @@ export async function PATCH(
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 
-    // 4. Notify Employer
     if (bRequest.user_id) {
       const { data: notif } = await adminSupabase
         .from('notifications')

@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Get Employer Record (even if deleted_at is set)
     const { data: employer, error: employerError } = await adminSupabase
       .from('employer_onboarding')
       .select('id, company_name')
@@ -33,7 +32,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Employer record not found' }, { status: 404 });
     }
 
-    // 2. Restore Employer
     const { error: restoreEmployerError } = await adminSupabase
       .from('employer_onboarding')
       .update({ deleted_at: null })
@@ -41,7 +39,6 @@ export async function POST(req: NextRequest) {
 
     if (restoreEmployerError) throw restoreEmployerError;
 
-    // 3. Restore linked Employees
     await adminSupabase
       .from('employee_onboarding')
       .update({ status: 'approved' }) 
@@ -52,7 +49,6 @@ export async function POST(req: NextRequest) {
       .update({ deleted_at: null, status: 'Active' })
       .eq('employer_id', employer.id);
 
-    // 4. Log the activity
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id,
       admin_name: user.email,

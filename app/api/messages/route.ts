@@ -4,10 +4,6 @@ import pusherServer from "@/lib/pusher-server";
 
 export const runtime = "nodejs";
 
-/**
- * GET /api/messages?with=USER_ID
- * Fetch conversation with a specific user
- */
 export async function GET(req: NextRequest) {
     try {
         const supabase = await createRouteHandlerClient();
@@ -36,10 +32,6 @@ export async function GET(req: NextRequest) {
     }
 }
 
-/**
- * POST /api/messages
- * Send a message
- */
 export async function POST(req: NextRequest) {
     try {
         const supabase = await createRouteHandlerClient();
@@ -67,9 +59,7 @@ export async function POST(req: NextRequest) {
 
         if (error) throw error;
 
-        // Trigger Pusher for receiver
         await pusherServer.trigger(`user-${receiver_id}-messages`, 'new-message', data);
-        // Trigger Pusher for sender (to sync multiple tabs)
         await pusherServer.trigger(`user-${user.id}-messages`, 'new-message', data);
 
         return NextResponse.json(data);
@@ -79,11 +69,6 @@ export async function POST(req: NextRequest) {
     }
 }
 
-/**
- * DELETE /api/messages/:id
- * Delete a message (implementation usually handles via params if folder structure used, 
- * but for this shared route let's handle via body or searchParams for simplicity if needed)
- */
 export async function DELETE(req: NextRequest) {
     try {
         const supabase = await createRouteHandlerClient();
@@ -102,10 +87,6 @@ export async function DELETE(req: NextRequest) {
             .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
         if (error) throw error;
-
-        // Trigger real-time deletion
-        // We need metadata to know who to notify about deletion
-        // For simplicity, usually we just notify the requester
         
         return NextResponse.json({ success: true });
     } catch (err) {

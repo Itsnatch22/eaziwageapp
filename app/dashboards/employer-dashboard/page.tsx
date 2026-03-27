@@ -15,6 +15,7 @@ import { GradientIconBox } from '@/components/employer/SharedComponents';
 import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import pusherClient from '@/lib/pusher-client';
 import { useAuthStore } from '@/lib/stores/auth';
+import { useCurrency } from '@/hooks/useCurrency';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -309,6 +310,7 @@ const PayrollHealthCard = ({ lastSync }: { lastSync: PeriodData['last_sync'] }) 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EmployerDashboard() {
+  const { currency } = useCurrency();
   const user = useAuthStore((state) => state.user);
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   const [curr,     setCurr]     = useState<PeriodData | null>(null);
@@ -380,7 +382,7 @@ export default function EmployerDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, employer?.id, triggerConfetti]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -498,21 +500,21 @@ export default function EmployerDashboard() {
             <MetricCard
               icon={DollarSign}
               label="Disbursed This Month"
-              value={formatCurrency(curr?.advances.total_amount ?? 0, employer?.currency)}
+              value={formatCurrency(curr?.advances.total_amount ?? 0, currency)}
               subtext="vs last month"
               trend={disbursedTrend}
             />
             <MetricCard
               icon={Wallet}
               label="Fees Collected"
-              value={formatCurrency(curr?.advances.total_fees ?? 0, employer?.currency)}
+              value={formatCurrency(curr?.advances.total_fees ?? 0, currency)}
               subtext="vs last month"
               trend={feesTrend}
             />
             <MetricCard
               icon={Activity}
               label="Avg. Advance"
-              value={formatCurrency(curr?.advances.avg_amount ?? 0, employer?.currency)}
+              value={formatCurrency(curr?.advances.avg_amount ?? 0, currency)}
               subtext="per disbursement"
               trend={avgAdvanceTrend}
             />
@@ -563,7 +565,7 @@ export default function EmployerDashboard() {
             {curr?.monthly_trend && curr.monthly_trend.length > 0 && (
               <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <p className="text-xs text-slate-400 mb-2">Monthly disbursements (6 mo.)</p>
-                <Sparkline trend={curr.monthly_trend} currency={employer?.currency} />
+                <Sparkline trend={curr.monthly_trend} currency={currency} />
               </div>
             )}
           </div>
@@ -585,25 +587,25 @@ export default function EmployerDashboard() {
             <MetricCard
               icon={Landmark}
               label="Credit Limit"
-              value={formatCurrency(credit?.company_credit_limit ?? 0, employer?.currency)}
+              value={formatCurrency(credit?.company_credit_limit ?? 0, currency)}
               subtext="Configured monthly cap"
             />
             <MetricCard
               icon={CreditCard}
               label="Outstanding Credit"
-              value={formatCurrency(credit?.total_outstanding_credit ?? 0, employer?.currency)}
+              value={formatCurrency(credit?.total_outstanding_credit ?? 0, currency)}
               subtext="Currently exposed company-wide"
             />
             <MetricCard
               icon={Zap}
               label="Month Used"
-              value={formatCurrency(credit?.month_disbursed_amount ?? 0, employer?.currency)}
+              value={formatCurrency(credit?.month_disbursed_amount ?? 0, currency)}
               subtext={`${credit?.utilization_percent ?? 0}% of monthly limit`}
             />
             <MetricCard
               icon={Wallet}
               label="Remaining EWA Limit"
-              value={formatCurrency(credit?.remaining_monthly_limit ?? 0, employer?.currency)}
+              value={formatCurrency(credit?.remaining_monthly_limit ?? 0, currency)}
               subtext={`Month: ${credit?.month ?? 'N/A'}`}
             />
           </div>

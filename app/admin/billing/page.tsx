@@ -9,7 +9,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area, Legend 
 } from 'recharts';
-import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Button } from '@/components/ui/button';
 
 // --- Types ---
@@ -68,6 +69,7 @@ const MetricCard = ({ icon: Icon, label, value, subtext, variant = 'purple' }: a
 };
 
 export default function BillingPage() {
+  const { currency } = useCurrency();
   const [data, setData] = useState<BillingData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -123,28 +125,28 @@ export default function BillingPage() {
         <MetricCard 
           icon={DollarSign} 
           label="Total Revenue" 
-          value={formatCurrency(data.summary.total_revenue, DEFAULT_ADMIN_CURRENCY)} 
+          value={formatCurrency(data.summary.total_revenue, currency)} 
           variant="purple"
           subtext="Cumulative platform fees earned"
         />
         <MetricCard 
           icon={CreditCard} 
           label="Total Disbursed" 
-          value={formatCurrency(data.summary.total_disbursed, DEFAULT_ADMIN_CURRENCY)} 
+          value={formatCurrency(data.summary.total_disbursed, currency)} 
           variant="blue"
           subtext="All-time advances processed"
         />
         <MetricCard 
           icon={Wallet} 
           label="Wallet Balances" 
-          value={formatCurrency(data.summary.total_wallet_balance, DEFAULT_ADMIN_CURRENCY)} 
+          value={formatCurrency(data.summary.total_wallet_balance, currency)} 
           variant="green"
           subtext="Total employer funds on platform"
         />
         <MetricCard 
           icon={BarChart3} 
           label="Arrears" 
-          value={formatCurrency(data.summary.total_arrears, DEFAULT_ADMIN_CURRENCY)} 
+          value={formatCurrency(data.summary.total_arrears, currency)} 
           variant="amber"
           subtext="Outstanding repayments due"
         />
@@ -283,7 +285,7 @@ export default function BillingPage() {
                     <span className="font-semibold text-slate-900 dark:text-white">{gen.company_name}</span>
                   </td>
                   <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                    {formatCurrency(gen.revenue, DEFAULT_ADMIN_CURRENCY)}
+                    {formatCurrency(gen.revenue, currency)}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-xs font-bold text-purple-600">

@@ -37,7 +37,6 @@ export async function GET(req: NextRequest) {
       stack: error instanceof Error ? error.stack : undefined
     });
     
-    // Handle specific database errors
     if (error instanceof Error) {
       if (error.message.includes('column "payment_methods" does not exist')) {
         return NextResponse.json({ 
@@ -78,7 +77,6 @@ export async function POST(req: NextRequest) {
 
     const currentMethods = Array.isArray(profile?.payment_methods) ? profile.payment_methods : [];
     
-    // Add unique ID and handle primary flag
     const newMethod = {
       ...method,
       id: Math.random().toString(36).substring(2, 11),
@@ -101,14 +99,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, method: newMethod });
   } catch (error) {
-    // Extract user ID from auth for logging purposes
     let userId = 'unknown';
     try {
       const supabase = await createRouteHandlerClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       userId = authUser?.id || 'unknown';
     } catch {
-      // Ignore auth errors in catch block
     }
     
     console.error('Payment methods POST error:', {
@@ -117,7 +113,6 @@ export async function POST(req: NextRequest) {
       userId
     });
     
-    // Handle specific database errors
     if (error instanceof Error) {
       if (error.message.includes('column "payment_methods" does not exist')) {
         return NextResponse.json({ 
@@ -154,7 +149,6 @@ export async function DELETE(req: NextRequest) {
     const currentMethods = Array.isArray(profile?.payment_methods) ? profile.payment_methods : [];
     const updatedMethods = currentMethods.filter((m: any) => m.id !== methodId);
 
-    // If we deleted the primary, make another one primary if exists
     if (currentMethods.find((m: any) => m.id === methodId)?.is_primary && updatedMethods.length > 0) {
       updatedMethods[0].is_primary = true;
     }
@@ -166,17 +160,14 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    // Extract user ID from auth for logging purposes
     let userId = 'unknown';
     try {
       const supabase = await createRouteHandlerClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       userId = authUser?.id || 'unknown';
     } catch {
-      // Ignore auth errors in catch block
     }
     
-    // methodId is captured from the URL before the try block
     const methodIdToLog = new URL(req.url).searchParams.get('id') || 'unknown';
     
     console.error('Payment methods DELETE error:', {
@@ -186,7 +177,6 @@ export async function DELETE(req: NextRequest) {
       methodId: methodIdToLog
     });
     
-    // Handle specific database errors
     if (error instanceof Error) {
       if (error.message.includes('column "payment_methods" does not exist')) {
         return NextResponse.json({ 

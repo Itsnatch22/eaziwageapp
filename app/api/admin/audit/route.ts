@@ -40,7 +40,6 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      // If table doesn't exist yet, return empty array instead of 500
       if (error.code === 'PGRST116' || error.code === '42P01') {
         return NextResponse.json([]);
       }

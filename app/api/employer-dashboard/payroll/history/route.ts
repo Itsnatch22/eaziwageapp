@@ -12,7 +12,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Resolve employer
     const { data: employer, error: employerError } = await supabase
       .from('employer_onboarding')
       .select('id')
@@ -27,10 +26,9 @@ export async function GET() {
     }
 
     if (!employer) {
-      return NextResponse.json([], { status: 200 }); // empty set for new employers
+      return NextResponse.json([], { status: 200 });
     }
 
-    // Fetch uploads with their row summaries
     const { data: uploads, error } = await supabase
       .from('payroll_uploads')
       .select(`

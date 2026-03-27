@@ -7,8 +7,6 @@ import { Redis } from '@upstash/redis';
 
 export const runtime = 'nodejs';
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
-
 function startOf(d: Date): Date {
   const r = new Date(d);
   r.setHours(0, 0, 0, 0);
@@ -55,7 +53,6 @@ interface TrendRow {
 function getPeriodRange(period: string, monthParam?: string): DateRange {
   const now = new Date();
 
-  // Explicit month override: YYYY-MM
   if (monthParam) {
     const [year, month] = monthParam.split('-').map(Number);
     const from = new Date(year, month - 1, 1);
@@ -98,7 +95,6 @@ function getPeriodRange(period: string, monthParam?: string): DateRange {
   }
 }
 
-/** Returns the range immediately preceding the given range (equal duration). */
 function getPreviousRange(current: DateRange): DateRange {
   const duration = current.to.getTime() - current.from.getTime();
   const to   = new Date(current.from.getTime() - 1);
@@ -106,12 +102,9 @@ function getPreviousRange(current: DateRange): DateRange {
   return { from, to, label: 'Previous Period' };
 }
 
-// ─── GET handler ──────────────────────────────────────────────────────────────
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const supabase = await createClient();
 
-  // ── Auth ────────────────────────────────────────────────────────────────────
   const {
     data: { user },
     error: authError,
@@ -132,7 +125,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     registrationProfile?.phone_country_code
     ?? (user.user_metadata?.phone_country_code as string | undefined);
 
-  // ── Parse & validate query params ──────────────────────────────────────────
   const { searchParams } = new URL(req.url);
   const parsed = ReportsQuerySchema.safeParse({
     period: searchParams.get('period') ?? 'this_month',
@@ -150,7 +142,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const range = getPeriodRange(period, month);
   const prevRange = getPreviousRange(range);
 
-  // ── 3. Initialize Redis cache ───────────────────────────────────────────
   const env = getEnv();
   const redis = new Redis({
     url: env.UPSTASH_REDIS_REST_URL,
@@ -160,7 +151,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const CACHE_TTL = 60; // 1 minute cache
   const cacheKey = `employer:reports:${user.id}:${period}:${month ?? 'none'}`;
 
-  // ── 4. Check cache first ─────────────────────────────────────────────
   try {
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
@@ -173,7 +163,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.warn('[Reports] Cache check failed:', cacheError);
   }
 
-  // ── Resolve employer ────────────────────────────────────────────────────────
   let employer: { id: string; country: string | null; risk_score: number | null; risk_rating: string | null } | null = null;
   
   try {
@@ -196,7 +185,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!employer) {
-    // Check fallback in 'employers' table
     try {
       const { data: syncedEmp, error: syncedError } = await supabase
         .from('employers')
@@ -210,7 +198,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
       
       if (!syncedEmp) {
-        // Graceful empty state — employer not yet onboarded
         return NextResponse.json({
           data: {
             period:  { label: range.label, from: range.from.toISOString(), to: range.to.toISOString() },
@@ -231,7 +218,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       employer = syncedEmp;
     } catch (err) {
       console.error('[reports] Exception fetching employers:', err);
-      // Return graceful empty state
       return NextResponse.json({
         data: {
           period:  { label: range.label, from: range.from.toISOString(), to: range.to.toISOString() },
@@ -254,7 +240,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const employerId = employer.id;
   const currency = getCurrencyFromCountry(employer.country ?? registrationCountryCode, 'KES');
 
-  // ── Fetch employees for this employer ───────────────────────────────────────
   let employeeRows: { id: string; status: string }[] = [];
   try {
     const { data: employees, error: empErr } = await supabase
@@ -277,7 +262,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const allEmployeeIds = employeeRows.map((e) => e.id);
   const activeCount = employeeRows.filter((e) => e.status === 'approved').length;
 
-  // ── Fetch advances stats (current period) via RPC ──────────────────────────
   let summary = {
     total_count: 0,
     disbursed_count: 0,
@@ -308,7 +292,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.error('[reports] RPC Exception (current):', err);
   }
 
-  // ── Fetch advances stats (previous period) via RPC ─────────────────────────
   let prevSummary = {
     total_amount: 0,
     total_fees: 0
@@ -334,13 +317,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.error('[reports] RPC Exception (previous):', err);
   }
 
-  // ── Employee utilization ────────────────────────────────────────────────────
   const totalEmployees   = allEmployeeIds.length;
   const utilizationRate  = totalEmployees > 0
     ? Math.round((summary.unique_employees_with_advances / totalEmployees) * 1000) / 10
     : 0;
-
-  // ── Monthly trend (last 6 calendar months) ─────────────────────────────────
   const monthlyTrend: Array<{ label: string; amount: number; count: number }> = [];
   const now = new Date();
 
@@ -395,7 +375,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // ── Fetch Last Sync Log ───────────────────────────────────────────────────
   let lastSync: { status: string; records_received: number; records_valid: number; created_at: string } | null = null;
   try {
     const { data: syncData } = await supabase
@@ -409,10 +388,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     lastSync = syncData;
   } catch (err) {
     console.error('[reports] Error fetching payroll_sync_logs:', err);
-    // Continue without sync data
   }
 
-  // ── Build response ──────────────────────────────────────────────────────────
   const responseData = {
     data: {
       period: {

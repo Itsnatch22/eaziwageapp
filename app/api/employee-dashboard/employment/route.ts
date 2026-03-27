@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Get Employee Onboarding details
     const { data: onboarding, error: onboardingError } = await adminSupabase
       .from('employee_onboarding')
       .select(`
@@ -48,7 +47,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
     }
 
-    // 2. Get Organization Policy
     const { data: policy, error: policyError } = await adminSupabase
       .from('policies')
       .select('*')

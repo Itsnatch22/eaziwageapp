@@ -22,7 +22,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   try {
-    // 1. Revenue & Disbursement Trends (Last 6 Months)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     sixMonthsAgo.setDate(1);
@@ -34,11 +33,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (advancesError) throw advancesError;
 
-    // Process monthly trends
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const trendMap = new Map();
 
-    // Initialize last 6 months
     for (let i = 0; i < 6; i++) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
@@ -61,7 +58,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const monthlyTrends = Array.from(trendMap.values()).reverse();
 
-    // 2. Total Cumulative Stats
     const { data: totalStats, error: totalError } = await supabase
       .from('advances')
       .select('amount, fee_amount')
@@ -72,7 +68,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const cumulativeRevenue = (totalStats || []).reduce((sum, a) => sum + Number(a.fee_amount || 0), 0);
     const cumulativeDisbursed = (totalStats || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
 
-    // 3. Wallet Health (Employer Balances)
     const { data: wallets, error: walletError } = await supabase
       .from('employer_wallets')
       .select(`

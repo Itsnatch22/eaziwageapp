@@ -1,9 +1,3 @@
-// app/api/admin/me/route.ts
-// GET /api/admin/me
-//
-// Development diagnostic: returns the current session's role info.
-// Safe to call from the browser to see exactly what the route sees.
-//
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -26,10 +20,8 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Check if user is an env-defined admin
-  // Strip quotes from ADMIN_EMAILS in case they exist
   const adminEmails = (env.ADMIN_EMAILS || '')
-    .replace(/^"|"$/g, '') // Remove leading/trailing quotes
+    .replace(/^"|"$/g, '')
     .split(',')
     .map(e => e.trim().toLowerCase());
   const isEnvAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
@@ -40,7 +32,6 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     isEnvAdmin
   });
 
-  // Check system_admins table for env admins
   let systemAdminRecord = null;
   if (isEnvAdmin) {
     const { data: sysAdmin } = await adminSupabase
@@ -53,7 +44,6 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     console.log('[/api/admin/me] System admin record:', systemAdminRecord ? 'Found' : 'Not found');
   }
 
-  // Check profiles table for regular users
   const { data: profile } = await adminSupabase
     .from('profiles')
     .select('id, email, full_name, role, avatar_url')
@@ -62,7 +52,6 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
 
   console.log('[/api/admin/me] Profile record:', profile ? 'Found' : 'Not found', profile?.role);
 
-  // If user is env admin, they have admin access
   if (isEnvAdmin) {
     console.log('[/api/admin/me] ✓ User is env admin, granting access');
     return NextResponse.json({
@@ -80,7 +69,6 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // For non-env admins, check if they have admin role in various places
   const roleCandidates = [profile?.role, user.app_metadata?.role, user.user_metadata?.role]
     .filter((r): r is string => typeof r === 'string' && r.length > 0)
     .map((r) => r.toLowerCase());

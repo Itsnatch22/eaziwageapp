@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
-    // 1. Authenticate & Verify Employer
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -47,7 +46,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Employer not found or not approved' }, { status: 403 });
     }
 
-    // 2. Parse & Validate Payload
     const body = await req.json();
     const validation = BulkEmployeeSchema.safeParse(body);
     if (!validation.success) {
@@ -62,15 +60,12 @@ export async function POST(req: NextRequest) {
       errors: [] as { email: string; message: string }[]
     };
 
-    // Track duplicates within the batch
     const seenEmails = new Set<string>();
     const seenCodes = new Set<string>();
 
-    // 3. Process Batch
     for (const emp of employees) {
       const email = emp.email.toLowerCase();
       
-      // Batch duplicate check
       if (seenEmails.has(email)) {
         results.failed++;
         results.errors.push({ email, message: 'Duplicate email in this file' });
@@ -85,14 +80,12 @@ export async function POST(req: NextRequest) {
       seenCodes.add(emp.employee_code);
 
       try {
-        // Find existing user by email in profiles
         const { data: existingProfile } = await adminSupabase
           .from('profiles')
           .select('id')
           .eq('email', email)
           .maybeSingle();
 
-        // Check if already has onboarding record for THIS employer OR if employee code is taken
         const { data: duplicateCheck, error: duplicateError } = await adminSupabase
           .from('employee_onboarding')
           .select('id, email_placeholder, employee_code')
@@ -109,12 +102,11 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Create onboarding placeholder
         const { error: insertError } = await adminSupabase
           .from('employee_onboarding')
           .insert({
             employer_id: employer.id,
-            user_id: existingProfile?.id || null, // Link if they exist, otherwise null (invitation needed)
+            user_id: existingProfile?.id || null,
             full_name_placeholder: emp.full_name,
             email_placeholder: emp.email.toLowerCase(),
             employee_code: emp.employee_code,

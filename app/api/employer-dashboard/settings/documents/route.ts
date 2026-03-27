@@ -28,15 +28,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Convert file to array buffer for upload
     const fileBuffer = await file.arrayBuffer();
 
-    // Create a unique file path for the employer
     const fileExt = file.name.split('.').pop();
     const fileName = `${documentType}_${Date.now()}.${fileExt}`;
     const filePath = `${user.id}/${fileName}`;
 
-    // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("employer-documents")
       .upload(filePath, fileBuffer, {
@@ -52,14 +49,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get the public URL for the uploaded file
     const { data: publicUrlData } = supabase.storage
       .from("employer-documents")
       .getPublicUrl(filePath);
 
     const fileUrl = publicUrlData.publicUrl;
 
-    // Fetch existing profile to ensure it exists
     const { data: existingProfile, error: profileError } = await supabase
       .from("employer_onboarding")
       .select("id")
@@ -74,7 +69,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Map documentType to the correct column name
     const validDocumentTypes = [
       'certificate_of_incorporation',
       'business_registration',
@@ -96,7 +90,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update the specific document column
     const { error: updateError } = await supabase
       .from('employer_onboarding')
       .update({ [documentType]: fileUrl })
@@ -106,7 +99,6 @@ export async function POST(req: NextRequest) {
       throw updateError;
     }
 
-    // Trigger notification to Admin
     const { notifyAdmins } = await import('@/lib/notifications');
     await notifyAdmins({
         type: 'employer_kyc',

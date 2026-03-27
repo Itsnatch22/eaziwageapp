@@ -12,26 +12,18 @@ import { createToken }               from '@/lib/token';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
 import pusherServer from '@/lib/pusher-server';
 
-// ─── Environment ──────────────────────────────────────────────────────────────
-
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
-
-// Service-role Supabase client (server-only, never exposed to client)
 const supabase = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
   env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const FROM_EMAIL   = 'EaziWage <noreply@eaziwage.com>';
 const BASE_URL     = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const RECAPTCHA_MIN_SCORE = 0.5;
-
-// ─── Zod Schema ───────────────────────────────────────────────────────────────
 
 const EmployerReferralSchema = z.object({
   employer_name:  z.string().min(2,  'Employer name must be at least 2 characters').max(20),
@@ -81,12 +73,6 @@ const RegisterSchema = z.object({
 
 type RegisterInput = z.infer<typeof RegisterSchema>;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Verifies a reCAPTCHA v3 token with Google's API.
- * Returns true only if verification succeeds AND score >= threshold.
- */
 async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean> {
   try {
     const params = new URLSearchParams({
@@ -124,9 +110,6 @@ async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean
   }
 }
 
-/**
- * Extracts the real client IP address, respecting common proxy headers.
- */
 function getClientIp(req: NextRequest): string {
   return (
     req.headers.get('x-real-ip')                      ??
@@ -136,9 +119,6 @@ function getClientIp(req: NextRequest): string {
   ).trim();
 }
 
-/**
- * Sends the welcome + verification email via Resend using the React Email template.
- */
 async function sendWelcomeEmail(
   input:           RegisterInput,
   verificationUrl: string,
@@ -165,14 +145,10 @@ async function sendWelcomeEmail(
   });
 
   if (error) {
-    // Non-fatal — user can request a resend. Log but don't throw.
     console.error('[email] Failed to send welcome email:', error);
   }
 }
 
-/**
- * Notifies the EaziWage sales/onboarding team of an employer referral via email.
- */
 async function sendReferralNotification(
   referral:  NonNullable<RegisterInput['employer_referral']>,
   requester: { name: string; email: string },
@@ -198,11 +174,8 @@ async function sendReferralNotification(
   }
 }
 
-/**
- * Generates a random alphanumeric employer code, e.g. A7B8C9
- */
 function generateEmployerCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid O, 0, I, 1 for clarity
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let random = '';
   for (let i = 0; i < 6; i++) {
     random += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -210,12 +183,9 @@ function generateEmployerCode(): string {
   return random;
 }
 
-// ─── Route Handler ────────────────────────────────────────────────────────────
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
 
-  // ── 1. Rate limiting ────────────────────────────────────────────────────────
   const rateResult = await checkRateLimit(rateLimiter, `register:${ip}`);
   if (!rateResult.success) {
     return NextResponse.json(
@@ -224,7 +194,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 2. Parse & validate body ────────────────────────────────────────────────
   let body: unknown;
   try {
     body = await req.json();
@@ -243,7 +212,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const input = parsed.data;
 
-  // ── 3. reCAPTCHA v3 verification ────────────────────────────────────────────
   const captchaOk = await verifyRecaptcha(input.recaptcha_token, ip);
   if (!captchaOk) {
     return NextResponse.json(
@@ -252,7 +220,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 4. Deep email validation (disposable / typo / DNS MX check) ─────────────
   const emailValidation = await validateEmail(input.email, true);
   if (!emailValidation.valid) {
     return NextResponse.json(
@@ -264,7 +231,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 5. Employer-specific: validate company_name present ─────────────────────
   let generatedEmployerCode: string | null = null;
   if (input.role === 'employer') {
     if (!input.company_name.trim()) {
@@ -275,10 +241,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // ── 6. Employee-specific: validate company_code exists (if provided) ─────────
   let employerUserId: string | null = null;
   if (input.role === 'employee' && input.company_code) {
-    // Check if the company code exists in the approved employers table (or onboarding)
     const { data: employer, error: empError } = await supabase
       .from('employers')
       .select('id, status, user_id, employer_code')
@@ -286,7 +250,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .single();
 
     if (empError || !employer) {
-      // Fallback: check the profiles table too (for newly registered ones)
       const { data: profileEmp, error: profileEmpError } = await supabase
         .from('profiles')
         .select('id, role, company_code')
@@ -301,14 +264,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         );
       }
 
-      // Check onboarding status - handle multiple records by picking the "best" one
       const { data: onboardingRows } = await supabase
         .from('employer_onboarding')
         .select('status, user_id')
         .eq('user_id', profileEmp.id)
         .order('created_at', { ascending: false });
 
-      // Prefer 'approved' if it exists, otherwise pick the latest record
       const onboarding = onboardingRows?.find(r => r.status === 'approved') 
         || onboardingRows?.find(r => r.status === 'submitted' || r.status === 'pending')
         || (onboardingRows && onboardingRows.length > 0 ? onboardingRows[0] : null);
@@ -322,8 +283,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
         employerUserId = onboarding.user_id;
       } else {
-        // If we found a profile but NO onboarding record, it's a newly registered employer
-        // We still allow registration, but status will be effectively pending
         employerUserId = profileEmp.id;
       }
     } else {
@@ -340,7 +299,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // (Optionally you could require a referral here if that's your business logic)
   }
 
-  // ── 7. Create Supabase Auth user ────────────────────────────────────────────
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email:             input.email,
     password:          input.password,
@@ -353,7 +311,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   if (authError) {
-    // Supabase returns a specific message for duplicate emails
     if (authError.message.toLowerCase().includes('already registered') || authError.status === 422) {
       return NextResponse.json(
         { error: 'An account with this email address already exists.' },
@@ -369,14 +326,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const userId = authData.user.id;
 
-  // ── 8. Generate Employer Code if applicable ────────────────────────────────
   if (input.role === 'employer') {
     generatedEmployerCode = generateEmployerCode();
   }
-
-  // ── 8b. Create employer record FIRST (if employer signup) ───────────────────
-  // This MUST happen before profile insert because profiles.company_code 
-  // has a foreign key constraint to employers.company_code
   if (input.role === 'employer' && generatedEmployerCode) {
     const { data: employerRecord, error: employerError } = await supabase
       .from('employers')
@@ -386,7 +338,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         email:        input.email,
         phone:        input.phone,
         user_id:      userId,
-        employer_id:  userId, // Use user_id as employer_id
+        employer_id:  userId, 
         status:       'pending',
         created_at:   new Date().toISOString(),
       }, { onConflict: 'company_code' })
@@ -394,7 +346,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .single();
 
     if (employerError) {
-      // Roll back auth user
       await supabase.auth.admin.deleteUser(userId);
       console.error('[db] employer insert error:', employerError);
       return NextResponse.json(
@@ -404,7 +355,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // ── 9. Insert profile row ────────────────────────────────────────────────────
   const { error: profileError } = await supabase
     .from('profiles')
     .upsert({
@@ -422,7 +372,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }, { onConflict: 'id' });
 
   if (profileError) {
-    // Roll back the employer record (if created) and auth user
     if (input.role === 'employer' && generatedEmployerCode) {
       await supabase.from('employers').delete().eq('company_code', generatedEmployerCode);
     }
@@ -434,7 +383,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 10. Create email verification token ──────────────────────────────────────
   const { token, tokenHash } = createToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
 
@@ -448,18 +396,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
 
   if (tokenError) {
-    // Non-fatal — user can request resend. Log and continue.
     console.error('[db] token insert error:', tokenError);
   }
 
   const verificationUrl = `${BASE_URL}/verify-email?token=${token}`;
-
-  // ── 11. Send welcome email ───────────────────────────────────────────────────
   await sendWelcomeEmail(input, verificationUrl);
 
-  // ── 12. Handle employer referral ────────────────────────────────────────────
   if (input.employer_referral) {
-    // Persist referral for the sales team
     await supabase.from('employer_referrals').insert({
       referred_by_user_id: userId,
       employer_name:       input.employer_referral.employer_name,
@@ -469,14 +412,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       created_at:          new Date().toISOString(),
     });
 
-    // Notify the onboarding team
     await sendReferralNotification(input.employer_referral, {
       name:  input.full_name,
       email: input.email,
     });
   }
 
-  // ── 13. Create authenticated session for immediate dashboard access ─────────
   const authRes = NextResponse.next();
   const authClient = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -521,9 +462,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     successResponse.cookies.set(name, value, options);
   });
 
-  // ── 14. Create Real-time Notifications ──────────────────────────────────────
   try {
-    // 1. Admin Notification
     const { data: adminNotif, error: adminNotifError } = await supabase
       .from('admin_notifications')
       .insert({
@@ -544,7 +483,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
     }
 
-    // 2. Employer Notification (if employee registers with company code)
     if (input.role === 'employee' && employerUserId) {
       const { data: empNotif, error: empNotifError } = await supabase
         .from('notifications')

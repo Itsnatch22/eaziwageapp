@@ -44,7 +44,6 @@ export async function PATCH(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Verify Admin
   const { data: profile } = await adminSupabase
     .from('profiles')
     .select('role')
@@ -59,7 +58,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
-  // Update employer application status
   const { data: reviewedEmployer, error: updateError } = await adminSupabase
     .from('employer_onboarding')
     .update({ 
@@ -78,7 +76,6 @@ export async function PATCH(
   const employer = reviewedEmployer[0];
 
   if (status === 'approved') {
-    // Ensure employer has a company code in profile
     const { data: profileRow } = await adminSupabase
       .from('profiles')
       .select('company_code')
@@ -93,7 +90,6 @@ export async function PATCH(
       .update({ company_code: resolvedCompanyCode })
       .eq('id', employer.user_id);
 
-    // Seed default initial employer credit limit when not already set
     if (!employer.max_advance_amount || Number(employer.max_advance_amount) <= 0) {
       await adminSupabase
         .from('employer_onboarding')
@@ -105,7 +101,6 @@ export async function PATCH(
     }
   }
 
-  // Notify employer
   await adminSupabase.from('notifications').insert({
     user_id: employer.user_id,
     type: 'kyc_update',
@@ -118,16 +113,13 @@ export async function PATCH(
     created_at: new Date().toISOString(),
   });
 
-  // ── 5. Trigger Pusher for dynamic updates ────────────────────────────────────
   try {
-    // Notify the employer's user channel
     await pusherServer.trigger(`user-${employer.user_id}`, 'kyc-update', {
       employer_id: employer.id,
       status,
       message: status === 'approved' ? 'Your company has been approved.' : 'Your company onboarding was rejected.'
     });
 
-    // Notify the specific employer channel (used by dashboard)
     await pusherServer.trigger(`employer-${employer.id}`, 'kyc-update', {
       status,
       employer_id: employer.id

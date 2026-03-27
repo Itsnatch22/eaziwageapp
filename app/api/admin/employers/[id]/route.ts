@@ -184,7 +184,6 @@ export async function PATCH(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Verify Admin Role
   const adminAccess = await checkAdminAccess({ user, adminSupabase });
   if (adminAccess.error) {
     return NextResponse.json({ error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' }, { status: 500 });
@@ -235,7 +234,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
 
-  // Persist tuned factors for manual risk tuning/override support
   if (risk_factors && typeof risk_factors === 'object') {
     const riskFactorPayload = {
       employer_id: id,
@@ -265,7 +263,6 @@ export async function PATCH(
     }
   }
 
-  // Notify employer after risk update
   await adminSupabase.from('notifications').insert({
     user_id: targetEmployer.user_id,
     type: 'system',

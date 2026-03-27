@@ -37,7 +37,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Update KYC status in employee_onboarding
     const { error: updateError } = await adminSupabase
       .from('employee_onboarding')
       .update({ 
@@ -51,7 +50,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update KYC status' }, { status: 500 });
     }
 
-    // Update individual document statuses to match (shortcut for bulk approval)
     if (kyc_status === 'approved') {
       await adminSupabase
         .from('employee_kyc_documents')
@@ -62,10 +60,9 @@ export async function PATCH(
         .from('employee_kyc_documents')
         .update({ status: 'rejected', reviewer_notes: reason, reviewed_at: new Date().toISOString(), reviewed_by: user.id })
         .eq('user_id', id)
-        .eq('status', 'pending'); // Only reject pending ones to avoid overwriting previously approved docs
+        .eq('status', 'pending');
     }
 
-    // Create notification
     const title = kyc_status === 'approved' ? 'KYC Verification Approved' : 'KYC Verification Rejected';
     const message = kyc_status === 'approved' 
       ? 'Your identity documents have been verified successfully. Your account is now being activated.' 
@@ -80,7 +77,6 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
-    // ── 5. Record Audit Log ────────────────────────────────────────────────────
     const { data: adminProfile } = await adminSupabase
       .from('profiles')
       .select('full_name')
@@ -98,7 +94,6 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
-    // Trigger Pusher
     try {
       await pusherServer.trigger(`user-${id}`, 'kyc-update', {
         onboarding_status: kyc_status,

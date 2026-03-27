@@ -13,9 +13,6 @@ function createAdminClient() {
   );
 }
 
-/**
- * Check if user is a system admin
- */
 async function isSystemAdmin(userId: string): Promise<boolean> {
   const adminSupabase = createAdminClient();
   const { data: systemAdmin } = await adminSupabase
@@ -40,13 +37,10 @@ export async function PATCH(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Check if user is admin using system_admins table
     const isAdmin = await isSystemAdmin(user.id);
     if (!isAdmin) {
       return NextResponse.json({ error: 'Forbidden. Admin access required.' }, { status: 403 });
     }
-
-    // Update status in employee_onboarding
     const { data: updatedOnboarding, error: updateError } = await adminSupabase
       .from('employee_onboarding')
       .update({ 
@@ -62,7 +56,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
     }
 
-    // If approved, sync to primary employees table
     if (status === 'approved' || status === 'active') {
       const { data: profileData } = await adminSupabase
         .from('profiles')
@@ -93,7 +86,6 @@ export async function PATCH(
         .eq('user_id', id);
     }
 
-    // Create notification for the employee
     const titleMap: Record<string, string> = {
       approved: 'Account Activated',
       active: 'Account Activated',
@@ -119,14 +111,12 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
-    // Fetch admin's profile for the audit log
     const { data: adminProfile } = await adminSupabase
       .from('profiles')
       .select('full_name')
       .eq('id', user.id)
       .single();
 
-    // ── 5. Record Audit Log ────────────────────────────────────────────────────
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id,
       admin_name: adminProfile?.full_name || 'Admin',
@@ -138,7 +128,6 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
-    // Trigger Pusher for real-time update
     try {
       await pusherServer.trigger(`user-${id}`, 'kyc-update', {
         status: status === 'active' ? 'approved' : status,

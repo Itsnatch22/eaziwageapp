@@ -65,7 +65,6 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const validated = GlobalPlatformSettingsSchema.parse(body);
 
-    // Get current settings for audit log
     const { data: current } = await adminSupabase
       .from('global_settings')
       .select('platform_settings')

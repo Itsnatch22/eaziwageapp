@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -577,12 +578,12 @@ const UploadStepCard = ({ step, title, description, icon: Icon, active, complete
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function EmployerPayroll() {
+  const { currency } = useCurrency();
   const [employer, setEmployer] = useState<{ id: string; company_name: string; full_name: string | null; country?: string; currency?: string } | null>(null);
   const [employees, setEmployees]             = useState<Employee[]>([]);
   const [payrollHistory, setPayrollHistory]   = useState<PayrollRecord[]>([]);
   const [integration, setIntegration]         = useState<Integration | null>(null);
   const [loading, setLoading]                 = useState(true);
-  const [currency, setCurrency]               = useState('KES');
   const [uploading, setUploading]             = useState(false);
   const [syncing, setSyncing]                 = useState(false);
   const [selectedFile, setSelectedFile]       = useState<File | null>(null);
@@ -609,9 +610,6 @@ export default function EmployerPayroll() {
           country: profileRes.profile.country,
           currency: profileRes.profile.currency,
         });
-        if (profileRes.profile.currency) {
-          setCurrency(profileRes.profile.currency);
-        }
       }
       setEmployees(employeesRes?.employees ?? []);
       setPayrollHistory(Array.isArray(historyRes) ? historyRes : []);

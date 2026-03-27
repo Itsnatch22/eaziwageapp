@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch logs where this user is the target or the admin
     const { data: logs, error: logsError } = await adminSupabase
       .from('system_audit_logs')
       .select('*')

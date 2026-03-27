@@ -1,70 +1,42 @@
-// app/api/employer-dashboard/risk-insights/route.ts
-//
-// GET /api/employer-dashboard/risk-insights
-//
-// Returns the authenticated employer's full risk profile following the
-// EaziWage Risk Classification, Scoring & Framework (REV1 - Oct 25, 2025)
-//
-// Returns:
-//   {
-//     id, company_name, contact_person, contact_email,
-//     industry, sector, city, country, status,
-//     risk_score: number,          // 0–5 composite (CRSemployer)
-//     risk_rating: 'A'|'B'|'C'|'D',
-//     risk_factors: {
-//       legal_compliance:  { registration_status, tax_compliance, ewa_agreement },
-//       financial_health:  { audited_financials, liquidity_ratio, payroll_sustainability },
-//       operational:       { employee_count, churn_rate, payroll_integration },
-//       sector_exposure:   { industry_risk, regulatory_exposure },
-//       aml_transparency:  { beneficial_ownership, pep_screening },
-//     },
-//     risk_scored_at: string | null,
-//     has_pending_review: boolean,
-//   }
-//
-// The page derives feePercentage client-side via calculateFeePercentage(risk_score).
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
 const CATEGORY_WEIGHTS = {
-  legal_compliance:  0.20,  // 20%
-  financial_health:  0.35,  // 35% (core risk driver)
-  operational:       0.20,  // 20%
-  sector_exposure:   0.15,  // 15%
-  aml_transparency:  0.10,  // 10%
+  legal_compliance:  0.20,  
+  financial_health:  0.35,  
+  operational:       0.20,  
+  sector_exposure:   0.15,  
+  aml_transparency:  0.10,  
 } as const;
 
-// Sub-factor weights within each category (from PDF Table 4)
 const SUB_FACTOR_WEIGHTS = {
   legal_compliance: {
-    registration_status: 0.10,  // 10% of total
-    tax_compliance:      0.07,  // 7% of total
-    ewa_agreement:       0.03,  // 3% of total
+    registration_status: 0.10,  
+    tax_compliance:      0.07,  
+    ewa_agreement:       0.03,  
   },
   financial_health: {
-    audited_financials:     0.15,  // 15% of total
-    liquidity_ratio:        0.10,  // 10% of total
-    payroll_sustainability: 0.10,  // 10% of total
+    audited_financials:     0.15,  
+    liquidity_ratio:        0.10,  
+    payroll_sustainability: 0.10,  
   },
   operational: {
-    employee_count:      0.05,  // 5% of total
-    churn_rate:          0.05,  // 5% of total
-    payroll_integration: 0.10,  // 10% of total
+    employee_count:      0.05,  
+    churn_rate:          0.05,  
+    payroll_integration: 0.10,  
   },
   sector_exposure: {
-    industry_risk:       0.10,  // 10% of total
-    regulatory_exposure: 0.05,  // 5% of total
+    industry_risk:       0.10,  
+    regulatory_exposure: 0.05,  
   },
   aml_transparency: {
-    beneficial_ownership: 0.05,  // 5% of total
-    pep_screening:        0.05,  // 5% of total
+    beneficial_ownership: 0.05,  
+    pep_screening:        0.05,  
   },
 } as const;
 
-// Default scores for new employers (all 3s → rating B at 3.0)
 const DEFAULT_RISK_FACTORS = {
   legal_compliance: { 
     registration_status: 3, 
@@ -91,15 +63,6 @@ const DEFAULT_RISK_FACTORS = {
   },
 } as const;
 
-// ─── Risk Calculation Functions (from PDF Section 4) ──────────────────────────
-
-/**
- * Calculate Composite Risk Score (CRS) using weighted formula from PDF:
- * 
- * CRS_employer = Σ(Score_i × Weight_i) / Σ Weight_i
- * 
- * where each Score_i is 0–5 and Weight_i is the percentage weight
- */
 function calculateCompositeRiskScore(
   riskFactors: {
     readonly legal_compliance: {
@@ -165,13 +128,6 @@ function calculateCompositeRiskScore(
   return Math.max(0, Math.min(5, crs));
 }
 
-/**
- * Determine risk rating based on CRS thresholds from PDF Table 6:
- * A: 4.0–5.0 (Low Risk)
- * B: 3.0–3.9 (Medium Risk)
- * C: 2.6–2.9 (High Risk)
- * D: 0.0–2.5 (Very High Risk - Cannot advance wages)
- */
 function getRiskRating(crs: number): 'A' | 'B' | 'C' | 'D' {
   if (crs >= 4.0) return 'A';
   if (crs >= 3.0) return 'B';
@@ -185,12 +141,9 @@ function calculateApplicationFee(crs: number): number {
   return BASE_FEE + (RISK_FACTOR * (1 - crs / 5));
 }
 
-// ─── API Handler ──────────────────────────────────────────────────────────────
-
 export async function GET() {
   const supabase = await createClient();
 
-  // ── Authentication ──────────────────────────────────────────────────────────
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -223,7 +176,6 @@ export async function GET() {
     );
   }
 
-  // ── Fetch Risk Factors (Per-category sub-factor scores) ────────────────────
   const { data: rf, error: rfError } = await supabase
     .from('employer_risk_factors')
     .select(
@@ -238,11 +190,9 @@ export async function GET() {
     .maybeSingle();
 
   if (rfError) {
-    // Non-fatal: fall back to defaults for new employers
     console.warn('[risk-insights] risk_factors fetch:', rfError.message);
   }
 
-  // ── Map DB columns → nested risk_factors structure ─────────────────────────
   const risk_factors = rf
     ? {
         legal_compliance: {
@@ -271,8 +221,6 @@ export async function GET() {
       }
     : DEFAULT_RISK_FACTORS;
 
-  // ── Calculate CRS if not already computed (fallback) ───────────────────────
-  // Prefer synced employer_onboarding values; recalculate if missing
   let computedCRS = Number(employer.risk_score ?? rf?.composite_score ?? 0);
   let computedRating = employer.risk_rating;
 
@@ -285,7 +233,6 @@ export async function GET() {
 
   const applicationFee = calculateApplicationFee(computedCRS);
 
-  // Map country to currency (centralized in lib/utils ideally, but derived here for API response)
   const currencyMap: Record<string, string> = {
     'Kenya': 'KES',
     'Uganda': 'UGX',
@@ -298,7 +245,6 @@ export async function GET() {
   };
   const currency = currencyMap[employer.country] || 'KES';
 
-  // ── Check for Pending Review Requests ───────────────────────────────────────
   const { data: pendingReview } = await supabase
     .from('risk_review_requests')
     .select('id, requested_at, reason')
@@ -307,9 +253,7 @@ export async function GET() {
     .limit(1)
     .maybeSingle();
 
-  // ── Construct Response ──────────────────────────────────────────────────────
   return NextResponse.json({
-    // Identity & Profile
     id:                   employer.id,
     company_name:         employer.company_name,
     industry:             employer.industry,

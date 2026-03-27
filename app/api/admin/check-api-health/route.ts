@@ -84,7 +84,6 @@ export async function POST(_req: NextRequest) {
   const results = checks.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
   const totalCheckTime = Date.now() - startTime;
 
-  // Add system-wide metrics
   const systemResult = {
     name: 'System Health',
     provider: 'Internal',
@@ -104,14 +103,12 @@ export async function POST(_req: NextRequest) {
 
   const allResults = [...results, systemResult];
 
-  // Upsert everything
   const { error } = await supabase
     .from('api_health')
     .upsert(allResults, { onConflict: 'name' });
 
   if (error) console.error('Health upsert failed:', error);
 
-  // Log health check completion
   console.log(`[Health Check] Completed in ${totalCheckTime}ms - Healthy: ${systemResult.metadata.healthy_count}, Degraded: ${systemResult.metadata.degraded_count}, Down: ${systemResult.metadata.down_count}`);
 
   return NextResponse.json({ 
@@ -122,7 +119,6 @@ export async function POST(_req: NextRequest) {
   }, { status: 200 });
 }
 
-// ─── Individual Checks ───────────────────────────────────────────────────────
 
 async function checkSupabaseSelf() {
   const start = Date.now();

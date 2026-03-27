@@ -12,7 +12,6 @@ export async function PUT(
   const supabase = await createClient();
   const { id } = await params;
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const {
     data: { user },
     error: authError,
@@ -24,7 +23,6 @@ export async function PUT(
 
   const employeeId = id;
 
-  // ── Resolve employer ──────────────────────────────────────────────────────
   const { data: employer, error: employerError } = await supabase
     .from('employer_onboarding')
     .select('id')
@@ -45,7 +43,6 @@ export async function PUT(
     );
   }
 
-  // ── Verify the employee belongs to this employer ───────────────────────────
   const { data: employee, error: empError } = await supabase
     .from('employee_onboarding')
     .select('id, employer_id')
@@ -64,13 +61,10 @@ export async function PUT(
     );
   }
 
-  // ── Parse & validate body ─────────────────────────────────────────────────
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-
-  // Coerce number fields — the UI sends them as numbers already, but be safe
   const coerced = {
     ...body,
     max_advance_percentage: Number(body.max_advance_percentage),
@@ -90,7 +84,6 @@ export async function PUT(
 
   const data = parsed.data;
 
-  // ── Upsert EWA settings ───────────────────────────────────────────────────
   const { error: upsertError } = await supabase
     .from('employee_ewa_settings')
     .upsert(

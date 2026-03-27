@@ -33,13 +33,11 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
-    // 1. Fetch from 'employers' table (synced approved employers)
     const { data: employersData, error: employersError } = await supabase
       .from('employers')
       .select('id, company_name, employer_code, user_id')
       .eq('status', 'approved');
 
-    // 2. Fetch from 'employer_onboarding' table (source of truth for status)
     const { data: onboardingData, error: onboardingError } = await supabase
       .from('employer_onboarding')
       .select('id, company_name, status, user_id')
@@ -53,12 +51,9 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
-    // Collect all user IDs to fetch company codes from profiles
     const userIds = new Set<string>();
     employersData?.forEach(e => { if (e.user_id) userIds.add(e.user_id); });
     onboardingData?.forEach(e => { if (e.user_id) userIds.add(e.user_id); });
-
-    // 3. Fetch company_code from profiles
     const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, company_code')
@@ -66,7 +61,6 @@ export async function GET(req: Request): Promise<NextResponse> {
     
     const codeMap = new Map(profilesData?.map(p => [p.id, p.company_code]) ?? []);
 
-    // Combine and deduplicate
     const companyMap = new Map<string, { id: string; company_name: string; company_code: string }>();
 
     onboardingData?.forEach((row) => {

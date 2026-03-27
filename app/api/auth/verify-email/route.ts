@@ -8,8 +8,6 @@ import { getEnv }                      from '@/env';
 import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { hashToken, isValidTokenFormat, isTokenExpired } from '@/lib/token';
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -19,14 +17,10 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const FROM_EMAIL    = 'EaziWage <noreply@eaziwage.com>';
 const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const TOKEN_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours
-
-// ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const VerifySchema = z.object({
   token: z.string().min(1, 'Token is required'),
@@ -36,8 +30,6 @@ const ResendSchema = z.object({
   email:           z.string().email('Please enter a valid email address').max(254),
   recaptcha_token: z.string().min(1, 'reCAPTCHA token is required'),
 });
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -59,12 +51,9 @@ async function verifyRecaptcha(token: string, ip: string): Promise<boolean> {
   } catch { return false; }
 }
 
-// ─── POST /api/auth/verify-email — Consume a verification token ───────────────
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
 
-  // Rate limit — 10 token attempts per hour per IP
   const rate = await checkRateLimit(rateLimiter, `verify-email:${ip}`);
   if (!rate.success) {
     return NextResponse.json(
@@ -87,7 +76,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { token } = parsed.data;
 
-  // ── Validate token format before hashing ────────────────────────────────────
   if (!isValidTokenFormat(token)) {
     return NextResponse.json(
       { error: 'Invalid verification link.', code: 'TOKEN_INVALID' },
@@ -97,7 +85,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const tokenHash = hashToken(token);
 
-  // ── Look up token ────────────────────────────────────────────────────────────
   const { data: record, error: lookupError } = await supabase
     .from('email_verifications')
     .select('id, user_id, expires_at, used_at')
@@ -111,7 +98,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Already consumed
   if (record.used_at) {
     return NextResponse.json(
       { error: 'This verification link has already been used.', code: 'TOKEN_INVALID' },
@@ -119,7 +105,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Expired
   if (isTokenExpired(record.expires_at)) {
     return NextResponse.json(
       { error: 'This verification link has expired. Please request a new one.', code: 'TOKEN_EXPIRED' },
@@ -141,7 +126,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // FIXED: Query profile.profiles with role_normalized
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .update({ email_verified: true })
@@ -157,7 +141,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── Also confirm the email in Supabase Auth ───────────────────────────────────
   await supabase.auth.admin.updateUserById(record.user_id, {
     email_confirm: true,
   });

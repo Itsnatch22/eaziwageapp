@@ -29,21 +29,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   try {
-    // 1. Search Employers
     const { data: employers } = await supabase
       .from('employers')
       .select('id, company_name')
       .ilike('company_name', `%${query}%`)
       .limit(5);
 
-    // 2. Search Employees
     const { data: employees } = await supabase
       .from('employees')
       .select('id, name, organization_id')
       .ilike('name', `%${query}%`)
       .limit(5);
 
-    // 3. Search Advances (by Reference)
     const { data: advances } = await supabase
       .from('advances')
       .select('id, reference, employee_id')

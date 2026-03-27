@@ -32,7 +32,6 @@ export async function GET() {
     return NextResponse.json({ error: onboardingError.message }, { status: 500 });
   }
 
-  // Also fetch the company_code and avatar_url from the profile (which was generated at registration)
   const { data: userProfile } = await supabase
     .from('profiles')
     .select('company_code, phone_country_code, avatar_url')
@@ -47,7 +46,6 @@ export async function GET() {
   );
 
   if (!onboarding) {
-    // If no onboarding yet, at least return profile info if possible, or 404
     if (userProfile) {
         return NextResponse.json({
             profile: {
@@ -61,7 +59,6 @@ export async function GET() {
     return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
   }
 
-  // Structure document URLs into a 'documents' object for the frontend
   const documents = {
     certificate_of_incorporation: onboarding.certificate_of_incorporation,
     business_registration: onboarding.business_registration,
@@ -76,7 +73,6 @@ export async function GET() {
     employment_contract_template: onboarding.employment_contract_template,
   };
 
-  // Surface full_name as the contact person so EmployerPortalLayout is happy
   return NextResponse.json({
     profile: {
       ...onboarding,
@@ -97,7 +93,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    // Update employer_onboarding (source of truth for settings)
     const { error: onboardingError } = await supabase
       .from('employer_onboarding')
       .update({
@@ -126,7 +121,6 @@ export async function POST(req: Request) {
 
     if (onboardingError) throw onboardingError;
 
-    // Trigger Pusher for real-time sync across dashboard tabs
     try {
       await pusherServer.trigger(`user-${user.id}`, 'kyc-update', {
         message: 'Profile updated successfully',

@@ -10,9 +10,6 @@ import {
 } from '@/lib/validations/kyc-validation';
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
 
-/**
- * Create admin Supabase client with service role
- */
 function createAdminClient() {
   const env = getEnv();
   return createSupabaseClient(
@@ -24,10 +21,6 @@ function createAdminClient() {
   );
 }
 
-/**
- * PATCH /api/employee-dashboard/kyc/documents/[id]/review
- * Review and update document status (admin only)
- */
 export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -36,7 +29,6 @@ export async function PATCH(
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
-    // Authenticate user
     const {
       data: { user },
       error: authError,
@@ -49,7 +41,6 @@ export async function PATCH(
       );
     }
 
-    // Check if user has admin role
     const { data: profile } = await adminSupabase
       .from('profiles')
       .select('role, full_name, email')
@@ -65,7 +56,6 @@ export async function PATCH(
       );
     }
 
-    // Get document ID from params
     const { id } = await context.params;
     if (!id) {
       return NextResponse.json(
@@ -74,19 +64,16 @@ export async function PATCH(
       );
     }
 
-    // Parse request payload
     let payload: unknown;
     const statusFromQuery = req.nextUrl.searchParams.get('status');
     const notesFromQuery = req.nextUrl.searchParams.get('notes');
 
     if (statusFromQuery) {
-      // Support query params for simpler API calls
       payload = {
         status: statusFromQuery,
         notes: notesFromQuery ?? '',
       };
     } else {
-      // Parse JSON body
       try {
         payload = await req.json();
       } catch {
@@ -97,7 +84,6 @@ export async function PATCH(
       }
     }
 
-    // Validate payload
     const parsed = DocumentReviewSchema.safeParse(payload);
     if (!parsed.success) {
       return NextResponse.json(
@@ -112,7 +98,6 @@ export async function PATCH(
 
     const { status, notes } = parsed.data;
 
-    // Fetch the document before updating to get user info
     const { data: existingDoc, error: fetchError } = await adminSupabase
       .from('employee_kyc_documents')
       .select(`
@@ -133,7 +118,6 @@ export async function PATCH(
       );
     }
 
-    // Update document status
     const { data: updatedDoc, error: updateError } = await adminSupabase
       .from('employee_kyc_documents')
       .update({
@@ -154,17 +138,14 @@ export async function PATCH(
       );
     }
 
-    // Validate updated document
     const validatedDoc = KYCDocumentSchema.parse(updatedDoc);
 
-    // Get employee profile for notification
     const { data: employeeProfile } = await adminSupabase
       .from('profiles')
       .select('full_name, email')
       .eq('id', existingDoc.user_id)
       .single<{ full_name: string | null; email: string | null }>();
 
-    // Send email notification (async, don't block response)
     if (employeeProfile?.email) {
       sendKYCNotification({
         recipientEmail: employeeProfile.email,

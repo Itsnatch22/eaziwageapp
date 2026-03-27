@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// Default risk factors when none have been scored yet
 const DEFAULT_RISK_FACTORS = {
   legal_compliance: {
     registration_status: 3,
@@ -33,7 +32,6 @@ const DEFAULT_RISK_FACTORS = {
 export async function GET() {
   const supabase = await createClient();
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const {
     data: { user },
     error: authError,
@@ -43,7 +41,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Fetch employer profile ────────────────────────────────────────────────
   const { data: employer, error: employerError } = await supabase
     .from('employer_onboarding')
     .select(`
@@ -78,14 +75,12 @@ export async function GET() {
     return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
   }
 
-  // ── Fetch risk factors ────────────────────────────────────────────────────
   const { data: riskFactorsRow } = await supabase
     .from('employer_risk_factors')
     .select('*')
     .eq('employer_id', employer.id)
     .maybeSingle();
 
-  // Shape into the nested structure the UI expects
   const risk_factors = riskFactorsRow
     ? {
         legal_compliance: {
@@ -114,7 +109,6 @@ export async function GET() {
       }
     : DEFAULT_RISK_FACTORS;
 
-  // ── Check for pending review request ─────────────────────────────────────
   const { data: pendingReview } = await supabase
     .from('risk_review_requests')
     .select('id, status, created_at')

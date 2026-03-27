@@ -5,7 +5,6 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import pusherServer from '@/lib/pusher-server';
 
-// ── Structured logger ──────────────────────────────────────────────────────────
 type LogLevel = 'info' | 'warn' | 'error';
 
 interface LogContext {
@@ -37,7 +36,6 @@ function log(level: LogLevel, step: string, message: string, ctx: LogContext = {
   else console.log(JSON.stringify(entry));
 }
 
-// ── Handler ────────────────────────────────────────────────────────────────────
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -47,7 +45,6 @@ export async function PATCH(
   const status = searchParams.get('status');
   const notes = searchParams.get('notes') || '';
 
-  // 1. Rate limit
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-kyc-review:${ip}`);
 
@@ -59,7 +56,6 @@ export async function PATCH(
     );
   }
 
-  // 2. Auth
   const supabase = await createRouteHandlerClient();
   const {
     data: { user },
@@ -76,7 +72,6 @@ export async function PATCH(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // 3. Admin role check via system_admins table
   const { data: systemAdmin } = await adminSupabase
     .from('system_admins')
     .select('id, is_admin')
@@ -88,13 +83,11 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden. Admin access required.' }, { status: 403 });
   }
 
-  // 4. Validate status param
   if (!['approved', 'rejected'].includes(status || '')) {
     log('warn', 'validation', 'Invalid status value provided', { docId, userId: user.id, status });
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
-  // 5. Update document
   const { data: reviewedDoc, error: updateError } = await adminSupabase
     .from('employee_kyc_documents')
     .update({
@@ -114,7 +107,6 @@ export async function PATCH(
   const doc = reviewedDoc[0];
   log('info', 'doc_update', 'KYC document updated', { docId: doc.id, userId: doc.user_id, status });
 
-  // 6. Recompute onboarding status
   const { data: docsForUser, error: docsError } = await adminSupabase
     .from('employee_kyc_documents')
     .select('status')
@@ -142,7 +134,6 @@ export async function PATCH(
     onboardingStatus,
   });
 
-  // 7. Sync employee_onboarding
   const { data: employeeOnboarding, error: employeeError } = await adminSupabase
     .from('employee_onboarding')
     .update({ status: onboardingStatus, updated_at: new Date().toISOString() })
@@ -167,7 +158,6 @@ export async function PATCH(
     });
   }
 
-  // 8. Bootstrap EWA settings on full approval
   if (onboardingStatus === 'approved' && employeeOnboarding?.id && employeeOnboarding?.employer_id) {
     const monthlySalary = Number(employeeOnboarding.monthly_salary ?? 0);
     const initialLimit = Math.max(5000, Math.round(monthlySalary * 0.5) || 5000);
@@ -198,7 +188,6 @@ export async function PATCH(
       );
 
     if (ewaError) {
-      // Non-fatal: log but don't abort the request
       log('error', 'ewa_bootstrap', 'Failed to initialize EWA settings', {
         userId: doc.user_id,
         employerId: employeeOnboarding.employer_id,
@@ -212,7 +201,6 @@ export async function PATCH(
     }
   }
 
-  // 9. Insert notification
   const employeeMessage =
     onboardingStatus === 'approved'
       ? 'Your KYC has been fully approved and your account is now active.'
@@ -235,7 +223,6 @@ export async function PATCH(
   });
 
   if (notifError) {
-    // Non-fatal: the review itself succeeded
     log('warn', 'notification', 'Failed to insert KYC notification', {
       docId: doc.id,
       userId: doc.user_id,
@@ -243,7 +230,6 @@ export async function PATCH(
     }, notifError);
   }
 
-  // 10. Pusher real-time events
   try {
     await pusherServer.trigger(`user-${doc.user_id}`, 'kyc-update', {
       document_id: doc.id,
@@ -266,7 +252,6 @@ export async function PATCH(
       onboardingStatus,
     });
   } catch (pusherErr) {
-    // Non-fatal: real-time update failed but the record is already persisted
     log('error', 'pusher', 'Failed to trigger Pusher event(s)', {
       docId: doc.id,
       userId: doc.user_id,

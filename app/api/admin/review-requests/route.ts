@@ -37,7 +37,6 @@ export async function GET(req: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const { adminSupabase } = auth;
 
-  // 1. Fetch Risk Review Requests
   const { data: riskRequests, error: riskError } = await adminSupabase
     .from('risk_review_requests')
     .select('*, employer_onboarding(company_name, contact_email)')
@@ -45,7 +44,6 @@ export async function GET(req: NextRequest) {
 
   if (riskError) console.error('Error fetching risk requests:', riskError);
 
-  // 2. Fetch KYC Document Requests (that are pending)
   const { data: kycDocs, error: kycError } = await adminSupabase
     .from('employee_kyc_documents')
     .select('*')
@@ -73,7 +71,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 3. Fetch Bank Change Requests
   const { data: bankRequests, error: bankError } = await adminSupabase
     .from('bank_change_requests')
     .select('*, employer_onboarding(company_name)')
@@ -81,7 +78,6 @@ export async function GET(req: NextRequest) {
 
   if (bankError) console.error('Error fetching bank change requests:', bankError);
 
-  // 4. Combine and Format
   const formattedRisk = (riskRequests || []).map(r => ({
     id: r.id,
     type: 'risk_score',

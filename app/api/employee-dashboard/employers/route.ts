@@ -1,9 +1,3 @@
-// app/api/employee-dashboard/employers/route.ts
-//
-// Returns a list of approved employers for the employee onboarding form.
-// Reads from the `approved_employers` view which filters employer_onboarding
-// to status = 'approved' only.
-//
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { getEnv } from '@/env';
@@ -22,7 +16,6 @@ function createAdminClient() {
 export async function GET(req: NextRequest) {
   const adminSupabase = createAdminClient();
 
-  // Auth guard - simplified for API check
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q')?.trim() ?? '';
 

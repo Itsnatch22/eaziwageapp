@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-/**
- * Admin Reject Route
- * POST /api/admin/advances/[id]/reject
- */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

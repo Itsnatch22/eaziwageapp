@@ -6,7 +6,6 @@ export const runtime = 'nodejs';
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const {
     data: { user },
     error: authError,
@@ -16,7 +15,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Resolve employer ──────────────────────────────────────────────────────
   const { data: onboardingEmp, error: employerError } = await supabase
     .from('employer_onboarding')
     .select('id')
@@ -33,7 +31,6 @@ export async function GET(req: NextRequest) {
   let employer = onboardingEmp;
 
   if (!employer) {
-    // Check fallback in 'employers' table
     const { data: syncedEmp } = await supabase
       .from('employers')
       .select('id')
@@ -46,7 +43,6 @@ export async function GET(req: NextRequest) {
     employer = syncedEmp;
   }
 
-  // ── Parse query params ────────────────────────────────────────────────────
   const { searchParams } = new URL(req.url);
   const statusFilter     = searchParams.get('status') ?? '';
   const departmentFilter = searchParams.get('department') ?? '';
@@ -86,7 +82,6 @@ export async function GET(req: NextRequest) {
     .eq('employer_id', employer.id)
     .order('created_at', { ascending: false });
 
-  // Date range on submitted_at
   if (fromDate) query = query.gte('submitted_at', fromDate);
   if (toDate)   query = query.lte('submitted_at', toDate + 'T23:59:59Z');
 
@@ -97,7 +92,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: empError.message }, { status: 500 });
   }
 
-  // ── Fetch profiles for all employees ──────────────────────────────────────
   const userIds = (rawEmployees ?? []).map((e) => e.user_id).filter(Boolean);
   let profilesMap: Record<string, { full_name: string }> = {};
 
@@ -115,18 +109,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Shape each employee record ────────────────────────────────────────────
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const allEmployees = (rawEmployees ?? []).map((e) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const record = e as any;
-    // Pull full_name from profilesMap with normalized ID
     const lookupId = record.user_id?.toLowerCase() || '';
     const full_name: string = profilesMap[lookupId]?.full_name ?? ('Employee ' + (record.employee_code || ''));
 
-    // Compute tenure in months from start_date
     const startDate = record.start_date ? new Date(record.start_date) : null;
     const tenure_months = startDate
       ? Math.max(
@@ -135,7 +126,6 @@ export async function GET(req: NextRequest) {
         )
       : 0;
 
-    // EWA settings — Supabase returns array for one-to-one joins, flatten it
     const ewa = Array.isArray(record.ewa_settings) ? record.ewa_settings[0] : record.ewa_settings;
 
     return {
@@ -151,9 +141,7 @@ export async function GET(req: NextRequest) {
       monthly_salary: Number(record.monthly_salary ?? 0),
       country: record.country,
       city: record.city,
-      // kyc_status = status on employee_onboarding
       kyc_status: record.status,
-      // employee "status" from employer's perspective: approved once KYC is done
       status: record.status === 'approved' ? 'approved' : record.status === 'rejected' ? 'rejected' : 'pending',
       tenure_months,
       submitted_at: record.submitted_at,
@@ -170,10 +158,8 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  // ── Compute extended stats over FULL (unfiltered) set ────────────────────
   const stats = buildStats(allEmployees, thirtyDaysAgo);
 
-  // ── Apply client filters in-memory ───────────────────────────────────────
   const filtered = allEmployees.filter((e: { status: string; department: string; country: string; full_name: string; employee_code: string; job_title: string; }) => {
     if (statusFilter && e.status !== statusFilter) return false;
     if (departmentFilter && e.department !== departmentFilter) return false;
@@ -195,7 +181,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ employees: filtered, stats });
 }
 
-// ─── Stats builder ────────────────────────────────────────────────────────────
 interface Employee {
   id: string;
   user_id: string;
@@ -232,7 +217,6 @@ function buildStats(
   const kycApproved = employees.filter((e) => e.kyc_status === 'approved').length;
   const kyc_completion_rate = total > 0 ? Math.round((kycApproved / total) * 100) : 0;
 
-  // Retention: employees with 12+ months tenure
   const longTenure = employees.filter((e) => (e.tenure_months ?? 0) >= 12).length;
   const retention_rate = total > 0 ? Math.round((longTenure / total) * 100) : 0;
 
@@ -246,7 +230,6 @@ function buildStats(
     ? employees.filter((e) => e.created_at && new Date(e.created_at) >= thirtyDaysAgo).length
     : 0;
 
-  // Department breakdown
   const department_breakdown: Record<string, number> = {};
   for (const e of employees) {
     const dept = e.department || 'General';

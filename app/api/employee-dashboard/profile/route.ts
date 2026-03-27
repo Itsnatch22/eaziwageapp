@@ -45,7 +45,6 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
         employee = newEmployee;
     }
 
-    // Fetch onboarding data joined with employer info
     const { data: onboarding } = await supabase
     .from('employee_onboarding')
     .select(`
@@ -71,7 +70,6 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
         }
     }
 
-    // Fetch individual KYC document statuses
     const { data: kycDocs } = await supabase
         .from('employee_kyc_documents')
         .select('document_type, status, reviewer_notes')

@@ -34,7 +34,6 @@ export async function GET() {
 
   const { data: org } = await supabase.from('organizations').select('liquidity_pool').eq('id', profile.organization_id).single();
 
-  // Total Exposure
   const { data: exposureData } = await supabase
     .from('advances')
     .select('amount')
@@ -43,7 +42,6 @@ export async function GET() {
 
   const totalExposure = (exposureData ?? []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
 
-  // Utilization Rate (MTD)
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const { data: mtdData } = await supabase
     .from('advances')
@@ -59,6 +57,6 @@ export async function GET() {
     totalExposure: Math.round(totalExposure),
     utilizationRate: utilization,
     fundsDisbursed: Math.round(mtdDisbursed),
-    retentionScore: 94, // derived from insights logic if you want to connect later
+    retentionScore: 94, 
   });
 }

@@ -78,7 +78,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Title and message are required' }, { status: 400 });
     }
 
-    // 1. Get all employees for this employer
     const { data: employees } = await adminSupabase
       .from('employee_onboarding')
       .select('user_id')
@@ -90,7 +89,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No active employees to notify' }, { status: 400 });
     }
 
-    // 2. Create notifications for all employees
     const notifications = employees.map(emp => ({
       user_id: emp.user_id,
       type: 'announcement',

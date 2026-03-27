@@ -6,7 +6,6 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
 
@@ -26,14 +25,13 @@ interface RiskFactors {
   pep_screening: number;
 }
 
-// â”€â”€â”€ Framework Constants (from PDF) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const CATEGORY_WEIGHTS = {
-  legal_compliance:  0.20,  // 20%
-  financial_health:  0.35,  // 35% (core risk driver)
-  operational:       0.20,  // 20%
-  sector_exposure:   0.15,  // 15%
-  aml_transparency:  0.10,  // 10%
+  legal_compliance:  0.20,  
+  financial_health:  0.35,  
+  operational:       0.20,  
+  sector_exposure:   0.15,  
+  aml_transparency:  0.10, 
 } as const;
 
 const SUB_FACTOR_WEIGHTS = {
@@ -62,45 +60,35 @@ const SUB_FACTOR_WEIGHTS = {
   },
 } as const;
 
-// â”€â”€â”€ Helper Functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function toAdminStatus(status: string | null | undefined): string {
   if (status === 'approved' || status === 'rejected' || status === 'suspended' || status === 'risk_review_in_progress') return status;
   return 'pending';
 }
 
-/**
- * Calculate Composite Risk Score (CRS) using weighted formula from PDF:
- * CRS_employer = Î£(Score_i Ã— Weight_i) / Î£ Weight_i
- */
+
 function calculateCompositeRiskScore(rf: Partial<RiskFactors>): number {
   let totalWeightedScore = 0;
   let totalWeight = 0;
 
-  // Legal & Compliance (20%)
   totalWeightedScore += (rf.registration_status ?? 3) * SUB_FACTOR_WEIGHTS.legal_compliance.registration_status;
   totalWeightedScore += (rf.tax_compliance ?? 3) * SUB_FACTOR_WEIGHTS.legal_compliance.tax_compliance;
   totalWeightedScore += (rf.ewa_agreement ?? 3) * SUB_FACTOR_WEIGHTS.legal_compliance.ewa_agreement;
   totalWeight += CATEGORY_WEIGHTS.legal_compliance;
-
-  // Financial Health (35% - core risk driver)
+  
   totalWeightedScore += (rf.audited_financials ?? 3) * SUB_FACTOR_WEIGHTS.financial_health.audited_financials;
   totalWeightedScore += (rf.liquidity_ratio ?? 3) * SUB_FACTOR_WEIGHTS.financial_health.liquidity_ratio;
   totalWeightedScore += (rf.payroll_sustainability ?? 3) * SUB_FACTOR_WEIGHTS.financial_health.payroll_sustainability;
   totalWeight += CATEGORY_WEIGHTS.financial_health;
 
-  // Operational Dynamics (20%)
   totalWeightedScore += (rf.employee_count ?? 3) * SUB_FACTOR_WEIGHTS.operational.employee_count;
   totalWeightedScore += (rf.churn_rate ?? 3) * SUB_FACTOR_WEIGHTS.operational.churn_rate;
   totalWeightedScore += (rf.payroll_integration ?? 3) * SUB_FACTOR_WEIGHTS.operational.payroll_integration;
   totalWeight += CATEGORY_WEIGHTS.operational;
 
-  // Sector & Regulatory (15%)
   totalWeightedScore += (rf.industry_risk ?? 3) * SUB_FACTOR_WEIGHTS.sector_exposure.industry_risk;
   totalWeightedScore += (rf.regulatory_exposure ?? 3) * SUB_FACTOR_WEIGHTS.sector_exposure.regulatory_exposure;
   totalWeight += CATEGORY_WEIGHTS.sector_exposure;
-
-  // AML / Ownership (10%)
   totalWeightedScore += (rf.beneficial_ownership ?? 3) * SUB_FACTOR_WEIGHTS.aml_transparency.beneficial_ownership;
   totalWeightedScore += (rf.pep_screening ?? 3) * SUB_FACTOR_WEIGHTS.aml_transparency.pep_screening;
   totalWeight += CATEGORY_WEIGHTS.aml_transparency;
@@ -109,13 +97,7 @@ function calculateCompositeRiskScore(rf: Partial<RiskFactors>): number {
   return Math.max(0, Math.min(5, crs));
 }
 
-/**
- * Determine risk rating based on CRS thresholds from PDF Table 6:
- * A: 4.0â€“5.0 (Low Risk)
- * B: 3.0â€“3.9 (Medium Risk)
- * C: 2.6â€“2.9 (High Risk)
- * D: 0.0â€“2.5 (Very High Risk)
- */
+
 function getRiskRating(crs: number): 'A' | 'B' | 'C' | 'D' {
   if (crs >= 4.0) return 'A';
   if (crs >= 3.0) return 'B';
@@ -123,19 +105,12 @@ function getRiskRating(crs: number): 'A' | 'B' | 'C' | 'D' {
   return 'D';
 }
 
-/**
- * Calculate application fee using formula from PDF Section 4:
- * Application Fee (%) = Bf + (Rf Ã— (1 - CRS_total/5))
- * where Bf = 3.5% (Base Service Fee)
- * and   Rf = 3.0% (Risk Adjustment Factor)
- */
 function calculateApplicationFee(crs: number): number {
   const BASE_FEE = 3.5;
   const RISK_FACTOR = 3.0;
   return BASE_FEE + (RISK_FACTOR * (1 - crs / 5));
 }
 
-// â”€â”€â”€ Main Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -165,7 +140,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const adminSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  // Verify admin role
+  
   const adminAccess = await checkAdminAccess({ user, adminSupabase });
   if (adminAccess.error) {
     return NextResponse.json(
@@ -193,14 +168,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Parse query parameters
+  
   const searchParams = req.nextUrl.searchParams;
   const statusFilter = searchParams.get('status')?.trim() ?? '';
   const countryFilter = searchParams.get('country')?.trim() ?? '';
   const riskRatingFilter = searchParams.get('risk_rating')?.trim() ?? '';
   const searchFilter = searchParams.get('search')?.trim().toLowerCase() ?? '';
 
-  //Fetch Employers
+  
   const { data: onboardingRows, error } = await adminSupabase
     .from('employer_onboarding')
     .select(
@@ -245,7 +220,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const userIds = (onboardingRows ?? []).map((row) => row.user_id).filter(Boolean);
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-  // â”€â”€ Fetch Employer Codes from Profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: profileCodes } = await adminSupabase
     .from('profiles')
     .select('id, company_code')
@@ -253,7 +227,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   
   const codesByUserId = new Map(profileCodes?.map(p => [p.id, p.company_code]) ?? []);
 
-  // â”€â”€ Fetch Risk Factors for All Employers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: riskFactorsData } = await adminSupabase
     .from('employer_risk_factors')
     .select(`
@@ -276,13 +249,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     `)
     .in('employer_id', employerIds);
 
-  // Map risk factors by employer_id
   const riskFactorsByEmployer = new Map<string, RiskFactors & { employer_id: string; scored_at: string | null }>();
   (riskFactorsData ?? []).forEach((rf) => {
     riskFactorsByEmployer.set(rf.employer_id, rf as RiskFactors & { employer_id: string; scored_at: string | null });
   });
 
-  // â”€â”€ Fetch Employee & Advance Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [employeesResult, advancesResult] = await Promise.all([
     employerIds.length
       ? adminSupabase
@@ -317,26 +288,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   });
 
-  // â”€â”€ Build Result with Risk Scoring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const result = (onboardingRows ?? []).map((row) => {
     const employeeMeta = employeesByEmployer.get(row.id) ?? { count: 0, payroll: 0 };
     const riskFactors = riskFactorsByEmployer.get(row.id);
     
-    // Calculate or use existing risk score
     let riskScore = Number(row.risk_score ?? 0);
     let riskRating = row.risk_rating;
     
     if (riskFactors) {
-      // Recalculate if factors are available
       riskScore = calculateCompositeRiskScore(riskFactors);
       riskRating = getRiskRating(riskScore);
     } else if (!riskScore || riskScore === 0) {
-      // Default for new employers without factors
       riskScore = 3.0;
       riskRating = 'B';
     }
 
-    // Calculate application fee based on risk score
     const applicationFee = calculateApplicationFee(riskScore);
 
     return {
@@ -355,14 +321,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       payroll_cycle: row.payroll_cycle ?? null,
       status: toAdminStatus(row.status),
       
-      // Risk Scoring (Framework Compliant)
       risk_score: riskScore,
       risk_rating: riskRating ?? 'B',
       application_fee: applicationFee,
       risk_scored_at: riskFactors?.scored_at ?? null,
       has_risk_factors: !!riskFactors,
       
-      // Operational Metrics
       created_at: row.created_at,
       updated_at: row.updated_at ?? row.created_at,
       employee_count: employeeMeta.count,
@@ -371,7 +335,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     };
   });
 
-  // â”€â”€ Calculate Statistics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const countries = [...new Set(result.map((e) => e.country).filter(Boolean))].sort();
   const industries = [...new Set(result.map((e) => e.industry).filter(Boolean))].sort();
 
@@ -384,7 +347,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     rejected: result.filter((e) => e.status === 'rejected').length,
     total_employees: result.reduce((sum, e) => sum + e.employee_count, 0),
     
-    // Risk Distribution
     risk_distribution: {
       low_risk: result.filter((e) => e.risk_rating === 'A').length,
       medium_risk: result.filter((e) => e.risk_rating === 'B').length,
@@ -392,7 +354,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       very_high_risk: result.filter((e) => e.risk_rating === 'D').length,
     },
     
-    // Average Metrics
     avg_risk_score: result.length > 0 
       ? result.reduce((sum, e) => sum + e.risk_score, 0) / result.length 
       : 0,
@@ -400,14 +361,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ? result.reduce((sum, e) => sum + e.application_fee, 0) / result.length
       : 0,
     
-    // Employers needing risk assessment
     needs_risk_assessment: result.filter((e) => !e.has_risk_factors || e.status === 'risk_review_in_progress').length,
 
-    // Currency metadata for dashboard formatting
     base_currency: countryFilter ? (countries.find(c => c === countryFilter) || 'KES') : 'KES',
   };
 
-  // â”€â”€ Apply Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const filtered = result.filter((e) => {
     if (statusFilter && e.status !== statusFilter) return false;
     if (countryFilter && e.country !== countryFilter) return false;
@@ -423,7 +381,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return true;
   });
 
-  // â”€â”€ Response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return NextResponse.json(
     {
       data: filtered,

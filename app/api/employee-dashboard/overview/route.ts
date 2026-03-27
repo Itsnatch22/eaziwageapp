@@ -9,13 +9,10 @@ export const runtime = 'nodejs';
 export async function GET() {
   const supabase = await createClient();
 
-  // 1. Auth check
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  // ── 2. Initialize Redis cache ───────────────────────────────────────────
   const env = getEnv();
   const redis = new Redis({
     url: env.UPSTASH_REDIS_REST_URL,
@@ -25,7 +22,6 @@ export async function GET() {
   const CACHE_TTL = 60; // 1 minute cache
   const cacheKey = `employee:overview:${user.id}`;
 
-  // ── 3. Check cache first ─────────────────────────────────────────────
   try {
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
@@ -38,7 +34,6 @@ export async function GET() {
     console.warn('[EmployeeOverview] Cache check failed:', cacheError);
   }
 
-  // 2. Fetch employee data
   const { data: employee, error: employeeError } = await supabase
     .from('employee_onboarding')
     .select(`
@@ -77,7 +72,6 @@ export async function GET() {
     .eq('id', user.id)
     .maybeSingle();
 
-  // 3. Fetch advances for this month
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const { data: advances, error: advancesError } = await supabase
     .from('advances')
@@ -90,17 +84,13 @@ export async function GET() {
     return NextResponse.json({ error: advancesError.message }, { status: 500 });
   }
 
-  // 4. Calculate stats
   const monthlySalary = Number(employee.monthly_salary || 0);
   
-  // Simple earned wages calculation: based on days elapsed in month
   const today = new Date();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const daysPassed = today.getDate();
   const earnedWages = (monthlySalary / daysInMonth) * daysPassed;
 
-  // Advance limit: 50% of earned wages (or whatever policy)
-  // Let's use 50% as a default if not specified
   const maxAccessPct = 0.5; 
   const totalAdvances = (advances || [])
     .filter(a => ['approved', 'disbursed'].includes(a.status))
@@ -116,7 +106,6 @@ export async function GET() {
     'KES',
   );
 
-  // 5. Build response in unison with existing dashboard patterns
   const responseData = {
     employee: {
       id: employee.id,

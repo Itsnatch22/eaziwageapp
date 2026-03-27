@@ -1,4 +1,3 @@
-// app/api/insights/route.ts
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -37,7 +36,6 @@ export async function GET(request: Request) {
 
   const orgId = profile.organization_id;
 
-  // 1. Last 8 weeks data
   const eightWeeksAgo = new Date();
   eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
 
@@ -56,7 +54,6 @@ export async function GET(request: Request) {
 
   const empMap = new Map(employees?.map(e => [e.id, Number(e.salary || 0)]));
 
-  // Group by week
   interface WeeklyData {
     week: string;
     fss: number;
@@ -84,10 +81,9 @@ export async function GET(request: Request) {
     const accessRatio = totalSalary ? totalAccessed / totalSalary : 0;
     const participation = employees?.length ? (uniqueEmps / employees.length) * 100 : 0;
 
-    // Simple FSS formula (you can tweak)
     const fss = Math.round(
       (1 - Math.min(accessRatio, 1)) * 40 +
-      (1 - (Math.min(weekAdvances.length, 50) / 50)) * 30 + // fewer requests = higher stability
+      (1 - (Math.min(weekAdvances.length, 50) / 50)) * 30 +
       (participation / 100) * 30
     );
 
@@ -100,19 +96,13 @@ export async function GET(request: Request) {
     });
   }
 
-  // 2. Retention & Stability (derived)
   const totalEmployees = employees?.length || 0;
   const activeAccessors = new Set(advances?.map(a => a.employee_id)).size;
   const retentionImpact = Math.round((activeAccessors / totalEmployees) * 18) + 71; // fake but realistic delta
-
-  // 3. Financial Momentum
   const monthlyGrowth = [3, 7, 11, 14, 9, 16]; // last 6 months %
-
-  // 4. Pulse
   const recentSpike = (advances?.filter(a => new Date(a.requested_at) > new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)) || []).length > 25;
   const pulse = recentSpike ? 'amber' : 'emerald';
 
-  // 5. Country breakdown
   const countryBreakdown = [
     { code: 'KE', fss: 82, growth: '+14%' },
     { code: 'UG', fss: 67, growth: '+8%' },

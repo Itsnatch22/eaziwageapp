@@ -42,7 +42,6 @@ export async function PATCH(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Verify Admin Role
   const adminAccess = await checkAdminAccess({ user, adminSupabase });
   if (adminAccess.error) {
     return NextResponse.json({ error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' }, { status: 500 });
@@ -72,15 +71,12 @@ export async function PATCH(
 
   console.log(`[PATCH employer status] Attempting update for ID: ${id} to status: ${status}`);
 
-  // Try fetching from employer_onboarding first
   let { data: employer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
     .select('id,user_id,company_name,min_advance_amount,currency')
     .eq('id', id)
     .maybeSingle();
 
-  // FALLBACK: If not found in onboarding, check the primary employers table
-  // (In case the ID provided is from the secondary table)
   if (!employer && !employerFetchError) {
     console.log(`[PATCH employer status] ID ${id} not found in onboarding, checking primary 'employers' table...`);
     const { data: primaryEmp } = await adminSupabase
@@ -90,7 +86,6 @@ export async function PATCH(
       .maybeSingle();
     
     if (primaryEmp) {
-      // Find the onboarding record associated with this employer's user_id
       const { data: fallbackOnboarding } = await adminSupabase
         .from('employer_onboarding')
         .select('id,user_id,company_name,min_advance_amount,currency')
@@ -112,7 +107,7 @@ export async function PATCH(
     }, { status: 404 });
   }
 
-  const activeId = employer.id; // The actual onboarding UUID to update
+  const activeId = employer.id;
 
   const updatePayload: Record<string, unknown> = {
     status,
@@ -144,7 +139,6 @@ export async function PATCH(
 
   console.log(`[PATCH employer status] Successfully updated record ${activeId}`);
 
-  // Activation workflow: ensure company code is present in profiles
   let resolvedCompanyCode: string | null = null;
   if (status === 'approved') {
     const { data: profileRow } = await adminSupabase
@@ -163,7 +157,6 @@ export async function PATCH(
       .update({ company_code: resolvedCompanyCode })
       .eq('id', employer.user_id);
 
-    // ─── Sync with primary 'employers' table ──────────────────────────────
     await adminSupabase.from('employers').upsert({
       id: employer.id,
       user_id: employer.user_id,
@@ -176,7 +169,6 @@ export async function PATCH(
     }, { onConflict: 'id' });
   }
 
-  // Notify employer about status change
   await adminSupabase.from('notifications').insert({
     user_id: employer.user_id,
     type: 'system',
@@ -189,7 +181,6 @@ export async function PATCH(
     created_at: new Date().toISOString(),
   });
 
-  // ── 5. Record Audit Log ────────────────────────────────────────────────────
   await adminSupabase.from('system_audit_logs').insert({
     admin_id: user.id,
     admin_name: profile?.full_name || 'Admin',

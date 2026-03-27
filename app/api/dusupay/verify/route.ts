@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dusupay } from '@/lib/dusupay';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-/**
- * Dusupay Payout Verification Endpoint
- * 
- * Used for manual verification or status polling if needed.
- * Example: GET /api/dusupay/verify?reference=EWA-20260312-XXXX
- */
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const reference = searchParams.get('reference');
@@ -17,7 +12,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Check current status with Dusupay API
     const result = await dusupay.checkPayoutStatus(reference);
 
     if (!result.success) {
@@ -28,8 +22,6 @@ export async function GET(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 2. Sync with our database if needed
-    // This provides a manual "sync" button functionality if the webhook was missed
     if (result.status) {
       const { data: advance } = await supabaseAdmin
         .from('advances')

@@ -4,10 +4,7 @@ import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis }                   from '@upstash/redis';
 
-// ─── Handler ──────────────────────────────────────────────────────────────────
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // ── 1. Rate-limit ──────────────────────────────────────────────────────────
   const ip         = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-dashboard:${ip}`);
 
@@ -18,7 +15,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 3. Initialize Redis cache ───────────────────────────────────────────
   const env = getEnv();
   const redis = new Redis({
     url: env.UPSTASH_REDIS_REST_URL,
@@ -28,7 +24,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const CACHE_TTL = 300; // 5 minutes cache
   const cacheKey = 'admin:dashboard:stats';
 
-  // ── 4. Check cache first ─────────────────────────────────────────────
   try {
     const cachedData = await redis.get(cacheKey);
     if (cachedData && typeof cachedData === 'object') {
@@ -45,7 +40,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.warn('[Dashboard] Cache check failed:', cacheError);
   }
 
-  // ── 5. Supabase service-role client ───────────────────────────────────────
   const supabase = createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
@@ -53,15 +47,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   try {
-    // ── 4. Fetch counts ───────────────────────────────────────────────────────
     
-    // Risk Reviews from review_requests
     const { count: riskPending } = await supabase
       .from('review_requests')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'pending');
 
-    // Bank Changes
     const { count: bankPending } = await supabase
       .from('bank_change_requests')
       .select('*', { count: 'exact', head: true })
@@ -69,7 +60,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const totalPendingReviews = (riskPending || 0) + (bankPending || 0);
 
-    // Suspicious activity feed
     const { count: activeFraudAlerts } = await supabase
       .from('fraud_alerts')
       .select('id', { count: 'exact', head: true })
@@ -81,7 +71,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .order('created_at', { ascending: false })
       .limit(5);
 
-    // Employers
     const { count: employerTotal } = await supabase
       .from('employers')
       .select('id', { count: 'exact', head: true });
@@ -96,7 +85,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending');
 
-    // Employees
     const { count: employeeTotal } = await supabase
       .from('employee_onboarding')
       .select('id', { count: 'exact', head: true });
@@ -113,7 +101,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     // ... rest of logic stays similar but with improved queries ...
     
-    // ── 5b. Fetch trends ──────────────────────────────────────────────────────
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
@@ -133,7 +120,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const employeeTrendValue = employeeTotal ? Math.round(((employeeThisMonth || 0) / employeeTotal) * 100) : 0;
     const employeeTrend = `+${employeeTrendValue}%`;
 
-    // ── 6. Fetch advance stats ────────────────────────────────────────────────
     const { count: advanceTotal } = await supabase
       .from('advances')
       .select('id', { count: 'exact', head: true });
@@ -156,8 +142,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'disbursed');
 
-    // ── 7. Monthly stats ───────────────────────────────────────────────────────
-
     const { data: monthlyAdvances } = await supabase
       .from('advances')
       .select('amount, fee_amount')
@@ -167,7 +151,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const monthlyDisbursed = (monthlyAdvances || []).reduce((sum, a) => sum + (a.amount || 0), 0);
     const monthlyFees      = (monthlyAdvances || []).reduce((sum, a) => sum + (a.fee_amount || 0), 0);
 
-    // ── 8. Risk stats ──────────────────────────────────────────────────────────
     const { data: employerRisks } = await supabase
       .from('employers')
       .select('risk_score')
@@ -177,7 +160,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ? employerRisks.reduce((sum, e) => sum + (e.risk_score || 0), 0) / employerRisks.length
       : 3.5;
 
-    // ── 9. Fetch API health 
     const { data: apiHealthData } = await supabase
       .from('api_health')
       .select('name, status, latency_ms, uptime_percent');
@@ -200,8 +182,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return stats;
     }, {});
 
-
-    // ── 10. Build response data ─────────────────────────────────────────────
     const responseData = {
       employers: {
         total:  employerTotal || 0,
@@ -242,7 +222,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       api_health: apiHealthStats,
     };
 
-    // ── 11. Store in cache ─────────────────────────────────────────────────
     try {
       await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(responseData));
       console.log('[Dashboard] Data cached successfully');
@@ -250,7 +229,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       console.warn('[Dashboard] Failed to cache data:', cacheError);
     }
 
-    // ── 12. Return response ─────────────────────────────────────────────────
     return NextResponse.json(responseData, { 
       status: 200, 
       headers: { 
@@ -267,10 +245,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 }
 
-// ─── Cache Invalidation Endpoint ─────────────────────────────────────────────────
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Rate limiting
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-dashboard-cache:${ip}`);
 
@@ -281,7 +256,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Initialize Redis
   const env = getEnv();
   const redis = new Redis({
     url: env.UPSTASH_REDIS_REST_URL,

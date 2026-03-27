@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Get Employer Record
     const { data: employer, error: employerError } = await adminSupabase
       .from('employer_onboarding')
       .select('id, company_name')
@@ -35,7 +34,6 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
 
-    // 2. Mark Employer as deleted
     const { error: deleteEmployerError } = await adminSupabase
       .from('employer_onboarding')
       .update({ deleted_at: now })
@@ -43,17 +41,15 @@ export async function POST(req: NextRequest) {
 
     if (deleteEmployerError) throw deleteEmployerError;
 
-    // 3. Mark all linked Employees as deleted
     const { error: deleteEmployeesError } = await adminSupabase
       .from('employee_onboarding')
-      .update({ status: 'rejected' }) // Or add deleted_at if table supports it
+      .update({ status: 'rejected' }) 
       .eq('employer_id', employer.id);
     
     if (deleteEmployeesError) {
       console.error('[Termination] Failed to update employee_onboarding:', deleteEmployeesError);
     }
     
-    // Also update the 'employees' table if it exists (with error handling)
     const { error: deleteEmployeesTableError } = await adminSupabase
       .from('employees')
       .update({ deleted_at: now, status: 'Inactive' })
@@ -63,7 +59,6 @@ export async function POST(req: NextRequest) {
       console.error('[Termination] Failed to update employees table (may not exist):', deleteEmployeesTableError);
     }
 
-    // 4. Log the activity
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id,
       admin_name: user.email,

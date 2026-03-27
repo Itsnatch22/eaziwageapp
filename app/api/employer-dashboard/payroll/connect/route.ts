@@ -1,11 +1,4 @@
 // app/api/payroll/connect/route.ts
-//
-// GET  /api/payroll/connect  — fetch the employer's active integration(s)
-// POST /api/payroll/connect  — link a payroll provider and generate an integration code
-//
-// The integration_code is a short alphanumeric token the employer shares with
-// their IT team. External systems include it as a Bearer token on API push calls.
-//
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { connectPayrollSchema } from '@/lib/validations/payroll-validation';
@@ -13,10 +6,8 @@ import { randomBytes } from 'crypto';
 
 export const runtime = 'nodejs';
 
-// ── Generate a human-friendly integration code ────────────────────────────────
-// Format: EWA-XXXX-XXXX  (uppercase alphanumeric, 8 chars + prefix)
 function generateIntegrationCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusable chars (0,O,1,I)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const bytes = randomBytes(8);
   let code = 'EWA-';
   for (let i = 0; i < 8; i++) {
@@ -26,14 +17,10 @@ function generateIntegrationCode(): string {
   return code;
 }
 
-// ── Generate a webhook HMAC secret ───────────────────────────────────────────
 function generateWebhookSecret(): string {
   return randomBytes(32).toString('hex');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET — return this employer's integrations (with last sync metadata)
-// ─────────────────────────────────────────────────────────────────────────────
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -80,7 +67,6 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Attach only the last 5 sync logs per integration to keep payload small
     const shaped = (integrations ?? []).map(intg => ({
       ...intg,
       sync_logs: (intg.sync_logs ?? [])
@@ -96,9 +82,6 @@ export async function GET() {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST — create or update a payroll integration
-// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -125,7 +108,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
     }
 
-    // ── Parse body ────────────────────────────────────────────────────────────
     const raw = await req.json().catch(() => null);
     if (!raw) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
@@ -139,7 +121,6 @@ export async function POST(req: NextRequest) {
 
     const { provider, provider_label, sync_mode, sync_frequency, sync_time } = parsed.data;
 
-    // ── Check if integration already exists for this provider ─────────────────
     const { data: existing, error: existingError } = await supabase
       .from('payroll_integrations')
       .select('id, integration_code, webhook_secret')
@@ -156,7 +137,6 @@ export async function POST(req: NextRequest) {
     let webhookSecret: string;
 
     if (existing) {
-      // Reuse existing codes so the employer's IT team doesn't need to update theirs
       integrationCode = existing.integration_code;
       webhookSecret   = existing.webhook_secret ?? generateWebhookSecret();
 
@@ -167,7 +147,7 @@ export async function POST(req: NextRequest) {
           sync_mode,
           sync_frequency,
           sync_time,
-          status:         'pending', // resets to pending; re-verified on first sync
+          status:         'pending',
           webhook_secret: webhookSecret,
         })
         .eq('id', existing.id);

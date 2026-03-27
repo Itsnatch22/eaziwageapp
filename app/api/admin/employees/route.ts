@@ -15,9 +15,6 @@ const QueryParamsSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-/**
- * Create admin Supabase client with service role
- */
 function createAdminClient() {
   const env = getEnv();
   return createClient(
@@ -27,13 +24,8 @@ function createAdminClient() {
   );
 }
 
-/**
- * GET /api/admin/employees
- * List employees with optional filtering (admin only)
- */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    // Rate limiting
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
     const rateResult = await checkRateLimit(apiLimiter, `admin-employees:${ip}`);
 
@@ -47,7 +39,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
-    // Authenticate user
     const {
       data: { user },
       error: authError,
@@ -76,7 +67,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Parse and validate query parameters
     const { searchParams } = new URL(req.url);
     const queryParams = QueryParamsSchema.safeParse({
       employer_id: searchParams.get('employer_id') || undefined,
@@ -99,7 +89,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { employer_id, status, search, limit, offset } = queryParams.data;
 
-    // 1. Fetch profiles where role='employee'
     let profileQuery = adminSupabase
       .from('profiles')
       .select('id, full_name, email, phone, company_code, created_at, role, role_normalized', { count: 'exact' })
@@ -126,7 +115,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const userIds = profiles.map(p => p.id);
 
-    // 2. Fetch onboarding records for these users
     const { data: onboardingRecords } = await adminSupabase
       .from('employee_onboarding')
       .select(`
@@ -137,7 +125,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       `)
       .in('user_id', userIds);
 
-    // 3. Merge data
     const validatedEmployees = profiles.map((p) => {
       const onboarding = (onboardingRecords || []).find(o => o.user_id === p.id);
       
@@ -160,7 +147,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         updated_at:     onboarding?.updated_at || p.created_at,
       };
 
-      // Apply status filter manually if provided (since it's now on joined data)
       if (status && flattened.status !== status) return null;
       if (employer_id && flattened.employer_id !== employer_id) return null;
 

@@ -22,7 +22,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   try {
-    // 1. Fetch all onboarded employers (submitted, approved, etc.)
     const { data: employers, error: empError } = await supabase
       .from('employer_onboarding')
       .select('id, company_name, status')
@@ -30,7 +29,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (empError) throw empError;
 
-    // 2. Fetch all disbursed and repaid advances
     const { data: advances, error: advError } = await supabase
       .from('advances')
       .select(`
@@ -47,7 +45,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (advError) throw advError;
 
-    // 3. Initialize byEmployer map with all onboarded employers
     const byEmployer: Record<string, {
       employer_id: string;
       employer_name: string;
@@ -80,7 +77,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       };
     });
 
-    // 4. Aggregate advance data
     let totalDisbursed = 0;
     let totalFees = 0;
     let totalRecouped = 0;
@@ -89,8 +85,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     (advances || []).forEach((adv) => {
       const employerId = adv.employer_id;
       
-      // If for some reason the employer isn't in our list (e.g. status was rejected)
-      // we still want to track the money if it exists
       if (!byEmployer[employerId]) {
         byEmployer[employerId] = {
           employer_id: employerId,
@@ -152,7 +146,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         pending_recoupment: pendingRecoupment,
       },
       by_employer: Object.values(byEmployer).sort((a, b) => {
-        // Sort by amount first, then by name
         if (b.total_amount !== a.total_amount) return b.total_amount - a.total_amount;
         return a.employer_name.localeCompare(b.employer_name);
       }),

@@ -8,8 +8,10 @@ import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 
 const WellnessPage = () => {
+  const { currency } = useCurrency();
   // Budgeting state
   const [income, setIncome] = useState<number>(0);
   const [rent, setRent] = useState<number>(0);
@@ -95,7 +97,7 @@ const WellnessPage = () => {
                        <div>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Estimated Savings</p>
                           <h4 className={cn("text-3xl font-bold tracking-tight", balance >= 0 ? "text-slate-900 dark:text-white" : "text-red-500")}>
-                             {formatCurrency(balance, 'KES')}
+                             {formatCurrency(balance, currency)}
                           </h4>
                        </div>
                        <div className="text-right">

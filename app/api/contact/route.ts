@@ -7,13 +7,11 @@ import { contactSchema } from "@/lib/validations/contact";
 import { contactLimiter, checkRateLimit } from "@/lib/rate-limit";
 import { getEnv } from "@/env";
 
-/* ----------------------------- handler ----------------------------- */
 
 export async function POST(request: NextRequest) {
   try {
     const env = getEnv();
     
-    // Rate limiting using Upstash Redis
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
                request.headers.get("x-real-ip") || 
                "unknown";
@@ -33,7 +31,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse and validate request body
     const body = await request.json();
     const parsed = contactSchema.safeParse(body);
     
@@ -50,10 +47,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Bot detection (honeypot)
     if (parsed.data.honeypot) {
       console.log(`Bot detected from IP: ${ip}`);
-      // Return success to not alert the bot
       return NextResponse.json(
         { message: "Message sent successfully", success: true },
         { status: 200 }
@@ -62,7 +57,6 @@ export async function POST(request: NextRequest) {
 
     const { name, email, subject, message } = parsed.data;
 
-    // Initialize clients
     const resend = new Resend(env.RESEND_API_KEY);
     const supabase = createClient(
       env.NEXT_PUBLIC_SUPABASE_URL,
@@ -71,7 +65,6 @@ export async function POST(request: NextRequest) {
 
     const SUPPORT_EMAIL = env.ADMIN_EMAILS?.split(',')[0].trim() || "support@eaziwage.com";
 
-    // Store in Supabase dashboard_contact table
     const { error: dbError } = await supabase
       .from("dashboard_contact")
       .insert([
@@ -88,12 +81,9 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       console.error("Database error (dashboard_contact):", dbError);
-      // We continue even if DB insertion fails to ensure user gets a response
     }
 
     const submittedAt = new Date();
-
-    // Send notification to support team
     try {
       await resend.emails.send({
         from: `EaziWage Contact <noreply@eaziwage.com>`,
@@ -115,7 +105,6 @@ export async function POST(request: NextRequest) {
       console.error("Failed to send notification email:", emailError);
     }
 
-    // Send auto-reply to user
     try {
       await resend.emails.send({
         from: `EaziWage Support <noreply@eaziwage.com>`,

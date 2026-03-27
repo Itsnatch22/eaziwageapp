@@ -3,10 +3,6 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-/**
- * GET /api/employer-dashboard/wallet/transactions
- * Returns a list of wallet transactions (funding and payouts) for the employer
- */
 export async function GET() {
   const supabase = await createRouteHandlerClient();
   const {
@@ -18,7 +14,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 1. Get Employer
   const { data: employer } = await supabase
     .from('employer_onboarding')
     .select('id')
@@ -29,7 +24,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
   }
 
-  // 2. Get Wallet
   const { data: wallet } = await supabase
     .from('employer_wallets')
     .select('id, balance, currency')
@@ -40,7 +34,6 @@ export async function GET() {
     return NextResponse.json({ transactions: [], balance: 0 });
   }
 
-  // 3. Get Transactions
   const { data: transactions, error } = await supabase
     .from('wallet_transactions')
     .select('*')

@@ -47,7 +47,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ type
     const body = await req.json();
     const validated = LegalDocumentSchema.parse({ ...body, document_type: type });
 
-    // Deactivate old version
     await adminSupabase.from('legal_documents').update({ is_active: 0 }).eq('document_type', type);
 
     const { data, error } = await adminSupabase.from('legal_documents').insert([{ ...validated, is_active: 1 }]).select().single();

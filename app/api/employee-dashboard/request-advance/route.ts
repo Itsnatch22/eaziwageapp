@@ -90,7 +90,6 @@ export async function POST(req: NextRequest) {
 
   const requestedAmount = Number(parsed.data.amount);
 
-  // ── Run Fraud Checks ────────────────────────────────────────────────────────
   const fraudResult = await runFraudChecks({
     userId: user.id,
     employeeId: employee.id,
@@ -120,7 +119,6 @@ export async function POST(req: NextRequest) {
   const feeAmount = toMoney((requestedAmount * feePercentage) / 100);
   const netAmount = toMoney(requestedAmount - feeAmount);
 
-  // Generate a unique merchant reference for Dusupay tracking
   const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
   const random = Math.random().toString(36).substring(2, 7).toUpperCase();
   const reference = `EWA-${timestamp}-${random}`;
@@ -136,7 +134,7 @@ export async function POST(req: NextRequest) {
     status: 'pending',
     reference: reference,
     requested_at: new Date().toISOString(),
-    employer_id: employee.employer_id, // Ensure employer_id is linked for dashboard visibility
+    employer_id: employee.employer_id, 
   };
 
   const { data: inserted, error: insertError } = await supabase
@@ -150,7 +148,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: insertError.message }, { status: 500 });
   }
 
-  // If alerts were generated, link them to the newly created transaction
   if (fraudResult.alerts.length > 0 && inserted) {
     await supabase
       .from('fraud_alerts')
@@ -158,9 +155,7 @@ export async function POST(req: NextRequest) {
       .in('id', fraudResult.alerts.map(a => a.id));
   }
 
-  // ── Trigger Notifications ───────────────────────────────────────────────────
   try {
-    // 1. Notify Employer Admin(s)
     const { data: employerAdmins } = await supabase
       .from('employer_onboarding')
       .select('user_id, company_name')
@@ -177,7 +172,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Notify Admins if flagged
     if (fraudResult.alerts.length > 0) {
       await notifyAdmins({
         type: 'flagged_advance',

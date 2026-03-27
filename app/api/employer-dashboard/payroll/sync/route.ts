@@ -12,7 +12,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Resolve employer ──────────────────────────────────────────────────────
   const { data: employer } = await supabase
     .from('employer_onboarding')
     .select('id')
@@ -25,7 +24,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
   }
 
-  // ── Validate body ─────────────────────────────────────────────────────────
   const raw = await req.json().catch(() => null);
   if (!raw) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
@@ -39,7 +37,6 @@ export async function POST(req: NextRequest) {
 
   const { integration_id } = parsed.data;
 
-  // ── Verify integration belongs to this employer ───────────────────────────
   const { data: integration, error: intgErr } = await supabase
     .from('payroll_integrations')
     .select('id, provider, status, sync_mode, sync_frequency, sync_time')
@@ -60,7 +57,6 @@ export async function POST(req: NextRequest) {
 
   const syncStart = Date.now();
 
-  // Simulate: 95% chance of success
   const syncSuccess = Math.random() > 0.05;
   const recordsReceived = syncSuccess ? Math.floor(Math.random() * 80) + 10 : 0;
   const recordsFailed   = syncSuccess ? Math.floor(recordsReceived * 0.03) : 0;
@@ -77,7 +73,6 @@ export async function POST(req: NextRequest) {
     ? `Provider (${integration.provider}) returned HTTP 503 — service temporarily unavailable`
     : null;
 
-  // ── Write sync log ────────────────────────────────────────────────────────
   const { data: syncLog, error: logErr } = await supabase
     .from('payroll_sync_logs')
     .insert({
@@ -98,7 +93,6 @@ export async function POST(req: NextRequest) {
     console.error('[payroll/sync] log insert:', logErr.message);
   }
 
-  // ── Update integration last_sync metadata ─────────────────────────────────
   const now = new Date().toISOString();
   await supabase
     .from('payroll_integrations')

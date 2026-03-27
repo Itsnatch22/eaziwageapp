@@ -44,7 +44,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { action } = await request.json();
 
   if (action === 'approve') {
-    // HEAVY LOGIC STARTS HERE
     const { data: advance, error: advanceError } = await supabase.from('advances').select('*').eq('id', id).single();
 
     if (advanceError || !advance) {
@@ -76,7 +75,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (totalAccessed + Number(advance.amount) > maxThisMonth) {
       return NextResponse.json({ error: 'Monthly limit reached. Employee must settle pending advances first.' }, { status: 400 });
     }
-    // WEEKLY REQUEST LIMIT (6) can be added here too if you want — just count requests in last 7 days
   }
 
   const update = action === 'approve'

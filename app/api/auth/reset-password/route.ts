@@ -7,8 +7,6 @@ import { hashToken, isValidTokenFormat, isTokenExpired } from '@/lib/token';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { ResetPasswordEmail }         from '@/lib/emails/ResetPasswordEmail';
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
-
 const ResetPasswordSchema = z.object({
   token: z
     .string()
@@ -26,8 +24,6 @@ const ResetPasswordSchema = z.object({
     .string()
     .min(1, 'reCAPTCHA token cannot be empty.'),
 });
-
-// ─── reCAPTCHA v3 verification ────────────────────────────────────────────────
 
 async function verifyRecaptcha(token: string, secretKey: string): Promise<boolean> {
   try {
@@ -52,10 +48,7 @@ async function verifyRecaptcha(token: string, secretKey: string): Promise<boolea
   }
 }
 
-// ─── Handler ──────────────────────────────────────────────────────────────────
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // ── 1. Rate-limit by IP ────────────────────────────────────────────────────
   const ip         = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `reset-password:${ip}`);
 
@@ -66,7 +59,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 2. Parse + validate body ───────────────────────────────────────────────
   let body: unknown;
   try {
     body = await req.json();
@@ -90,7 +82,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { token, password, recaptcha_token } = parsed.data;
 
-  // ── 3. Validate token format early (saves a DB round-trip) ────────────────
   if (!isValidTokenFormat(token)) {
     return NextResponse.json(
       { error: 'Invalid or expired reset link.', code: 'TOKEN_INVALID' },
@@ -98,7 +89,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 4. Verify reCAPTCHA ────────────────────────────────────────────────────
   const env          = getEnv();
   const captchaValid = await verifyRecaptcha(recaptcha_token, env.RECAPTCHA_SECRET_KEY);
 
@@ -109,14 +99,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 5. Supabase service-role client ───────────────────────────────────────
   const supabase = createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  // ── 6. Look up the hashed token ───────────────────────────────────────────
   const tokenHash = hashToken(token);
 
   const { data: reset, error: lookupError } = await supabase
@@ -132,7 +120,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 7. Guard: already used ────────────────────────────────────────────────
   if (reset.used_at) {
     return NextResponse.json(
       { error: 'This reset link has already been used.', code: 'TOKEN_INVALID' },
@@ -140,7 +127,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 8. Guard: expired (1-hour window) ─────────────────────────────────────
   if (isTokenExpired(reset.expires_at)) {
     return NextResponse.json(
       { error: 'This reset link has expired. Please request a new one.', code: 'TOKEN_EXPIRED' },
@@ -148,7 +134,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 9. Update password via Supabase Auth Admin API ────────────────────────
   const { error: updateError } = await supabase.auth.admin.updateUserById(
     reset.user_id,
     { password },
@@ -162,26 +147,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── 10. Mark token as used (atomic, prevents replay) ─────────────────────
   const { error: markError } = await supabase
     .from('password_resets')
     .update({ used_at: new Date().toISOString() })
     .eq('id', reset.id)
-    .is('used_at', null); // extra safety against race conditions
+    .is('used_at', null);
 
   if (markError) {
-    // Password already updated — log but don't fail the response
     console.error('[reset-password] Failed to mark token used:', markError);
   }
 
-  // ── 11. Fetch user info for the confirmation email ─────────────────────────
   const { data: profile } = await supabase
     .from('profiles')
     .select('full_name, email')
     .eq('id', reset.user_id)
     .single();
 
-  // ── 12. Send confirmation email via Resend + React Email ──────────────────
   if (profile?.email) {
     const resend = new Resend(env.RESEND_API_KEY);
 
@@ -198,12 +179,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
 
     if (emailError) {
-      // Non-fatal — password is already updated
       console.error('[reset-password] Confirmation email failed:', emailError);
     }
   }
-
-  // ── 13. Sign out all existing sessions for this user ─────────────────────
   await supabase.auth.admin.signOut(reset.user_id, 'global');
 
   return NextResponse.json(

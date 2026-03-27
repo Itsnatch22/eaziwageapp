@@ -33,7 +33,6 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch employee from profiles
     const { data: empProfile, error: profileErr } = await adminSupabase
       .from('profiles')
       .select('*')
@@ -44,7 +43,6 @@ export async function GET(
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    // Fetch onboarding details
     const { data: onboarding } = await adminSupabase
       .from('employee_onboarding')
       .select(`

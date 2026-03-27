@@ -42,14 +42,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (error) throw error;
     
-    // Fetch stats (best effort)
     const { data: advances } = await adminSupabase
       .from('advances')
       .select('amount, status')
       .eq('employee_id', id);
 
     const totalAdvances = advances?.length || 0;
-    const repaymentRate = 100; // Placeholder
+    const repaymentRate = 100; 
 
     return NextResponse.json({
       settings: data.settings || {},

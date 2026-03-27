@@ -37,7 +37,6 @@ export async function GET(req: Request) {
   const range = getMonthRange(month);
   console.log('[credit-overview] Month range:', range);
 
-  // Step 1: Fetch employer
   console.log('[credit-overview] Fetching employer for user:', user.id);
   const { data: employer, error: employerError } = await supabase
     .from('employer_onboarding')
@@ -71,7 +70,6 @@ export async function GET(req: Request) {
 
   console.log('[credit-overview] ✓ Employer found:', employer.id);
 
-  // Step 1.5: Fetch actual wallet balance
   const { data: wallet } = await supabase
     .from('employer_wallets')
     .select('balance')
@@ -81,7 +79,6 @@ export async function GET(req: Request) {
   const companyCreditLimit = Number(wallet?.balance ?? 0);
   console.log('[credit-overview] ✓ Actual wallet balance found:', companyCreditLimit);
 
-  // Step 2: Fetch employees
   console.log('[credit-overview] Fetching employees for employer:', employer.id);
   const { data: employees, error: employeeError } = await supabase
     .from('employee_onboarding')
@@ -114,7 +111,6 @@ export async function GET(req: Request) {
     });
   }
 
-  // Step 3: Fetch advances data
   console.log('[credit-overview] Fetching advances for', employeeIds.length, 'employees');
   console.log('[credit-overview] Date range:', range.from, 'to', range.to);
 
@@ -134,7 +130,7 @@ export async function GET(req: Request) {
   ]);
 
   if (outstandingQuery.error) {
-    console.error('[credit-overview] ❌ Outstanding advances query error:', {
+    console.error('[credit-overview] Outstanding advances query error:', {
       message: outstandingQuery.error.message,
       details: outstandingQuery.error.details,
       hint: outstandingQuery.error.hint,
@@ -143,10 +139,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: outstandingQuery.error.message }, { status: 500 });
   }
 
-  console.log('[credit-overview] ✓ Outstanding advances found:', outstandingQuery.data?.length ?? 0);
+  console.log('[credit-overview]  Outstanding advances found:', outstandingQuery.data?.length ?? 0);
 
   if (monthQuery.error) {
-    console.error('[credit-overview] ❌ Month advances query error:', {
+    console.error('[credit-overview] Month advances query error:', {
       message: monthQuery.error.message,
       details: monthQuery.error.details,
       hint: monthQuery.error.hint,
@@ -155,9 +151,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: monthQuery.error.message }, { status: 500 });
   }
 
-  console.log('[credit-overview] ✓ Month advances found:', monthQuery.data?.length ?? 0);
+  console.log('[credit-overview] Month advances found:', monthQuery.data?.length ?? 0);
 
-  // Step 4: Calculate totals
   const sumAmounts = (rows: AdvanceAmountRow[] | null) => (rows ?? []).reduce((sum, row) => {
     return sum + Number(row.amount ?? 0);
   }, 0);
@@ -170,7 +165,7 @@ export async function GET(req: Request) {
     ? Math.round((monthDisbursedAmount / companyCreditLimit) * 1000) / 10
     : 0;
 
-  console.log('[credit-overview] ✓ Calculations complete:', {
+  console.log('[credit-overview]  Calculations complete:', {
     companyCreditLimit,
     totalOutstandingCredit,
     monthDisbursedAmount,

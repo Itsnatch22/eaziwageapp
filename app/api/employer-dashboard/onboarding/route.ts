@@ -1,4 +1,3 @@
-// app/api/employer-dashboard/onboarding/route.ts
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
@@ -11,7 +10,6 @@ export const runtime = 'nodejs';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// ─── Helper: get or create a draft onboarding row for the authed user ────────
 async function getOrCreateDraft(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: existing } = await supabase
     .from('employer_onboarding')
@@ -32,10 +30,6 @@ async function getOrCreateDraft(supabase: Awaited<ReturnType<typeof createClient
   return created.id as string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/employer-dashboard/onboarding
-// Final submission — validates full payload, upserts record, sends email
-// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
 
@@ -48,7 +42,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Parse & validate body ─────────────────────────────────────────────────
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -65,7 +58,6 @@ export async function POST(req: NextRequest) {
 
   const {
     beneficial_owners,
-    // Destructure doc URL fields so we can store them separately
     certificate_of_incorporation,
     business_registration,
     tax_compliance_certificate,
@@ -83,16 +75,13 @@ export async function POST(req: NextRequest) {
   try {
     const onboardingId = await getOrCreateDraft(supabase, user.id);
 
-    // Calculate currency based on country
     const employerCurrency = getCurrencyFromCountry(fields.country);
 
-    // ── Upsert main onboarding row ────────────────────────────────────────
     const { error: upsertError } = await supabase
       .from('employer_onboarding')
       .update({
         ...fields,
         currency: employerCurrency,
-        // Document URLs
         certificate_of_incorporation: certificate_of_incorporation || null,
         business_registration: business_registration || null,
         tax_compliance_certificate: tax_compliance_certificate || null,
@@ -115,11 +104,9 @@ export async function POST(req: NextRequest) {
 
     if (upsertError) throw upsertError;
 
-    // ── Upsert beneficial owners ──────────────────────────────────────────
     const validOwners = beneficial_owners.filter((o) => o.full_name.trim());
 
     if (validOwners.length > 0) {
-      // Replace all existing owners for this onboarding
       await supabase
         .from('employer_beneficial_owners')
         .delete()
@@ -132,7 +119,6 @@ export async function POST(req: NextRequest) {
       if (ownersError) throw ownersError;
     }
 
-    // ── Send confirmation email via Resend ────────────────────────────────
     await resend.emails.send({
       from: 'EaziWage <noreply@eaziwage.com>',
       to: fields.contact_email,
@@ -144,7 +130,6 @@ export async function POST(req: NextRequest) {
       }),
     });
 
-    // ── Create Admin Notification ────────────────────────────────────────
     const { data: adminNotif, error: adminNotifError } = await supabase
       .from('admin_notifications')
       .insert({
@@ -176,10 +161,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/employer-dashboard/onboarding
-// Saves progress (current step) without full validation — called on nextStep()
-// ─────────────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient();
 
@@ -213,10 +194,6 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/employer-dashboard/onboarding
-// Returns the current user's draft/application status (resume support)
-// ─────────────────────────────────────────────────────────────────────────────
 export async function GET() {
   const supabase = await createClient();
 

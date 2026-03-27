@@ -38,7 +38,6 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Update failed' }, { status: 500 });
   }
 
-  // Return full profile for UI consistency
   const { data: profile } = await supabase
     .from('profiles')
     .select(`
@@ -48,7 +47,6 @@ export async function POST(request: Request) {
     .eq('id', user.id)
     .single();
 
-  // Reuse same KYC computation logic as profile route
   const docMap: Record<string, string> = {
     id_front: 'id_document_front',
     address_proof: 'address_proof',

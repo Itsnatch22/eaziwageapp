@@ -81,10 +81,8 @@ export async function PATCH(
   
   if (action === 'approve') {
     try {
-      // 1. Reserve funds in employer wallet
       await payoutService.reserveFunds(employer.id, target.amount, id);
 
-      // 2. Update advance status to approved
       const { error: updateError } = await supabase
         .from('advances')
         .update({ status: 'approved', approved_at: nowIso, approved_by: user.id })
@@ -92,9 +90,6 @@ export async function PATCH(
 
       if (updateError) throw updateError;
 
-      // 3. Trigger asynchronous disbursement
-      // Note: In production, this might be handled by a background worker or queue.
-      // For now, we initiate it immediately but don't wait for completion to respond to UI.
       payoutService.disburseAdvance(id).catch(err => {
         console.error(`[Advance Approval] Disbursement failed for ${id}:`, err);
       });
@@ -114,7 +109,6 @@ export async function PATCH(
     }
   }
 
-  // ── Trigger Notifications ───────────────────────────────────────────────────
   try {
     const employeeUserId = (target.employee_onboarding as any)?.user_id;
     if (employeeUserId) {

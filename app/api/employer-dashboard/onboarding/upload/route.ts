@@ -1,18 +1,16 @@
-// app/api/employer-dashboard/onboarding/upload/route.ts
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { documentTypeSchema } from '@/lib/validations/employer-onboarding';
 
-export const runtime = 'nodejs'; // needs FormData / file streaming
+export const runtime = 'nodejs';
 
 const BUCKET = 'employer-documents';
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/xlsx', 'application/csv'];
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
 
-  // ── Auth guard ────────────────────────────────────────────────────────────
   const {
     data: { user },
     error: authError,
@@ -22,7 +20,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── Parse form data ───────────────────────────────────────────────────────
   const form = await req.formData().catch(() => null);
   if (!form) {
     return NextResponse.json({ error: 'Invalid form data' }, { status: 400 });
@@ -35,7 +32,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
   }
 
-  // ── Validate document type ────────────────────────────────────────────────
   const parsed = documentTypeSchema.safeParse(rawDocType);
   if (!parsed.success) {
     return NextResponse.json(
@@ -45,7 +41,6 @@ export async function POST(req: NextRequest) {
   }
   const documentType = parsed.data;
 
-  // ── Validate file ─────────────────────────────────────────────────────────
   if (!ALLOWED_MIME.includes(file.type)) {
     return NextResponse.json(
       { error: 'Invalid file type. Upload JPEG, PNG, WEBP, PDF, XLSX, or CSV.' },
@@ -57,7 +52,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'File size must be under 10 MB.' }, { status: 422 });
   }
 
-  // ── Build storage path: {userId}/{documentType}/{timestamp}.{ext} ─────────
   const ext = file.name.split('.').pop() ?? 'bin';
   const storagePath = `${user.id}/${documentType}/${Date.now()}.${ext}`;
 
@@ -74,7 +68,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to upload file. Please try again.' }, { status: 500 });
   }
 
-  // ── Return signed URL (1-year expiry for downloads) ───────────────────────
   const { data: signedData, error: signedError } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(storagePath, 60 * 60 * 24 * 365);

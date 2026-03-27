@@ -39,7 +39,6 @@ export async function GET() {
 
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-  // Fetch pending advances with employee profiles
   const { data: pendings } = await supabase
     .from('advances')
     .select(`

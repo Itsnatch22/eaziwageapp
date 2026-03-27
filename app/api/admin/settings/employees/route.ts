@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
     const user = await verifyAdmin(supabase, adminSupabase);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    // Fetch from employee_onboarding join with employer_onboarding
     const { data: employees, error } = await adminSupabase
       .from('employee_onboarding')
       .select(`

@@ -4,11 +4,10 @@ import { Resend }          from 'resend';
 import { z }               from 'zod';
 import RiskReviewRequestEmail from '@/lib/emails/RiskRequestReview';
 
-export const runtime = 'nodejs'; // Resend SDK requires Node
+export const runtime = 'nodejs';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// ── Validation schema ─────────────────────────────────────────────────────────
 const bodySchema = z.object({
   employerId: z.string().uuid('employerId must be a valid UUID'),
   type:       z.string().min(1).default('risk_review'),
@@ -18,13 +17,10 @@ const bodySchema = z.object({
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  // ── Parse body ────────────────────────────────────────────────────────────
   const raw = await req.json().catch(() => null);
   if (!raw) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -46,7 +42,6 @@ export async function POST(req: NextRequest) {
 
   const { employerId, type, message } = parsed.data;
 
-  // ── Verify the employer belongs to this user ──────────────────────────────
   const { data: employer, error: empError } = await supabase
     .from('employer_onboarding')
     .select('id, company_name, risk_score, risk_rating, contact_email, contact_person')
@@ -65,7 +60,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Duplicate guard: reject if a pending request already exists ───────────
   const { data: existing } = await supabase
     .from('risk_review_requests')
     .select('id')
@@ -80,7 +74,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Insert ────────────────────────────────────────────────────────────────
   const { error: insertError } = await supabase
     .from('risk_review_requests')
     .insert({
@@ -96,7 +89,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  // ── Confirmation email (non-fatal) ────────────────────────────────────────
   const emailTo     = employer.contact_email ?? user.email!;
   const contactName =
     employer.contact_person ??
