@@ -417,7 +417,11 @@ const EmployeeRow: React.FC<{
         {employee.full_name || (employee as any).name || `Employee ${employee.employee_code || ''}`}
       </p>
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {employee.job_title} • {employee.department || 'General'}
+        {[
+          employee.employee_code,
+          employee.job_title,
+          employee.department || 'General',
+        ].filter(Boolean).join(' • ')}
       </p>
     </div>
     <div className="text-right hidden sm:block">

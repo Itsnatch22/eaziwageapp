@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
@@ -10,6 +11,20 @@ function createAdminClient() {
     env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
+}
+
+interface AnnouncementRow {
+  id: string;
+  title: string;
+  message: string;
+  created_at: string;
+  metadata: {
+    announcement_id?: string;
+    sender_id?: string;
+    sender_name?: string;
+    is_announcement?: boolean;
+    [key: string]: unknown;
+  } | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -33,20 +48,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Employer not found' }, { status: 403 });
     }
 
-    // We fetch from notifications table where sender is the employer
-    // or we might need a dedicated announcements table. 
-    // For now, let's assume a simple fetch from a mock or dedicated table if we want to store history.
-    // Let's check if there's a messaging table.
-    
-    const { data: announcements, error: annError } = await adminSupabase
+    const { data: announcementRows, error: annError } = await adminSupabase
       .from('notifications')
-      .select('*')
-      .eq('metadata->>sender_id', employer.id)
+      .select('id, title, message, created_at, metadata')
       .eq('type', 'announcement')
+      .eq('metadata->>sender_id', String(employer.id))
       .order('created_at', { ascending: false });
+
+    if (annError) {
+      throw annError;
+    }
+
+    const announcements = Array.from(
+      (announcementRows ?? []).reduce<Map<string, AnnouncementRow>>((history, row) => {
+        const announcement = row as AnnouncementRow;
+        const historyKey =
+          announcement.metadata?.announcement_id ??
+          `${announcement.title}:${announcement.message}:${announcement.created_at}`;
+
+        if (!history.has(historyKey)) {
+          history.set(historyKey, announcement);
+        }
+
+        return history;
+      }, new Map()).values()
+    );
 
     return NextResponse.json({ announcements: announcements || [] });
   } catch (error) {
+    console.error('[Announcements API GET Error]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -89,6 +119,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No active employees to notify' }, { status: 400 });
     }
 
+    const announcementId = randomUUID();
+
     const notifications = employees.map(emp => ({
       user_id: emp.user_id,
       type: 'announcement',
@@ -96,6 +128,7 @@ export async function POST(req: NextRequest) {
       message: message,
       read: false,
       metadata: {
+        announcement_id: announcementId,
         sender_id: employer.id,
         sender_name: employer.company_name,
         is_announcement: true

@@ -13,6 +13,14 @@ function createAdminClient() {
   );
 }
 
+interface EmployeeAdvanceRow {
+  id: string;
+  amount: number | string | null;
+  fee_amount?: number | string | null;
+  status: string | null;
+  created_at: string | null;
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -54,18 +62,24 @@ export async function GET(
       .eq('user_id', id)
       .maybeSingle();
 
-    // Fetch advance stats (Mocked for now or aggregate from advances table)
     const { data: advances } = await adminSupabase
       .from('advances')
-      .select('*')
+      .select('id, amount, fee_amount, status, created_at')
       .eq('employee_id', id)
       .order('created_at', { ascending: false });
 
+    const advanceRows = (advances ?? []) as EmployeeAdvanceRow[];
+    const outstandingStatuses = new Set(['processing', 'disbursed', 'completed']);
+
     const advanceStats = {
-      advance_count: advances?.length || 0,
-      total_advances: advances?.reduce((sum, a) => sum + (a.amount || 0), 0) || 0,
-      pending_repayment: advances?.filter(a => a.status === 'disbursed').reduce((sum, a) => sum + (a.amount || 0), 0) || 0,
-      total_fees_paid: advances?.filter(a => a.status === 'repaid').reduce((sum, a) => sum + (a.fee_amount || 0), 0) || 0,
+      advance_count: advanceRows.length,
+      total_advances: advanceRows.reduce((sum, advance) => sum + Number(advance.amount || 0), 0),
+      pending_repayment: advanceRows
+        .filter((advance) => advance.status && outstandingStatuses.has(advance.status))
+        .reduce((sum, advance) => sum + Number(advance.amount || 0), 0),
+      total_fees_paid: advanceRows
+        .filter((advance) => advance.status === 'repaid')
+        .reduce((sum, advance) => sum + Number(advance.fee_amount || 0), 0),
     };
 
     const responseData = {
@@ -89,7 +103,7 @@ export async function GET(
       risk_score: empProfile.metadata?.risk_score || null,
       employer_name: onboarding?.employer?.company_name || 'Unlinked',
       advance_stats: advanceStats,
-      advances: advances || [],
+      advances: advanceRows,
       created_at: empProfile.created_at,
       updated_at: onboarding?.updated_at || empProfile.created_at,
     };

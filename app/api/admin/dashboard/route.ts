@@ -4,6 +4,29 @@ import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis }                   from '@upstash/redis';
 
+type AdvanceAmountRow = {
+  amount: number | string | null;
+  fee_amount: number | string | null;
+};
+
+type EmployerRiskRow = {
+  risk_score: number | null;
+};
+
+type ApiHealthRow = {
+  name: string | null;
+  status: string | null;
+  latency_ms: number | null;
+  uptime_percent: number | null;
+};
+
+function sumNumericField<T extends Record<string, number | string | null | undefined>>(
+  rows: T[],
+  field: keyof T,
+) {
+  return rows.reduce((sum, row) => sum + Number(row[field] || 0), 0);
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip         = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-dashboard:${ip}`);
@@ -99,77 +122,74 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending');
 
-    // ... rest of logic stays similar but with improved queries ...
-    
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    const { count: employerThisMonth } = await supabase
-      .from('employers')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', startOfMonth);
-    
+    const [
+      { count: employerThisMonth },
+      { count: employeeThisMonth },
+      { count: advanceTotal },
+      { count: advancePending },
+      { data: advanceAmounts },
+      { count: pendingReconciliation },
+      { data: monthlyAdvances },
+      { data: employerRisks },
+      { data: apiHealthData },
+    ] = await Promise.all([
+      supabase
+        .from('employers')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', startOfMonth),
+      supabase
+        .from('employee_onboarding')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', startOfMonth),
+      supabase
+        .from('advances')
+        .select('id', { count: 'exact', head: true }),
+      supabase
+        .from('advances')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending'),
+      supabase
+        .from('advances')
+        .select('amount, fee_amount')
+        .eq('status', 'disbursed'),
+      supabase
+        .from('advances')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'disbursed'),
+      supabase
+        .from('advances')
+        .select('amount, fee_amount')
+        .gte('created_at', startOfMonth)
+        .eq('status', 'disbursed'),
+      supabase
+        .from('employers')
+        .select('risk_score')
+        .not('risk_score', 'is', null),
+      supabase
+        .from('api_health')
+        .select('name, status, latency_ms, uptime_percent'),
+    ]);
+
     const employerTrendValue = employerTotal ? Math.round(((employerThisMonth || 0) / employerTotal) * 100) : 0;
     const employerTrend = `+${employerTrendValue}%`;
 
-    const { count: employeeThisMonth } = await supabase
-      .from('employee_onboarding')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', startOfMonth);
-    
     const employeeTrendValue = employeeTotal ? Math.round(((employeeThisMonth || 0) / employeeTotal) * 100) : 0;
     const employeeTrend = `+${employeeTrendValue}%`;
 
-    const { count: advanceTotal } = await supabase
-      .from('advances')
-      .select('id', { count: 'exact', head: true });
-
-    const { count: advancePending } = await supabase
-      .from('advances')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending');
-
-    const { data: advanceAmounts } = await supabase
-      .from('advances')
-      .select('amount, fee_amount')
-      .eq('status', 'disbursed');
-
-    const totalDisbursed = (advanceAmounts || []).reduce((sum, a) => sum + (a.amount || 0), 0);
-    const totalFees      = (advanceAmounts || []).reduce((sum, a) => sum + (a.fee_amount || 0), 0);
-
-    const { count: pendingReconciliation } = await supabase
-      .from('advances')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'disbursed');
-
-    const { data: monthlyAdvances } = await supabase
-      .from('advances')
-      .select('amount, fee_amount')
-      .gte('created_at', startOfMonth)
-      .eq('status', 'disbursed');
-
-    const monthlyDisbursed = (monthlyAdvances || []).reduce((sum, a) => sum + (a.amount || 0), 0);
-    const monthlyFees      = (monthlyAdvances || []).reduce((sum, a) => sum + (a.fee_amount || 0), 0);
-
-    const { data: employerRisks } = await supabase
-      .from('employers')
-      .select('risk_score')
-      .not('risk_score', 'is', null);
+    const disbursedAdvances = (advanceAmounts || []) as AdvanceAmountRow[];
+    const monthDisbursedAdvances = (monthlyAdvances || []) as AdvanceAmountRow[];
+    const totalDisbursed = sumNumericField(disbursedAdvances, 'amount');
+    const totalFees = sumNumericField(disbursedAdvances, 'fee_amount');
+    const monthlyDisbursed = sumNumericField(monthDisbursedAdvances, 'amount');
+    const monthlyFees = sumNumericField(monthDisbursedAdvances, 'fee_amount');
 
     const avgEmployerScore = employerRisks && employerRisks.length > 0
-      ? employerRisks.reduce((sum, e) => sum + (e.risk_score || 0), 0) / employerRisks.length
+      ? ((employerRisks as EmployerRiskRow[]).reduce((sum, employer) => sum + Number(employer.risk_score || 0), 0) / employerRisks.length)
       : 3.5;
 
-    const { data: apiHealthData } = await supabase
-      .from('api_health')
-      .select('name, status, latency_ms, uptime_percent');
-
-    type ApiHealthRow = {
-      name: string | null;
-      status: string | null;
-      latency_ms: number | null;
-      uptime_percent: number | null;
-    };
     const apiHealthStats = ((apiHealthData || []) as ApiHealthRow[]).reduce((stats: Record<string, ApiHealthRow>, health) => {
       if (health.name) {
         stats[health.name] = {
@@ -213,7 +233,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       pending_reconciliation: pendingReconciliation || 0,
       monthly: {
         disbursed:     monthlyDisbursed,
-        advance_count: (monthlyAdvances || []).length,
+        advance_count: monthDisbursedAdvances.length,
         fees:          monthlyFees,
       },
       risk: {
