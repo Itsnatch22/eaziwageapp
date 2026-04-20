@@ -215,13 +215,11 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
           {/* Logo Section */}
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <Link href="/" className="flex items-center gap-3" data-testid="sidebar-logo">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary/10 border border-slate-100 dark:border-slate-800">
-                <Image
-                  src="/logo.png"
-                  alt="EaziWage Logo"
-                  width={32}
-                  height={32}
-                  className="object-contain"
+              <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/10 border border-slate-100 dark:border-slate-800">
+                <Wallet
+                  className="h-8 w-8 text-emerald-700"
+                  strokeWidth={2}
+                  aria-hidden="true"
                 />
               </div>
               <div>

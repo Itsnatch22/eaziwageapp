@@ -3,14 +3,12 @@
 import React, { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight, Eye, EyeOff, Lock, Check, User, Mail,
   Building2, Search, X, Phone, AlertTriangle, ChevronDown,
-  Sparkles, Sun, Moon, AlertCircle,
+  Sparkles, AlertCircle, Wallet
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { createClient } from '@/lib/supabase/client';
@@ -450,12 +448,10 @@ function RegisterForm() {
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative">
                   <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
-                    <Image
-                      src="/logo.png"
-                      alt="EaziWage Logo"
-                      width={32}
-                      height={32}
-                      className="object-contain"
+                    <Wallet
+                      className="h-8 w-8 text-emerald-700"
+                      strokeWidth={2}
+                      aria-hidden="true"
                     />
                   </div>
                   <div className="absolute inset-0 bg-green-600/10 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />

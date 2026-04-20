@@ -6,7 +6,7 @@ import Link          from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, XCircle, Clock, Mail,
-  ArrowRight, RefreshCw, Lock,
+  ArrowRight, RefreshCw, Lock, Wallet
 } from 'lucide-react';
 import { cn }                         from '@/lib/utils';
 import { Input }                      from '@/components/ui/input';
@@ -466,7 +466,11 @@ export default function VerifyEmailPage() {
                 <Link href="/" className="flex items-center gap-3 group">
                   <div className="relative">
                     <div className="w-12 h-12 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/30">
-                      <span className="text-white font-bold text-2xl">E</span>
+                      <Wallet
+                        className="h-8 w-8 text-emerald-700"
+                        strokeWidth={2}
+                        aria-hidden="true"
+                      />
                     </div>
                     <div className="absolute inset-0 bg-green-600/20 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
                   </div>

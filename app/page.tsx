@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight, Eye, EyeOff, Mail, Lock,
-  AlertCircle, Sparkles, Sun, Moon,
+  AlertCircle, Sparkles, Sun, Moon, Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -171,12 +171,10 @@ export default function LoginPage() {
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative">
                   <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
-                    <Image
-                      src="/logo.png"
-                      alt="EaziWage Logo"
-                      width={32}
-                      height={32}
-                      className="object-contain"
+                    <Wallet
+                      className="h-8 w-8 text-emerald-700"
+                      strokeWidth={2}
+                      aria-hidden="true"
                     />
                   </div>
                   <div className="absolute inset-0 bg-green-600/10 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />

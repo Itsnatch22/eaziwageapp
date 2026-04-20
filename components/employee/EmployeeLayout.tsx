@@ -134,8 +134,12 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
           {/* Logo */}
           <div className="p-6 border-b border-slate-100 dark:border-white/10 shrink-0">
             <Link href="/dashboards/employee-dashboard" className="flex items-center gap-3" onClick={onClose}>
-              <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 dark:border-white/10">
-                <Image src="/logo.png" alt="EaziWage" width={28} height={28} className="object-contain" priority />
+              <div className="w-11 h-11 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 dark:border-white/10">
+                <Wallet
+                  className="h-8 w-8 text-emerald-700"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                />
               </div>
               <div>
                 <span className="font-bold text-lg text-slate-900 dark:text-white block leading-tight">EaziWage</span>
