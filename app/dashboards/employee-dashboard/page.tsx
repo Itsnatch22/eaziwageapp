@@ -49,8 +49,45 @@ interface EmployeeSummary {
 
 // ─── Circular Dial ────────────────────────────────────────────────────────────
 
-const SpeedDial = ({ value, max, currency = 'KES' }: { value: number; max: number; currency?: string }) => {
-  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+const SpeedDial = ({ 
+  value, 
+  max, 
+  currency = 'KES', 
+  isMonthlyProgress = false 
+}: { 
+  value?: number; 
+  max?: number; 
+  currency?: string; 
+  isMonthlyProgress?: boolean 
+}) => {
+  let pct = 0;
+  let displayValue = '';
+  let subtitle = '';
+  let badge = '';
+  let monthlyInfo = '';
+  
+  if (isMonthlyProgress) {
+    // Calculate monthly progress
+    const now = new Date();
+    const currentDay = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const monthlyPct = Math.min((currentDay / daysInMonth) * 100, 100);
+    
+    // Use monthly progress for dial, financial values for display
+    pct = monthlyPct;
+    displayValue = formatCurrency(value || 0, currency).split('.')[0];
+    subtitle = 'Accrued This Month';
+    badge = 'Available Now';
+    monthlyInfo = `Day ${currentDay} of ${daysInMonth} (${Math.round(monthlyPct)}%)`;
+  } else {
+    // Original financial logic
+    pct = max > 0 ? Math.min((value || 0) / max * 100, 100) : 0;
+    displayValue = formatCurrency(value || 0, currency).split('.')[0];
+    subtitle = 'Unlocked Funds';
+    badge = 'Available Now';
+    monthlyInfo = '';
+  }
+  
   const r = 44;
   const circ = 2 * Math.PI * r;
   const offset = circ - (pct / 100) * circ;
@@ -78,14 +115,19 @@ const SpeedDial = ({ value, max, currency = 'KES' }: { value: number; max: numbe
       </svg>
 
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400 mb-1">Unlocked Funds</p>
+        <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400 mb-1">{subtitle}</p>
         <p className="text-4xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
-          {formatCurrency(value, currency).split('.')[0]}
+          {displayValue}
         </p>
         <div className="mt-2 px-3 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400"
           style={{ background: '#10b98115', border: '1px solid #10b98125' }}>
-          Available Now
+          {badge}
         </div>
+        {monthlyInfo && (
+          <p className="mt-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+            {monthlyInfo}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -259,7 +301,12 @@ export default function EmployeeDashboardPage() {
               {/* Top accent line */}
               <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-emerald-400/50 to-transparent" />
 
-              <SpeedDial value={advanceLimit} max={earnedWages || 10000} currency={currency} />
+              <SpeedDial 
+                value={advanceLimit} 
+                max={earnedWages || 10000} 
+                currency={currency} 
+                isMonthlyProgress={true} 
+              />
 
               <div className="flex items-center justify-center gap-8 py-2">
                 <div className="text-center">

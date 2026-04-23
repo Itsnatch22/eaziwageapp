@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight, Eye, EyeOff, Mail, Lock,
-  AlertCircle, Sparkles, Sun, Moon, Wallet
+  AlertCircle, Sparkles, Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -59,10 +58,16 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
     const supabase = createClient();
+    const callbackUrl = new URL('/api/auth/callback', window.location.origin);
+    callbackUrl.searchParams.set('source', 'login');
+    if (safeNext) {
+      callbackUrl.searchParams.set('next', safeNext);
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback?role=employee`,
+        redirectTo: callbackUrl.toString(),
       },
     });
     if (error) {

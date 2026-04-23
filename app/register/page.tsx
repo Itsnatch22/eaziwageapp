@@ -263,10 +263,20 @@ function RegisterForm() {
     setError('');
     setIsLoading(true);
     const supabase = createClient();
+    const callbackUrl = new URL('/api/auth/callback', window.location.origin);
+    callbackUrl.searchParams.set('role', accountType);
+    callbackUrl.searchParams.set('source', 'register');
+    callbackUrl.searchParams.set(
+      'next',
+      accountType === 'employer'
+        ? '/dashboards/employer-dashboard'
+        : '/dashboards/employee-dashboard'
+    );
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback?role=employee`,
+        redirectTo: callbackUrl.toString(),
       },
     });
     if (error) {

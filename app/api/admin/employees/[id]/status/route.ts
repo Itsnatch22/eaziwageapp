@@ -62,22 +62,27 @@ export async function PATCH(
         .select('full_name, email, phone')
         .eq('id', id)
         .single();
+      const displayName = profileData?.full_name || updatedOnboarding.full_name || 'Anonymous';
 
-      await adminSupabase
+      const { data: upsertData, error: upsertError } = await adminSupabase
         .from('employees')
         .upsert({
           user_id: id,
           employer_id: updatedOnboarding.employer_id,
           employee_code: updatedOnboarding.employee_code,
-          full_name: profileData?.full_name || updatedOnboarding.full_name || 'Anonymous',
+          full_name: displayName,
+          name: displayName,
           email: profileData?.email || updatedOnboarding.email,
           phone: profileData?.phone || updatedOnboarding.phone,
           job_title: updatedOnboarding.job_title,
           department: updatedOnboarding.department,
           monthly_salary: updatedOnboarding.monthly_salary,
           status: 'Active',
+          kyc_status: 'approved',
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
+
+      if (upsertError) console.error('[employees upsert error]', upsertError);
     } else if (status === 'suspended' || status === 'rejected') {
       // Update status in employees table too if it exists
       await adminSupabase

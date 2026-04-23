@@ -89,66 +89,97 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { employer_id, status, search, limit, offset } = queryParams.data;
 
-    let profileQuery = adminSupabase
-      .from('profiles')
-      .select('id, full_name, email, phone, company_code, created_at, role, role_normalized', { count: 'exact' })
-      .eq('role', 'employee')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Query both employees table (approved) and employee_onboarding table (all onboarded)
+    const [employeesResult, onboardingResult] = await Promise.all([
+      adminSupabase
+        .from('employees')
+        .select(`
+          *,
+          employer:employers (
+            company_name
+          )
+        `)
+        .order('created_at', { ascending: false }),
+      
+      adminSupabase
+        .from('employee_onboarding')
+        .select(`
+          *,
+          employer:employer_onboarding!employer_id (
+            company_name
+          )
+        `)
+        .order('created_at', { ascending: false })
+    ]);
 
+    const { data: employees, error: employeeErr } = employeesResult;
+    const { data: onboardingEmployees, error: onboardingErr } = onboardingResult;
+
+    if (employeeErr || onboardingErr) {
+      console.error('[GET /api/admin/employees] Query error:', { employeeErr, onboardingErr });
+      return NextResponse.json({ error: 'Failed to fetch employees', code: 'QUERY_ERROR' }, { status: 500 });
+    }
+
+    // Combine both datasets, prioritizing employees table data for approved users
+    const allEmployees = [...(employees || []), ...(onboardingEmployees || [])];
+    
+    // Remove duplicates (users who exist in both tables)
+    const uniqueEmployees = allEmployees.filter((emp, index, self) => 
+      index === self.findIndex(e => e.user_id === emp.user_id)
+    );
+
+    // Apply filters
+    let filteredEmployees = uniqueEmployees;
+    
     if (search) {
-      profileQuery = profileQuery.or(
-        `full_name.ilike.%${search}%,email.ilike.%${search}%,company_code.ilike.%${search}%`
+      filteredEmployees = filteredEmployees.filter(emp =>
+        (emp.full_name && emp.full_name.toLowerCase().includes(search.toLowerCase())) ||
+        (emp.email && emp.email.toLowerCase().includes(search.toLowerCase())) ||
+        (emp.employee_code && emp.employee_code.toLowerCase().includes(search.toLowerCase()))
       );
     }
 
-    const { data: profiles, error: profileErr, count } = await profileQuery;
-
-    if (profileErr) {
-      console.error('[GET /api/admin/employees] Profile query error:', profileErr);
-      return NextResponse.json({ error: 'Failed to fetch profiles', code: 'QUERY_ERROR' }, { status: 500 });
+    if (status) {
+      filteredEmployees = filteredEmployees.filter(emp => {
+        const empStatus = emp.status === 'Active' ? 'active' : 
+                         emp.status === 'approved' ? 'active' : 
+                         emp.status?.toLowerCase() || 'pending';
+        return empStatus === status;
+      });
     }
 
-    if (!profiles || profiles.length === 0) {
+    if (employer_id) {
+      filteredEmployees = filteredEmployees.filter(emp => emp.employer_id === employer_id);
+    }
+
+    // Apply pagination
+    const total = filteredEmployees.length;
+    const paginatedEmployees = filteredEmployees.slice(offset, offset + limit);
+    const count = total;
+
+    if (!paginatedEmployees || paginatedEmployees.length === 0) {
       return NextResponse.json({ data: [], pagination: { total: 0, limit, offset, hasMore: false } }, { status: 200 });
     }
 
-    const userIds = profiles.map(p => p.id);
-
-    const { data: onboardingRecords } = await adminSupabase
-      .from('employee_onboarding')
-      .select(`
-        *,
-        employer:employer_onboarding!employer_id (
-          company_name
-        )
-      `)
-      .in('user_id', userIds);
-
-    const validatedEmployees = profiles.map((p) => {
-      const onboarding = (onboardingRecords || []).find(o => o.user_id === p.id);
-      
+    const validatedEmployees = paginatedEmployees.map((emp) => {
       const flattened = {
-        id:             p.id,
-        user_id:        p.id,
-        employer_id:    onboarding?.employer_id || null,
-        employee_code:  onboarding?.employee_code || p.company_code || 'N/A',
-        full_name:      onboarding?.full_name || p.full_name || 'Anonymous User',
-        email:          onboarding?.email || p.email,
-        phone:          onboarding?.phone || p.phone,
-        job_title:      onboarding?.job_title || 'Not Set',
-        department:     onboarding?.department || 'Not Set',
-        monthly_salary: onboarding?.monthly_salary ? parseFloat(onboarding.monthly_salary as any) : 0,
-        hire_date:      onboarding?.start_date || null,
-        status:         (onboarding?.status === 'approved' ? 'active' : onboarding?.status || 'pending') as any,
-        kyc_status:     onboarding?.status || 'pending',
-        employer_name:  onboarding?.employer?.company_name || 'Unlinked',
-        created_at:     p.created_at,
-        updated_at:     onboarding?.updated_at || p.created_at,
+        id:             emp.id,
+        user_id:        emp.user_id,
+        employer_id:    emp.employer_id,
+        employee_code:  emp.employee_code || 'N/A',
+        full_name:      emp.full_name || 'Anonymous User',
+        email:          emp.email,
+        phone:          emp.phone,
+        job_title:      emp.job_title || 'Not Set',
+        department:     emp.department || 'Not Set',
+        monthly_salary: emp.monthly_salary || 0,
+        hire_date:      emp.hire_date || emp.start_date || null,
+        status:         (emp.status === 'Active' || emp.status === 'approved' ? 'active' : emp.status?.toLowerCase() || 'pending') as any,
+        kyc_status:     emp.kyc_status || emp.status || 'pending',
+        employer_name:  emp.employer?.company_name || 'Unlinked',
+        created_at:     emp.created_at,
+        updated_at:     emp.updated_at || emp.updated_at,
       };
-
-      if (status && flattened.status !== status) return null;
-      if (employer_id && flattened.employer_id !== employer_id) return null;
 
       const parsed = EmployeeSchema.safeParse(flattened);
       return parsed.success ? parsed.data : flattened;
