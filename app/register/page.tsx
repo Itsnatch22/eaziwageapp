@@ -474,7 +474,7 @@ function RegisterForm() {
             <div className="flex justify-center mb-8">
               <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-full text-sm font-semibold text-green-700 dark:text-green-400">
                 <Sparkles className="w-4 h-4" />
-                Join 50,000+ workers across East Africa
+                Join The First Wave
               </div>
             </div>
 

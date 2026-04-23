@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { getCurrencyFromCountry } from '@/lib/utils';
+import { getCurrencyFromCountry, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
 import { useAuthStore } from '@/lib/stores/auth';
 
 export function useCurrency() {
@@ -16,6 +16,13 @@ export function useCurrency() {
       }
 
       try {
+        // Admin users should always see USD
+        if (user.role === 'admin') {
+          setCurrency(DEFAULT_ADMIN_CURRENCY);
+          setLoading(false);
+          return;
+        }
+
         const supabase = createClient();
         const { data, error } = await supabase
           .from('profiles')
@@ -36,7 +43,7 @@ export function useCurrency() {
     }
 
     fetchCurrency();
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   return { currency, loading };
 }
