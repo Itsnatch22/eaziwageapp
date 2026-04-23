@@ -81,7 +81,7 @@ const SpeedDial = ({
     monthlyInfo = `Day ${currentDay} of ${daysInMonth} (${Math.round(monthlyPct)}%)`;
   } else {
     // Original financial logic
-    pct = max > 0 ? Math.min((value || 0) / max * 100, 100) : 0;
+    pct = max && max > 0 ? Math.min((value || 0) / max * 100, 100) : 0;
     displayValue = formatCurrency(value || 0, currency).split('.')[0];
     subtitle = 'Unlocked Funds';
     badge = 'Available Now';
