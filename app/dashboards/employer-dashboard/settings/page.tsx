@@ -20,7 +20,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout'
 import { toast } from "sonner";
-import { cn, getAdvanceLimit, getCurrencySymbol } from "@/lib/utils";
+import { cn, getAdvanceLimit, getCurrencySymbol, getCurrencyFromCountry } from "@/lib/utils";
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import pusherClient from '@/lib/pusher-client';
 
@@ -787,7 +787,7 @@ export default function EmployerSettings() {
     );
   }
 
-  const currencySymbol = getCurrencySymbol(employer?.currency || 'KES');
+  const currencySymbol = getCurrencySymbol(getCurrencyFromCountry(employer?.country));
   const advanceLimit = getAdvanceLimit(employer?.country);
 
   // ─── Render ───────────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ import { ExportButton } from '@/components/ui/ExportButton';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { formatCurrency, formatDateTime, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 
@@ -616,8 +616,8 @@ export default function AdminAdvances(){
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={CreditCard} label="Total Advances" value={stats.total} variant="purple" />
           <MetricCard icon={Clock} label="Pending" value={stats.pending} subtext="Awaiting approval" variant="amber" />
-          <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats.total_amount, 'USD')} variant="green" />
-          <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(stats.total_fees, 'USD')} variant="blue" />
+          <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats.total_amount, DEFAULT_ADMIN_CURRENCY)} variant="green" />
+          <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(stats.total_fees, DEFAULT_ADMIN_CURRENCY)} variant="blue" />
         </div>
 
         {/* Search & Filters */}
