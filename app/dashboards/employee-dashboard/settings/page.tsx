@@ -111,6 +111,10 @@ export default function EmployeeSettings() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [notificationPrefs, setNotificationPrefs] = useState({ emailAlerts: true, pushNotifications: true });
+  const [notificationLoading, setNotificationLoading] = useState(false);
 
   useEffect(() => {
     async function fetchLogs() {
@@ -127,7 +131,26 @@ export default function EmployeeSettings() {
         }
       }
     }
+    
+    async function fetchNotificationPreferences() {
+      if (activeTab === 'notifications') {
+        try {
+          const res = await fetch('/api/employee-dashboard/notifications/preferences');
+          if (res.ok) {
+            const data = await res.json();
+            setNotificationPrefs({
+              emailAlerts: data.emailAlerts,
+              pushNotifications: data.pushNotifications
+            });
+          }
+        } catch (error) {
+          console.error('Failed to fetch notification preferences:', error);
+        }
+      }
+    }
+    
     fetchLogs();
+    fetchNotificationPreferences();
   }, [activeTab]);
 
 
@@ -165,6 +188,71 @@ export default function EmployeeSettings() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleNotificationUpdate = async (key: 'emailAlerts' | 'pushNotifications', value: boolean) => {
+    setNotificationLoading(true);
+    try {
+      const newPrefs = { ...notificationPrefs, [key]: value };
+      
+      const res = await fetch('/api/employee-dashboard/notifications/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailAlerts: newPrefs.emailAlerts,
+          pushNotifications: newPrefs.pushNotifications
+        }),
+      });
+      
+      if (res.ok) {
+        setNotificationPrefs(newPrefs);
+        toast.success('Notification preferences updated successfully');
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'Failed to update preferences');
+        // Revert on error
+        setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
+      }
+    } catch (error) {
+      toast.error('An error occurred while updating your preferences');
+      // Revert on error
+      setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
+
+  const handlePasswordUpdate = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    
+    if (passwordData.newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters long');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const res = await fetch('/api/employee-dashboard/security/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: passwordData.newPassword }),
+      });
+      
+      if (res.ok) {
+        toast.success('Password updated successfully');
+        setPasswordData({ newPassword: '', confirmPassword: '' });
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'Failed to update password');
+      }
+    } catch (error) {
+      toast.error('An error occurred while updating your password');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -473,15 +561,15 @@ export default function EmployeeSettings() {
                     icon={Mail}
                     label="Email Alerts"
                     description="Transaction receipts and statements"
-                    checked={notificationsEnabled}
-                    onToggle={setNotificationsEnabled}
+                    checked={notificationPrefs.emailAlerts}
+                    onToggle={(checked: boolean) => handleNotificationUpdate('emailAlerts', checked)}
                   />
                   <ToggleItem 
                     icon={Smartphone}
                     label="Push Notifications"
                     description="Real-time withdrawal updates"
-                    checked={true}
-                    onToggle={() => {}}
+                    checked={notificationPrefs.pushNotifications}
+                    onToggle={(checked: boolean) => handleNotificationUpdate('pushNotifications', checked)}
                   />
                 </div>
               </SettingsCard>
@@ -527,10 +615,39 @@ export default function EmployeeSettings() {
                 <SettingsCard icon={Lock} title="Password" description="Update your security credentials">
                   <div className="space-y-4">
                     <div className="grid sm:grid-cols-2 gap-4">
-                      <div className="space-y-2"><Label>New Password</Label><Input type="password" placeholder="••••••••" /></div>
-                      <div className="space-y-2"><Label>Confirm Password</Label><Input type="password" placeholder="••••••••" /></div>
+                      <div className="space-y-2">
+                        <Label>New Password</Label>
+                        <Input 
+                          type="password" 
+                          placeholder="••••••••" 
+                          value={passwordData.newPassword}
+                          onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Confirm Password</Label>
+                        <Input 
+                          type="password" 
+                          placeholder="••••••••" 
+                          value={passwordData.confirmPassword}
+                          onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        />
+                      </div>
                     </div>
-                    <Button className="bg-primary text-white">Update Password</Button>
+                    <Button 
+                      className="bg-primary text-white" 
+                      onClick={handlePasswordUpdate}
+                      disabled={passwordLoading || !passwordData.newPassword || !passwordData.confirmPassword}
+                    >
+                      {passwordLoading ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Updating...
+                        </div>
+                      ) : (
+                        'Update Password'
+                      )}
+                    </Button>
                   </div>
                 </SettingsCard>
               </div>
