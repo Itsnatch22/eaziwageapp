@@ -799,10 +799,20 @@ const EmployerEmployees: React.FC = () => {
       void fetchData();
     };
 
+    const handleRiskUpdate = (data: any) => {
+      console.log('[Pusher] Risk score update received by admin:', data);
+      if (data.type === 'risk_score_updated') {
+        toast.success(`Risk score updated: ${data.risk_rating} rating`);
+        void fetchData(); // Refresh data to show updated risk score
+      }
+    };
+
     channel.bind('employee-kyc-update', handleEmployeeUpdate);
+    channel.bind('risk-updated', handleRiskUpdate);
 
     return () => {
       channel.unbind('employee-kyc-update', handleEmployeeUpdate);
+      channel.unbind('risk-updated', handleRiskUpdate);
       pusherClient!.unsubscribe(`employer-${employer.id}`);
     };
   }, [employer?.id, fetchData]);
