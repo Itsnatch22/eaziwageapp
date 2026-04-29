@@ -143,10 +143,17 @@ export async function POST(req: NextRequest) {
 
   const employeeCurrency = getCurrencyFromCountry(country);
 
+  const employeeName =
+    (user.user_metadata?.full_name as string | undefined) ??
+    user.email?.split('@')[0] ??
+    'there';
+
   const upsertPayload = {
     user_id: user.id,
     employer_id,
     employee_code: generatedEmployeeCode,
+    full_name: employeeName,
+    email: user.email,
     national_id,
     id_type,
     nationality: nationality || null,
@@ -194,11 +201,6 @@ export async function POST(req: NextRequest) {
     console.error('[employee/onboarding/submit]', upsertError);
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
-
-  const employeeName =
-    (user.user_metadata?.full_name as string | undefined) ??
-    user.email?.split('@')[0] ??
-    'there';
   try {
     await supabase
       .from('employees')

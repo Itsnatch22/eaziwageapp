@@ -7,7 +7,7 @@ import {
   Shield, CreditCard, Smartphone, 
   Mail, Phone, MapPin,
   User,Loader2,
-  Briefcase, Landmark, Clock
+  Briefcase, Landmark, Clock, AlertTriangle, History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
 import { updateUserAvatar } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
+import { DeleteAccountModal } from '@/components/employee/DeleteAccountModal';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 
@@ -108,6 +109,8 @@ export default function EmployeeSettings() {
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     async function fetchLogs() {
@@ -162,6 +165,34 @@ export default function EmployeeSettings() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async (reason: string, category: string, additionalFeedback?: string) => {
+    setDeleteLoading(true);
+    try {
+      const res = await fetch('/api/employee-dashboard/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason,
+          category,
+          additionalFeedback,
+        }),
+      });
+      
+      if (res.ok) {
+        toast.success('Account deleted successfully');
+        router.push('/');
+      } else {
+        const error = await res.json();
+        toast.error(error.message || 'Failed to delete account');
+      }
+    } catch (error) {
+      toast.error('An error occurred while deleting your account');
+    } finally {
+      setDeleteLoading(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -263,6 +294,29 @@ export default function EmployeeSettings() {
                   <p className="mt-4 text-[10px] text-slate-400 italic">To change verified personal details, please contact admin.</p>
                 </SettingsCard>
 
+                <SettingsCard icon={Lock} title="Danger Zone" description="Irreversible account actions">
+                  <div className="space-y-4">
+                    <div className="p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="font-medium text-red-800 dark:text-red-400">Delete Account</h4>
+                          <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                            Permanently delete your account and all associated data. This action cannot be undone.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => setShowDeleteModal(true)}
+                        variant="outline"
+                        className="mt-4 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                      >
+                        Delete Account
+                      </Button>
+                    </div>
+                  </div>
+                </SettingsCard>
+
                 <SettingsCard icon={MapPin} title="Resident Address" description="Your current residential information">
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -291,7 +345,7 @@ export default function EmployeeSettings() {
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Employer</Label>
-                      <Input value={employee?.employer_id|| 'Loading...'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
+                      <Input value={employee?.company_name || 'Loading...'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
                     </div>
                     <div className="space-y-2">
                       <Label>Job Title</Label>
@@ -319,7 +373,7 @@ export default function EmployeeSettings() {
                     <div>
                       <h4 className="font-bold text-slate-900 dark:text-white">Employment Verified</h4>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        Your account is linked to <span className="font-bold text-slate-900 dark:text-white">{employee?.employer_id ? `•••• ${employee.employer_id.slice(-4)}` : '---'}</span>. 
+                        Your account is linked to <span className="font-bold text-slate-900 dark:text-white">{employee?.company_name || '---'}</span>. 
                         Your salary advances are automatically reconciled via your company's payroll system.
                       </p>
                     </div>
@@ -513,6 +567,14 @@ export default function EmployeeSettings() {
           </div>
         </div>
       </main>
+
+      {/* Delete Account Modal */}
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onDeleteAccount={handleDeleteAccount}
+        loading={deleteLoading}
+      />
     </EmployeePageLayout>
   );
 }

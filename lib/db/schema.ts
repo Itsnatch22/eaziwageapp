@@ -236,6 +236,25 @@ export const systemAuditLogs = pgTable('system_audit_logs', {
   action_idx: index('audit_action_idx').on(table.action),
 }));
 
+// Account Deletion Events
+export const accountDeletionEvents = pgTable('account_deletion_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  user_email: text('user_email').notNull(),
+  user_full_name: text('user_full_name').notNull(),
+  user_role: text('user_role').notNull(),
+  deletion_reason: text('deletion_reason').notNull(),
+  deletion_reason_category: text('deletion_reason_category').notNull(),
+  additional_feedback: text('additional_feedback'),
+  ip_address: text('ip_address'),
+  user_agent: text('user_agent'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  user_id_idx: index('account_deletion_events_user_id_idx').on(table.user_id),
+  created_at_idx: index('account_deletion_events_created_at_idx').on(table.created_at),
+  reason_category_idx: index('account_deletion_events_reason_category_idx').on(table.deletion_reason_category),
+}));
+
 // Type exports
 export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
@@ -251,3 +270,4 @@ export type GlobalSettings = typeof globalSettings.$inferSelect;
 export type BlackoutPeriod = typeof blackoutPeriods.$inferSelect;
 export type LegalDocument = typeof legalDocuments.$inferSelect;
 export type SystemAuditLog = typeof systemAuditLogs.$inferSelect;
+export type AccountDeletionEvent = typeof accountDeletionEvents.$inferSelect;
