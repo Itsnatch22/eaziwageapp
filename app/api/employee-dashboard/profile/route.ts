@@ -39,7 +39,14 @@ async function getFullProfile( supabase: SupabaseClient, userId: string, user: U
     if (!employee) {
         const { data: newEmployee } = await supabase
         .from('employees')
-        .insert({ user_id: userId, kyc_status: 'pending' })
+        .insert({ 
+            user_id: userId, 
+            kyc_status: 'pending',
+            status: 'pending',
+            name: user?.user_metadata?.full_name || user?.user_metadata?.name || 'User',
+            full_name: user?.user_metadata?.full_name || user?.user_metadata?.name || 'User',
+            email: user?.email || '',
+        })
         .select()
         .single();
         employee = newEmployee;

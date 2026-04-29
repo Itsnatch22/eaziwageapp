@@ -428,7 +428,7 @@ export default function EmployerOnboarding() {
           const data = await res.json();
           const profile = data?.profile;
           
-          if (profile && (profile.status === 'rejected' || profile.status === 'draft' || profile.status === 'pending')) {
+          if (profile && (profile.status === 'rejected' || profile.status === 'draft')) {
             setFormData(prev => ({
               ...prev,
               company_name: profile.company_name || "",

@@ -110,7 +110,7 @@ export async function GET() {
     employee: {
       id: employee.id,
       full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-      employer_name: employee.employer?.employer_id || 'N/A',
+      employer_name: employee.employer?.company_name || 'N/A',
       job_title: employee.job_title || 'Employee',
       status: employee.status,
       kyc_status: employee.status, 

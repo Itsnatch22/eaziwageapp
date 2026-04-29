@@ -95,7 +95,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .from('employees')
         .select(`
           *,
-          employer:employers (
+          employer_onboarding!employer_id (
             company_name
           )
         `)
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .from('employee_onboarding')
         .select(`
           *,
-          employer:employer_onboarding!employer_id (
+          employer_onboarding!employer_id (
             company_name
           )
         `)
@@ -132,10 +132,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let filteredEmployees = uniqueEmployees;
     
     if (search) {
+      const searchLower = search.toLowerCase();
       filteredEmployees = filteredEmployees.filter(emp =>
-        (emp.full_name && emp.full_name.toLowerCase().includes(search.toLowerCase())) ||
-        (emp.email && emp.email.toLowerCase().includes(search.toLowerCase())) ||
-        (emp.employee_code && emp.employee_code.toLowerCase().includes(search.toLowerCase()))
+        (emp.full_name && emp.full_name.toLowerCase().includes(searchLower)) ||
+        (emp.name && emp.name.toLowerCase().includes(searchLower)) ||
+        (emp.email && emp.email.toLowerCase().includes(searchLower)) ||
+        (emp.employee_code && emp.employee_code.toLowerCase().includes(searchLower)) ||
+        (emp.job_title && emp.job_title.toLowerCase().includes(searchLower)) ||
+        (emp.department && emp.department.toLowerCase().includes(searchLower))
       );
     }
 
@@ -168,6 +172,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         employer_id:    emp.employer_id,
         employee_code:  emp.employee_code || 'N/A',
         full_name:      emp.full_name || emp.name || 'Anonymous User',
+        name:           emp.name || emp.full_name || 'Anonymous User',
         email:          emp.email,
         phone:          emp.phone,
         job_title:      emp.job_title || 'Not Set',
@@ -176,7 +181,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         hire_date:      emp.hire_date || emp.start_date || null,
         status:         (emp.status === 'Active' || emp.status === 'approved' ? 'active' : emp.status?.toLowerCase() || 'pending') as any,
         kyc_status:     emp.kyc_status || emp.status || 'pending',
-        employer_name:  emp.employer?.company_name || 'Unlinked',
+        employer_name:  emp.employer_onboarding?.company_name || emp.employer?.company_name || 'Unlinked',
         created_at:     emp.created_at,
         updated_at:     emp.updated_at || emp.updated_at,
       };

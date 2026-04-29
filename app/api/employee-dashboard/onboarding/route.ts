@@ -208,14 +208,18 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         employer_id,
         employee_code: generatedEmployeeCode,
-        full_name: employeeName,
+        name: employeeName, // Use name field as per schema
+        full_name: employeeName, // Keep both for compatibility
         email: user.email,
         phone: user.user_metadata?.phone || null,
+        employee_number: generatedEmployeeCode, // Use employee_code as employee_number
         job_title,
         department: department || null,
         monthly_salary,
-        currency: employeeCurrency,
+        employment_type,
         status: 'pending',
+        kyc_status: 'pending',
+        hire_date: start_date ? new Date(start_date).toISOString() : null,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 

@@ -1,6 +1,6 @@
 create table public.employees (
   id uuid not null default extensions.uuid_generate_v4 (),
-  organization_id uuid not null,
+  organization_id uuid null,
   email text not null,
   name text not null,
   employee_number text null,
@@ -77,9 +77,15 @@ create table public.employees (
   )
 ) TABLESPACE pg_default;
 
-create unique INDEX IF not exists employees_user_id_key on public.employees using btree (user_id) TABLESPACE pg_default;
+create index IF not exists employees_email_idx on public.employees using btree (email) TABLESPACE pg_default;
 
 create unique INDEX IF not exists employees_employee_code_key on public.employees using btree (employee_code) TABLESPACE pg_default;
+
+create index IF not exists employees_organization_id_idx on public.employees using btree (organization_id) TABLESPACE pg_default;
+
+create index IF not exists employees_status_idx on public.employees using btree (status) TABLESPACE pg_default;
+
+create unique INDEX IF not exists employees_user_id_key on public.employees using btree (user_id) TABLESPACE pg_default;
 
 create index IF not exists idx_employees_kyc_status on public.employees using btree (kyc_status) TABLESPACE pg_default;
 
@@ -87,11 +93,9 @@ create index IF not exists idx_employees_risk_score on public.employees using bt
 where
   (risk_score is not null);
 
-create index IF not exists employees_organization_id_idx on public.employees using btree (organization_id) TABLESPACE pg_default;
-
-create index IF not exists employees_email_idx on public.employees using btree (email) TABLESPACE pg_default;
-
-create index IF not exists employees_status_idx on public.employees using btree (status) TABLESPACE pg_default;
+create trigger t2 BEFORE
+update on employees for EACH row
+execute FUNCTION set_updated_at ();
 
 create trigger trg_employees_updated_at BEFORE
 update on employees for EACH row
@@ -99,7 +103,3 @@ execute FUNCTION update_updated_at ();
 
 create trigger trg_generate_employee_code BEFORE INSERT on employees for EACH row
 execute FUNCTION generate_employee_code ();
-
-create trigger t2 BEFORE
-update on employees for EACH row
-execute FUNCTION set_updated_at ();

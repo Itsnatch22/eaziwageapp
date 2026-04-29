@@ -15,9 +15,14 @@ interface Organization {
 
 interface EmployeeProfile {
   id: string;
+  name: string | null;
   full_name: string | null;
   department: string | null;
-  salary: number | string | null;
+  monthly_salary: number | string | null;
+  job_title: string | null;
+  employee_code: string | null;
+  status: string | null;
+  kyc_status: string | null;
   [key: string]: unknown;
 }
 
@@ -67,10 +72,10 @@ export async function GET() {
   const maxPct = COUNTRY_PCT[country] || 0.5;
 
   const { data: employees } = await supabase
-    .from('profiles')
+    .from('employees')
     .select('*')
 	    .eq('organization_id', typedProfile.organization_id)
-	    .eq('role', 'employee');
+	    .in('status', ['Active', 'pending', 'approved']);
 
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const { data: advances } = await supabase
@@ -94,21 +99,22 @@ export async function GET() {
 
 	    const latest = empAdvances.sort((a, b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime())[0];
 
-    let status = latest ? (latest.status === 'pending' ? 'Pending' : latest.status === 'approved' ? 'Approved' : 'Denied') : 'Active';
+    let status = latest ? (latest.status === 'pending' ? 'Pending' : latest.status === 'approved' ? 'Approved' : 'Denied') : (emp.status || 'Active');
 
-    const maxAccess = Number(emp.salary || 0) * maxPct;
+    const maxAccess = Number(emp.monthly_salary || 0) * maxPct;
     if (accessedMTD >= maxAccess && latest?.status === 'pending') {
       status = 'Denied';
     }
 
     return {
       ...emp,
-      name: emp.full_name,
+      name: emp.name || emp.full_name || 'Unknown',
+      full_name: emp.full_name || emp.name || 'Unknown',
       department: emp.department || 'General',
-      salary: Number(emp.salary || 0),
+      salary: Number(emp.monthly_salary || 0),
       withdrawnThisMonth: accessedMTD,
       status,
-	      pendingAdvanceId: empAdvances.find((a) => a.status === 'pending')?.id || null,
+      pendingAdvanceId: empAdvances.find((a) => a.status === 'pending')?.id || null,
       maxAccess,
     };
   }) || [];

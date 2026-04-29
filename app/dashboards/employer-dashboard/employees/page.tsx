@@ -816,7 +816,7 @@ const EmployerEmployees: React.FC = () => {
         const data = await res.json();
         throw new Error(data.error ?? 'Seed failed');
       }
-      toast.success('Demo employees seeded!');
+      toast.success('Employees seeded!');
       fetchData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to seed employees');
@@ -917,7 +917,7 @@ const EmployerEmployees: React.FC = () => {
                 className="bg-white/60 dark:bg-slate-800/60"
                 data-testid="seed-employees-btn"
               >
-                {seeding ? 'Seeding...' : 'Seed Demo Employees'}
+                {seeding ? 'Seeding...' : 'Seed Employees'}
               </Button>
             )}
           </div>
@@ -1063,11 +1063,11 @@ const EmployerEmployees: React.FC = () => {
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
                 {searchTerm || statusFilter || departmentFilter || countryFilter
                   ? 'Try adjusting your search or filters'
-                  : 'Add employees or seed demo data to get started'}
+                  : 'Add employees or seed data to get started'}
               </p>
               {employees.length === 0 && (
                 <Button onClick={handleSeedEmployees} disabled={seeding} className="mt-4 bg-primary text-white">
-                  {seeding ? 'Seeding...' : 'Seed Demo Employees'}
+                  {seeding ? 'Seeding...' : 'Seed Employees'}
                 </Button>
               )}
             </div>
