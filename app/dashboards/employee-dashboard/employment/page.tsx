@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/hooks/useCurrency';
 
 interface EmploymentData {

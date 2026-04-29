@@ -22,11 +22,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Get user profile for full_name
+    const { data: profile, error: profileError } = await adminSupabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+
     const { data: onboarding, error: onboardingError } = await adminSupabase
       .from('employee_onboarding')
       .select(`
         id,
-        full_name,
         employee_code,
         job_title,
         department,
@@ -42,10 +48,18 @@ export async function GET(req: NextRequest) {
       .eq('user_id', user.id)
       .maybeSingle();
 
+    if (profileError) throw profileError;
     if (onboardingError) throw onboardingError;
     if (!onboarding) {
       return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
     }
+
+    // Merge profile data with onboarding data
+    const employmentData = {
+      ...onboarding,
+      full_name: profile?.full_name || 'Not specified',
+      employee_code: onboarding?.employee_code || 'EMP-' + user.id.slice(-6).toUpperCase()
+    };
 
     const { data: policy, error: policyError } = await adminSupabase
       .from('policies')
@@ -54,7 +68,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     return NextResponse.json({
-      employment: onboarding,
+      employment: employmentData,
       policy: policy || {
         withdrawal_limit_percent: 50,
         frequency_cap: null,
