@@ -115,6 +115,8 @@ export default function EmployeeSettings() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState({ emailAlerts: true, pushNotifications: true });
   const [notificationLoading, setNotificationLoading] = useState(false);
+  const [mfaStatus, setMfaStatus] = useState({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
+  const [verificationCode, setVerificationCode] = useState('');
 
   useEffect(() => {
     async function fetchLogs() {
@@ -149,8 +151,23 @@ export default function EmployeeSettings() {
       }
     }
     
+    async function fetchMfaStatus() {
+      if (activeTab === 'security') {
+        try {
+          const res = await fetch('/api/employee-dashboard/security/mfa');
+          if (res.ok) {
+            const data = await res.json();
+            setMfaStatus(prev => ({ ...prev, enabled: data.enabled, loading: false }));
+          }
+        } catch (error) {
+          console.error('Failed to fetch MFA status:', error);
+        }
+      }
+    }
+    
     fetchLogs();
     fetchNotificationPreferences();
+    fetchMfaStatus();
   }, [activeTab]);
 
 
@@ -188,6 +205,90 @@ export default function EmployeeSettings() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleMfaToggle = async (enable: boolean) => {
+    setMfaStatus(prev => ({ ...prev, loading: true }));
+    
+    try {
+      if (enable) {
+        // Start MFA enrollment process
+        const res = await fetch('/api/employee-dashboard/security/mfa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'enable' }),
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setMfaStatus({
+            enabled: false,
+            loading: false,
+            showSetup: true,
+            qrCode: data.qrCode,
+            factorId: data.factorId
+          });
+          toast.success('Please scan the QR code and enter the verification code');
+        } else {
+          const error = await res.json();
+          toast.error(error.error || 'Failed to enable MFA');
+          setMfaStatus(prev => ({ ...prev, loading: false }));
+        }
+      } else {
+        // Disable MFA
+        const res = await fetch('/api/employee-dashboard/security/mfa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'disable' }),
+        });
+        
+        if (res.ok) {
+          setMfaStatus({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
+          toast.success('MFA disabled successfully');
+        } else {
+          const error = await res.json();
+          toast.error(error.error || 'Failed to disable MFA');
+          setMfaStatus(prev => ({ ...prev, loading: false }));
+        }
+      }
+    } catch (error) {
+      toast.error('An error occurred while updating MFA settings');
+      setMfaStatus(prev => ({ ...prev, loading: false }));
+    }
+  };
+  
+  const handleMfaVerify = async () => {
+    if (!verificationCode || !mfaStatus.factorId) {
+      toast.error('Please enter the verification code');
+      return;
+    }
+    
+    setMfaStatus(prev => ({ ...prev, loading: true }));
+    
+    try {
+      const res = await fetch('/api/employee-dashboard/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'verify', 
+          factorId: mfaStatus.factorId,
+          code: verificationCode 
+        }),
+      });
+      
+      if (res.ok) {
+        setMfaStatus({ enabled: true, loading: false, showSetup: false, qrCode: '', factorId: '' });
+        setVerificationCode('');
+        toast.success('MFA enabled successfully');
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'Invalid verification code');
+        setMfaStatus(prev => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      toast.error('An error occurred during verification');
+      setMfaStatus(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -579,13 +680,63 @@ export default function EmployeeSettings() {
             {activeTab === 'security' && (
               <div className="space-y-6">
                 <SettingsCard icon={Shield} title="Multi-Factor Authentication" description="Add an extra layer of security to your account">
-                  <ToggleItem 
-                    icon={Smartphone}
-                    label="Authenticator App (TOTP)"
-                    description="Use an app like Google Authenticator or Authy"
-                    checked={mfaEnabled}
-                    onToggle={() => setMfaEnabled(!mfaEnabled)}
-                  />
+                  {mfaStatus.showSetup ? (
+                    <div className="space-y-4">
+                      <div className="text-center">
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                          Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                        </p>
+                        {mfaStatus.qrCode && (
+                          <div className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-slate-200">
+                            <img src={`data:image/png;base64,${mfaStatus.qrCode}`} alt="QR Code" className="w-full h-full" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Verification Code</Label>
+                        <Input 
+                          type="text" 
+                          placeholder="Enter 6-digit code"
+                          value={verificationCode}
+                          onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          maxLength={6}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={handleMfaVerify}
+                          disabled={mfaStatus.loading || verificationCode.length !== 6}
+                          className="bg-primary text-white"
+                        >
+                          {mfaStatus.loading ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Verifying...
+                            </div>
+                          ) : (
+                            'Enable MFA'
+                          )}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setMfaStatus(prev => ({ ...prev, showSetup: false, loading: false }));
+                            setVerificationCode('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <ToggleItem 
+                      icon={Smartphone}
+                      label="Authenticator App (TOTP)"
+                      description="Use an app like Google Authenticator or Authy"
+                      checked={mfaStatus.enabled}
+                      onToggle={(checked: boolean) => handleMfaToggle(checked)}
+                    />
+                  )}
                 </SettingsCard>
 
                 <SettingsCard icon={History} title="Login History & Activity" description="Recent security-related events on your account">
