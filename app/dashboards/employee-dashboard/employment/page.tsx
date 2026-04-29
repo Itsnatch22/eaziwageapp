@@ -11,6 +11,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 interface EmploymentData {
   employment: {
     full_name: string;
+    avatar_url: string | null;
     employee_code: string;
     job_title: string;
     department: string;
@@ -107,8 +108,25 @@ const EmploymentDetails = () => {
               <Landmark className="w-48 h-48" />
            </div>
            <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-              <div className="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-3xl font-bold">
-                 {employment.full_name?.charAt(0)}
+              <div className="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-3xl font-bold overflow-hidden">
+                 {employment.avatar_url ? (
+                    <img 
+                      src={employment.avatar_url} 
+                      alt={employment.full_name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const fallback = target.nextElementSibling as HTMLElement;
+                        if (fallback) {
+                          fallback.style.display = 'flex';
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div style={{ display: employment.avatar_url ? 'none' : 'flex' }}>
+                    {employment.full_name?.charAt(0)}
+                  </div>
               </div>
               <div className="text-center md:text-left">
                  <h2 className="text-3xl font-bold tracking-tight">{employment.full_name}</h2>

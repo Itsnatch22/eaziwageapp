@@ -22,10 +22,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user profile for full_name
+    // Get user profile for full_name and avatar
     const { data: profile, error: profileError } = await adminSupabase
       .from('profiles')
-      .select('full_name')
+      .select('full_name, avatar_url')
       .eq('id', user.id)
       .single();
 
@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
     const employmentData = {
       ...onboarding,
       full_name: profile?.full_name || 'Not specified',
+      avatar_url: profile?.avatar_url || null,
       employee_code: onboarding?.employee_code || 'EMP-' + user.id.slice(-6).toUpperCase()
     };
 
