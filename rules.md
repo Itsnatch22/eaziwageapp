@@ -7,7 +7,7 @@
 
 ## 1. Project Identity
 
-This is the **authenticated product application** for EaziWage, a fintech earned wage access (EWA) platform targeting East Africa (Kenya, Uganda, Tanzania, Rwanda). It lives at `app.eaziwage.com` and is separate from the marketing site (`eaziwage.com`), which lives in the `advance` repo.
+This is the **authenticated product application** for EaziWage, a fintech earned wage access (EWA) platform targeting East Africa (Kenya, Uganda, Tanzania, Rwanda). It lives at `app.eaziwage.com` and is separate from the marketing site (`eaziwage.com`), which lives in the `eaziwageapp` repo.
 
 **Do not mix concerns between the two repos.** This repo handles:
 - User authentication (employee and employer)
