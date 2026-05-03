@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
-  DollarSign, TrendingUp, Wallet, ArrowRight, BarChart3, 
-  CreditCard, Activity, Calendar, Download, Building2
+  DollarSign, Wallet, ArrowRight, BarChart3, 
+  CreditCard, Activity, Calendar, Download, Building2,
+  MoreHorizontal, Eye, Settings
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -84,6 +85,7 @@ export default function BillingPage() {
   const [data, setData] = useState<BillingData | null>(null);
   const [employers, setEmployers] = useState<Employer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -111,6 +113,17 @@ export default function BillingPage() {
     }
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionMenuOpen && !(event.target as Element).closest('.relative')) {
+        setActionMenuOpen(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [actionMenuOpen]);
 
   if (loading) {
     return (
@@ -274,9 +287,45 @@ export default function BillingPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <TrendingUp className="w-4 h-4" />
-                    </Button>
+                    <div className="relative">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => setActionMenuOpen(actionMenuOpen === employer.id ? null : employer.id)}
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                      
+                      {actionMenuOpen === employer.id && (
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-10">
+                          <Link href={`/admin/employers/${employer.id}`}>
+                            <button className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
+                              <Eye className="w-4 h-4" />
+                              View Details
+                            </button>
+                          </Link>
+                          <Link href={`/admin/employers/${employer.id}/wallet`}>
+                            <button className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
+                              <Wallet className="w-4 h-4" />
+                              Wallet Management
+                            </button>
+                          </Link>
+                          <Link href={`/admin/employers/${employer.id}/advances`}>
+                            <button className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
+                              <CreditCard className="w-4 h-4" />
+                              Advance History
+                            </button>
+                          </Link>
+                          <Link href={`/admin/employers/${employer.id}/settings`}>
+                            <button className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
+                              <Settings className="w-4 h-4" />
+                              Settings
+                            </button>
+                          </Link>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

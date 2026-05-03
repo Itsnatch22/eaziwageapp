@@ -27,7 +27,7 @@ interface Notification {
 }
 
 interface DashboardStats {
-  employers: { total: number; active: number; trend?: string; trendUp?: boolean };
+  employers: { total: number; active: number; rejected: number; trend?: string; trendUp?: boolean };
   employees: { total: number; active: number; trend?: string; trendUp?: boolean };
   advances: { total_count: number; pending_count: number; total_disbursed: number; total_fees: number };
   kyc_pending: { employers: number; employees: number };
@@ -140,7 +140,6 @@ const NotificationCenter = ({ notifications }: { notifications: Notification[] }
     return config[type as keyof typeof config] || config.system_alert;
   };
 
-  // Show only the latest 4 notifications
   const recentNotifications = notifications.slice(0, 4);
 
   return (
@@ -183,7 +182,6 @@ const NotificationCenter = ({ notifications }: { notifications: Notification[] }
   );
 };
 
-// Main
 export default function AdminDashboard() {
   const { currency } = useCurrency();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -389,7 +387,7 @@ export default function AdminDashboard() {
 
       {/* Metrics */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard icon={Building2} label="Total Employers" value={stats?.employers.total || 0} subtext={`${stats?.employers.active || 0} active`} trend={stats?.employers.trend} trendUp={stats?.employers.trendUp} variant="green" />
+        <MetricCard icon={Building2} label="Total Employers" value={stats?.employers.total || 0} subtext={`${stats?.employers.active || 0} active, ${stats?.employers.rejected || 0} rejected`} trend={stats?.employers.trend} trendUp={stats?.employers.trendUp} variant="green" />
         <MetricCard icon={Users} label="Total Employees" value={stats?.employees.total || 0} subtext={`${stats?.employees.active || 0} active`} trend={stats?.employees.trend} trendUp={stats?.employees.trendUp} variant="slate" />
         <MetricCard icon={CreditCard} label="Total Advances" value={stats?.advances.total_count || 0} subtext={`${stats?.advances.pending_count || 0} pending`} variant="green" />
         <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats?.advances.total_disbursed || 0, DEFAULT_ADMIN_CURRENCY)} subtext={`Fees: ${formatCurrency(stats?.advances.total_fees || 0, DEFAULT_ADMIN_CURRENCY)}`} variant="slate" />

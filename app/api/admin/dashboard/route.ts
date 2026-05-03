@@ -103,6 +103,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'approved');
 
+    const { count: employerRejected } = await supabase
+      .from('employers')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'rejected');
+
     const { count: employerPending } = await supabase
       .from('employer_onboarding')
       .select('id', { count: 'exact', head: true })
@@ -206,6 +211,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       employers: {
         total:  employerTotal || 0,
         active: employerActive || 0,
+        rejected: employerRejected || 0,
         trend: employerTrend,
         trendUp: employerTrendValue >= 0,
       },

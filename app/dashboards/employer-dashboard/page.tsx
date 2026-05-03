@@ -103,9 +103,9 @@ const AnimatedCounter = ({ value, prefix = '', suffix = '' }: { value: number; p
 
 // ─── Main Stats Card ──────────────────────────────────────────────────────────
 
-const MainStatsCard = ({ employer, curr }: { employer: EmployerProfile | null; curr: PeriodData | null }) => {
-  const total  = curr?.employees.total  ?? 0;
-  const active = curr?.employees.active ?? 0;
+const MainStatsCard = ({ employer, employeeStats }: { employer: EmployerProfile | null; employeeStats: EmployeeStats | null }) => {
+  const total  = employeeStats?.total_employees  ?? 0;
+  const active = employeeStats?.active_employees ?? 0;
   const pct    = total > 0 ? Math.round((active / total) * 100) : 0;
   const circ   = 2 * Math.PI * 44;
   const offset = circ - (pct / 100) * circ;
@@ -494,7 +494,7 @@ export default function EmployerDashboard() {
         )}
 
         <div className="grid lg:grid-cols-3 gap-6">
-          <MainStatsCard employer={employer} curr={curr} />
+          <MainStatsCard employer={employer} employeeStats={employeeStats} />
 
           <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
             <MetricCard
