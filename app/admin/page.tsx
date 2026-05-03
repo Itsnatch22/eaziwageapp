@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { 
   Building2, Users, CreditCard, Shield, CheckCircle2,
   TrendingUp, ArrowRight, FileText, Wifi, Activity, AlertTriangle, 
-  DollarSign, BarChart3, RefreshCw,
-} from 'lucide-react';import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
+  DollarSign, BarChart3, RefreshCw, Bell, Info, AlertCircle, CheckSquare,
+} from 'lucide-react';import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY, formatDateTime } from '@/lib/utils';
 import pusherClient from '@/lib/pusher-client';
 import { useCurrency } from '@/hooks/useCurrency';
 
@@ -15,6 +15,16 @@ type VariantColor = 'green' | 'slate' | 'black';
 type IconSize = 'sm' | 'md' | 'lg';
 type IconComponent = React.ComponentType<{ className?: string }>;
 type APIStatus = 'healthy' | 'degraded' | 'down';
+
+interface Notification {
+  id:         string;
+  type:       'review_request' | 'employer_kyc' | 'flagged_advance' | 'system_alert' | 'employee';
+  title:      string;
+  message:    string;
+  read:       boolean;
+  created_at: string;
+  metadata?:  Record<string, unknown>;
+}
 
 interface DashboardStats {
   employers: { total: number; active: number; trend?: string; trendUp?: boolean };
@@ -118,46 +128,57 @@ const AlertCard = ({ icon: Icon, title, count, description, link, variant }: {
   );
 };
 
-const APIHealthCard = ({ api }: { api: { name: string; status: APIStatus; latency_ms: number; uptime_percent: number } }) => {
-  const statusConfig = {
-    healthy: { color: 'bg-green-500', text: 'text-green-600', label: 'Operational' },
-    degraded: { color: 'bg-slate-500', text: 'text-slate-600', label: 'Degraded' },
-    down: { color: 'bg-slate-600', text: 'text-slate-700', label: 'Down' }
+const NotificationCenter = ({ notifications }: { notifications: Notification[] }) => {
+  const getNotificationConfig = (type: string) => {
+    const config = {
+      review_request:  { icon: Shield,        bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-600 dark:text-green-400' },
+      employer_kyc:    { icon: Building2,     bg: 'bg-amber-100 dark:bg-amber-500/20',  text: 'text-amber-600' },
+      flagged_advance: { icon: AlertTriangle, bg: 'bg-red-100 dark:bg-red-500/20',      text: 'text-red-600' },
+      system_alert:    { icon: Bell,          bg: 'bg-blue-100 dark:bg-blue-500/20',     text: 'text-blue-600' },
+      employee:        { icon: Shield,        bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-600 dark:text-green-400' },
+    };
+    return config[type as keyof typeof config] || config.system_alert;
   };
 
-  const config = statusConfig[api.status];
+  // Show only the latest 4 notifications
+  const recentNotifications = notifications.slice(0, 4);
 
   return (
-    <div className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-200/30 dark:border-slate-700/20">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className={cn('w-2 h-2 rounded-full', config.color, api.status === 'healthy' && 'animate-pulse')} />
-          <div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">{api.name}</span>
-            <span className={cn('text-xs', config.text)}>{config.label}</span>
+    <div className="space-y-3">
+      {recentNotifications.map((notification) => {
+        const config = getNotificationConfig(notification.type);
+        const { icon: Icon, bg, text } = config;
+        
+        return (
+          <div 
+            key={notification.id}
+            className={cn(
+              'p-3 rounded-xl border transition-all hover:shadow-sm',
+              bg,
+              !notification.read && 'bg-green-50/30 dark:bg-green-900/10'
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', bg)}>
+                <Icon className={cn('w-4 h-4', text)} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={cn('font-semibold text-sm', !notification.read ? 'text-green-700 dark:text-green-400' : text)}>
+                    {notification.title}
+                  </p>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    {formatDateTime(notification.created_at)}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  {notification.message}
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-4 text-xs">
-        <div className="text-right">
-          <span className={cn('font-medium', 
-            api.latency_ms < 150 ? 'text-green-600' : 
-            api.latency_ms < 300 ? 'text-slate-600' : 'text-slate-700'
-          )}>
-            {api.latency_ms}ms
-          </span>
-          <span className="text-slate-500 block">Latency</span>
-        </div>
-        <div className="text-right">
-          <span className={cn('font-medium',
-            api.uptime_percent >= 99.5 ? 'text-green-600' :
-            api.uptime_percent >= 98 ? 'text-slate-600' : 'text-slate-700'
-          )}>
-            {api.uptime_percent}%
-          </span>
-          <span className="text-slate-500 block">Uptime</span>
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 };
@@ -166,6 +187,7 @@ const APIHealthCard = ({ api }: { api: { name: string; status: APIStatus; latenc
 export default function AdminDashboard() {
   const { currency } = useCurrency();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [cacheStatus, setCacheStatus] = useState<'HIT' | 'MISS' | null>(null);
   const [refreshingCache, setRefreshingCache] = useState(false);
@@ -175,16 +197,33 @@ export default function AdminDashboard() {
   const handleUpdate = () => {
     console.log('[Pusher] Admin dashboard update triggered');
     // Re-fetch data without showing full-page loader for better UX
-    fetch('/api/admin/dashboard')
-      .then(async res => {
+    Promise.all([
+      fetch('/api/admin/dashboard'),
+      fetch('/api/admin/notifications')
+    ]).then(async ([dashboardRes, notificationsRes]) => {
+      const [dashboardData, notificationsData] = await Promise.all([
+        dashboardRes.json(),
+        notificationsRes.json()
+      ]);
+      setStats(dashboardData);
+      setNotifications(notificationsData);
+      // Update cache status
+      const cacheHeader = dashboardRes.headers.get('X-Cache');
+      setCacheStatus(cacheHeader as 'HIT' | 'MISS' | null);
+    })
+    .catch(err => console.error('Silent refresh failed:', err));
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('/api/admin/notifications');
+      if (res.ok) {
         const data = await res.json();
-        setStats(data);
-        // Update cache status
-        const cacheHeader = res.headers.get('X-Cache');
-        setCacheStatus(cacheHeader as 'HIT' | 'MISS' | null);
-        return data;
-      })
-      .catch(err => console.error('Silent refresh failed:', err));
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    }
   };
 
   const handleCacheRefresh = async () => {
@@ -211,13 +250,22 @@ export default function AdminDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/dashboard');
-        if (res.ok) {
-          const data = await res.json();
+        const [dashboardRes, notificationsRes] = await Promise.all([
+          fetch('/api/admin/dashboard'),
+          fetch('/api/admin/notifications')
+        ]);
+        
+        if (dashboardRes.ok) {
+          const data = await dashboardRes.json();
           setStats(data);
           // Set cache status from response headers
-          const cacheHeader = res.headers.get('X-Cache');
+          const cacheHeader = dashboardRes.headers.get('X-Cache');
           setCacheStatus(cacheHeader as 'HIT' | 'MISS' | null);
+        }
+        
+        if (notificationsRes.ok) {
+          const notificationsData = await notificationsRes.json();
+          setNotifications(notificationsData);
         }
       } catch (err) {
         console.error('[AdminDashboard] fetch failed:', err);
@@ -231,10 +279,19 @@ export default function AdminDashboard() {
     if (!pusherClient) return;
 
     const channel = pusherClient.subscribe('admin-notifications');
-    channel.bind('new-notification', handleUpdate);
+    channel.bind('new-notification', (data: Notification) => {
+      setNotifications((prev) => [data, ...prev]);
+      // Also update dashboard stats if needed
+      handleUpdate();
+    });
+
+    channel.bind('notification-deleted', (data: { id: string }) => {
+      setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
+    });
 
     return () => {
-      channel.unbind('new-notification', handleUpdate);
+      channel.unbind('new-notification');
+      channel.unbind('notification-deleted');
       pusherClient!.unsubscribe('admin-notifications');
     };
   }, []);
@@ -276,9 +333,9 @@ export default function AdminDashboard() {
             <RefreshCw className={cn('w-4 h-4 mr-2', refreshingCache && 'animate-spin')} /> 
             {refreshingCache ? 'Clearing Cache...' : 'Clear Cache'}
           </button>
-          <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60">
+          <Link href="/admin/reports" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60">
             <BarChart3 className="w-4 h-4 mr-2" /> Reports
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -370,21 +427,19 @@ export default function AdminDashboard() {
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <GradientIconBox icon={Wifi} size="sm" variant="green" />
-              <h2 className="font-bold text-slate-900 dark:text-white">API Health</h2>
+              <GradientIconBox icon={Bell} size="sm" variant="green" />
+              <h2 className="font-bold text-slate-900 dark:text-white">Notifications</h2>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs font-medium text-green-600 dark:text-green-400">All Systems Operational</span>
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                {notifications.filter(n => !n.read).length} New
+              </span>
             </div>
           </div>
-          <div className="space-y-2">
-            {stats?.api_health && Object.entries(stats.api_health).map(([key, api]) => (
-              <APIHealthCard key={key} api={{ ...api, name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }} />
-            ))}
-          </div>
-          <Link href="/admin/api-health" className="inline-flex items-center gap-1 text-sm text-green-600 mt-4 hover:gap-2 transition-all">
-            View Details <ArrowRight className="w-4 h-4" />
+          <NotificationCenter notifications={notifications} />
+          <Link href="/admin/notifications" className="inline-flex items-center gap-1 text-sm text-green-600 mt-4 hover:gap-2 transition-all">
+            View All <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </div>

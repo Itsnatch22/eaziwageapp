@@ -89,18 +89,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { employer_id, status, search, limit, offset } = queryParams.data;
 
-    // Query both employees table (approved) and employee_onboarding table (all onboarded)
+    // employees.employer_id → employers (FK)
+    // employee_onboarding.employer_id → employer_onboarding (FK)
     const [employeesResult, onboardingResult] = await Promise.all([
       adminSupabase
         .from('employees')
         .select(`
           *,
-          employer_onboarding!employer_id (
+          employers!employer_id (
             company_name
           )
         `)
         .order('created_at', { ascending: false }),
-      
+
       adminSupabase
         .from('employee_onboarding')
         .select(`
@@ -109,7 +110,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             company_name
           )
         `)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false }),
     ]);
 
     const { data: employees, error: employeeErr } = employeesResult;
@@ -117,23 +118,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (employeeErr || onboardingErr) {
       console.error('[GET /api/admin/employees] Query error:', { employeeErr, onboardingErr });
-      return NextResponse.json({ error: 'Failed to fetch employees', code: 'QUERY_ERROR' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to fetch employees', code: 'QUERY_ERROR' },
+        { status: 500 }
+      );
     }
 
-    // Combine both datasets, prioritizing employees table data for approved users
+    // Combine both datasets, prioritizing employees table for approved users
     const allEmployees = [...(employees || []), ...(onboardingEmployees || [])];
-    
-    // Remove duplicates (users who exist in both tables)
-    const uniqueEmployees = allEmployees.filter((emp, index, self) => 
-      index === self.findIndex(e => e.user_id === emp.user_id)
+
+    // Remove duplicates — employees table takes priority (appears first)
+    const uniqueEmployees = allEmployees.filter((emp, index, self) =>
+      index === self.findIndex((e) => e.user_id === emp.user_id)
     );
 
     // Apply filters
     let filteredEmployees = uniqueEmployees;
-    
+
     if (search) {
       const searchLower = search.toLowerCase();
-      filteredEmployees = filteredEmployees.filter(emp =>
+      filteredEmployees = filteredEmployees.filter((emp) =>
         (emp.full_name && emp.full_name.toLowerCase().includes(searchLower)) ||
         (emp.name && emp.name.toLowerCase().includes(searchLower)) ||
         (emp.email && emp.email.toLowerCase().includes(searchLower)) ||
@@ -144,60 +148,70 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
 
     if (status) {
-      filteredEmployees = filteredEmployees.filter(emp => {
-        const empStatus = emp.status === 'Active' ? 'active' : 
-                         emp.status === 'approved' ? 'active' : 
-                         emp.status?.toLowerCase() || 'pending';
+      filteredEmployees = filteredEmployees.filter((emp) => {
+        const empStatus =
+          emp.status === 'Active' ? 'active' :
+          emp.status === 'approved' ? 'active' :
+          emp.status?.toLowerCase() || 'pending';
         return empStatus === status;
       });
     }
 
     if (employer_id) {
-      filteredEmployees = filteredEmployees.filter(emp => emp.employer_id === employer_id);
+      filteredEmployees = filteredEmployees.filter((emp) => emp.employer_id === employer_id);
     }
 
-    // Apply pagination
+    // Pagination
     const total = filteredEmployees.length;
     const paginatedEmployees = filteredEmployees.slice(offset, offset + limit);
-    const count = total;
 
     if (!paginatedEmployees || paginatedEmployees.length === 0) {
-      return NextResponse.json({ data: [], pagination: { total: 0, limit, offset, hasMore: false } }, { status: 200 });
+      return NextResponse.json(
+        { data: [], pagination: { total: 0, limit, offset, hasMore: false } },
+        { status: 200 }
+      );
     }
 
-    const validatedEmployees = paginatedEmployees.map((emp) => {
-      const flattened = {
-        id:             emp.id,
-        user_id:        emp.user_id,
-        employer_id:    emp.employer_id,
-        employee_code:  emp.employee_code || 'N/A',
-        full_name:      emp.full_name || emp.name || 'Anonymous User',
-        name:           emp.name || emp.full_name || 'Anonymous User',
-        email:          emp.email,
-        phone:          emp.phone,
-        job_title:      emp.job_title || 'Not Set',
-        department:     emp.department || 'Not Set',
-        monthly_salary: emp.monthly_salary || 0,
-        hire_date:      emp.hire_date || emp.start_date || null,
-        status:         (emp.status === 'Active' || emp.status === 'approved' ? 'active' : emp.status?.toLowerCase() || 'pending') as any,
-        kyc_status:     emp.kyc_status || emp.status || 'pending',
-        employer_name:  emp.employer_onboarding?.company_name || emp.employer?.company_name || 'Unlinked',
-        created_at:     emp.created_at,
-        updated_at:     emp.updated_at || emp.updated_at,
-      };
+    const validatedEmployees = paginatedEmployees
+      .map((emp) => {
+        const flattened = {
+          id:             emp.id,
+          user_id:        emp.user_id,
+          employer_id:    emp.employer_id,
+          employee_code:  emp.employee_code || 'N/A',
+          full_name:      emp.full_name || emp.name || 'Anonymous User',
+          name:           emp.name || emp.full_name || 'Anonymous User',
+          email:          emp.email,
+          phone:          emp.phone,
+          job_title:      emp.job_title || 'Not Set',
+          department:     emp.department || 'Not Set',
+          monthly_salary: emp.monthly_salary || 0,
+          hire_date:      emp.hire_date || emp.start_date || null,
+          status: (
+            emp.status === 'Active' || emp.status === 'approved'
+              ? 'active'
+              : emp.status?.toLowerCase() || 'pending'
+          ) as any,
+          kyc_status:     emp.kyc_status || emp.status || 'pending',
+          // Resolve company name from correct join per table
+          employer_name:  emp.employers?.company_name || emp.employer_onboarding?.company_name || 'Unlinked',
+          created_at:     emp.created_at,
+          updated_at:     emp.updated_at,
+        };
 
-      const parsed = EmployeeSchema.safeParse(flattened);
-      return parsed.success ? parsed.data : flattened;
-    }).filter(Boolean);
+        const parsed = EmployeeSchema.safeParse(flattened);
+        return parsed.success ? parsed.data : flattened;
+      })
+      .filter(Boolean);
 
     return NextResponse.json(
       {
         data: validatedEmployees,
         pagination: {
-          total: count || 0,
+          total,
           limit,
           offset,
-          hasMore: (count || 0) > offset + limit,
+          hasMore: total > offset + limit,
         },
       },
       {

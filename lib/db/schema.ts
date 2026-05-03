@@ -255,6 +255,36 @@ export const accountDeletionEvents = pgTable('account_deletion_events', {
   reason_category_idx: index('account_deletion_events_reason_category_idx').on(table.deletion_reason_category),
 }));
 
+// Admin Reports
+export const adminReports = pgTable('admin_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  type: text('type').$type<'financial' | 'operational' | 'compliance' | 'performance'>().notNull(),
+  period: text('period').$type<'today' | 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'>().notNull(),
+  status: text('status').$type<'generating' | 'ready' | 'failed' | 'scheduled'>().default('generating').notNull(),
+  generated_at: timestamp('generated_at'),
+  file_size: text('file_size'),
+  download_url: text('download_url'),
+  scheduled_for: timestamp('scheduled_for'),
+  metrics: jsonb('metrics').$type<{
+    totalRecords?: number;
+    processingTime?: number;
+    accuracy?: number;
+  }>().default(sql`'{}'`),
+  created_by: uuid('created_by'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  type_idx: index('admin_reports_type_idx').on(table.type),
+  status_idx: index('admin_reports_status_idx').on(table.status),
+  period_idx: index('admin_reports_period_idx').on(table.period),
+  created_by_idx: index('admin_reports_created_by_idx').on(table.created_by),
+  created_at_idx: index('admin_reports_created_at_idx').on(table.created_at),
+  generated_at_idx: index('admin_reports_generated_at_idx').on(table.generated_at),
+  status_type_idx: index('admin_reports_status_type_idx').on(table.status, table.type),
+}));
+
 // Type exports
 export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
@@ -271,3 +301,5 @@ export type BlackoutPeriod = typeof blackoutPeriods.$inferSelect;
 export type LegalDocument = typeof legalDocuments.$inferSelect;
 export type SystemAuditLog = typeof systemAuditLogs.$inferSelect;
 export type AccountDeletionEvent = typeof accountDeletionEvents.$inferSelect;
+export type AdminReport = typeof adminReports.$inferSelect;
+export type NewAdminReport = typeof adminReports.$inferInsert;

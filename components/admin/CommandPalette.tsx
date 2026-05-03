@@ -6,8 +6,8 @@ import {
   Search, Users, Building2, CreditCard, 
   ArrowRight, Command, X, Loader2, Sparkles,
   Settings, Shield, FileCheck, DollarSign, Activity,
-  Bell, GitBranch, UsersRound, Wallet, AlertTriangle,
-  BarChart3, FileText
+  Bell, GitBranch, FileText, AlertTriangle,
+  BarChart3,
 } from 'lucide-react';
 import { useDebounce } from 'use-debounce';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,6 +28,7 @@ const adminNavItems = [
   { id: 'settings', title: 'Settings', href: '/admin/settings', icon: Settings },
   { id: 'notifications', title: 'Notifications', href: '/admin/notifications', icon: Bell },
   { id: 'api-health', title: 'API Health', href: '/admin/api-health', icon: Activity },
+  { id: 'docs', title: 'Documentation', href: '/admin/docs', icon: FileText }
 ];
 
 interface SearchResult {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   DollarSign, TrendingUp, Wallet, ArrowRight, BarChart3, 
   CreditCard, Activity, Calendar, Download, Building2
@@ -9,11 +10,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area, Legend 
 } from 'recharts';
-import { formatCurrency, cn } from '@/lib/utils';
-import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
-// --- Types ---
 interface BillingData {
   summary: {
     total_revenue: number;
@@ -27,14 +26,6 @@ interface BillingData {
     disbursed: number;
     count: number;
   }>;
-  walletHealth: Array<{
-    id: string;
-    company_name: string;
-    balance: number;
-    arrears_balance: number;
-    currency: string;
-    utilization: number;
-  }>;
   topRevenueGenerators: Array<{
     id: string;
     company_name: string;
@@ -42,7 +33,28 @@ interface BillingData {
   }>;
 }
 
-// --- Components ---
+interface Employer {
+  id:                  string;
+  company_name:        string;
+  employer_code:       string;
+  industry:            string;
+  country:             string;
+  registration_number: string | null;
+  tax_id:              string | null;
+  address:             string | null;
+  contact_person:      string | null;
+  contact_email:       string;
+  contact_phone:       string | null;
+  payroll_cycle:       'weekly' | 'biweekly' | 'monthly' | null;
+  status:              'approved' | 'pending' | 'rejected' | 'suspended';
+  employee_count:      number;
+  total_advances:      number;
+  monthly_payroll:     number;
+  risk_score:          number | null;
+  deleted_at:          string | null;
+  created_at:          string;
+  updated_at:          string;
+}
 
 const MetricCard = ({ icon: Icon, label, value, subtext, variant = 'purple' }: any) => {
   const variants: any = {
@@ -69,20 +81,30 @@ const MetricCard = ({ icon: Icon, label, value, subtext, variant = 'purple' }: a
 };
 
 export default function BillingPage() {
-  const { currency } = useCurrency();
   const [data, setData] = useState<BillingData | null>(null);
+  const [employers, setEmployers] = useState<Employer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch('/api/admin/billing');
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
+        const [billingRes, employersRes] = await Promise.all([
+          fetch('/api/admin/billing'),
+          fetch('/api/admin/employers')
+        ]);
+        
+        if (billingRes.ok) {
+          const billingJson = await billingRes.json();
+          setData(billingJson);
+        }
+        
+        if (employersRes.ok) {
+          const employersPayload = await employersRes.json();
+          const employersData = Array.isArray(employersPayload) ? employersPayload : (employersPayload.data ?? []);
+          setEmployers(employersData);
         }
       } catch (err) {
-        console.error('Failed to fetch billing data', err);
+        console.error('Failed to fetch data', err);
       } finally {
         setLoading(false);
       }
@@ -102,7 +124,7 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Billing & Revenue</h1>
@@ -113,6 +135,7 @@ export default function BillingPage() {
             <Calendar className="w-4 h-4 mr-2" />
             Last 6 Months
           </Button>
+          {/*Report button functionality to be implemented*/}
           <Button className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-lg shadow-purple-600/20">
             <Download className="w-4 h-4 mr-2" />
             Export Report
@@ -120,41 +143,39 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard 
           icon={DollarSign} 
           label="Total Revenue" 
-          value={formatCurrency(data.summary.total_revenue, currency)} 
+          value={formatCurrency(data.summary.total_revenue, DEFAULT_ADMIN_CURRENCY)} 
           variant="purple"
           subtext="Cumulative platform fees earned"
         />
         <MetricCard 
           icon={CreditCard} 
           label="Total Disbursed" 
-          value={formatCurrency(data.summary.total_disbursed, currency)} 
+          value={formatCurrency(data.summary.total_disbursed, DEFAULT_ADMIN_CURRENCY)} 
           variant="blue"
           subtext="All-time advances processed"
         />
         <MetricCard 
           icon={Wallet} 
           label="Wallet Balances" 
-          value={formatCurrency(data.summary.total_wallet_balance, currency)} 
+          value={formatCurrency(data.summary.total_wallet_balance, DEFAULT_ADMIN_CURRENCY)} 
           variant="green"
           subtext="Total employer funds on platform"
         />
         <MetricCard 
           icon={BarChart3} 
           label="Arrears" 
-          value={formatCurrency(data.summary.total_arrears, currency)} 
+          value={formatCurrency(data.summary.total_arrears, DEFAULT_ADMIN_CURRENCY)} 
           variant="amber"
           subtext="Outstanding repayments due"
         />
       </div>
 
-      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Revenue Trend */}
+
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-white">Revenue Trend</h3>
           <div className="h-[300px]">
@@ -179,7 +200,6 @@ export default function BillingPage() {
           </div>
         </div>
 
-        {/* Disbursement vs Revenue */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-white">Disbursement Volume</h3>
           <div className="h-[300px]">
@@ -198,13 +218,14 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Wallet Health Table */}
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
         <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/30 flex justify-between items-center">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Employer Wallet Health</h3>
-          <Button variant="ghost" size="sm" className="text-purple-600 font-medium">
-            View All Wallets <ArrowRight className="ml-2 w-4 h-4" />
-          </Button>
+          <Link href="/admin/employers">
+            <Button variant="ghost" size="sm" className="text-purple-600 font-medium">
+              View All Employers <ArrowRight className="ml-2 w-4 h-4" />
+            </Button>
+          </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -218,27 +239,25 @@ export default function BillingPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
-              {data.walletHealth.map((wallet) => (
-                <tr key={wallet.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+              {employers.slice(0, 10).map((employer) => (
+                <tr key={employer.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
                         <Building2 className="w-4 h-4 text-blue-600" />
                       </div>
-                      <span className="font-semibold text-slate-900 dark:text-white">{wallet.company_name}</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">{employer.company_name}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                    {formatCurrency(wallet.balance, wallet.currency)}
+                    {formatCurrency(employer.monthly_payroll, DEFAULT_ADMIN_CURRENCY)}
                   </td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       "px-2.5 py-1 rounded-lg text-xs font-medium",
-                      wallet.arrears_balance > 0 
-                        ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300"
-                        : "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                      "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
                     )}>
-                      {formatCurrency(wallet.arrears_balance, wallet.currency)}
+                      {formatCurrency(0, DEFAULT_ADMIN_CURRENCY)}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -246,10 +265,12 @@ export default function BillingPage() {
                       <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden min-w-[60px]">
                         <div 
                           className="h-full bg-purple-600 rounded-full" 
-                          style={{ width: `${Math.min(wallet.utilization || 0, 100)}%` }} 
+                          style={{ width: `${Math.min(employer.employee_count > 0 ? (employer.total_advances / employer.employee_count) * 20 : 0, 100)}%` }} 
                         />
                       </div>
-                      <span className="text-xs text-slate-500">{wallet.utilization || 0}%</span>
+                      <span className="text-xs text-slate-500">
+                        {employer.employee_count > 0 ? Math.round((employer.total_advances / employer.employee_count) * 20) : 0}%
+                      </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -285,7 +306,7 @@ export default function BillingPage() {
                     <span className="font-semibold text-slate-900 dark:text-white">{gen.company_name}</span>
                   </td>
                   <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                    {formatCurrency(gen.revenue, currency)}
+                    {formatCurrency(gen.revenue, DEFAULT_ADMIN_CURRENCY)}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-xs font-bold text-purple-600">

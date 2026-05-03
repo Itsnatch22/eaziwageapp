@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, useRef } from 'react';
 import { 
   Settings, Building2, Users, Sliders, Bell, Shield, 
   Save, RefreshCw, Search, Percent, Clock, DollarSign, AlertTriangle,
@@ -184,6 +184,14 @@ interface AdminUser {
   name: string;
 }
 
+interface SecurityLog {
+  action: string;
+  created_at: string;
+  metadata?: {
+    ip?: string;
+  };
+}
+
 interface AuditFilters {
   auditType: string;
   settingsType: string;
@@ -200,6 +208,10 @@ interface Pagination {
 
 // Tab Types
 type TabId = 'global' | 'employer' | 'employee' | 'risk' | 'notifications' | 'blackouts' | 'legal' | 'audit' | 'security';
+
+interface SettingsSaveHandle {
+  save: () => Promise<void>;
+}
 
 interface Tab {
   id: TabId;
@@ -575,19 +587,24 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
 interface EmployerConfigTabProps {
   token: string | null;
   onSave: () => void;
+  onSaveAvailabilityChange: (canSave: boolean) => void;
 }
 
-const EmployerConfigTab: React.FC<EmployerConfigTabProps> = ({ token, onSave }) => {
+const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTabProps>(({ token, onSave, onSaveAvailabilityChange }, ref) => {
   const [employers, setEmployers] = useState<Employer[]>([]);
   const [selectedEmployer, setSelectedEmployer] = useState<Employer | null>(null);
   const [employerSettings, setEmployerSettings] = useState<EmployerSettings | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
+  const [, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     fetchEmployers();
   }, []);
+
+  useEffect(() => {
+    onSaveAvailabilityChange(Boolean(selectedEmployer && employerSettings));
+  }, [employerSettings, onSaveAvailabilityChange, selectedEmployer]);
 
   const fetchEmployers = async () => {
     try {
@@ -644,6 +661,10 @@ const EmployerConfigTab: React.FC<EmployerConfigTabProps> = ({ token, onSave }) 
       setSaving(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    save: saveEmployerSettings,
+  }));
 
   const filteredEmployers = employers.filter(emp => 
     emp.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -721,15 +742,6 @@ const EmployerConfigTab: React.FC<EmployerConfigTabProps> = ({ token, onSave }) 
                     <p className="text-slate-500">{selectedEmployer.employee_count || 0} employees • {selectedEmployer.country}</p>
                   </div>
                 </div>
-                <Button 
-                  onClick={saveEmployerSettings}
-                  disabled={saving}
-                  className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
-                  data-testid="save-employer-settings-btn"
-                >
-                  {saving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  Save Settings
-                </Button>
               </div>
 
               {/* Quick Stats */}
@@ -940,16 +952,19 @@ const EmployerConfigTab: React.FC<EmployerConfigTabProps> = ({ token, onSave }) 
       </div>
     </div>
   );
-};
+});
+
+EmployerConfigTab.displayName = 'EmployerConfigTab';
 
 // ─── Employee Configuration Tab ───────────────────────────────────────────────
 
 interface EmployeeConfigTabProps {
   token: string | null;
   onSave: () => void;
+  onSaveAvailabilityChange: (canSave: boolean) => void;
 }
 
-const EmployeeConfigTab: React.FC<EmployeeConfigTabProps> = ({ token, onSave }) => {
+const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTabProps>(({ token, onSave, onSaveAvailabilityChange }, ref) => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [employeeSettings, setEmployeeSettings] = useState<EmployeeSettings | null>(null);
@@ -957,11 +972,15 @@ const EmployeeConfigTab: React.FC<EmployeeConfigTabProps> = ({ token, onSave }) 
   const [employerSettings, setEmployerSettings] = useState<EmployerSettings | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
+  const [, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  useEffect(() => {
+    onSaveAvailabilityChange(Boolean(selectedEmployee && employeeSettings));
+  }, [employeeSettings, onSaveAvailabilityChange, selectedEmployee]);
 
   const fetchEmployees = async () => {
     try {
@@ -1020,6 +1039,10 @@ const EmployeeConfigTab: React.FC<EmployeeConfigTabProps> = ({ token, onSave }) 
       setSaving(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    save: saveEmployeeSettings,
+  }));
 
   const filteredEmployees = employees.filter(emp => 
     emp.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1106,15 +1129,6 @@ const EmployeeConfigTab: React.FC<EmployeeConfigTabProps> = ({ token, onSave }) 
                   }`}>
                     {selectedEmployee.risk_level ? selectedEmployee.risk_level.charAt(0).toUpperCase() + selectedEmployee.risk_level.slice(1) : 'N/A'} Risk
                   </span>
-                  <Button 
-                    onClick={saveEmployeeSettings}
-                    disabled={saving}
-                    className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
-                    data-testid="save-employee-settings-btn"
-                  >
-                    {saving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                    Save
-                  </Button>
                 </div>
               </div>
 
@@ -1240,7 +1254,9 @@ const EmployeeConfigTab: React.FC<EmployeeConfigTabProps> = ({ token, onSave }) 
       </div>
     </div>
   );
-};
+});
+
+EmployeeConfigTab.displayName = 'EmployeeConfigTab';
 
 // ─── Risk & Compliance Tab ────────────────────────────────────────────────────
 
@@ -2400,6 +2416,10 @@ const AdminSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId | 'account'>('account');
   const [hasChanges, setHasChanges] = useState<boolean>(false);
   const [token, setToken] = useState<string | null>(null);
+  const employerConfigRef = useRef<SettingsSaveHandle>(null);
+  const employeeConfigRef = useRef<SettingsSaveHandle>(null);
+  const [employerSaveAvailable, setEmployerSaveAvailable] = useState(false);
+  const [employeeSaveAvailable, setEmployeeSaveAvailable] = useState(false);
 
   // Settings States
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({});
@@ -2408,7 +2428,7 @@ const AdminSettings: React.FC = () => {
   
   // Security States
   const [mfaEnabled, setMfaEnabled] = useState(false);
-  const [securityLogs, setSecurityLogs] = useState<any[]>([]);
+  const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
   useEffect(() => {
@@ -2504,6 +2524,30 @@ const AdminSettings: React.FC = () => {
     }
   };
 
+  const handleSaveChanges = async () => {
+    if (activeTab === 'employer') {
+      setSaving(true);
+      try {
+        await employerConfigRef.current?.save();
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    if (activeTab === 'employee') {
+      setSaving(true);
+      try {
+        await employeeConfigRef.current?.save();
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    await handleSaveAll();
+  };
+
   const tabs: { id: TabId | 'account'; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'account', label: 'Profile', icon: User },
     { id: 'global', label: 'Global Settings', icon: Globe },
@@ -2515,7 +2559,14 @@ const AdminSettings: React.FC = () => {
     { id: 'legal', label: 'Legal Docs', icon: FileCheck },
     { id: 'audit', label: 'Audit Trail', icon: ClipboardList },
     { id: 'security', label: 'Security', icon: Lock },
-    ];
+  ];
+
+  const tabsWithCommonSave = ['global', 'employer', 'employee', 'risk', 'notifications'];
+  const showCommonSaveButton = tabsWithCommonSave.includes(activeTab);
+  const canSaveCurrentTab =
+    ['global', 'risk', 'notifications'].includes(activeTab) ||
+    (activeTab === 'employer' && employerSaveAvailable) ||
+    (activeTab === 'employee' && employeeSaveAvailable);
 
   if (loading) {
     return (
@@ -2547,10 +2598,10 @@ const AdminSettings: React.FC = () => {
                 Unsaved changes
               </span>
             )}
-            {['global', 'risk', 'notifications'].includes(activeTab) && (
+            {showCommonSaveButton && (
               <Button 
-                onClick={handleSaveAll}
-                disabled={saving}
+                onClick={handleSaveChanges}
+                disabled={saving || !canSaveCurrentTab}
                 className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
                 data-testid="save-settings-btn"
               >
@@ -2562,7 +2613,7 @@ const AdminSettings: React.FC = () => {
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    Save Settings
+                    Save Changes
                   </>
                 )}
               </Button>
@@ -2599,10 +2650,20 @@ const AdminSettings: React.FC = () => {
           />
         )}
         {activeTab === 'employer' && (
-          <EmployerConfigTab token={token} onSave={() => setHasChanges(false)} />
+          <EmployerConfigTab
+            ref={employerConfigRef}
+            token={token}
+            onSave={() => setHasChanges(false)}
+            onSaveAvailabilityChange={setEmployerSaveAvailable}
+          />
         )}
         {activeTab === 'employee' && (
-          <EmployeeConfigTab token={token} onSave={() => setHasChanges(false)} />
+          <EmployeeConfigTab
+            ref={employeeConfigRef}
+            token={token}
+            onSave={() => setHasChanges(false)}
+            onSaveAvailabilityChange={setEmployeeSaveAvailable}
+          />
         )}
         {activeTab === 'risk' && (
           <RiskComplianceTab

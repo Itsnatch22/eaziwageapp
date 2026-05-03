@@ -581,7 +581,7 @@ export default function AdminAdvances(){
   return (
     <>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-advances-page">
-        {/* Header */}
+
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Advances</h1>
@@ -612,7 +612,6 @@ export default function AdminAdvances(){
           </div>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={CreditCard} label="Total Advances" value={stats.total} variant="purple" />
           <MetricCard icon={Clock} label="Pending" value={stats.pending} subtext="Awaiting approval" variant="amber" />
@@ -620,7 +619,6 @@ export default function AdminAdvances(){
           <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(stats.total_fees, DEFAULT_ADMIN_CURRENCY)} variant="blue" />
         </div>
 
-        {/* Search & Filters */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="relative flex-1">
@@ -654,7 +652,6 @@ export default function AdminAdvances(){
           </div>
         </div>
 
-        {/* Advances List */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -672,7 +669,7 @@ export default function AdminAdvances(){
             </div>
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
-              {/* Header */}
+
               <div className="hidden lg:flex items-center gap-4 px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <div className="w-10" />
                 <div className="flex-1">Employee</div>
@@ -702,7 +699,6 @@ export default function AdminAdvances(){
           )}
         </div>
 
-        {/* Summary */}
         {filteredAdvances.length > 0 && (
           <div className="text-sm text-slate-500">
             Showing {filteredAdvances.length} of {advances.length} advances
@@ -710,7 +706,6 @@ export default function AdminAdvances(){
         )}
       </div>
 
-      {/* Detail Modal */}
       <AdvanceDetailModal
         advance={selectedAdvance}
         currency={currency}

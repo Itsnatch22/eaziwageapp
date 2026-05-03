@@ -1,51 +1,189 @@
-EaziWage AI Operational Rules
+# Agent Rules — `eaziwageapp` (EaziWage Product App)
+> For: Cursor, Windsurf, Blackbox, Codex, Gemini CLI, Kilo Code, GitHub Copilot  
+> Project: `app.eaziwage.com` — Next.js authenticated product app  
+> Last updated: May 2026
 
-The AI must never modify authentication logic, role-based access control, or security policies unless explicitly instructed.
+---
 
-The AI must never expose, log, or return sensitive user information including passwords, tokens, JWT secrets, bank details, salary data, or personally identifiable information.
+## 1. Project Identity
 
-The AI must treat the database schema as authoritative and must not alter tables, relationships, or constraints without explicit approval.
+This is the **authenticated product application** for EaziWage, a fintech earned wage access (EWA) platform targeting East Africa (Kenya, Uganda, Tanzania, Rwanda). It lives at `app.eaziwage.com` and is separate from the marketing site (`eaziwage.com`), which lives in the `advance` repo.
 
-The AI must never delete production data or execute destructive database queries.
+**Do not mix concerns between the two repos.** This repo handles:
+- User authentication (employee and employer)
+- Advance (earned wage) requests and processing
+- Dashboard — balances, history, wallet
+- Employer portal — payroll, employee management
+- Wiza AI — financial copilot feature
+- Currency handling (KES, UGX, TZS, RWF)
+- Notifications and transaction history
 
-The AI must validate all inputs using the established validation system before processing or storing data.
+---
 
-The AI must maintain strict separation between employer and employee roles and must not allow cross-role data access.
+## 2. Stack
 
-The AI must follow the existing project architecture and must not introduce new frameworks, libraries, or technologies unless instructed.
+| Layer | Tool |
+|---|---|
+| Framework | Next.js (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| Database | Supabase (shared project with `advance`) |
+| Auth | Supabase Auth |
+| Validation | Zod |
+| Deployment | Vercel |
 
-The AI must preserve the current file structure and naming conventions used in the project.
+---
 
-The AI must prioritize security and data integrity over convenience or speed.
+## 3. Absolute Rules (Never Break These)
 
-The AI must avoid generating mock data or placeholder implementations unless explicitly requested.
+### 3.1 No Mock Data in Production Code
+- **Never** use hardcoded balance figures, fake transaction lists, simulated advance statuses, or any fabricated financial data outside of `__mocks__` or `*.test.*` files.
+- Financial data is sensitive — fake data in production is a trust and compliance risk, not just a code quality issue.
+- If real data isn't available yet, render an empty/null/skeleton state — never invent numbers.
+- Do not ship `console.log` statements, `debugger` calls, or commented-out dead code.
 
-The AI must ensure all generated code is compatible with Next.js 16, TypeScript, and the existing stack.
+### 3.2 No Simulated APIs or Flows
+- Every API route under `app/api/` must interact with **real services** — Supabase, a payment provider, or a verified external API.
+- Do not fake advance request processing, approval flows, or disbursement logic with `setTimeout` or hardcoded state transitions.
+- If a flow isn't wired up yet, return `501 Not Implemented` — never fake a success response.
 
-The AI must maintain compatibility with the existing backend infrastructure including Supabase, Redis, Resend, React Emails and Zod.
+```ts
+// Acceptable placeholder
+return NextResponse.json({ error: 'Not implemented' }, { status: 501 });
+```
 
-The AI must not create duplicate logic where reusable utilities or services already exist.
+### 3.3 Do Not Break Working Code
+- Before editing any file, read it fully. Understand what it does before touching it.
+- Make **surgical changes only** — edit the minimum lines necessary to accomplish the task.
+- Never refactor, rename, or restructure code that wasn't part of the request.
+- If you think a refactor would help, leave a comment suggesting it — do not do it unasked.
+- Never delete or overwrite existing logic without explicit instruction.
+- Pay special attention to: advance request state machines, auth guards, and currency conversion logic — these are critical paths.
 
-The AI must ensure that any modification maintains backward compatibility with existing system components.
+---
 
-The AI must verify that employer dashboard logic and employee dashboard logic remain isolated and functional.
+## 4. Environment Variables
 
-The AI must not bypass environment configuration or hardcode sensitive values.
+All secrets live in `.env.local` (local) and Vercel environment settings (production). Never hardcode them.
 
-The AI must ensure all new functionality includes proper error handling and logging.
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (public) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (public) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role — **server-side only, never expose to client** |
 
-The AI must ensure that any changes do not break existing API routes, database queries, or authentication flows.
+**Rules:**
+- Variables prefixed `NEXT_PUBLIC_` are safe for client-side use.
+- `SUPABASE_SERVICE_ROLE_KEY` must **only** be used in server components, API routes, or server actions — never in client components or hooks.
+- Never hardcode API keys, tokens, or credentials anywhere in the codebase.
 
-The AI must respect all environment variables and configuration boundaries defined in the system.
+---
 
-The AI must prioritize clarity, maintainability, and scalability in all generated code.
+## 5. Supabase Usage
 
-The AI must avoid unnecessary complexity and must prefer simple, reliable implementations.
+- The `eaziwageapp` repo shares a single Supabase project with `advance`. Be mindful of shared tables.
+- Core tables owned by this repo: users, advances, transactions, wallets, employers, employees, notifications.
+- Always use the **service role client** for server-side writes (API routes, server actions, admin operations).
+- Always use the **anon client** with Supabase Auth session for client-side operations — RLS enforces row-level access.
+- **Never disable RLS** on any table — this is a financial app, RLS is a security boundary.
+- Never expose the service role key to the browser under any circumstances.
 
-The AI must not perform actions outside the explicitly defined task scope.
+```ts
+// Server-side (API routes, server actions)
+import { createClient } from '@supabase/supabase-js';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-The AI must always assume the system is running in a production-grade environment and act accordingly.
+// Client-side (with auth session)
+import { createBrowserClient } from '@supabase/ssr';
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+```
 
-The AI must ensure that all generated code aligns with the project's security-first architecture.
+---
 
-The AI must never assume undocumented behavior and must rely only on verified project context.
+## 6. Authentication & Route Protection
+
+- All dashboard and app routes must be protected — unauthenticated users redirect to `/login`.
+- Auth state is managed via Supabase Auth and middleware.
+- Never bypass auth checks, even for testing — use a real test account.
+- Employer and employee roles have different access levels — always check the user's role before rendering sensitive UI or allowing mutations.
+
+---
+
+## 7. Currency Handling
+
+EaziWage operates across multiple East African currencies. This is a critical area — currency bugs are financial bugs.
+
+- Supported currencies: **KES, UGX, TZS, RWF**
+- Always use the `useCurrency()` hook for formatting and conversion on the client side.
+- Never hardcode currency symbols or conversion rates — always derive from the hook or a central utility.
+- Store monetary values in the database as **integers (smallest unit / cents)** to avoid floating point errors.
+- Display formatting (e.g. `KES 1,200.00`) must always go through the currency utility — never format manually inline.
+
+---
+
+## 8. Advance Request Flow
+
+The advance request is the core product feature. Treat it with care.
+
+- The advance request modal has **three UX states**: `processing`, `success`, `failed/retry`.
+- Never skip or collapse these states — each one has a distinct UI and user action.
+- State transitions must reflect **real backend responses**, not optimistic fakes.
+- Never mark an advance as `success` without a confirmed Supabase write.
+
+---
+
+## 9. Wiza AI
+
+- Wiza AI is the in-app financial copilot feature.
+- It is tethered to the authenticated user's real financial data (balances, advance history, transactions).
+- Never feed Wiza mock or fabricated data — it must only reference real user records from Supabase.
+- Keep Wiza's scope within the app — it is not a general-purpose chatbot.
+
+---
+
+## 10. File & Folder Conventions
+
+```
+app/
+  (auth)/            # Login, register, onboarding routes
+  (dashboard)/       # Authenticated app routes
+  api/               # API routes
+components/
+  ui/                # Base UI components
+  dashboard/         # Dashboard-specific components
+lib/
+  supabase/          # Supabase client helpers
+  validation/        # Zod schemas
+  utils/
+    currency.ts      # Currency formatting and conversion
+hooks/
+  useCurrency.ts     # Currency hook
+  useAdvance.ts      # Advance request hook
+```
+
+- Keep API routes in `app/api/[route]/route.ts`.
+- Keep Zod schemas in `lib/validation/`.
+- Keep all currency logic in `lib/utils/currency.ts` and `hooks/useCurrency.ts` — never scattered inline.
+- Do not create new top-level folders without a clear reason.
+
+---
+
+## 11. TypeScript
+
+- **Strict mode is on.** No `any` types unless absolutely unavoidable — and if used, add a comment explaining why.
+- Always type API request bodies, response shapes, and Supabase query results explicitly.
+- Use Zod schemas for runtime validation of all incoming API data.
+- Financial values must always be typed as `number` (integer cents) — never `string` or `any`.
+
+---
+
+## 12. What This Repo Is NOT
+
+- Not the marketing site — do not add landing pages, blog posts, SEO pages, or the contact form here. Those belong in `advance`.
+- Not a fintech sandbox — do not experiment with payment flows, fake disbursements, or test integrations directly in this repo. Use a dedicated test environment.

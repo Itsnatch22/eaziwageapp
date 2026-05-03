@@ -283,7 +283,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
                 </div>
               </div>
               <button 
-                onClick={() => setShowContactModal(true)}
+                onClick={() => window.location.href = "https://app.eaziwage.com/contact"}
                 className="w-full mt-2 px-4 py-2 bg-white dark:bg-slate-800 text-primary text-sm font-medium rounded-xl hover:shadow-md transition-all"
                 data-testid="contact-support-btn"
               >
