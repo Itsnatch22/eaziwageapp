@@ -14,8 +14,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface DialCode {
   code: string;
   name: string;
@@ -61,14 +59,12 @@ declare global {
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const DIALING_CODES: DialCode[] = [
   { code: 'KE', name: 'Kenya',    dialCode: '+254', flag: '/flag/KE.png' },
   { code: 'TZ', name: 'Tanzania', dialCode: '+255', flag: '/flag/TZ.png' },
   { code: 'UG', name: 'Uganda',   dialCode: '+256', flag: '/flag/UG.png' },
   { code: 'RW', name: 'Rwanda',   dialCode: '+250', flag: '/flag/RW.png' },
-  { code: 'SA', name: 'South Africa',   dialCode: '+27', flag: '/flag/SA.png' },
 ];
 
 function getFlagEmoji(code: string): string {
@@ -81,7 +77,6 @@ function getFlagEmoji(code: string): string {
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface DialCodeSelectorProps {
   selected: DialCode;
@@ -224,13 +219,11 @@ function CompanySearchModal({ employers, onSelect, onNotFound, onClose }: Compan
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // — Form state —
   const [accountType,   setAccountType]   = useState<AccountType>('employee');
   const [fullName,      setFullName]       = useState('');
   const [email,         setEmail]          = useState(searchParams.get('email') ?? '');
@@ -242,19 +235,16 @@ function RegisterForm() {
   const [showPassword,  setShowPassword]   = useState(false);
   const [agreedToTerms, setAgreedToTerms]  = useState(false);
 
-  // — Company selection —
   const [selectedCompany,   setSelectedCompany]   = useState<Company | null>(null);
   const [showCompanySearch, setShowCompanySearch] = useState(false);
   const [noCompanyFound,    setNoCompanyFound]    = useState(false);
   const [employers,         setEmployers]          = useState<Company[]>([]);
 
-  // — Employer referral —
   const [referralName,     setReferralName]     = useState('');
   const [referralEmail,    setReferralEmail]    = useState('');
   const [referralPhone,    setReferralPhone]    = useState('');
   const [referralDialCode, setReferralDialCode] = useState<DialCode>(DIALING_CODES[0]);
 
-  // — UI —
   const [error,              setError]              = useState('');
   const [isLoading,          setIsLoading]          = useState(false);
   const [recaptchaReady,     setRecaptchaReady]     = useState(false);
@@ -318,7 +308,6 @@ function RegisterForm() {
     setCompanyCode('');
   }, []);
 
-  /** Executes reCAPTCHA v3 and returns the token. */
   const getReCaptchaToken = useCallback((action: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (!RECAPTCHA_SITE_KEY) return reject(new Error('reCAPTCHA site key not configured'));
@@ -421,11 +410,6 @@ function RegisterForm() {
 
   return (
     <>
-      {/**
-       * reCAPTCHA v3 — lazyOnload defers loading until after the page is
-       * interactive, keeping the initial bundle unblocked.
-       * onReady fires once the script and grecaptcha object are available.
-       */}
       <Script
         src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
         strategy="lazyOnload"
@@ -433,13 +417,12 @@ function RegisterForm() {
       />
 
       <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
-        {/* Background layers */}
+
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.06)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute top-20 right-0 w-150 h-150 bg-green-500/8 rounded-full blur-[150px] pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-125 h-125 bg-slate-900/5 dark:bg-green-900/10 rounded-full blur-[150px] pointer-events-none" />
 
-        {/* Company Search Modal */}
         {showCompanySearch && (
           <CompanySearchModal
             employers={employers}
@@ -457,12 +440,12 @@ function RegisterForm() {
             <div className="flex justify-center mb-6">
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
-                    <Wallet
-                      className="h-8 w-8 text-emerald-700"
-                      strokeWidth={2}
-                      aria-hidden="true"
-                    />
+                  <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
+                      <Wallet
+                        className="h-8 w-8 text-emerald-700"
+                        strokeWidth={2}
+                        aria-hidden="true"
+                      />
                   </div>
                   <div className="absolute inset-0 bg-green-600/10 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
                 </div>
@@ -470,7 +453,6 @@ function RegisterForm() {
               </Link>
             </div>
 
-            {/* Badge */}
             <div className="flex justify-center mb-8">
               <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-full text-sm font-semibold text-green-700 dark:text-green-400">
                 <Sparkles className="w-4 h-4" />
@@ -478,7 +460,6 @@ function RegisterForm() {
               </div>
             </div>
 
-            {/* Headline */}
             <div className="text-center mb-10">
               <h1 className="text-4xl font-serif sm:text-5xl font-bold text-slate-900 dark:text-white leading-tight mb-4 tracking-tight">
                 Get Started with{' '}
@@ -491,7 +472,6 @@ function RegisterForm() {
               </p>
             </div>
 
-            {/* Error */}
             {error && (
               <Alert className="mb-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 rounded-xl">
                 <AlertCircle className="h-4 w-4 text-red-500" />
@@ -499,11 +479,9 @@ function RegisterForm() {
               </Alert>
             )}
 
-            {/* Card */}
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-8 shadow-xl shadow-slate-900/5">
               <div className="flex flex-col gap-5">
 
-                {/* Account Type Toggle */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">I am an</label>
                   <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
@@ -524,7 +502,6 @@ function RegisterForm() {
                   </div>
                 </div>
 
-                {/* Full Name */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">Full Name</label>
                   <div className="relative">
@@ -536,7 +513,6 @@ function RegisterForm() {
                   </div>
                 </div>
 
-                {/* Email */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     {accountType === 'employer' ? 'Business Email' : 'Work Email'}
@@ -550,7 +526,6 @@ function RegisterForm() {
                   </div>
                 </div>
 
-                {/* Mobile */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     {accountType === 'employer' ? 'Business Mobile Number' : 'Mobile Number'}
@@ -568,7 +543,6 @@ function RegisterForm() {
                   <p className="text-slate-400 text-xs ml-1">Enter your number without the country code</p>
                 </div>
 
-                {/* Company */}
                 {accountType === 'employee' ? (
                   <div className="flex flex-col gap-2">
                     <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">Company</label>
@@ -654,7 +628,6 @@ function RegisterForm() {
                   </div>
                 )}
 
-                {/* Password */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">Password</label>
                   <div className="relative">
@@ -671,7 +644,6 @@ function RegisterForm() {
                   </div>
                 </div>
 
-                {/* Terms */}
                 <div className="flex items-start gap-3 py-1">
                   <div className="relative flex items-center mt-0.5">
                     <input type="checkbox" id="terms" checked={agreedToTerms}
@@ -778,17 +750,15 @@ function RegisterForm() {
                   <span className="text-xs font-medium text-slate-400">Bank-grade 256-bit encryption · Protected by reCAPTCHA</span>
                 </div>
 
+                <div className="mt-8 text-center">
+                  <p className="text-slate-500 dark:text-slate-400">
+                    Already have an account?{' '}
+                    <Link href="/" className="text-green-600 dark:text-green-400 font-semibold hover:underline">
+                      Sign in
+                    </Link>
+                  </p>
+                </div>
               </div>
-            </div>
-
-            {/* Sign-in CTA */}
-            <div className="mt-8 text-center">
-              <p className="text-slate-500 dark:text-slate-400">
-                Already have an account?{' '}
-                <Link href="/" className="text-green-600 dark:text-green-400 font-semibold hover:underline">
-                  Sign in
-                </Link>
-              </p>
             </div>
 
           </div>

@@ -12,8 +12,6 @@ import { cn }                         from '@/lib/utils';
 import { Input }                      from '@/components/ui/input';
 import { Alert, AlertDescription }    from '@/components/ui/alert';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type VerifyState =
   | 'verifying'   // Token is being checked
   | 'success'     // Verified successfully
@@ -33,14 +31,11 @@ declare global {
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const RECAPTCHA_SITE_KEY   = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
 const AUTO_REDIRECT_SECS   = 5;
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
-/** Animated countdown that fires onComplete when it hits 0. */
 function Countdown({ seconds, onComplete }: { seconds: number; onComplete: () => void }) {
   const [remaining, setRemaining] = useState(seconds);
 
@@ -57,7 +52,6 @@ function Countdown({ seconds, onComplete }: { seconds: number; onComplete: () =>
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function VerifyEmailPage() {
   const router       = useRouter();
@@ -74,7 +68,6 @@ export default function VerifyEmailPage() {
 
   const hasVerified = useRef(false);
 
-  // ── Auto-verify on mount when token is present ──────────────────────────────
   useEffect(() => {
     if (!token || hasVerified.current) return;
     hasVerified.current = true;
@@ -100,7 +93,6 @@ export default function VerifyEmailPage() {
           return;
         }
 
-        // TOKEN_INVALID, already used, or any other failure
         setState('invalid');
       } catch {
         setState('invalid');
@@ -110,7 +102,6 @@ export default function VerifyEmailPage() {
     verify();
   }, [token]);
 
-  // ── reCAPTCHA helper ────────────────────────────────────────────────────────
   const getReCaptchaToken = useCallback((action: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (!RECAPTCHA_SITE_KEY)                 return reject(new Error('Site key not configured'));
@@ -122,7 +113,6 @@ export default function VerifyEmailPage() {
     });
   }, [recaptchaReady]);
 
-  // ── Resend handler ──────────────────────────────────────────────────────────
   const handleResend = useCallback(async () => {
     setResendError('');
 
@@ -167,12 +157,10 @@ export default function VerifyEmailPage() {
       ? '/dashboards/employer-dashboard'
       : '/dashboards/employee-dashboard';
 
-  // ─── Render states ──────────────────────────────────────────────────────────
 
   const renderContent = () => {
     switch (state) {
 
-      // ── Verifying ────────────────────────────────────────────────────────────
       case 'verifying':
         return (
           <div className="text-center">
@@ -192,7 +180,6 @@ export default function VerifyEmailPage() {
           </div>
         );
 
-      // ── Success ──────────────────────────────────────────────────────────────
       case 'success':
         return (
           <div className="text-center">
@@ -230,7 +217,6 @@ export default function VerifyEmailPage() {
           </div>
         );
 
-      // ── Expired ──────────────────────────────────────────────────────────────
       case 'expired':
         return (
           <div className="text-center">
@@ -297,7 +283,6 @@ export default function VerifyEmailPage() {
           </div>
         );
 
-      // ── Invalid ──────────────────────────────────────────────────────────────
       case 'invalid':
         return (
           <div className="text-center">
@@ -334,7 +319,6 @@ export default function VerifyEmailPage() {
           </div>
         );
 
-      // ── Resend form (no token in URL) ─────────────────────────────────────────
       case 'resend':
         return (
           <div>
@@ -413,7 +397,6 @@ export default function VerifyEmailPage() {
           </div>
         );
 
-      // ── Resent confirmation ───────────────────────────────────────────────────
       case 'resent':
         return (
           <div className="text-center">
@@ -442,7 +425,6 @@ export default function VerifyEmailPage() {
     }
   };
 
-  // ─── Page shell ─────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -460,12 +442,11 @@ export default function VerifyEmailPage() {
         <main className="relative z-10 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 py-16">
           <div className="w-full max-w-md">
 
-            {/* Logo — shown on states where there's no large icon */}
             {(state === 'resend') && (
               <div className="flex justify-center mb-6">
                 <Link href="/" className="flex items-center gap-3 group">
                   <div className="relative">
-                    <div className="w-12 h-12 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/30">
+                    <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
                       <Wallet
                         className="h-8 w-8 text-emerald-700"
                         strokeWidth={2}
@@ -480,8 +461,6 @@ export default function VerifyEmailPage() {
             )}
 
             {renderContent()}
-
-            {/* Security note on form states */}
             {(state === 'resend' || state === 'expired') && (
               <div className="mt-6 flex items-center justify-center gap-1.5">
                 <Lock className="w-4 h-4 text-slate-400" />

@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { createClient } from '@/lib/supabase/client';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LoginPayload {
   email:           string;
@@ -32,11 +31,7 @@ declare global {
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
   const router = useRouter();
@@ -76,7 +71,6 @@ export default function LoginPage() {
     }
   };
 
-  /** Executes reCAPTCHA v3 and returns a fresh token for the given action. */
   const getReCaptchaToken = useCallback((action: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (!RECAPTCHA_SITE_KEY)            return reject(new Error('reCAPTCHA site key not configured'));
@@ -123,7 +117,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Role-based redirect — Supabase session is in httpOnly cookies set by the API
       let defaultDestination = '/';
       switch (data.role as string) {
         case 'admin':
@@ -148,11 +141,6 @@ export default function LoginPage() {
 
   return (
     <>
-      {/**
-       * reCAPTCHA v3 — lazyOnload defers the script until after the page
-       * becomes interactive, keeping the login form fast to render.
-       * The button stays disabled until onReady fires.
-       */}
       <Script
         src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
         strategy="lazyOnload"
@@ -161,21 +149,18 @@ export default function LoginPage() {
 
       <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
 
-        {/* Background layers */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.06)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute top-20 right-0 w-150 h-150 bg-green-500/8 rounded-full blur-[150px] pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-125 h-125 bg-slate-900/5 dark:bg-green-900/10 rounded-full blur-[150px] pointer-events-none" />
 
-        {/* Main */}
         <main className="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] px-4 sm:px-6 lg:px-8">
           <div className="w-full max-w-md">
 
-            {/* Logo */}
             <div className="flex justify-center mb-6">
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
+                  <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
                     <Wallet
                       className="h-8 w-8 text-emerald-700"
                       strokeWidth={2}
@@ -188,7 +173,6 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* Badge */}
             <div className="flex justify-center mb-8">
               <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-full text-sm font-semibold text-green-700 dark:text-green-400">
                 <Sparkles className="w-4 h-4" />
@@ -196,7 +180,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Headline */}
             <div className="text-center mb-10">
               <h1 className="text-4xl font-serif sm:text-5xl font-bold text-slate-900 dark:text-white leading-tight mb-4 tracking-tight">
                 Sign In to Your{' '}
@@ -209,7 +192,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Error */}
             {error && (
               <Alert className="mb-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 rounded-xl">
                 <AlertCircle className="h-4 w-4 text-red-500" />
@@ -217,11 +199,9 @@ export default function LoginPage() {
               </Alert>
             )}
 
-            {/* Card */}
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-8 shadow-xl shadow-slate-900/5">
               <div className="flex flex-col gap-5">
 
-                {/* Email */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     Email Address
@@ -240,7 +220,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Password */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     Password
@@ -266,7 +245,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Forgot password */}
                 <div className="flex justify-end -mt-2">
                   <Link
                     href="/forgot-password"
@@ -276,7 +254,6 @@ export default function LoginPage() {
                   </Link>
                 </div>
 
-                {/* Submit */}
                 <button
                   type="button"
                   onClick={handleSubmit}
@@ -304,7 +281,6 @@ export default function LoginPage() {
                   )}
                 </button>
 
-                {/* Social Login */}
                 <div className="relative my-2">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-slate-200 dark:border-slate-700" />
@@ -360,7 +336,6 @@ export default function LoginPage() {
                   </button>
                 </div>
 
-                {/* Security note */}
                 <div className="flex items-center justify-center gap-1.5 pt-1">
                   <Lock className="w-4 h-4 text-slate-400" />
                   <span className="text-xs font-medium text-slate-400">

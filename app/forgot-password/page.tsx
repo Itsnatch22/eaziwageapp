@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils';
 import { Input }            from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type PageState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -27,11 +26,9 @@ declare global {
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -102,14 +99,12 @@ export default function ForgotPasswordPage() {
 
   const isSubmitting = pageState === 'loading';
 
-  // ─── Success state ──────────────────────────────────────────────────────────
 
   if (pageState === 'success') {
     return (
       <div className="min-h-screen bg-white dark:bg-slate-950 flex items-center justify-center px-4">
         <div className="w-full max-w-md text-center">
 
-          {/* Success icon */}
           <div className="relative mx-auto mb-8 w-20 h-20">
             <div className="w-20 h-20 bg-linear-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/30 mx-auto">
               <CheckCircle2 className="w-10 h-10 text-white" />
@@ -154,7 +149,6 @@ export default function ForgotPasswordPage() {
     );
   }
 
-  // ─── Main form ──────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -166,47 +160,41 @@ export default function ForgotPasswordPage() {
 
       <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
 
-        {/* Background */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.06)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute top-20 right-0 w-125 h-125 bg-green-500/8 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-100 h-100 bg-slate-900/5 dark:bg-green-900/10 rounded-full blur-[120px] pointer-events-none" />
 
-        {/* Header */}
         <header className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-end">
           </div>
         </header>
 
-        {/* Main */}
         <main className="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] px-4 sm:px-6 lg:px-8">
           <div className="w-full max-w-md">
 
-            {/* Logo */}
             <div className="flex justify-center mb-6">
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative">
-                  <div className="w-12 h-12 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-600/30">
-                    <Wallet
-                      className="h-8 w-8 text-emerald-700"
-                      strokeWidth={2}
-                      aria-hidden="true"
-                    />
-                  </div>
+                  <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
+                      <Wallet
+                        className="h-8 w-8 text-emerald-700"
+                        strokeWidth={2}
+                        aria-hidden="true"
+                      />
+                    </div>
                   <div className="absolute inset-0 bg-green-600/20 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
                 </div>
                 <span className="font-bold text-2xl text-slate-900 dark:text-white tracking-tight">EaziWage</span>
               </Link>
             </div>
 
-            {/* Icon */}
             <div className="flex justify-center mb-8">
               <div className="w-16 h-16 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl flex items-center justify-center">
                 <Lock className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
             </div>
 
-            {/* Headline */}
             <div className="text-center mb-10">
               <h1 className="text-4xl font-bold font-serif text-slate-900 dark:text-white leading-tight mb-4 tracking-tight">
                 Forgot your{' '}
@@ -219,7 +207,6 @@ export default function ForgotPasswordPage() {
               </p>
             </div>
 
-            {/* Error */}
             {pageState === 'error' && errorMessage && (
               <Alert className="mb-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 rounded-xl">
                 <AlertCircle className="h-4 w-4 text-red-500" />
@@ -227,11 +214,9 @@ export default function ForgotPasswordPage() {
               </Alert>
             )}
 
-            {/* Card */}
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-8 shadow-xl shadow-slate-900/5">
               <div className="flex flex-col gap-5">
 
-                {/* Email */}
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     Email Address
@@ -251,7 +236,6 @@ export default function ForgotPasswordPage() {
                   </div>
                 </div>
 
-                {/* Submit */}
                 <button
                   type="button"
                   onClick={handleSubmit}
@@ -279,7 +263,6 @@ export default function ForgotPasswordPage() {
                   )}
                 </button>
 
-                {/* Back to login */}
                 <Link
                   href="/"
                   className="flex items-center justify-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors pt-1"
@@ -291,7 +274,6 @@ export default function ForgotPasswordPage() {
               </div>
             </div>
 
-            {/* Security note */}
             <div className="mt-6 flex items-center justify-center gap-1.5">
               <Lock className="w-4 h-4 text-slate-400" />
               <span className="text-xs font-medium text-slate-400">

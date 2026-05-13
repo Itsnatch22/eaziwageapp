@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await adminSupabase
     .from('employee_onboarding')
     .select('id, status')
     .eq('user_id', user.id)
@@ -191,18 +191,18 @@ export async function POST(req: NextRequest) {
   };
 
   const { error: upsertError } = existing
-    ? await supabase
+    ? await adminSupabase
         .from('employee_onboarding')
         .update(upsertPayload)
         .eq('id', existing.id)
-    : await supabase.from('employee_onboarding').insert(upsertPayload);
+    : await adminSupabase.from('employee_onboarding').insert(upsertPayload);
 
   if (upsertError) {
     console.error('[employee/onboarding/submit]', upsertError);
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
   try {
-    await supabase
+    await adminSupabase
       .from('employees')
       .upsert({
         user_id: user.id,
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
     if (employment_contract) docSyncs.push({ user_id: user.id, document_type: 'employment_contract', document_url: employment_contract, status: 'pending' });
 
     if (docSyncs.length > 0) {
-      await supabase.from('employee_kyc_documents').upsert(docSyncs, { onConflict: 'user_id,document_type' });
+      await adminSupabase.from('employee_kyc_documents').upsert(docSyncs, { onConflict: 'user_id,document_type' });
     }
   } catch (err) {
     console.error('[onboarding/sync-employees]', err);
@@ -249,7 +249,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (employer.user_id) {
-        const { data: empNotif, error: empNotifError } = await supabase
+        const { data: empNotif, error: empNotifError } = await adminSupabase
           .from('notifications')
           .insert({
             user_id: employer.user_id,
@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { data: adminNotif, error: adminNotifError } = await supabase
+    const { data: adminNotif, error: adminNotifError } = await adminSupabase
       .from('admin_notifications')
       .insert({
         type: 'review_request',

@@ -702,7 +702,7 @@ export default function Onboarding() {
       }
 
       toast.success("Application submitted!");
-      router.push('/dashboards/employee-dashboard');
+      router.push('/dashboards/employee-dashboard/payment-methods');
     } catch (err: any) {
       setError(err?.message || 'Submission failed');
     } finally {
