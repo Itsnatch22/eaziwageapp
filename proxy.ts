@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+type AppRole = "admin" | "employer" | "employee";
+
+function normalizeAppRole(value: unknown): AppRole | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "admin" || normalized === "employer" || normalized === "employee") {
+    return normalized;
+  }
+  return null;
+}
+
 export async function proxy(req: NextRequest) {
   let res = NextResponse.next();
 
@@ -50,21 +61,7 @@ export async function proxy(req: NextRequest) {
   }
 
   if (user) {
-    // ── Role resolution ──────────────────────────────────────────────────────
-    //
-    // Strategy (avoids RLS recursion):
-    //   1. Check system_admins first — admins skip the profiles table entirely.
-    //   2. Fall back to profiles for employers/employees.
-    //   3. If neither table has a record, the auth user is orphaned — sign out.
-    //
-    // Using the anon client here is safe because:
-    //   • system_admins RLS: "SELECT allowed for own row" (id = auth.uid())
-    //   • profiles RLS must NOT reference profiles itself — see SQL migration below
-    //
-    // The service-role client is intentionally NOT used in middleware because
-    // middleware runs on every request and we want RLS as a second layer.
-
-    let role: string | null = null;
+    let role: AppRole | null = null;
 
     // 1. Check system_admins
     const { data: adminRow, error: adminError } = await supabase
@@ -96,7 +93,44 @@ export async function proxy(req: NextRequest) {
       if (profileRow) {
         role = profileRow.is_admin
           ? "admin"
-          : (profileRow.role_normalized || profileRow.role);
+          : normalizeAppRole(profileRow.role_normalized) ?? normalizeAppRole(profileRow.role);
+      }
+
+      if (!role) {
+        const [{ data: employerOnboarding }, { data: employerRecord }, { data: employeeOnboarding }, { data: employeeRecord }] =
+          await Promise.all([
+            supabase
+              .from("employer_onboarding")
+              .select("id")
+              .eq("user_id", user.id)
+              .limit(1)
+              .maybeSingle<{ id: string }>(),
+            supabase
+              .from("employers")
+              .select("id")
+              .eq("user_id", user.id)
+              .limit(1)
+              .maybeSingle<{ id: string }>(),
+            supabase
+              .from("employee_onboarding")
+              .select("id")
+              .eq("user_id", user.id)
+              .limit(1)
+              .maybeSingle<{ id: string }>(),
+            supabase
+              .from("employees")
+              .select("id")
+              .eq("user_id", user.id)
+              .limit(1)
+              .maybeSingle<{ id: string }>(),
+          ]);
+
+        role =
+          employerOnboarding || employerRecord
+            ? "employer"
+            : employeeOnboarding || employeeRecord
+              ? "employee"
+              : normalizeAppRole(user.user_metadata?.role);
       }
     }
 

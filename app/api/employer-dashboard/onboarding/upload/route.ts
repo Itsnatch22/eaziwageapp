@@ -1,12 +1,12 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { documentTypeSchema } from '@/lib/validations/employer-onboarding';
+import { isDocumentFile } from '@/lib/upload-file-types';
 
 export const runtime = 'nodejs';
 
 const BUCKET = 'employer-documents';
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/xlsx', 'application/csv'];
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
   }
   const documentType = parsed.data;
 
-  if (!ALLOWED_MIME.includes(file.type)) {
+  if (!isDocumentFile(file)) {
     return NextResponse.json(
-      { error: 'Invalid file type. Upload JPEG, PNG, WEBP, PDF, XLSX, or CSV.' },
+      { error: 'Invalid file type. Upload an image or document file.' },
       { status: 422 },
     );
   }

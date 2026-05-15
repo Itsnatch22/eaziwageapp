@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/stores/auth';
 import { EmployeeBackground } from '@/components/employee/EmployeeLayout';
+import { DOCUMENT_ACCEPT, IMAGE_ACCEPT, isDocumentFile, isImageFile } from '@/lib/upload-file-types';
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
@@ -260,6 +261,7 @@ interface Employer {
 interface FileUploaderProps {
   label: string;
   accept?: string;
+  kind?: 'image' | 'document';
   description?: string;
   onUpload: (file: File) => void;
   uploadedFile: UploadedDocument | null;
@@ -332,7 +334,7 @@ const StepIndicator = ({ steps, currentStep }: StepIndicatorProps) => (
 );
 
 const FileUploader = ({
-  label, accept = 'image/*,application/pdf,application/xlsx,application/csv', description, onUpload,
+  label, accept, kind = 'document', description, onUpload,
   uploadedFile, uploading, required = false, testId
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -346,9 +348,9 @@ const FileUploader = ({
   };
 
   const validateAndUpload = (file: File) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/xlsx', 'application/csv'];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Please upload a valid image, PDF, XLSX, or CSV file');
+    const validFile = kind === 'image' ? isImageFile(file) : isDocumentFile(file);
+    if (!validFile) {
+      toast.error(kind === 'image' ? 'Please upload an image file' : 'Please upload an image or document file');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -399,7 +401,7 @@ const FileUploader = ({
       <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
         {label} {required && <span className="text-red-500">*</span>}
       </Label>
-      <input ref={fileInputRef} type="file" accept={accept} onChange={handleFileSelect} className="hidden" />
+      <input ref={fileInputRef} type="file" accept={accept ?? (kind === 'image' ? IMAGE_ACCEPT : DOCUMENT_ACCEPT)} onChange={handleFileSelect} className="hidden" />
       <div
         onClick={() => !uploading && fileInputRef.current?.click()}
         onDragEnter={handleDragIn}
@@ -626,8 +628,8 @@ export default function Onboarding() {
         [docKey]: { name: file.name, url: data.document_url },
       }));
       toast.success('File saved');
-    } catch (err: any) {
-      toast.error(err?.message || 'Upload failed');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploadingFile(null);
     }
@@ -703,8 +705,8 @@ export default function Onboarding() {
 
       toast.success("Application submitted!");
       router.push('/dashboards/employee-dashboard/payment-methods');
-    } catch (err: any) {
-      setError(err?.message || 'Submission failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Submission failed');
     } finally {
       setLoading(false);
     }
@@ -881,7 +883,7 @@ export default function Onboarding() {
                 <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Date of Birth</Label>
                 <Input type="date" value={formData.date_of_birth} onChange={e => updateField('date_of_birth', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
               </div>
-              <FileUploader label="Document Photo (Front)" onUpload={(f: File) => handleFileUpload(f, 'id_front')} uploadedFile={uploadedFiles.id_front} uploading={uploadingFile === 'id_front'} required />
+              <FileUploader label="Document Photo (Front)" kind="image" onUpload={(f: File) => handleFileUpload(f, 'id_front')} uploadedFile={uploadedFiles.id_front} uploading={uploadingFile === 'id_front'} required />
             </div>
           </div>
         </div>
@@ -1061,7 +1063,7 @@ export default function Onboarding() {
               </div>
 
               <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                Don't have your TIN yet? You can <button type="button" onClick={nextStep} className="text-primary font-medium hover:underline">skip this step</button> and add it later.
+                Don&apos;t have your TIN yet? You can <button type="button" onClick={nextStep} className="text-primary font-medium hover:underline">skip this step</button> and add it later.
               </p>
             </div>
           </div>

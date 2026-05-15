@@ -6,11 +6,11 @@ import {
   DocumentTypeEnum,
   DocumentStatusEnum,
   KYCDocumentSchema,
-  ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
 } from '@/lib/validations/kyc-validation';
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
 import pusherServer from '@/lib/pusher-server';
+import { isDocumentFile, isImageFile } from '@/lib/upload-file-types';
 
 export const runtime = 'nodejs';
 
@@ -166,9 +166,19 @@ export async function POST(req: NextRequest) {
     }
     const documentType = parsedDocType.data;
 
-    if (!ALLOWED_MIME_TYPES.some((allowed) => allowed === file.type)) {
+    const imageOnlyDocumentTypes = new Set(['face_id', 'selfie']);
+    const validFile = imageOnlyDocumentTypes.has(documentType)
+      ? isImageFile(file)
+      : isDocumentFile(file);
+
+    if (!validFile) {
       return NextResponse.json(
-        { error: 'Invalid file type. Allowed: JPEG, PNG, WEBP, PDF, CSV, XLSX', code: 'INVALID_FILE_TYPE' },
+        {
+          error: imageOnlyDocumentTypes.has(documentType)
+            ? 'Invalid file type. Upload an image file.'
+            : 'Invalid file type. Upload an image or document file.',
+          code: 'INVALID_FILE_TYPE',
+        },
         { status: 422 }
       );
     }

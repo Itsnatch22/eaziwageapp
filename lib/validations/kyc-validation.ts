@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isDocumentFile } from '@/lib/upload-file-types';
 
 // ============================================================================
 // ENUMS
@@ -144,19 +145,9 @@ export const DocumentUploadSchema = z.object({
       message: 'File size must be under 5 MB',
     })
     .refine(
-      (file) =>
-        [
-          'image/jpeg',
-          'image/jpg',
-          'image/png',
-          'image/webp',
-          'application/pdf',
-          'application/docx',
-          'application/xlsx',
-          'application/csv',
-        ].includes(file.type),
+      (file) => isDocumentFile(file),
       {
-        message: 'File must be JPEG, PNG, WEBP, PDF, DOCX, XLSX, or CSV',
+        message: 'File must be an image or document file',
       }
     ),
   document_type: DocumentTypeEnum,
@@ -265,14 +256,21 @@ export const STATUS_CONFIG = {
 
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
+  'image/*',
   'application/pdf',
-  'application/docx',
-  'application/xlsx',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/rtf',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.oasis.opendocument.presentation',
+  'text/csv',
   'application/csv',
+  'text/plain',
 ] as const;
 
 // ============================================================================

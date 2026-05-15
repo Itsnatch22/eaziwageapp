@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PAYROLL_CYCLES } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/stores/auth"; // keep your existing store
+import { DOCUMENT_ACCEPT, isDocumentFile } from "@/lib/upload-file-types";
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
@@ -132,9 +133,8 @@ const FileUploader = ({
   };
 
   const validateAndUpload = (file: File) => {
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf", "application/xlsx", "application/csv"];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a valid image (JPEG, PNG), PDF, XLSX, or CSV file");
+    if (!isDocumentFile(file)) {
+      toast.error("Please upload an image or document file");
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -187,7 +187,7 @@ const FileUploader = ({
         {required && <span className="text-red-500">*</span>}
         {optional && <span className="text-slate-400 text-xs font-normal">(Optional - Can skip)</span>}
       </Label>
-      <input ref={fileInputRef} type="file" accept="image/*,application/pdf,application/xlsx,application/csv" onChange={handleFileSelect} className="hidden" data-testid={testId} />
+      <input ref={fileInputRef} type="file" accept={DOCUMENT_ACCEPT} onChange={handleFileSelect} className="hidden" data-testid={testId} />
       <div
         onClick={() => !uploading && fileInputRef.current?.click()}
         onDragEnter={handleDragIn}

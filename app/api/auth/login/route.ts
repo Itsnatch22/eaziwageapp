@@ -43,6 +43,16 @@ const LoginSchema = z.object({
 });
 
 type LoginInput = z.infer<typeof LoginSchema>;
+type AppRole = 'admin' | 'employer' | 'employee';
+
+function normalizeAppRole(value: unknown): AppRole | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'admin' || normalized === 'employer' || normalized === 'employee') {
+    return normalized;
+  }
+  return null;
+}
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -341,6 +351,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!isEnvAdmin && profileRecord && !profileRecord.email_verified) {
+    const authEmailVerified = Boolean(user.email_confirmed_at);
+    if (authEmailVerified) {
+      const { error: verifySyncError } = await supabaseAdmin
+        .from('profiles')
+        .update({ email_verified: true })
+        .eq('id', profileRecord.id);
+
+      if (verifySyncError) {
+        console.error('[login] failed to sync email_verified from auth user:', verifySyncError);
+      } else {
+        profileRecord.email_verified = true;
+      }
+    }
+  }
+
+  if (!isEnvAdmin && profileRecord && !profileRecord.email_verified) {
     console.log('[login] BLOCKED: Email not verified for', input.email);
     return NextResponse.json(
       {
@@ -391,13 +417,85 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     responseRole = 'admin';
     console.log('[login] Role set to: admin (env admin)');
   } else if (profileRecord) {
-    responseRole = profileRecord.is_admin
+    const normalizedRole = profileRecord.is_admin
       ? 'admin'
-      : (profileRecord.role_normalized || profileRecord.role || 'employee');
+      : normalizeAppRole(profileRecord.role_normalized) ?? normalizeAppRole(profileRecord.role);
+
+    if (normalizedRole) {
+      responseRole = normalizedRole;
+    } else {
+      const [{ data: employerOnboarding }, { data: employerRecord }, { data: employeeOnboarding }, { data: employeeRecord }] =
+        await Promise.all([
+          supabaseAdmin
+            .from('employer_onboarding')
+            .select('id')
+            .eq('user_id', profileRecord.id)
+            .limit(1)
+            .maybeSingle(),
+          supabaseAdmin
+            .from('employers')
+            .select('id')
+            .eq('user_id', profileRecord.id)
+            .limit(1)
+            .maybeSingle(),
+          supabaseAdmin
+            .from('employee_onboarding')
+            .select('id')
+            .eq('user_id', profileRecord.id)
+            .limit(1)
+            .maybeSingle(),
+          supabaseAdmin
+            .from('employees')
+            .select('id')
+            .eq('user_id', profileRecord.id)
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+      responseRole =
+        employerOnboarding || employerRecord
+          ? 'employer'
+          : employeeOnboarding || employeeRecord
+            ? 'employee'
+            : normalizeAppRole(user.user_metadata?.role) ?? 'employee';
+    }
     console.log('[login] Role set to:', responseRole);
   } else {
     console.warn(`[login] No profile found for authenticated user ${user.email} (${user.id})`);
-    responseRole = user.user_metadata?.role ?? 'employee';
+    const [{ data: employerOnboarding }, { data: employerRecord }, { data: employeeOnboarding }, { data: employeeRecord }] =
+      await Promise.all([
+        supabaseAdmin
+          .from('employer_onboarding')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('employers')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('employee_onboarding')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('employees')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+    responseRole =
+      employerOnboarding || employerRecord
+        ? 'employer'
+        : employeeOnboarding || employeeRecord
+          ? 'employee'
+          : normalizeAppRole(user.user_metadata?.role) ?? 'employee';
     console.log('[login] Role fallback to:', responseRole);
   }
   console.log('[login] === LOGIN SUCCESS ===');

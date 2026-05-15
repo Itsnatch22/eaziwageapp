@@ -16,7 +16,7 @@ export class DusupayClient {
     } else {
       this.publicKey = process.env.DUSUPAY_SANDBOX_PUBLIC_KEY || '';
       this.secretKey = process.env.DUSUPAY_SANDBOX_SECRET_KEY || '';
-      this.baseUrl = process.env.DUSUPAY_SANDBOX_BASE_URL || 'https://sandboxapi.dusupay.com';
+      this.baseUrl = process.env.DUSUPAY_SANDBOX_BASE_URL || 'https://sdbxportal.dusupay.com/';
     }
   }
 
