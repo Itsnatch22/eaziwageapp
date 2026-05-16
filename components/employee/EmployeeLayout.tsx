@@ -17,10 +17,6 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
-import { OnboardingGuide } from '../layout/OnboardingGuide';
-
-// Types 
-
 interface Notification {
   id: string;
   type: 'advance_approval' | 'kyc_update' | 'system_alert' | 'repayment_reminder';
@@ -455,15 +451,6 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <EmployeeBackground />
-      <OnboardingGuide 
-        guideKey="employee-overview"
-        steps={[
-          { title: "Welcome to EaziWage!", description: "Your companion for financial flexibility. Get instant access to your earned wages.", icon: <Sparkles className="w-10 h-10 text-emerald-500" /> },
-          { title: "Withdraw Funds", description: "Request an advance against your earned wages anytime, anywhere. Funds arrive instantly.", icon: <Wallet className="w-10 h-10 text-emerald-500" /> },
-          { title: "Track Transactions", description: "Monitor your withdrawal history and repayment status in real-time.", icon: <History className="w-10 h-10 text-emerald-500" /> },
-          { title: "Financial Wellness", description: "Use our budgeting tools to plan your expenses and stay on top of your goals.", icon: <CheckCircle2 className="w-10 h-10 text-emerald-500" /> },
-        ]}
-      />
 
       <EmployeeSidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
 

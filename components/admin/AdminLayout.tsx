@@ -16,7 +16,6 @@ import { logout } from '@/actions/auth';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommandPalette } from './CommandPalette';
-import { OnboardingGuide } from '../layout/OnboardingGuide';
 import { useAuthStore } from '@/lib/stores/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -592,15 +591,6 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <AdminBackground />
       <CommandPalette />
-      <OnboardingGuide 
-        guideKey="admin-overview"
-        steps={[
-          { title: "Admin Control Center", description: "Monitor the entire EaziWage platform from here. High-level stats at your fingertips.", icon: <Shield className="w-10 h-10 text-emerald-500" /> },
-          { title: "Manage Partners", description: "Review and manage employers and their employee bases seamlessly.", icon: <Building2 className="w-10 h-10 text-emerald-500" /> },
-          { title: "Financial Oversight", description: "Track platform revenue, fee collection, and disbursement health across all organizations.", icon: <BarChart3 className="w-10 h-10 text-emerald-500" /> },
-          { title: "Global Search", description: "Press ⌘K anytime to search for any employer, employee, or transaction reference.", icon: <Sparkles className="w-10 h-10 text-emerald-500" /> },
-        ]}
-      />
 
       <AdminSidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} userProfile={userProfile} />
       

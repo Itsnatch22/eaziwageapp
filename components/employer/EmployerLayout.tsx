@@ -18,7 +18,6 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
-import { OnboardingGuide } from '../layout/OnboardingGuide';
 
 
 export const EmployerBackground = () => (
@@ -501,15 +500,6 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300" data-testid="employer-dashboard">
       <EmployerBackground />
-      <OnboardingGuide 
-        guideKey="employer-overview"
-        steps={[
-          { title: "Employer Portal", description: "Manage your workforce and EWA program from this central hub.", icon: <Building2 className="w-10 h-10 text-emerald-500" /> },
-          { title: "Manage Employees", description: "Onboard new staff, verify details, and monitor participation rates.", icon: <Users className="w-10 h-10 text-emerald-500" /> },
-          { title: "Wallet & Funding", description: "Pre-fund your organization's wallet to enable instant disbursements for your team.", icon: <Wallet className="w-10 h-10 text-emerald-500" /> },
-          { title: "Internal Communication", description: "Send announcements and updates directly to your employees' dashboards.", icon: <MessageSquare className="w-10 h-10 text-emerald-500" /> },
-        ]}
-      />
       
       <SidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
