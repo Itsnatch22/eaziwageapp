@@ -31,17 +31,23 @@ interface NotificationDropdownProps {
 }
 
 export const NotificationDropdown = ({ 
-  role, 
-  userId, 
-  apiPath, 
-  pusherChannel, 
+  role,
+  userId,
+  apiPath,
+  pusherChannel,
   viewAllHref,
-  primaryColor 
+  primaryColor
 }: NotificationDropdownProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -225,8 +231,9 @@ export const NotificationDropdown = ({
                             {notif.title}
                           </p>
                           <span className="text-[9px] font-medium text-slate-400 whitespace-nowrap">
-                            {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {mounted ? new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null}
                           </span>
+
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
                           {notif.message}

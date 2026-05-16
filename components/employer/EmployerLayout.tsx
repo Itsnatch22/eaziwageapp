@@ -1,7 +1,7 @@
 "use client"
 import { 
   LayoutDashboard, Users, CreditCard, BarChart3, Settings, LogOut, 
-  Bell, Menu, X, ChevronRight, Upload, HelpCircle, Shield, Wallet, MessageSquare, Building2
+  Menu, X, ChevronRight, Upload, HelpCircle, Shield, Wallet, MessageSquare, Building2
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
@@ -9,7 +9,6 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
-import Image from 'next/image';
 import { logout } from '@/actions/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import React,{ useState, useRef, useEffect, useCallback }from 'react';
@@ -338,10 +337,17 @@ interface TopHeaderProps {
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
   const user = useAuthStore((state) => state.user as EmployerUser | null);
-  const hour = new Date().getHours();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const hour = mounted ? new Date().getHours() : 9;
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
   return (
+
     <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50">
       <div className="px-4 lg:px-8 py-4">
         <div className="flex items-center justify-between">
@@ -409,9 +415,16 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   const pathname = usePathname();
   const router = useRouter();
   
-  // Cache busting for avatar URL - force refresh when avatar changes
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>((user as any)?.avatar_url);
+  // Cache busting for avatar URL - avoid SSR/first-paint mismatch
+  const [mounted, setMounted] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
+
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     if ((user as any)?.avatar_url) {
       const timestamp = Date.now();
       const newUrl = (user as any).avatar_url.includes('?') 
@@ -421,7 +434,8 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
     } else {
       setAvatarUrl(undefined);
     }
-  }, [(user as any)?.avatar_url]);
+  }, [mounted, (user as any)?.avatar_url]);
+
 
   useEffect(() => {
     const checkAccess = async () => {

@@ -31,74 +31,104 @@ const COUNTRIES_OF_WORK = [
   { code: 'RW', name: 'Rwanda', providers: ['MTN MoMo', 'Airtel Money'] },
 ];
 
-const ALL_COUNTRIES = [
-  { code: 'AF', name: 'Afghanistan' }, { code: 'AL', name: 'Albania' }, { code: 'DZ', name: 'Algeria' },
-  { code: 'AD', name: 'Andorra' }, { code: 'AO', name: 'Angola' }, { code: 'AG', name: 'Antigua and Barbuda' },
-  { code: 'AR', name: 'Argentina' }, { code: 'AM', name: 'Armenia' }, { code: 'AU', name: 'Australia' },
-  { code: 'AT', name: 'Austria' }, { code: 'AZ', name: 'Azerbaijan' }, { code: 'BS', name: 'Bahamas' },
-  { code: 'BH', name: 'Bahrain' }, { code: 'BD', name: 'Bangladesh' }, { code: 'BB', name: 'Barbados' },
-  { code: 'BY', name: 'Belarus' }, { code: 'BE', name: 'Belgium' }, { code: 'BZ', name: 'Belize' },
-  { code: 'BJ', name: 'Benin' }, { code: 'BT', name: 'Bhutan' }, { code: 'BO', name: 'Bolivia' },
-  { code: 'BA', name: 'Bosnia and Herzegovina' }, { code: 'BW', name: 'Botswana' }, { code: 'BR', name: 'Brazil' },
-  { code: 'BN', name: 'Brunei' }, { code: 'BG', name: 'Bulgaria' }, { code: 'BF', name: 'Burkina Faso' },
-  { code: 'BI', name: 'Burundi' }, { code: 'CV', name: 'Cabo Verde' }, { code: 'KH', name: 'Cambodia' },
-  { code: 'CM', name: 'Cameroon' }, { code: 'CA', name: 'Canada' }, { code: 'CF', name: 'Central African Republic' },
-  { code: 'TD', name: 'Chad' }, { code: 'CL', name: 'Chile' }, { code: 'CN', name: 'China' },
-  { code: 'CO', name: 'Colombia' }, { code: 'KM', name: 'Comoros' }, { code: 'CG', name: 'Congo' },
-  { code: 'CD', name: 'Congo (DRC)' }, { code: 'CR', name: 'Costa Rica' }, { code: 'CI', name: "Côte d'Ivoire" },
-  { code: 'HR', name: 'Croatia' }, { code: 'CU', name: 'Cuba' }, { code: 'CY', name: 'Cyprus' },
-  { code: 'CZ', name: 'Czech Republic' }, { code: 'DK', name: 'Denmark' }, { code: 'DJ', name: 'Djibouti' },
-  { code: 'DM', name: 'Dominica' }, { code: 'DO', name: 'Dominican Republic' }, { code: 'EC', name: 'Ecuador' },
-  { code: 'EG', name: 'Egypt' }, { code: 'SV', name: 'El Salvador' }, { code: 'GQ', name: 'Equatorial Guinea' },
-  { code: 'ER', name: 'Eritrea' }, { code: 'EE', name: 'Estonia' }, { code: 'SZ', name: 'Eswatini' },
-  { code: 'ET', name: 'Ethiopia' }, { code: 'FJ', name: 'Fiji' }, { code: 'FI', name: 'Finland' },
-  { code: 'FR', name: 'France' }, { code: 'GA', name: 'Gabon' }, { code: 'GM', name: 'Gambia' },
-  { code: 'GE', name: 'Georgia' }, { code: 'DE', name: 'Germany' }, { code: 'GH', name: 'Ghana' },
-  { code: 'GR', name: 'Greece' }, { code: 'GD', name: 'Grenada' }, { code: 'GT', name: 'Guatemala' },
-  { code: 'GN', name: 'Guinea' }, { code: 'GW', name: 'Guinea-Bissau' }, { code: 'GY', name: 'Guyana' },
-  { code: 'HT', name: 'Haiti' }, { code: 'HN', name: 'Honduras' }, { code: 'HU', name: 'Hungary' },
-  { code: 'IS', name: 'Iceland' }, { code: 'IN', name: 'India' }, { code: 'ID', name: 'Indonesia' },
-  { code: 'IR', name: 'Iran' }, { code: 'IQ', name: 'Iraq' }, { code: 'IE', name: 'Ireland' },
-  { code: 'IL', name: 'Israel' }, { code: 'IT', name: 'Italy' }, { code: 'JM', name: 'Jamaica' },
-  { code: 'JP', name: 'Japan' }, { code: 'JO', name: 'Jordan' }, { code: 'KZ', name: 'Kazakhstan' },
-  { code: 'KE', name: 'Kenya' }, { code: 'KI', name: 'Kiribati' }, { code: 'KP', name: 'North Korea' },
-  { code: 'KR', name: 'South Korea' }, { code: 'KW', name: 'Kuwait' }, { code: 'KG', name: 'Kyrgyzstan' },
-  { code: 'LA', name: 'Laos' }, { code: 'LV', name: 'Latvia' }, { code: 'LB', name: 'Lebanon' },
-  { code: 'LS', name: 'Lesotho' }, { code: 'LR', name: 'Liberia' }, { code: 'LY', name: 'Libya' },
-  { code: 'LI', name: 'Liechtenstein' }, { code: 'LT', name: 'Lithuania' }, { code: 'LU', name: 'Luxembourg' },
-  { code: 'MG', name: 'Madagascar' }, { code: 'MW', name: 'Malawi' }, { code: 'MY', name: 'Malaysia' },
-  { code: 'MV', name: 'Maldives' }, { code: 'ML', name: 'Mali' }, { code: 'MT', name: 'Malta' },
-  { code: 'MH', name: 'Marshall Islands' }, { code: 'MR', name: 'Mauritania' }, { code: 'MU', name: 'Mauritius' },
-  { code: 'MX', name: 'Mexico' }, { code: 'FM', name: 'Micronesia' }, { code: 'MD', name: 'Moldova' },
-  { code: 'MC', name: 'Monaco' }, { code: 'MN', name: 'Mongolia' }, { code: 'ME', name: 'Montenegro' },
-  { code: 'MA', name: 'Morocco' }, { code: 'MZ', name: 'Mozambique' }, { code: 'MM', name: 'Myanmar' },
-  { code: 'NA', name: 'Namibia' }, { code: 'NR', name: 'Nauru' }, { code: 'NP', name: 'Nepal' },
-  { code: 'NL', name: 'Netherlands' }, { code: 'NZ', name: 'New Zealand' }, { code: 'NI', name: 'Nicaragua' },
-  { code: 'NE', name: 'Niger' }, { code: 'NG', name: 'Nigeria' }, { code: 'MK', name: 'North Macedonia' },
-  { code: 'NO', name: 'Norway' }, { code: 'OM', name: 'Oman' }, { code: 'PK', name: 'Pakistan' },
-  { code: 'PW', name: 'Palau' }, { code: 'PS', name: 'Palestine' }, { code: 'PA', name: 'Panama' },
-  { code: 'PG', name: 'Papua New Guinea' }, { code: 'PY', name: 'Paraguay' }, { code: 'PE', name: 'Peru' },
-  { code: 'PH', name: 'Philippines' }, { code: 'PL', name: 'Poland' }, { code: 'PT', name: 'Portugal' },
-  { code: 'QA', name: 'Qatar' }, { code: 'RO', name: 'Romania' }, { code: 'RU', name: 'Russia' },
-  { code: 'RW', name: 'Rwanda' }, { code: 'KN', name: 'Saint Kitts and Nevis' }, { code: 'LC', name: 'Saint Lucia' },
-  { code: 'VC', name: 'Saint Vincent and the Grenadines' }, { code: 'WS', name: 'Samoa' }, { code: 'SM', name: 'San Marino' },
-  { code: 'ST', name: 'Sao Tome and Principe' }, { code: 'SA', name: 'Saudi Arabia' }, { code: 'SN', name: 'Senegal' },
-  { code: 'RS', name: 'Serbia' }, { code: 'SC', name: 'Seychelles' }, { code: 'SL', name: 'Sierra Leone' },
-  { code: 'SG', name: 'Singapore' }, { code: 'SK', name: 'Slovakia' }, { code: 'SI', name: 'Slovenia' },
-  { code: 'SB', name: 'Solomon Islands' }, { code: 'SO', name: 'Somalia' }, { code: 'ZA', name: 'South Africa' },
-  { code: 'SS', name: 'South Sudan' }, { code: 'ES', name: 'Spain' }, { code: 'LK', name: 'Sri Lanka' },
-  { code: 'SD', name: 'Sudan' }, { code: 'SR', name: 'Suriname' }, { code: 'SE', name: 'Sweden' },
-  { code: 'CH', name: 'Switzerland' }, { code: 'SY', name: 'Syria' }, { code: 'TW', name: 'Taiwan' },
-  { code: 'TJ', name: 'Tajikistan' }, { code: 'TZ', name: 'Tanzania' }, { code: 'TH', name: 'Thailand' },
-  { code: 'TL', name: 'Timor-Leste' }, { code: 'TG', name: 'Togo' }, { code: 'TO', name: 'Tonga' },
-  { code: 'TT', name: 'Trinidad and Tobago' }, { code: 'TN', name: 'Tunisia' }, { code: 'TR', name: 'Turkey' },
-  { code: 'TM', name: 'Turkmenistan' }, { code: 'TV', name: 'Tuvalu' }, { code: 'UG', name: 'Uganda' },
-  { code: 'UA', name: 'Ukraine' }, { code: 'AE', name: 'United Arab Emirates' }, { code: 'GB', name: 'United Kingdom' },
-  { code: 'US', name: 'United States' }, { code: 'UY', name: 'Uruguay' }, { code: 'UZ', name: 'Uzbekistan' },
-  { code: 'VU', name: 'Vanuatu' }, { code: 'VA', name: 'Vatican City' }, { code: 'VE', name: 'Venezuela' },
-  { code: 'VN', name: 'Vietnam' }, { code: 'YE', name: 'Yemen' }, { code: 'ZM', name: 'Zambia' },
-  { code: 'ZW', name: 'Zimbabwe' },
-];
+const BANKS_BY_COUNTRY: Record<string, string[]> = {
+  KE: [
+    'Absa Bank Kenya',
+    'Access Bank Kenya',
+    'African Banking Corporation',
+    'Bank of Africa Kenya',
+    'Bank of Baroda Kenya',
+    'Bank of India Kenya',
+    'Citibank N.A. Kenya',
+    'Commercial International Bank (CIB)',
+    'Co-operative Bank of Kenya',
+    'Credit Bank',
+    'Diamond Trust Bank (DTB)',
+    'Ecobank Kenya',
+    'Equity Bank Kenya',
+    'Family Bank',
+    'First Community Bank',
+    'Gulf African Bank',
+    'Housing Finance Company',
+    'I&M Bank Kenya',
+    'KCB Bank Kenya',
+    'Middle East Bank Kenya',
+    'NCBA Bank Kenya',
+    'Prime Bank',
+    'SBM Bank Kenya',
+    'Stanbic Bank Kenya',
+    'Standard Chartered Kenya',
+    'UBA Kenya',
+    'Victoria Commercial Bank',
+    'Zenith Bank Kenya',
+  ],
+  TZ: [
+    'CRDB Bank',
+    'NMB Bank',
+    'NBC Bank',
+    'Absa Bank Tanzania',
+    'Stanbic Bank Tanzania',
+    'Standard Chartered Tanzania',
+    'Citibank Tanzania',
+    'Diamond Trust Bank Tanzania',
+    'Ecobank Tanzania',
+    'Exim Bank Tanzania',
+    'KCB Bank Tanzania',
+    'Bank of Africa Tanzania',
+    'Access Bank Tanzania',
+    'Equity Bank Tanzania',
+    'I&M Bank Tanzania',
+    'Bank of India Tanzania',
+    'United Bank for Africa Tanzania',
+    'Mkombozi Commercial Bank',
+    'DCB Commercial Bank',
+    'Azania Bank',
+  ],
+  UG: [
+    'Absa Bank Uganda',
+    'Access Bank Uganda',
+    'Bank of Africa Uganda',
+    'Bank of Baroda Uganda',
+    'Bank of India Uganda',
+    'Cairo Bank Uganda',
+    'Centenary Bank',
+    'Citibank Uganda',
+    'DFCU Bank',
+    'Diamond Trust Bank Uganda',
+    'Ecobank Uganda',
+    'Equity Bank Uganda',
+    'Exim Bank Uganda',
+    'Housing Finance Bank',
+    'I&M Bank Uganda',
+    'KCB Bank Uganda',
+    'NCBA Bank Uganda',
+    'PostBank Uganda',
+    'Salaam Bank Uganda',
+    'Stanbic Bank Uganda',
+    'Standard Chartered Uganda',
+    'Tropical Bank',
+    'United Bank for Africa Uganda',
+  ],
+  RW: [
+    'Bank of Kigali',
+    'BPR Bank Rwanda',
+    'I&M Bank Rwanda',
+    'Ecobank Rwanda',
+    'GT Bank Rwanda',
+    'Equity Bank Rwanda',
+    'NCBA Rwanda',
+    'Access Bank Rwanda',
+    'Bank of Africa Rwanda',
+    'KCB Bank Rwanda',
+    'Urwego Bank',
+    'AB Bank Rwanda',
+    'Cogebanque',
+    'Zigama CSS',
+    'Development Bank of Rwanda (BRD)',
+    'Unguka Bank',
+  ],
+};
+
 
 const TERMS_CONTENT = `Last Updated: October 2025
 
@@ -737,7 +767,7 @@ export default function Onboarding() {
       case 4: return !!(formData.country && formData.address_line1 && formData.city && uploadedFiles.address_proof);
       case 5: return true;
       case 6: return !!(formData.employer_id && formData.job_title && formData.joining_month && formData.joining_year && uploadedFiles.payslip_1);
-      case 7: return !!(formData.mobile_money_number && formData.bank_account && uploadedFiles.bank_statement);
+      case 7: return !!(formData.country && formData.bank_name && formData.mobile_money_number && formData.bank_account && uploadedFiles.bank_statement);
       default: return false;
     }
   };
@@ -1188,29 +1218,69 @@ export default function Onboarding() {
               <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
                 <BankIcon className="w-3.5 h-3.5" /> Bank Details
               </h4>
+
               <div className="space-y-4">
-                <Input value={formData.bank_name} onChange={e => updateField('bank_name', e.target.value)} placeholder="Bank Name" className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800" />
-                <Input value={formData.bank_account} onChange={e => updateField('bank_account', e.target.value)} placeholder="Account Number" className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800" />
+                <div className="flex flex-col gap-2">
+                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Enrolled Bank *</Label>
+                  <Select value={formData.bank_name} onValueChange={(v) => updateField('bank_name', v)}>
+                    <SelectTrigger className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800">
+                      <SelectValue placeholder="Select your bank" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {(BANKS_BY_COUNTRY[formData.country] ?? []).map((bank) => (
+                        <SelectItem key={bank} value={bank}>
+                          {bank}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Input
+                  value={formData.bank_account}
+                  onChange={(e) => updateField('bank_account', e.target.value)}
+                  placeholder="Account Number"
+                  className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800"
+                  data-testid="onboarding-bank-account"
+                />
               </div>
             </div>
+
             <div className="p-5 bg-indigo-500/5 rounded-3xl border border-indigo-500/10">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-4 flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5" /> Mobile Money
               </h4>
               <div className="space-y-4">
-                <Select value={formData.mobile_money_provider} onValueChange={v => updateField('mobile_money_provider', v)}>
+                <Select value={formData.mobile_money_provider} onValueChange={(v) => updateField('mobile_money_provider', v)}>
                   <SelectTrigger className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800">
                     <SelectValue placeholder="Select Provider" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
-                    <SelectItem value="M-PESA">M-PESA</SelectItem>
-                    <SelectItem value="Airtel Money">Airtel Money</SelectItem>
+                    {(COUNTRIES_OF_WORK.find((c) => c.code === formData.country)?.providers ?? []).map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Input value={formData.mobile_money_number} onChange={e => updateField('mobile_money_number', e.target.value)} placeholder="Mobile Number" className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800" />
+
+                <Input
+                  value={formData.mobile_money_number}
+                  onChange={(e) => updateField('mobile_money_number', e.target.value)}
+                  placeholder="Mobile Number"
+                  className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800"
+                  data-testid="onboarding-mobile-number"
+                />
               </div>
             </div>
-            <FileUploader label="Recent Bank Statement" onUpload={(f: File) => handleFileUpload(f, 'bank_statement')} uploadedFile={uploadedFiles.bank_statement} uploading={uploadingFile === 'bank_statement'} required />
+
+            <FileUploader
+              label="Recent Bank Statement"
+              onUpload={(f: File) => handleFileUpload(f, 'bank_statement')}
+              uploadedFile={uploadedFiles.bank_statement}
+              uploading={uploadingFile === 'bank_statement'}
+              required
+            />
           </div>
         </div>
       );
