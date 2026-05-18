@@ -189,7 +189,36 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [cacheStatus, setCacheStatus] = useState<'HIT' | 'MISS' | null>(null);
   const [refreshingCache, setRefreshingCache] = useState(false);
+  const [reconciliationCount, setReconciliationCount] = useState<number | null>(null);
+  const [riskScoringCount, setRiskScoringCount] = useState<number | null>(null);
   const avgEmployerRisk = stats?.risk?.avg_employer_score ?? 3.5;
+
+  const fetchReconciliationStats = async () => {
+    try {
+      const res = await fetch('/api/admin/reconciliation');
+      if (res.ok) {
+        const data = await res.json();
+        // Use pending_recoupment count or similar from the API
+        // For the dashboard card, we'll use the number of employers with pending recoupment
+        const pendingCount = data.by_employer?.filter((e: any) => e.pending_recoupment > 0).length || 0;
+        setReconciliationCount(pendingCount);
+      }
+    } catch (err) {
+      console.error('Failed to fetch reconciliation stats:', err);
+    }
+  };
+
+  const fetchRiskScoringStats = async () => {
+    try {
+      const res = await fetch('/api/admin/employers?status=risk_review_in_progress');
+      if (res.ok) {
+        const data = await res.json();
+        setRiskScoringCount(data.stats?.needs_risk_assessment || data.data?.length || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch risk scoring stats:', err);
+    }
+  };
 
   // Define handlers before they are used
   const handleUpdate = () => {
@@ -197,7 +226,9 @@ export default function AdminDashboard() {
     // Re-fetch data without showing full-page loader for better UX
     Promise.all([
       fetch('/api/admin/dashboard'),
-      fetch('/api/admin/notifications')
+      fetch('/api/admin/notifications'),
+      fetchReconciliationStats(),
+      fetchRiskScoringStats()
     ]).then(async ([dashboardRes, notificationsRes]) => {
       const [dashboardData, notificationsData] = await Promise.all([
         dashboardRes.json(),
@@ -237,6 +268,7 @@ export default function AdminDashboard() {
           setStats(data);
           setCacheStatus('MISS');
         }
+        await Promise.all([fetchReconciliationStats(), fetchRiskScoringStats()]);
       }
     } catch (err) {
       console.error('[AdminDashboard] Cache refresh failed:', err);
@@ -250,7 +282,9 @@ export default function AdminDashboard() {
       try {
         const [dashboardRes, notificationsRes] = await Promise.all([
           fetch('/api/admin/dashboard'),
-          fetch('/api/admin/notifications')
+          fetch('/api/admin/notifications'),
+          fetchReconciliationStats(),
+          fetchRiskScoringStats()
         ]);
         
         if (dashboardRes.ok) {
@@ -277,11 +311,18 @@ export default function AdminDashboard() {
     if (!pusherClient) return;
 
     const channel = pusherClient.subscribe('admin-notifications');
+    
+    const handleRealtimeUpdate = () => {
+      handleUpdate();
+    };
+
     channel.bind('new-notification', (data: Notification) => {
       setNotifications((prev) => [data, ...prev]);
-      // Also update dashboard stats if needed
-      handleUpdate();
+      handleRealtimeUpdate();
     });
+
+    channel.bind('reconciliation-update', handleRealtimeUpdate);
+    channel.bind('risk-update', handleRealtimeUpdate);
 
     channel.bind('notification-deleted', (data: { id: string }) => {
       setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
@@ -289,6 +330,8 @@ export default function AdminDashboard() {
 
     return () => {
       channel.unbind('new-notification');
+      channel.unbind('reconciliation-update');
+      channel.unbind('risk-update');
       channel.unbind('notification-deleted');
       pusherClient!.unsubscribe('admin-notifications');
     };
@@ -346,8 +389,15 @@ export default function AdminDashboard() {
           {stats.kyc_pending.employees > 0 && (
             <AlertCard icon={FileText} title="KYC Reviews" count={stats.kyc_pending.employees} description="Documents to review" link="/admin/kyc-review" variant="slate" />
           )}
-          {stats.pending_reviews > 0 && (
-            <AlertCard icon={Shield} title="Risk Reviews" count={stats.pending_reviews} description="Employer requests" link="/admin/risk-scoring" variant="green" />
+          {(riskScoringCount !== null ? riskScoringCount > 0 : stats.pending_reviews > 0) && (
+            <AlertCard 
+              icon={Shield} 
+              title="Risk Reviews" 
+              count={riskScoringCount ?? stats.pending_reviews} 
+              description="Employer requests" 
+              link="/admin/risk-scoring" 
+              variant="green" 
+            />
           )}
         </div>
       )}
@@ -447,8 +497,8 @@ export default function AdminDashboard() {
         {[
           { link: '/admin/employers?status=pending', icon: CheckCircle2, label: 'Verify Employers', count: stats?.kyc_pending.employers || 0, variant: 'slate' as const },
           { link: '/admin/kyc-review', icon: FileText, label: 'Review KYC', count: stats?.kyc_pending.employees || 0, variant: 'slate' as const },
-          { link: '/admin/risk-scoring', icon: Shield, label: 'Risk Scoring', count: stats?.pending_reviews ?? null, variant: 'green' as const },
-          { link: '/admin/reconciliation', icon: BarChart3, label: 'Reconciliation', count: stats?.pending_reconciliation ?? null, variant: 'green' as const },
+          { link: '/admin/risk-scoring', icon: Shield, label: 'Risk Scoring', count: riskScoringCount ?? stats?.pending_reviews ?? null, variant: 'green' as const },
+          { link: '/admin/reconciliation', icon: BarChart3, label: 'Reconciliation', count: reconciliationCount ?? stats?.pending_reconciliation ?? null, variant: 'green' as const },
         ].map((item, i) => (
           <Link key={i} href={item.link} className="group">
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:border-green-300 dark:hover:border-green-600/30 transition-all hover:shadow-lg hover:shadow-green-500/10">

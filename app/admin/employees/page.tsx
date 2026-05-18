@@ -1299,11 +1299,11 @@ export default function AdminEmployees() {
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       return (
-        e.full_name.toLowerCase().includes(search) ||
-        e.employee_code.toLowerCase().includes(search) ||
-        e.job_title.toLowerCase().includes(search) ||
+        e.full_name?.toLowerCase().includes(search) ||
+        e.employee_code?.toLowerCase().includes(search) ||
+        e.job_title?.toLowerCase().includes(search) ||
         e.employer_name?.toLowerCase().includes(search) ||
-        e.email.toLowerCase().includes(search)
+        e.email?.toLowerCase().includes(search)
       );
     }
     return true;

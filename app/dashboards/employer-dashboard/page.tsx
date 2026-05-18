@@ -298,7 +298,7 @@ const PayrollHealthCard = ({ lastSync }: { lastSync: PeriodData['last_sync'] }) 
         </div>
       )}
 
-      <Link href="/dashboards/employer-dashboard/payroll/history" className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 group">
+      <Link href="/dashboards/employer-dashboard/payroll" className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 group">
         <span className="text-xs font-semibold text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
           View Sync Logs <ArrowRight className="w-3.5 h-3.5" />
         </span>

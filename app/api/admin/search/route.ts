@@ -35,11 +35,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .ilike('company_name', `%${query}%`)
       .limit(5);
 
-    const { data: employees } = await supabase
-      .from('employees')
-      .select('id, name, organization_id')
-      .ilike('name', `%${query}%`)
-      .limit(5);
+    // Search both live employees and onboarding employees
+    const [employeesRes, onboardingRes] = await Promise.all([
+      supabase
+        .from('employees')
+        .select('id, name, full_name, employer_id, user_id')
+        .or(`name.ilike.%${query}%,full_name.ilike.%${query}%`)
+        .limit(5),
+      supabase
+        .from('employee_onboarding')
+        .select('id, full_name, employer_id, user_id')
+        .ilike('full_name', `%${query}%`)
+        .limit(5)
+    ]);
+
+    const employees = employeesRes.data || [];
+    const onboarding = onboardingRes.data || [];
 
     const { data: advances } = await supabase
       .from('advances')
@@ -47,10 +58,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .ilike('reference', `%${query}%`)
       .limit(5);
 
+    // Combine employees, avoiding duplicates by user_id
+    const combinedEmployees = [...employees, ...onboarding];
+    const uniqueEmployees = combinedEmployees.filter((emp, index, self) =>
+      index === self.findIndex((e) => e.user_id === emp.user_id)
+    );
+
     const results = [
-      ...(employers || []).map(e => ({ type: 'employer', id: e.id, title: e.company_name, href: `/admin/employers?id=${e.id}` })),
-      ...(employees || []).map(e => ({ type: 'employee', id: e.id, title: e.name, href: `/admin/employees?id=${e.id}` })),
-      ...(advances || []).map(a => ({ type: 'advance', id: a.id, title: `Advance ${a.reference}`, href: `/admin/advances?id=${a.id}` })),
+      ...(employers || []).map(e => ({ 
+        type: 'employer', 
+        id: e.id, 
+        title: e.company_name, 
+        href: `/admin/employers?id=${e.id}` 
+      })),
+      ...uniqueEmployees.map(e => ({ 
+        type: 'employee', 
+        id: e.user_id || e.id, 
+        title: e.full_name || (e as any).name || 'Unknown Employee', 
+        href: `/admin/employees?id=${e.user_id || e.id}` 
+      })),
+      ...(advances || []).map(a => ({ 
+        type: 'advance', 
+        id: a.id, 
+        title: `Advance ${a.reference}`, 
+        href: `/admin/advances?id=${a.id}` 
+      })),
     ];
 
     return NextResponse.json({ results }, { status: 200, headers: rateResult.headers });

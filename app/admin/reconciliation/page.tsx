@@ -257,7 +257,7 @@ export default function AdminReconciliation() {
   }, []);
 
   const filteredEmployers = data?.by_employer?.filter((e) => 
-    e.employer_name.toLowerCase().includes(searchTerm.toLowerCase())
+    (e.employer_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   if (loading) {

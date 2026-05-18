@@ -1,57 +1,36 @@
-# EaziWage DusuPay Integration: Final Phase Documentation
+# Redefined workflow for respective dashboards
 
-This document provides a comprehensive overview of the refactored DusuPay integration and the complete financial workflow implemented for EaziWage.
+The user requires you to refactor his codebase using the defined tasks that he has provided.
+Do not touch any other logic, change route, dismantle UI appearance for code components unless the user has stated so.
 
-## 1. End-to-End Workflow
+# Task 1:
 
-The system manages the entire lifecycle of a wage advance, from the initial request to final disbursement and repayment.
+`app/admin`
+1. /page.tsx - The Reconciliation and Risk-scoring stat cards should fetch realtime from their respective pages in `app/admin/reconciliation` and `app/admin/risk-scoring`.
+2. /employers -
+    i. The total employees stat card should collect the employees available from the onboarded companies that have already been verified by the admin and display the total number.
+    ii. The employer detail modal isn't displaying:
+        - Employer code
+        -Employees tab isn't showing the employees for the respective companies
+3. /review-requests - Reviewing and resolving aren't functioning and updating in realtime seems like it is stuck
+4. /reconciliation -
+    i. Employers aren't appearing in the page.
+    ii. Search isn't working as expected, but I think it's tied to whether employers are visible in the page.
+5. /employees - Cannot read properties of null (reading 'toLowerCase')
 
-### Step 1: Employee Request
-- **Action**: Employee visits the **Request Advance** page.
-- **Process**: 
-    - The system calculates a **Platform Fee** based on the employer's risk score using `calculateFeePercentage`.
-    - The employee sees the **Gross Amount**, **Fee**, and **Net Disbursement**.
-    - The request is saved to the `advances` table with a `pending` status.
-- **Payment Details**: The system automatically utilizes the **Mobile Money** or **Bank Account** details provided during the employee's onboarding process (`employee_onboarding` table).
+NOTE: use the standardized currency format for the admin side, you can liase with how `/lib/utils.ts` has implemented it and other files in the `app/admin` dashboard. WHERE APPLICABLE..
 
-### Step 2: Employer Review & Approval
-- **Action**: Employer sees the request in their **Advances** dashboard.
-- **Process**:
-    - Upon clicking **Approve**, the system calls `payoutService.reserveFunds`.
-    - This creates a `pending` transaction in the employer's virtual wallet, "locking" the funds.
-    - If the employer has insufficient balance or outstanding arrears, the approval is blocked.
+# Task 2
 
-### Step 3: Admin Oversight & Disbursement
-- **Action**: Admins track all requests in the **Admin Advances** page.
-- **Process**:
-    - Admins can view `pending`, `approved`, `processing`, `completed`, and `failed` advances.
-    - For `approved` advances, the admin (or a system trigger) initiates `payoutService.disburseAdvance`.
-    - The service fetches the employee's specific onboarding details (e.g., M-Pesa number or Bank account) and sends the payout request to **DusuPay**.
+`components/admin/CommandPalette.tsx`
+6. The admin can't search for employees. Which brings me to question whether the employees are upserting from table schema `supabase/employee_onboarding.sql` to table schema `supabase/employees.sql` and how it's being applied to their respective routes... compare to how the employers are being updated to appear in their respective table with relation to their respective route.
 
-### Step 4: DusuPay Verification & Webhook
-- **Verification**: DusuPay calls our `/api/v1/payouts/verify` endpoint. We confirm the transaction is legitimate and return `200 OK`.
-- **Final Status**: DusuPay sends a signed webhook to `/api/v1/payouts/webhook`.
-    - **Success**: The `advances` status moves to `completed`, and the employer's "reserved" wallet transaction is finalized.
-    - **Failure**: The status moves to `failed`, and the reserved funds are released back to the employer.
+In the table ,from Supabase, employers, the status isn't updating as per required, let's say a scenario where an account has been set to `active` by the admin, in the UI and routes and the change is happening in table `employer_onboarding`, I tend to think it's the upserting that isn't happening as expected.
 
-## 2. Financial Architecture (The Three-Tier Wallet)
+Please don't tamper with the schema in the `supabase` folder.
 
-1.  **Admin Wallet (Main Stanbic Source)**: 
-    - The platform's primary liquidity pool, funded via Stanbic Bank.
-2.  **Employer Wallet**: 
-    - Tracks internal credit/balance. Funded by the Admin Wallet.
-3.  **DusuPay Wallet Mirror**:
-    - Reflects real-time balances at the DusuPay gateway.
+# Task 3
 
-## 3. Key Implementation Files
+Get your references between `app/dashboards/employee-dashboard` and `app/dashboards/employer-dashboard` and their respective routes.
 
-- **`lib/dusupay/client.ts`**: Core API wrapper for DusuPay.
-- **`lib/services/payout-service.ts`**: Centralized service for fund movement and disbursement.
-- **`app/api/v1/payouts/`**: Webhook and Verification endpoints.
-- **`app/admin/advances/page.tsx`**: Admin tracking dashboard.
-- **`supabase/admin_finances.sql`**: Database schema for the virtual wallet system.
-
-## 4. Security & Integrity
-- **Idempotency**: Every payout uses a unique `merchant_reference` to prevent duplicate payments.
-- **Signature Verification**: Webhooks are verified using HMAC-SHA256 signatures.
-- **Atomic Transactions**: All fund movements are handled via PostgreSQL RPC functions to ensure data consistency.
+How does Department distribution work when an employee account has been activated? and every employee seems to be falling under general

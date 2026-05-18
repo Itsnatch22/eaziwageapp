@@ -22,28 +22,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   try {
-    const { data: employers, error: empError } = await supabase
-      .from('employer_onboarding')
-      .select('id, company_name, status')
-      .in('status', ['submitted', 'approved', 'suspended', 'risk_review_in_progress']);
+    // Query both onboarding and live employers to get accurate names
+    const [onboardingRes, liveRes] = await Promise.all([
+      supabase
+        .from('employer_onboarding')
+        .select('id, company_name, status'),
+      supabase
+        .from('employers')
+        .select('id, company_name, status')
+    ]);
 
-    if (empError) throw empError;
-
-    const { data: advances, error: advError } = await supabase
-      .from('advances')
-      .select(`
-        id,
-        amount,
-        fee_amount,
-        status,
-        reference,
-        created_at,
-        employer_id,
-        employee:employee_id (full_name)
-      `)
-      .in('status', ['disbursed', 'repaid']);
-
-    if (advError) throw advError;
+    const allEmployers = [
+      ...(onboardingRes.data || []),
+      ...(liveRes.data || [])
+    ];
 
     const byEmployer: Record<string, {
       employer_id: string;
@@ -63,7 +55,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         created_at: string;
       }>;
     }> = {};
-    (employers || []).forEach(emp => {
+
+    allEmployers.forEach(emp => {
       byEmployer[emp.id] = {
         employer_id: emp.id,
         employer_name: emp.company_name || 'Unknown Employer',
@@ -76,6 +69,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         advances: [],
       };
     });
+
+    const { data: advances, error: advError } = await supabase
+      .from('advances')
+      .select(`
+        id,
+        amount,
+        fee_amount,
+        status,
+        reference,
+        created_at,
+        employer_id,
+        employee:employee_id (full_name)
+      `)
+      .in('status', ['disbursed', 'repaid']);
+
+    if (advError) throw advError;
 
     let totalDisbursed = 0;
     let totalFees = 0;

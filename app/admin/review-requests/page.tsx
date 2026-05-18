@@ -403,12 +403,22 @@ export default function ReviewRequests() {
     if (!pusherClient) return;
 
     const channel = pusherClient.subscribe('admin-reviews');
+    
     channel.bind('new-request', (data: ReviewRequest) => {
       setRequests(prev => [data, ...prev]);
       toast.info('New review request received!');
     });
 
+    channel.bind('request-updated', (data: { id: string, status: RequestStatus }) => {
+      setRequests(prev => prev.map(req => 
+        req.id === data.id ? { ...req, status: data.status } : req
+      ));
+      toast.success('A review request was updated');
+    });
+
     return () => {
+      channel.unbind('new-request');
+      channel.unbind('request-updated');
       pusherClient!.unsubscribe('admin-reviews');
     };
   }, []);

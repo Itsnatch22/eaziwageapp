@@ -1156,8 +1156,13 @@ export default function Onboarding() {
                 <Input value={formData.job_title} onChange={e => updateField('job_title', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="e.g. Sales Manager" />
               </div>
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Employment Type</Label>
-                <Select value={formData.employment_type} onValueChange={v => updateField('employment_type', v)}>
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Department</Label>
+                <Input value={formData.department} onChange={e => updateField('department', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="e.g. Operations" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Employment Type</Label>
+              <Select value={formData.employment_type} onValueChange={v => updateField('employment_type', v)}>
                   <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>

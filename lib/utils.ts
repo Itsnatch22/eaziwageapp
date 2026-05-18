@@ -65,8 +65,6 @@ export function formatCurrency(
   const normalizedCurrency = (currency || 'KES').toUpperCase();
   const locale = currencyLocaleMap[normalizedCurrency] || 'en-KE';
 
-  // Some browsers don't support the specific locales well, 
-  // so we ensure the symbol is correct for the region
   try {
     return new Intl.NumberFormat(locale, {
       style: 'currency',

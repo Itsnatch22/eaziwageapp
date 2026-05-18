@@ -78,12 +78,12 @@ export async function GET(
 
   const { data: employer, error } = await adminSupabase
     .from('employer_onboarding')
-    .select(
-      `
+    .select(`
       id,
       user_id,
       company_name,
       industry,
+      sector,
       country,
       registration_number,
       tax_id,
@@ -96,8 +96,7 @@ export async function GET(
       risk_score,
       created_at,
       updated_at
-    `
-    )
+    `)
     .eq('id', id)
     .single();
 
@@ -107,6 +106,20 @@ export async function GET(
       { status: 404, headers: rateResult.headers }
     );
   }
+
+  const { data: profileRow } = await adminSupabase
+    .from('profiles')
+    .select('company_code')
+    .eq('id', employer.user_id)
+    .maybeSingle();
+
+  const { data: liveEmployer } = await adminSupabase
+    .from('employers')
+    .select('employer_code')
+    .eq('id', id)
+    .maybeSingle();
+
+  const employerCode = liveEmployer?.employer_code || profileRow?.company_code || `EW-${employer.id.slice(0, 8).toUpperCase()}`;
 
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const [employeeResult, advancesResult] = await Promise.all([
@@ -121,7 +134,7 @@ export async function GET(
       .gte('created_at', startOfMonth),
   ]);
 
-  const activeEmployees = (employeeResult.data ?? []).filter((e) => e.status === 'active');
+  const activeEmployees = (employeeResult.data ?? []).filter((e) => e.status === 'active' || e.status === 'Active');
   const employeeCount = activeEmployees.length;
   const monthlyPayroll = activeEmployees.reduce((sum, e) => sum + (e.monthly_salary ?? 0), 0);
   const totalAdvances = (advancesResult.data ?? []).reduce((sum, a) => sum + (a.amount ?? 0), 0);
@@ -130,6 +143,7 @@ export async function GET(
     {
       id: employer.id,
       company_name: employer.company_name ?? 'Unknown company',
+      employer_code: employerCode,
       industry: employer.industry ?? '',
       country: employer.country ?? '',
       registration_number: employer.registration_number ?? null,

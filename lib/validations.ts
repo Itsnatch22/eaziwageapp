@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// Employee schemas
 export const createEmployeeSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   email: z.string().email().optional().or(z.literal('')),
@@ -27,7 +26,6 @@ export const employeeQuerySchema = z.object({
   status: z.enum(['Active', 'Inactive']).optional(),
 });
 
-// Policy schemas
 export const updatePolicySchema = z.object({
   withdrawal_limit_percent: z.number().min(0).max(100).optional(),
   frequency_cap: z.number().int().positive().nullable().optional(),
@@ -39,7 +37,6 @@ export const updatePolicySchema = z.object({
   access_end_hour: z.number().int().min(0).max(23).optional(),
 });
 
-// Type exports
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeQueryInput = z.infer<typeof employeeQuerySchema>;

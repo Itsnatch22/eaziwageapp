@@ -5,6 +5,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { UserRoleEnum, isAdminRole } from '@/lib/validations/kyc-validation';
 import pusherServer from '@/lib/pusher-server';
 
+export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 function createAdminClient() {
@@ -52,6 +53,8 @@ export async function PATCH(
 
   const { status, response, internal_notes, type } = await req.json();
 
+  let updateResult: any = null;
+
   if (type === 'risk_score') {
     const { data: request, error: updateError } = await adminSupabase
       .from('risk_review_requests')
@@ -66,6 +69,7 @@ export async function PATCH(
       .single();
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    updateResult = request;
 
     if (request.employer_onboarding?.user_id) {
         await pusherServer.trigger(
@@ -74,8 +78,6 @@ export async function PATCH(
             { id: requestId, status, message: response }
         );
     }
-
-    return NextResponse.json({ message: 'Risk review updated', data: request });
 
   } else if (type === 'kyc_review') {
     const { data: document, error: updateError } = await adminSupabase
@@ -91,14 +93,13 @@ export async function PATCH(
       .single();
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    updateResult = document;
 
     await pusherServer.trigger(
         `user-${document.user_id}`,
         'kyc-update',
         { id: requestId, status, message: response }
     );
-
-    return NextResponse.json({ message: 'KYC status updated', data: document });
 
   } else if (type === 'bank_change') {
     const { data: bRequest, error: fetchError } = await adminSupabase
@@ -140,6 +141,7 @@ export async function PATCH(
       .single();
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    updateResult = updatedRequest;
 
     if (bRequest.user_id) {
       const { data: notif } = await adminSupabase
@@ -160,8 +162,18 @@ export async function PATCH(
         await pusherServer.trigger(`employer-${bRequest.user_id}`, 'new-notification', notif);
       }
     }
+  }
 
-    return NextResponse.json({ message: 'Bank change request updated', data: updatedRequest });
+  if (updateResult) {
+    // Notify admin channel that a request has been updated
+    await pusherServer.trigger('admin-reviews', 'request-updated', { 
+      id: requestId, 
+      status, 
+      type,
+      updated_at: new Date().toISOString()
+    });
+    
+    return NextResponse.json({ message: 'Request updated successfully', data: updateResult });
   }
 
   return NextResponse.json({ error: 'Invalid request type' }, { status: 400 });

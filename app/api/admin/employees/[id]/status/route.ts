@@ -41,74 +41,117 @@ export async function PATCH(
     if (!isAdmin) {
       return NextResponse.json({ error: 'Forbidden. Admin access required.' }, { status: 403 });
     }
-    const { data: updatedOnboarding, error: updateError } = await adminSupabase
+    // ── Find Onboarding Record ──────────────────────────────────────────────
+    // The 'id' in the URL could be either the employee_onboarding.id (PK) 
+    // or the user_id (Auth ID). We try both.
+    const { data: onboardingRecord, error: fetchError } = await adminSupabase
       .from('employee_onboarding')
-      .update({ 
-        status: status === 'active' ? 'approved' : status,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', id)
-      .select()
-      .single();
+      .select('*')
+      .or(`id.eq.${id},user_id.eq.${id}`)
+      .maybeSingle();
 
-    if (updateError) {
-      console.error('[PATCH status] update error:', updateError);
-      return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
+    if (fetchError) {
+      console.error('[PATCH status] fetch error:', fetchError);
+      return NextResponse.json({ error: 'Failed to fetch onboarding record' }, { status: 500 });
     }
 
+    if (!onboardingRecord) {
+      console.warn('[PATCH status] No onboarding record found for ID:', id);
+      // Even if no onboarding record exists, we might still have a record in 'employees' table.
+      // We'll proceed to check the employees table below.
+    }
+
+    const userId = onboardingRecord?.user_id || id;
+    const resolvedStatus = status === 'active' || status === 'approved' ? 'approved' : status;
+
+    // ── Update Onboarding Table ──────────────────────────────────────────────
+    if (onboardingRecord) {
+      const { error: updateError } = await adminSupabase
+        .from('employee_onboarding')
+        .update({ 
+          status: resolvedStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', onboardingRecord.id);
+
+      if (updateError) {
+        console.error('[PATCH status] onboarding update error:', updateError);
+        return NextResponse.json({ error: 'Failed to update onboarding status' }, { status: 500 });
+      }
+    }
+
+    // ── Sync to Primary 'employees' Table ─────────────────────────────────────
     if (status === 'approved' || status === 'active') {
       const { data: profileData } = await adminSupabase
         .from('profiles')
         .select('full_name, email, phone')
-        .eq('id', id)
+        .eq('id', userId)
         .single();
-      const displayName = profileData?.full_name || updatedOnboarding.full_name || 'Anonymous';
+      
+      const displayName = profileData?.full_name || onboardingRecord?.full_name || 'Anonymous';
 
-      const { data: upsertData, error: upsertError } = await adminSupabase
-        .from('employees')
-        .upsert({
-          user_id: id,
-          employer_id: updatedOnboarding.employer_id,
-          employee_code: updatedOnboarding.employee_code,
-          full_name: displayName,
-          name: displayName,
-          email: profileData?.email || updatedOnboarding.email,
-          phone: profileData?.phone || updatedOnboarding.phone,
-          job_title: updatedOnboarding.job_title,
-          department: updatedOnboarding.department,
-          monthly_salary: updatedOnboarding.monthly_salary,
-          status: 'Active',
-          kyc_status: 'approved',
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
+      const upsertPayload: any = {
+        user_id: userId,
+        status: 'Active',
+        kyc_status: 'approved',
+        updated_at: new Date().toISOString(),
+      };
 
-      if (upsertError) console.error('[employees upsert error]', upsertError);
-    } else if (status === 'suspended' || status === 'rejected') {
-      // Update status in employees table too if it exists
-      await adminSupabase
+      // Only include onboarding data if it exists
+      if (onboardingRecord) {
+        upsertPayload.employer_id = onboardingRecord.employer_id;
+        upsertPayload.employee_code = onboardingRecord.employee_code;
+        upsertPayload.full_name = displayName;
+        upsertPayload.name = displayName;
+        upsertPayload.email = profileData?.email || onboardingRecord.email;
+        upsertPayload.phone = profileData?.phone || onboardingRecord.phone;
+        upsertPayload.job_title = onboardingRecord.job_title;
+        upsertPayload.department = onboardingRecord.department;
+        upsertPayload.monthly_salary = onboardingRecord.monthly_salary;
+      }
+
+      const { error: upsertError } = await adminSupabase
         .from('employees')
-        .update({ status: status === 'suspended' ? 'Inactive' : 'Inactive' })
-        .eq('user_id', id);
+        .upsert(upsertPayload, { onConflict: 'user_id' });
+
+      if (upsertError) {
+        console.error('[employees upsert error]', upsertError);
+      }
+    } else {
+      // Sync other statuses (suspended, rejected) to employees table if it exists
+      const { data: existingEmployee } = await adminSupabase
+        .from('employees')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existingEmployee) {
+        const dbStatus = status === 'suspended' ? 'Inactive' : 'Inactive'; // Using 'Inactive' for now as per previous logic
+        await adminSupabase
+          .from('employees')
+          .update({ status: dbStatus, updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+      }
     }
 
     const titleMap: Record<string, string> = {
-      approved: 'Account Activated',
-      active: 'Account Activated',
+      approved:  'Account Activated',
+      active:    'Account Activated',
       suspended: 'Account Suspended',
-      pending: 'Account Set to Pending',
-      rejected: 'Account Rejected',
+      pending:   'Account Set to Pending',
+      rejected:  'Account Rejected',
     };
 
     const messageMap: Record<string, string> = {
-      approved: 'Your EaziWage account has been activated. You can now request wage advances.',
-      active: 'Your EaziWage account has been activated. You can now request wage advances.',
+      approved:  'Your EaziWage account has been activated. You can now request wage advances.',
+      active:    'Your EaziWage account has been activated. You can now request wage advances.',
       suspended: 'Your EaziWage account has been suspended. Please contact support for more information.',
-      pending: 'Your account status has been set to pending. Additional information may be required.',
-      rejected: `Your account application was rejected. Reason: ${reason || 'Not provided'}`,
+      pending:   'Your account status has been set to pending. Additional information may be required.',
+      rejected:  `Your account application was rejected. Reason: ${reason || 'Not provided'}`,
     };
 
     await adminSupabase.from('notifications').insert({
-      user_id: id,
+      user_id: userId,
       type: 'account_update',
       title: titleMap[status] || 'Account Status Update',
       message: messageMap[status] || `Your account status is now ${status}.`,
@@ -125,7 +168,7 @@ export async function PATCH(
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id,
       admin_name: adminProfile?.full_name || 'Admin',
-      target_id: id,
+      target_id: userId,
       target_type: 'employee',
       action: 'account_status',
       new_status: status,
@@ -134,8 +177,8 @@ export async function PATCH(
     });
 
     try {
-      await pusherServer.trigger(`user-${id}`, 'kyc-update', {
-        status: status === 'active' ? 'approved' : status,
+      await pusherServer.trigger(`user-${userId}`, 'kyc-update', {
+        status: status === 'active' || status === 'approved' ? 'approved' : status,
         message: messageMap[status]
       });
     } catch (err) {

@@ -139,8 +139,15 @@ export async function PATCH(
 
   console.log(`[PATCH employer status] Successfully updated record ${activeId}`);
 
+  // ── Sync to Primary 'employers' Table ──────────────────────────────────────
   let resolvedCompanyCode: string | null = null;
-  if (status === 'approved') {
+  const { data: existingEmployer } = await adminSupabase
+    .from('employers')
+    .select('id, employer_code')
+    .eq('id', employer.id)
+    .maybeSingle();
+
+  if (status === 'approved' || existingEmployer) {
     const { data: profileRow } = await adminSupabase
       .from('profiles')
       .select('company_code')
@@ -149,24 +156,37 @@ export async function PATCH(
 
     resolvedCompanyCode =
       (typeof employer_code === 'string' && employer_code.trim()) ||
+      existingEmployer?.employer_code ||
       (profileRow?.company_code ? String(profileRow.company_code).trim() : '') ||
       generateCompanyCode(employer.id);
 
-    await adminSupabase
-      .from('profiles')
-      .update({ company_code: resolvedCompanyCode })
-      .eq('id', employer.user_id);
+    if (resolvedCompanyCode) {
+      await adminSupabase
+        .from('profiles')
+        .update({ company_code: resolvedCompanyCode })
+        .eq('id', employer.user_id);
+    }
 
-    await adminSupabase.from('employers').upsert({
+    const upsertPayload = {
       id: employer.id,
       user_id: employer.user_id,
       company_name: employer.company_name,
       employer_code: resolvedCompanyCode,
-      status: 'approved',
+      status: status, // Sync the status (approved, suspended, etc.)
       min_advance_amount: updatePayload.min_advance_amount ?? employer.min_advance_amount ?? 500,
       currency: employer.currency,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
+    };
+
+    const { error: upsertError } = await adminSupabase
+      .from('employers')
+      .upsert(upsertPayload, { onConflict: 'id' });
+
+    if (upsertError) {
+      console.error('[PATCH employer status] Upsert error:', upsertError);
+      // We don't necessarily want to fail the whole request if the secondary sync fails,
+      // but logging it is critical.
+    }
   }
 
   await adminSupabase.from('notifications').insert({

@@ -370,19 +370,18 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
 
     setLoading(true);
     try {
-      // GET /api/admin/employers/:id
       const res = await fetch(`/api/admin/employers/${employer.id}`);
       if (res.ok) {
         const data: Employer = await res.json();
         setEmployerDetail(data);
       }
 
-      // GET /api/admin/employees?employer_id=:id
       const empRes = await fetch(`/api/admin/employees?employer_id=${employer.id}`);
       if (empRes.ok) {
         const empPayload = await empRes.json();
         const empData: Employee[] = Array.isArray(empPayload) ? empPayload : (empPayload.data ?? []);
-        setEmployees(empData.filter(e => e.employer_id === employer.id));
+        // The API already filters by employer_id, so we can set it directly
+        setEmployees(empData);
       }
     } catch (err) {
       console.error('[EmployerDetailModal] fetch failed:', err);
@@ -853,7 +852,10 @@ export default function AdminEmployers() {
         } else {
           const data = payload as EmployersApiResponse;
           setEmployers(data.data || []);
-          setStats(data.stats || { total: 0, active: 0, pending: 0, total_employees: 0 });
+          setStats({
+            ...data.stats,
+            total_employees: data.filter(e => e.status === 'approved').reduce((sum, e) => sum + e.employee_count, 0)
+          });
           setCountries(data.countries || []);
         }
       } else {
