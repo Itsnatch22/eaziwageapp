@@ -330,7 +330,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     generatedEmployerCode = generateEmployerCode();
   }
   if (input.role === 'employer' && generatedEmployerCode) {
-    const { data: employerRecord, error: employerError } = await supabase
+    const { error: employerError } = await supabase
       .from('employers')
       .upsert({
         company_code: generatedEmployerCode,

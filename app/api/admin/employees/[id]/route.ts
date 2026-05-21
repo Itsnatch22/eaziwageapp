@@ -94,7 +94,10 @@ export async function GET(
       country: onboarding?.country || null,
       job_title: onboarding?.job_title || 'Not Set',
       department: onboarding?.department || 'Not Set',
-      monthly_salary: onboarding?.monthly_salary ? parseFloat(onboarding.monthly_salary as any) : 0,
+      monthly_salary: (() => {
+        const salary = onboarding?.monthly_salary;
+        return typeof salary === 'number' ? salary : salary ? Number(salary) : 0;
+      })(),
       advance_limit: onboarding?.advance_limit || 0,
       earned_wages: onboarding?.earned_wages || 0,
       employment_type: onboarding?.employment_type || 'full-time',

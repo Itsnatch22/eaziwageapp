@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: Request) {
+export async function GET() {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,8 +51,6 @@ export async function GET(request: Request) {
     .select('id, salary, country_code')
     .eq('organization_id', orgId)
     .eq('role', 'employee');
-
-  const empMap = new Map(employees?.map(e => [e.id, Number(e.salary || 0)]));
 
   interface WeeklyData {
     week: string;

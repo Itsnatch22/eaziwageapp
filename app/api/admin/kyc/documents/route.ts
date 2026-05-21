@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     
     if (status) empOnboardingQuery = empOnboardingQuery.eq('status', status);
     
-    const { data: employerApps, error: empAppsError } = await empOnboardingQuery;
+    const { data: employerApps } = await empOnboardingQuery;
 
     let employeeOnboardingQuery = adminSupabase
       .from('employee_onboarding')

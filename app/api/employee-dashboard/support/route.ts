@@ -12,7 +12,7 @@ function createAdminClient() {
   );
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json({ tickets: tickets || [] });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     if (ticketError) throw ticketError;
 
     return NextResponse.json({ success: true, ticket });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Support API Error]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

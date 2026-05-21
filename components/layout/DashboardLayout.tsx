@@ -74,7 +74,6 @@ export const DashboardLayout = ({ children, role }: DashboardLayoutProps) => {
   };
 
   const links = role === 'admin' ? adminLinks : role === 'employer' ? employerLinks : employeeLinks;
-  const roleLabel = role === 'admin' ? 'Administrator' : role === 'employer' ? 'Employer Portal' : 'Employee Portal';
   const roleColor = role === 'admin' ? 'bg-purple-500' : role === 'employer' ? 'bg-blue-500' : 'bg-primary';
 
   return (

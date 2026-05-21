@@ -90,7 +90,7 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
       } else {
         toast.error('Failed to send message');
       }
-    } catch (err) {
+    } catch {
       toast.error('Error sending message');
     } finally {
       setSending(false);
@@ -104,7 +104,7 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
             setMessages(prev => prev.filter(m => m.id !== id));
             toast.success('Message deleted');
         }
-    } catch (err) {
+    } catch {
         toast.error('Failed to delete message');
     }
   };

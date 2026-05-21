@@ -1,19 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Wallet, TrendingUp, Clock, ArrowRight,
+  Wallet, TrendingUp, ArrowRight,
   CheckCircle2, History, Calendar,
   Building2, Zap, ChevronRight,
-  Shield, Landmark, Loader2, Sparkles,
-  ArrowDownLeft, ArrowUpRight as ArrowUpRightIcon, AlertCircle
+  Shield, Landmark, Loader2,
+  ArrowDownLeft, ArrowUpRight as ArrowUpRightIcon, AlertCircle, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
-import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
+import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -176,12 +176,12 @@ export default function EmployeeDashboardPage() {
   const [hasTriggeredOnboardingConfetti, setHasTriggeredOnboardingConfetti] = useState(false);
 
   // Confetti for onboarding completion
-  const { showConfetti, triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
+  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
     key: user?.id ? ConfettiKeys.onboarding(user.id) : '',
     intensity: 'light',
   });
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const res = await fetch('/api/employee-dashboard/overview');
       const data = await res.json();
@@ -202,9 +202,9 @@ export default function EmployeeDashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [triggerConfetti, user?.id, hasTriggeredOnboardingConfetti]);
 
-  useEffect(() => { fetchStats(); }, []);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   useEffect(() => {
     if (!user?.id || !pusherClient) return;
@@ -215,7 +215,7 @@ export default function EmployeeDashboardPage() {
       channel.unbind('kyc-update', handleUpdate);
       pusherClient!.unsubscribe(`user-${user.id}`);
     };
-  }, [user?.id]);
+  }, [user?.id, fetchStats]);
 
   const getNextPayday = () => {
     const today = new Date();

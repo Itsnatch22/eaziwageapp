@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
           .eq('email', email)
           .maybeSingle();
 
-        const { data: duplicateCheck, error: duplicateError } = await adminSupabase
+        const { data: duplicateCheck } = await adminSupabase
           .from('employee_onboarding')
           .select('id, email_placeholder, employee_code')
           .eq('employer_id', employer.id)
@@ -120,14 +120,15 @@ export async function POST(req: NextRequest) {
         if (insertError) throw insertError;
         
         results.success++;
-      } catch (err: any) {
+      } catch (err: unknown) {
         results.failed++;
-        results.errors.push({ email: emp.email, message: err.message });
+        const message = err instanceof Error ? err.message : 'Unexpected import error';
+        results.errors.push({ email: emp.email, message });
       }
     }
 
     return NextResponse.json(results);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Bulk Upload Error]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

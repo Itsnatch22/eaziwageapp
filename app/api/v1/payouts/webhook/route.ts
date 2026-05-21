@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dusupayWebhook } from '@/lib/dusupay/webhooks';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { WebhookPayload } from '@/lib/dusupay/types';
+
+interface DusupayWebhookPayload {
+  merchant_reference?: string;
+  internal_reference?: string;
+  transaction_status?: string;
+  transaction_amount?: number | string;
+  transaction_currency?: string;
+  status_message?: string;
+}
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for') || '0.0.0.0';
   const rawBody = await req.text();
-  const signature = req.headers.get('x-dusupay-signature') || '';
 
   if (!dusupayWebhook.validateIp(ip.split(',')[0].trim())) {
     console.warn(`[DusuPay Webhook] Invalid source IP: ${ip}`);
   }
-  const body = JSON.parse(rawBody);
+  const body = JSON.parse(rawBody) as { event: string; payload: unknown };
   const event = body.event;
-  const payload = body.payload;
+  const payload = body.payload as DusupayWebhookPayload;
 
   const hmacHeader = req.headers.get('x-dusupay-signature');
   if (hmacHeader && !dusupayWebhook.verifyHmac(rawBody, hmacHeader)) {
@@ -25,18 +32,20 @@ export async function POST(req: NextRequest) {
     const merchantReference = payload.merchant_reference;
     const internalReference = payload.internal_reference;
     const status = payload.transaction_status; // 'COMPLETED' or 'FAILED'
+    const transactionAmount = payload.transaction_amount;
+    const transactionCurrency = payload.transaction_currency;
 
     await supabaseAdmin.from('dusupay_transactions').insert({
       merchant_reference: merchantReference,
       internal_reference: internalReference,
       event_type: event,
       status: status,
-      amount: payload.transaction_amount,
-      currency: payload.transaction_currency,
+      amount: transactionAmount,
+      currency: transactionCurrency,
       raw_payload: body
     });
 
-    const { data: advance, error: advanceError } = await supabaseAdmin
+    const { data: advance } = await supabaseAdmin
       .from('advances')
       .select('id, status, employer_id, amount')
       .eq('reference', merchantReference)
@@ -45,7 +54,7 @@ export async function POST(req: NextRequest) {
     if (advance) {
       const dbStatus = status === 'COMPLETED' ? 'completed' : 'failed';
       
-      const updateData: any = { 
+      const updateData: Record<string, unknown> = { 
         status: dbStatus, 
         internal_reference: internalReference,
         updated_at: new Date().toISOString()
@@ -90,8 +99,9 @@ export async function POST(req: NextRequest) {
 
     return new NextResponse('OK', { status: 200 });
 
-  } catch (err: any) {
-    console.error(`[DusuPay Webhook] Error: ${err.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown webhook error';
+    console.error(`[DusuPay Webhook] Error: ${message}`);
     return new NextResponse('OK', { status: 200 });
   }
 }

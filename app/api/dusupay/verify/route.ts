@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       raw: result.raw
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Dusupay Verify] Error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

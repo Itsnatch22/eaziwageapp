@@ -74,7 +74,7 @@ interface DonutChartProps {
   total: number;
 }
 
-const DonutChart = ({ mobileMoneyCount, bankTransferCount, total }: DonutChartProps) => {
+const DonutChart = ({ mobileMoneyCount, total }: DonutChartProps) => {
   const pct  = total > 0 ? (mobileMoneyCount / total) * 100 : 0;
   const circ = 2 * Math.PI * 40;
   return (

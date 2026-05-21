@@ -1,7 +1,7 @@
 // app/api/employer-dashboard/payroll/upload/route.ts
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { uploadPayrollSchema, type PayrollRow } from '@/lib/validations/payroll-validation';
+import { uploadPayrollSchema } from '@/lib/validations/payroll-validation';
 
 export const runtime = 'nodejs';
 

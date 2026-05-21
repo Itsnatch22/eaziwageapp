@@ -8,8 +8,6 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import pusherServer from '@/lib/pusher-server';
 
 
-type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
-
 interface RiskFactors {
   registration_status: number;
   tax_compliance: number;

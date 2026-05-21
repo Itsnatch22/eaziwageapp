@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { 
-  Smartphone, Landmark, Plus, Trash2, CheckCircle2, 
-  AlertCircle, Loader2, CreditCard, ChevronRight, Star
+  Smartphone, Landmark, Plus, Trash2, 
+  AlertCircle, Loader2, CreditCard, Star
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,7 @@ const PaymentMethods = () => {
         const data = await res.json();
         setMethods(data.methods || []);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load payment methods');
     } finally {
       setLoading(false);
@@ -70,7 +70,7 @@ const PaymentMethods = () => {
       } else {
         throw new Error('Failed to add');
       }
-    } catch (err) {
+    } catch {
       toast.error('Could not add payment method');
     } finally {
       setAdding(false);
@@ -85,7 +85,7 @@ const PaymentMethods = () => {
         toast.success('Method removed');
         fetchMethods();
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to delete');
     }
   };
@@ -187,7 +187,7 @@ const PaymentMethods = () => {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Method Type</Label>
-                    <Select value={newMethod.type} onValueChange={(v: any) => setNewMethod({ ...newMethod, type: v, provider: '' })}>
+                    <Select value={newMethod.type} onValueChange={(v: 'mobile_money' | 'bank') => setNewMethod({ ...newMethod, type: v, provider: '' })}>
                       <SelectTrigger className="rounded-xl h-12 bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10">
                         <SelectValue />
                       </SelectTrigger>

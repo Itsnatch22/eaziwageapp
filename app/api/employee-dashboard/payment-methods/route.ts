@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
+
+interface PaymentMethod {
+  id?: string;
+  is_primary?: boolean;
+  [key: string]: unknown;
+}
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 function createAdminClient() {
@@ -12,7 +18,7 @@ function createAdminClient() {
   );
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
@@ -147,9 +153,9 @@ export async function DELETE(req: NextRequest) {
       .single();
 
     const currentMethods = Array.isArray(profile?.payment_methods) ? profile.payment_methods : [];
-    const updatedMethods = currentMethods.filter((m: any) => m.id !== methodId);
+    const updatedMethods = currentMethods.filter((m: PaymentMethod) => m.id !== methodId);
 
-    if (currentMethods.find((m: any) => m.id === methodId)?.is_primary && updatedMethods.length > 0) {
+    if (currentMethods.find((m: PaymentMethod) => m.id === methodId)?.is_primary && updatedMethods.length > 0) {
       updatedMethods[0].is_primary = true;
     }
 

@@ -131,8 +131,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
     console.error('[POST /api/employer-dashboard/profile] Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update profile' }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

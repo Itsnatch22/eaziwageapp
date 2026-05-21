@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
@@ -15,7 +16,7 @@ function createAdminClient() {
   );
 }
 
-async function verifyAdmin(supabase: any, adminSupabase: any) {
+async function verifyAdmin(supabase: SupabaseClient, adminSupabase: SupabaseClient): Promise<User | null> {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return null;
 
@@ -25,7 +26,7 @@ async function verifyAdmin(supabase: any, adminSupabase: any) {
   return user;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();

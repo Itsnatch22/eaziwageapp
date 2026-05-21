@@ -16,7 +16,6 @@ export function useCurrency() {
       }
 
       try {
-        // Admin users should always see USD
         if (user.role === 'admin') {
           setCurrency(DEFAULT_ADMIN_CURRENCY);
           setLoading(false);
@@ -35,7 +34,7 @@ export function useCurrency() {
         } else if (data?.phone_country_code) {
           setCurrency(getCurrencyFromCountry(data.phone_country_code));
         }
-      } catch (err) {
+      } catch {
         // console.error('useCurrency error:', err);
       } finally {
         setLoading(false);

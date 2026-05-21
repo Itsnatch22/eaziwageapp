@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { LegalDocumentSchema } from '@/lib/validations/admin-settings';
@@ -11,7 +11,7 @@ function createAdminClient() {
   return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-async function verifyAdmin(supabase: any, adminSupabase: any) {
+async function verifyAdmin(supabase: SupabaseClient, adminSupabase: SupabaseClient) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return null;
 

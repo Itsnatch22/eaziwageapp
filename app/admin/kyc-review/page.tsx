@@ -32,10 +32,6 @@ import {
   DOCUMENT_TYPE_LABELS,
 } from '@/lib/validations/kyc-validation';
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
 interface EmployerApplication {
   id: string;
   user_id: string;
@@ -67,10 +63,9 @@ type FilterType = 'all' | DocumentStatus;
 type EntityType = 'employee' | 'employer';
 type IconType = React.ComponentType<{ className?: string }>;
 type GradientVariant = 'purple' | 'green' | 'amber' | 'red' | 'blue';
+type ReviewItem = KYCDocument | EmployerApplication;
 
-// ============================================================================
-// SUB-COMPONENTS
-// ============================================================================
+const isKycDocument = (item: ReviewItem): item is KYCDocument => 'document_type' in item;
 
 const GradientIconBox = ({ icon: Icon, variant = 'purple' }: { icon: IconType; variant?: GradientVariant }) => {
   const variants = {
@@ -198,10 +193,6 @@ const EmployerCard = ({ app, onReview }: { app: EmployerApplication, onReview: (
     </div>
   </div>
 );
-
-// ============================================================================
-// MAIN PAGE COMPONENT
-// ============================================================================
 
 export default function KYCReviewPage() {
   const [entityType, setEntityType] = useState<EntityType>('employee');
@@ -392,11 +383,8 @@ export default function KYCReviewPage() {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredItems.map((item: any) => {
-              // Check if it's a KYCDocument or EmployerApplication
-              const isDoc = 'document_type' in item;
-              
-              if (isDoc) {
+            {filteredItems.map((item: ReviewItem) => {
+              if (isKycDocument(item)) {
                 return (
                   <DocumentCard 
                     key={item.id} 

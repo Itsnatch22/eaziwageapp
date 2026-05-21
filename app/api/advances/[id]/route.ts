@@ -81,7 +81,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     ? { status: 'approved', approved_at: new Date().toISOString(), approved_by: user.id }
     : { status: 'denied' };
 
-  const { error } = await supabase.from('advances').update(update).eq('id', id);
+  const { error: updateError } = await supabase.from('advances').update(update).eq('id', id);
+  if (updateError) {
+    console.error('[Approve advance] update error:', updateError);
+    return NextResponse.json({ error: 'Failed to update advance status' }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true, message: `Advance ${action}d` });
 }

@@ -1,14 +1,13 @@
 ﻿"use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Home, Wallet, History, User, LogOut, Bell, ChevronRight,
-  Loader2, Menu, X, Shield,
-  HelpCircle, CheckCircle2, Sparkles, Landmark
+  Home, Wallet, History, User, LogOut, ChevronRight,
+  Loader2, Menu, X, Shield, Sparkles,
+  HelpCircle, Landmark
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/actions/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,14 +16,6 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
-interface Notification {
-  id: string;
-  type: 'advance_approval' | 'kyc_update' | 'system_alert' | 'repayment_reminder';
-  title: string;
-  message: string;
-  read: boolean;
-  created_at: string;
-}
 
 interface EmployeeUser {
   id?: string;
@@ -56,9 +47,7 @@ interface SidebarNavProps {
 const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   const pathname = usePathname();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
+  const [mounted] = useState(() => typeof window !== 'undefined');
 
   const menuItems = [
     { label: 'Home',             href: '/dashboards/employee-dashboard',                 icon: Home },
@@ -90,20 +79,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
     ? (fullName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U')
     : 'U';
   
-  // Cache busting for avatar URL - force refresh when avatar changes
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(user?.avatar_url);
-  useEffect(() => {
-    if (user?.avatar_url) {
-      // Add timestamp to force browser to fetch new image
-      const timestamp = Date.now();
-      const newUrl = user.avatar_url.includes('?') 
-        ? `${user.avatar_url}&t=${timestamp}`
-        : `${user.avatar_url}?t=${timestamp}`;
-      setAvatarUrl(newUrl);
-    } else {
-      setAvatarUrl(undefined);
-    }
-  }, [user?.avatar_url]);
+  const avatarUrl = user?.avatar_url;
 
   return (
     <>
@@ -281,7 +257,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
                 {greeting}
               </p>
               <p className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
-                {user?.user_metadata?.full_name || 'Employee'}
+                {getPageTitle()}
               </p>
             </div>
           </div>
@@ -383,10 +359,16 @@ interface EmployeePortalLayoutProps {
 
 export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [prevPathname, setPrevPathname] = useState<string | null>(null);
   const user = useAuthStore(s => s.user);
   const loading = useAuthStore(s => s.loading);
   const router = useRouter();
   const pathname = usePathname();
+
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    if (sidebarOpen) setSidebarOpen(false);
+  }
 
   // Subscribe to Pusher for real-time updates
   useEffect(() => {
@@ -394,7 +376,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
 
     const channel = pusherClient.subscribe(`user-${user.id}`);
     
-    channel.bind('settings-updated', (data: any) => {
+    channel.bind('settings-updated', () => {
       toast.success('Your account settings updated', {
         description: 'An administrator has updated your account configuration.',
         icon: <Shield className="w-5 h-5 text-emerald-500" />,
@@ -405,11 +387,6 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
       pusherClient!.unsubscribe(`user-${user.id}`);
     };
   }, [user?.id]);
-
-  // Close sidebar on route change
-  useEffect(() => { 
-    setSidebarOpen(false); 
-  }, [pathname]);
 
   // Show loading state while auth is initializing
   if (loading) {

@@ -2,10 +2,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Send, MessageSquare, History, Users, AlertCircle, 
-  CheckCircle2, Loader2, Megaphone, Trash2, Search, Calendar, 
+  Loader2, Megaphone, Trash2, Search, Calendar, 
 } from 'lucide-react';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
-import { formatDateTime, cn } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,14 +17,19 @@ interface Announcement {
   title: string;
   message: string;
   created_at: string;
-  metadata: any;
+  metadata: Record<string, unknown> | null;
+}
+
+interface EmployerProfile {
+  id: string;
+  company_name: string;
 }
 
 const MessagesPage = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [employer, setEmployer] = useState<any>(null);
+  const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -78,8 +83,8 @@ const MessagesPage = () => {
       setTitle('');
       setMessage('');
       fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send announcement');
     } finally {
       setSending(false);
     }

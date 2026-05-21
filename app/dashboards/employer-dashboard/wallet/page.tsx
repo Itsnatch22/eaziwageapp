@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Wallet, TrendingUp, History, Download, CreditCard, ArrowUpRight, 
-  ArrowDownLeft, Plus, Building2, Calendar, AlertCircle, Info, Loader2, CheckCircle2
+  ArrowDownLeft, Plus, Calendar, AlertCircle, Info, Loader2, CheckCircle2
 } from 'lucide-react';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
@@ -28,13 +28,19 @@ interface WalletData {
   currency: string;
 }
 
+interface EmployerProfile {
+  id: string;
+  company_name: string;
+  company_code?: string;
+}
+
 const WalletPage = () => {
   const { currency } = useCurrency();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
-  const [employer, setEmployer] = useState<any>(null);
+  const [employer, setEmployer] = useState<EmployerProfile | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);

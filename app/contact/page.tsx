@@ -7,8 +7,8 @@ import {
   Phone,
   MapPin,
   Send,
-  CheckCircle2,
   ArrowRight,
+  CheckCircle2,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,29 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 
 /* ----------------------------- components ----------------------------- */
 
-const FloatingOrb = ({ color, delay, className }: { color: string; delay: number; className?: string }) => (
-  <motion.div
-    animate={{
-      y: [0, -40, 0],
-      x: [0, 20, 0],
-      scale: [1, 1.1, 1],
-    }}
-    transition={{
-      duration: 10 + Math.random() * 5,
-      repeat: Infinity,
-      delay,
-      ease: "easeInOut",
-    }}
-    className={`absolute h-125 w-125 rounded-full blur-[120px] opacity-20 ${color} ${className}`}
-  />
-);
-
-const ContactInfoCard = ({ icon: Icon, label, value, href }: { icon: any; label: string; value: string; href?: string }) => {
+const ContactInfoCard = ({ icon: Icon, label, value, href }: { icon: React.ElementType; label: string; value: string; href?: string }) => {
   const content = (
     <motion.div
       whileHover={{ y: -5 }}
@@ -103,7 +85,8 @@ export default function ContactPage() {
       } else {
         toast.error(result.error || "Failed to send message. Please try again.");
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error(error);
       toast.error("Network error. Please check your connection.");
     } finally {
       setIsSubmitting(false);

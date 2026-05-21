@@ -742,7 +742,7 @@ export default function EmployerSettings() {
       } else {
         toast.error("Failed to terminate account");
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to terminate account");
     } finally {
       setSaving(false);

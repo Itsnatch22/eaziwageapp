@@ -27,7 +27,7 @@ interface AnnouncementRow {
   } | null;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({ announcements: announcements || [] });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[Announcements API GET Error]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
     if (notifyError) throw notifyError;
 
     return NextResponse.json({ success: true, count: employees.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Announcements API Error]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

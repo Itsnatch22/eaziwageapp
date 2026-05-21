@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createSupabaseServerClient, requireOrganization } from '@/lib/auth';
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   try {
     const organization = await requireOrganization();
     const supabase = await createSupabaseServerClient();

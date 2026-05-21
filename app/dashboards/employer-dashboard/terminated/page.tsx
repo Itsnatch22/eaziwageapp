@@ -3,8 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  Heart, MessageSquare, Send, ArrowRight, 
-  RefreshCcw, LogOut, CheckCircle2, Loader2 
+  Heart, RefreshCcw, CheckCircle2, Loader2 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,7 +49,7 @@ export default function TerminatedPage() {
         })
       });
       setStep(2);
-    } catch (err) {
+    } catch {
       toast.error("Failed to send feedback");
     } finally {
       setSubmitting(false);
@@ -67,7 +66,7 @@ export default function TerminatedPage() {
         toast.success("Account restored successfully!");
         router.push('/dashboards/employer-dashboard');
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to restore account");
     } finally {
       setRestoring(false);

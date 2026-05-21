@@ -16,8 +16,9 @@ export async function POST(
       data: result
     });
 
-  } catch (err: any) {
-    console.error(`[Admin Disburse] Error: ${err.message}`);
-    return NextResponse.json({ message: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[Admin Disburse] Error: ${message}`);
+    return NextResponse.json({ message }, { status: 500 });
   }
 }

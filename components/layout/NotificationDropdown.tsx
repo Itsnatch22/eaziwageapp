@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Bell, CheckCircle2, Shield, CreditCard, Users, 
-  Trash2, Loader2, Info, ExternalLink, X, AlertTriangle
+  Bell, Shield, CreditCard, Users, 
+  Trash2, Loader2, Info, ExternalLink, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 
@@ -18,7 +17,7 @@ export interface Notification {
   message: string;
   read: boolean;
   created_at: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 interface NotificationDropdownProps {
@@ -32,7 +31,6 @@ interface NotificationDropdownProps {
 
 export const NotificationDropdown = ({ 
   role,
-  userId,
   apiPath,
   pusherChannel,
   viewAllHref,

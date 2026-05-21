@@ -90,7 +90,7 @@ export default function ContactNotification({
           {/* Footer */}
           <Section style={footer}>
             <Text style={footerText}>
-              © 2026 EaziWage. Empowering Africa's workforce.
+              © 2026 EaziWage. Empowering Africa&apos;s workforce.
             </Text>
             <Text style={footerText}>
               <Link href={baseUrl} style={footerLink}>

@@ -62,6 +62,61 @@ export const COUNTRY_CURRENCY: Record<string, Currency> = {
   RW: Currency.RWF,
 };
 
+type DusupayPayloadValue = string | number | boolean | null | undefined;
+
+interface DusupayWebhookPayload extends Record<string, DusupayPayloadValue> {
+  merchant_reference?: string;
+  transaction_id?: string;
+  internal_reference?: string;
+  dusupay_reference?: string;
+  transaction_status?: string;
+  status?: string;
+  amount?: string | number;
+  currency?: string;
+}
+
+interface DusupayApiResponse {
+  code?: number;
+  status?: string;
+  message?: string;
+  data?: {
+    internal_reference?: string;
+    merchant_reference?: string;
+    transaction_status?: PayoutStatus;
+    payout_banks?: BankInfo[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface PayoutPayload {
+  merchant_reference: string;
+  transaction_method: PayoutMethod;
+  currency: Currency;
+  amount: number;
+  provider_code: string;
+  customer_name: string;
+  description: string;
+  msisdn?: string;
+  account_number?: string;
+  callback_url?: string;
+  extra_params?: Record<string, string>;
+}
+
+interface BankInfo {
+  bank_code?: string;
+  bank_name?: string;
+  branch_code?: string;
+  branch_name?: string;
+  [key: string]: unknown;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const getErrorMessage = (err: unknown, fallback: string) =>
+  err instanceof Error ? err.message : fallback;
+
 // ======================== MODELS ========================
 export interface PayoutRequest {
   amount: number;
@@ -85,12 +140,12 @@ export interface PayoutResponse {
   merchantReference?: string;
   status?: PayoutStatus;
   errorCode?: string;
-  raw?: any;
+  raw?: unknown;
 }
 
 export interface WebhookPayload {
   event: string;
-  payload: Record<string, any>;
+  payload: DusupayWebhookPayload;
 }
 
 // ======================== SERVICE ========================
@@ -148,7 +203,7 @@ export class DusupayService {
       return { success: false, message: `Unknown provider ${providerName} for ${countryCode}`, errorCode: 'INVALID_PROVIDER' };
     }
 
-    const payload: any = {
+    const payload: PayoutPayload = {
       merchant_reference: reference || this.generateReference(),
       transaction_method: PayoutMethod.MOBILE_MONEY,
       currency: this.getCurrency(countryCode),
@@ -179,7 +234,7 @@ export class DusupayService {
       return { success: false, message: 'Dusupay not configured', errorCode: 'NOT_CONFIGURED' };
     }
 
-    const payload: any = {
+    const payload: PayoutPayload = {
       merchant_reference: reference || this.generateReference(),
       transaction_method: PayoutMethod.BANK,
       currency: this.getCurrency(countryCode),
@@ -191,13 +246,15 @@ export class DusupayService {
       extra_params: { bank_code: bankCode },
     };
 
-    if (branchCode) payload.extra_params.branch_code = branchCode;
+    if (branchCode) {
+      payload.extra_params = { ...payload.extra_params, branch_code: branchCode };
+    }
     if (callbackUrl) payload.callback_url = callbackUrl;
 
     return this._executePayout(payload);
   }
 
-  private async _executePayout(payload: any): Promise<PayoutResponse> {
+  private async _executePayout(payload: PayoutPayload): Promise<PayoutResponse> {
     try {
       const res = await fetch(`${this.baseUrl}/payout/send-funds`, {
         method: 'POST',
@@ -205,7 +262,7 @@ export class DusupayService {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await res.json() as DusupayApiResponse;
 
       if (res.ok && (data.code === 200 || data.code === 202)) {
         return {
@@ -224,10 +281,10 @@ export class DusupayService {
         errorCode: String(data.code || res.status),
         raw: data,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         success: false,
-        message: err.message || 'Network error',
+        message: getErrorMessage(err, 'Network error'),
         errorCode: 'NETWORK_ERROR',
       };
     }
@@ -244,7 +301,7 @@ export class DusupayService {
         `${this.baseUrl}/data/transaction/verify/${encodeURIComponent(merchantReference)}`,
         { headers: this.headers }
       );
-      const data = await res.json();
+      const data = await res.json() as DusupayApiResponse;
 
       if (res.ok) {
         return {
@@ -257,20 +314,20 @@ export class DusupayService {
         };
       }
       return { success: false, message: data.message || 'Failed', errorCode: String(data.code), raw: data };
-    } catch (err: any) {
-      return { success: false, message: err.message, errorCode: 'STATUS_ERROR' };
+    } catch (err: unknown) {
+      return { success: false, message: getErrorMessage(err, 'Status lookup failed'), errorCode: 'STATUS_ERROR' };
     }
   }
 
   // Get banks for a specific bank provider (use payment-providers first to get provider_code)
-  async getBanks(providerCode: string): Promise<any[]> {
+  async getBanks(providerCode: string): Promise<BankInfo[]> {
     if (!this.config.isConfigured) return [];
     try {
       const res = await fetch(
         `${this.baseUrl}/data/payout-bank-codes?provider_code=${encodeURIComponent(providerCode)}`,
         { headers: this.headers }
       );
-      const data = await res.json();
+      const data = await res.json() as DusupayApiResponse;
       return data.data?.payout_banks ?? [];
     } catch {
       return [];
@@ -288,8 +345,25 @@ export class DusupayService {
     return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
   }
 
-  parseWebhook(body: any): WebhookPayload {
-    return { event: body.event || 'unknown', payload: body.payload || body };
+  parseWebhook(body: unknown): WebhookPayload {
+    if (!isRecord(body)) {
+      return { event: 'unknown', payload: {} };
+    }
+
+    const event = typeof body.event === 'string' ? body.event : 'unknown';
+    const payloadSource = isRecord(body.payload) ? body.payload : body;
+    const payload = Object.fromEntries(
+      Object.entries(payloadSource).filter((entry): entry is [string, DusupayPayloadValue] => {
+        const value = entry[1];
+        return (
+          value === null ||
+          value === undefined ||
+          ['string', 'number', 'boolean'].includes(typeof value)
+        );
+      })
+    ) as DusupayWebhookPayload;
+
+    return { event, payload };
   }
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useSyncExternalStore } from 'react';
 import Confetti from 'react-confetti';
 
 export type ConfettiIntensity = 'light' | 'medium' | 'high';
@@ -27,6 +27,14 @@ const INTENSITY_CONFIG = {
   high: { pieces: 250, duration: 5000 },
 };
 
+const subscribeToWindowResize = (callback: () => void) => {
+  window.addEventListener('resize', callback);
+  return () => window.removeEventListener('resize', callback);
+};
+
+const getWindowSizeSnapshot = () => `${window.innerWidth}x${window.innerHeight}`;
+const getServerWindowSizeSnapshot = () => '0x0';
+
 export function MilestoneConfetti({
   intensity = 'medium',
   duration,
@@ -35,25 +43,12 @@ export function MilestoneConfetti({
   const config = INTENSITY_CONFIG[intensity];
   const actualDuration = duration || config.duration;
   
-  const [windowSize, setWindowSize] = React.useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : 0,
-    height: typeof window !== 'undefined' ? window.innerHeight : 0,
-  });
-  const [isClient, setIsClient] = React.useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-    
-    const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const windowSizeSnapshot = useSyncExternalStore(
+    subscribeToWindowResize,
+    getWindowSizeSnapshot,
+    getServerWindowSizeSnapshot
+  );
+  const [width, height] = windowSizeSnapshot.split('x').map(Number);
 
   useEffect(() => {
     if (onComplete) {
@@ -64,12 +59,12 @@ export function MilestoneConfetti({
     }
   }, [actualDuration, onComplete]);
 
-  if (!isClient) return null;
+  if (!width || !height) return null;
 
   return (
     <Confetti
-      width={windowSize.width}
-      height={windowSize.height}
+      width={width}
+      height={height}
       numberOfPieces={config.pieces}
       recycle={false}
       gravity={0.15}

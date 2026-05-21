@@ -23,8 +23,9 @@ export async function POST(
 
     return NextResponse.json({ message: 'Advance rejected successfully' });
 
-  } catch (err: any) {
-    console.error('[Admin Reject] Fatal Error:', err);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[Admin Reject] Fatal Error:', message);
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 }

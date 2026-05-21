@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import pusherServer from '@/lib/pusher-server';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,7 +21,7 @@ interface APIHealthRow {
   updated_at?: string | null;
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const { data, error } = await supabase
     .from('api_health')
     .select('*')
@@ -66,7 +66,7 @@ export async function GET(_req: NextRequest) {
   );
 }
 
-export async function POST(_req: NextRequest) {
+export async function POST() {
   const startTime = Date.now();
 
   const checks = await Promise.allSettled([

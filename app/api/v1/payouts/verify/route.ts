@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dusupayWebhook } from '@/lib/dusupay/webhooks';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function GET(req: NextRequest) {

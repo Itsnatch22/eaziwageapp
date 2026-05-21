@@ -67,8 +67,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
-      // Type assertion for the TOTP factor data
-      const totpData = data as any;
+      const totpData = data as { id?: string; totp?: { qr_code?: string; secret?: string } };
       
       return NextResponse.json({ 
         success: true, 
@@ -114,9 +113,9 @@ export async function POST(req: NextRequest) {
       }
 
       // Challenge and verify the factor
-      const { data, error } = await supabase.auth.mfa.challengeAndVerify({
-        factorId: factorId,
-        code: code
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId,
+        code
       });
 
       if (error) {

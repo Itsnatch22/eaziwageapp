@@ -1,13 +1,14 @@
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Building2, Lock, Bell, HelpCircle, 
   ChevronRight, CheckCircle2,
   Shield, CreditCard, Smartphone, 
   Mail, Phone, MapPin,
-  User,Loader2,
-  Briefcase, Landmark, Clock, AlertTriangle, History
+  User, Loader2,
+  Briefcase, Landmark, Clock, AlertTriangle, History,
+  type LucideIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,16 +17,52 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
-import { updateUserAvatar } from '@/lib/stores/auth';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { DeleteAccountModal } from '@/components/employee/DeleteAccountModal';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
+type ActivityLog = {
+  action?: string;
+  created_at?: string;
+  metadata?: { ip?: string };
+};
+
+type KycDocument = {
+  document_type: string;
+  status: string;
+  reviewer_notes?: string;
+};
+
+type EmployeeSettingsProfile = {
+  address_line1?: string;
+  bank_account?: string;
+  bank_name?: string;
+  city?: string;
+  company_name?: string;
+  employment_type?: string;
+  job_title?: string;
+  mobile_money_number?: string;
+  mobile_money_provider?: string;
+  monthly_salary?: number | string;
+  postal_code?: string;
+  country?: string;
+};
+
+type Profile = {
+  id?: string;
+  avatar_url?: string;
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  currency?: string;
+  employee?: EmployeeSettingsProfile;
+  kycDocuments?: KycDocument[];
+};
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const TabButton = ({ active, onClick, icon: Icon, label }: any) => (
+const TabButton = ({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: LucideIcon; label: string; }) => (
   <button
     onClick={onClick}
     className={cn(
@@ -46,7 +83,7 @@ const TabButton = ({ active, onClick, icon: Icon, label }: any) => (
   </button>
 );
 
-const SettingsCard = ({ icon: Icon, title, description, children, locked = false }: any) => (
+const SettingsCard = ({ icon: Icon, title, description, children, locked = false }: { icon: LucideIcon; title: string; description?: string; children: React.ReactNode; locked?: boolean; }) => (
   <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
     <div className="flex items-center gap-3 mb-6">
       <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
@@ -66,7 +103,7 @@ const SettingsCard = ({ icon: Icon, title, description, children, locked = false
   </div>
 );
 
-const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: any) => (
+const ToggleItem = ({ icon: Icon, label, description, checked, onToggle, disabled }: { icon: LucideIcon; label: string; description: string; checked: boolean; onToggle: (checked: boolean) => void; disabled?: boolean; }) => (
   <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800">
     <div className="flex items-center gap-4">
       <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-sm">
@@ -77,11 +114,11 @@ const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: any) 
         <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>
       </div>
     </div>
-    <Switch checked={checked} onCheckedChange={onToggle} />
+    <Switch checked={checked} onCheckedChange={onToggle} disabled={disabled} />
   </div>
 );
 
-const FAQItem = ({ question, answer }: any) => {
+const FAQItem = ({ question, answer }: { question: string; answer: string; }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
     <div className="border-b border-slate-200/50 dark:border-slate-700/30 last:border-0">
@@ -98,16 +135,13 @@ const FAQItem = ({ question, answer }: any) => {
 
 export default function EmployeeSettings() {
   const router = useRouter();
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('account');
   const [saving, setSaving] = useState(false);
 
   // Settings states
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [biometricEnabled, setBiometricEnabled] = useState(true);
-  const [mfaEnabled, setMfaEnabled] = useState(false);
-  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -188,7 +222,7 @@ export default function EmployeeSettings() {
     fetchProfile();
   }, []);
 
-  const handleUpdateProfile = async (updates: any) => {
+  const handleUpdateProfile = async (updates: Record<string, unknown>) => {
     setSaving(true);
     try {
       const res = await fetch('/api/employee-dashboard/profile', {
@@ -252,7 +286,7 @@ export default function EmployeeSettings() {
           setMfaStatus(prev => ({ ...prev, loading: false }));
         }
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while updating MFA settings');
       setMfaStatus(prev => ({ ...prev, loading: false }));
     }
@@ -286,7 +320,7 @@ export default function EmployeeSettings() {
         toast.error(error.error || 'Invalid verification code');
         setMfaStatus(prev => ({ ...prev, loading: false }));
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred during verification');
       setMfaStatus(prev => ({ ...prev, loading: false }));
     }
@@ -315,7 +349,7 @@ export default function EmployeeSettings() {
         // Revert on error
         setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while updating your preferences');
       // Revert on error
       setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
@@ -350,7 +384,7 @@ export default function EmployeeSettings() {
         const error = await res.json();
         toast.error(error.error || 'Failed to update password');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while updating your password');
     } finally {
       setPasswordLoading(false);
@@ -377,7 +411,7 @@ export default function EmployeeSettings() {
         const error = await res.json();
         toast.error(error.message || 'Failed to delete account');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while deleting your account');
     } finally {
       setDeleteLoading(false);
@@ -563,7 +597,7 @@ export default function EmployeeSettings() {
                       <h4 className="font-bold text-slate-900 dark:text-white">Employment Verified</h4>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         Your account is linked to <span className="font-bold text-slate-900 dark:text-white">{employee?.company_name || '---'}</span>. 
-                        Your salary advances are automatically reconciled via your company's payroll system.
+                        Your salary advances are automatically reconciled via your company&apos;s payroll system.
                       </p>
                     </div>
                   </div>
@@ -611,7 +645,7 @@ export default function EmployeeSettings() {
               <SettingsCard icon={Shield} title="KYC Compliance" description="Your identity verification status">
                 <div className="space-y-3">
                   {profile?.kycDocuments && profile.kycDocuments.length > 0 ? (
-                    profile.kycDocuments.map((doc: any) => {
+                    profile.kycDocuments.map((doc) => {
                       const labelMap: Record<string, string> = {
                         face_id: 'Biometric Face Scan',
                         national_id: 'National ID (Front)',
@@ -649,7 +683,7 @@ export default function EmployeeSettings() {
                   )}
                 </div>
                 <Button className="w-full mt-6" variant="outline" onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}>
-                  {profile?.kycDocuments?.some((d: any) => d.status === 'rejected') ? 'Re-upload Documents' : 'Update Documents'}
+                  {profile?.kycDocuments?.some((d) => d.status === 'rejected') ? 'Re-upload Documents' : 'Update Documents'}
                 </Button>
               </SettingsCard>
             )}
@@ -664,6 +698,7 @@ export default function EmployeeSettings() {
                     description="Transaction receipts and statements"
                     checked={notificationPrefs.emailAlerts}
                     onToggle={(checked: boolean) => handleNotificationUpdate('emailAlerts', checked)}
+                    disabled={notificationLoading}
                   />
                   <ToggleItem 
                     icon={Smartphone}
@@ -671,6 +706,7 @@ export default function EmployeeSettings() {
                     description="Real-time withdrawal updates"
                     checked={notificationPrefs.pushNotifications}
                     onToggle={(checked: boolean) => handleNotificationUpdate('pushNotifications', checked)}
+                    disabled={notificationLoading}
                   />
                 </div>
               </SettingsCard>
@@ -688,7 +724,7 @@ export default function EmployeeSettings() {
                         </p>
                         {mfaStatus.qrCode && (
                           <div className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-slate-200">
-                            <img src={`data:image/png;base64,${mfaStatus.qrCode}`} alt="QR Code" className="w-full h-full" />
+                            <Image src={`data:image/png;base64,${mfaStatus.qrCode}`} alt="QR Code" width={176} height={176} unoptimized className="w-full h-full" />
                           </div>
                         )}
                       </div>
@@ -750,8 +786,8 @@ export default function EmployeeSettings() {
                         {activityLogs.map((log, idx) => (
                           <div key={idx} className="py-3 flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{log.action.replace('_', ' ')}</p>
-                              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
+                              <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{(log.action || 'activity').replace('_', ' ')}</p>
+                              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{log.created_at ? new Date(log.created_at).toLocaleString() : 'Recent'}</p>
                             </div>
                             <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest">
                               {log.metadata?.ip || 'Verified'}
@@ -847,4 +883,3 @@ export default function EmployeeSettings() {
   );
 }
 
-const InfoRow = ({ icon: Icon }: any) => <Icon className="w-6 h-6 text-white" />;

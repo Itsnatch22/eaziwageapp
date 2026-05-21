@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
@@ -12,7 +12,7 @@ function createAdminClient() {
   );
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
       transactions: transactions || []
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Wallet API Error]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

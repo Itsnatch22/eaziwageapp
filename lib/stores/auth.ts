@@ -80,7 +80,7 @@ if (typeof window !== 'undefined') {
               .eq('id', user.id)
               .single();
             avatar_url = profile?.avatar_url;
-          } catch (e) {
+          } catch {
             // Ignore profile fetch errors - it's okay if this fails
             console.log('Could not fetch profile avatar');
           }
@@ -118,7 +118,7 @@ if (typeof window !== 'undefined') {
             .eq('id', session.user.id)
             .single();
           avatar_url = profile?.avatar_url;
-        } catch (e) {
+        } catch {
           // Ignore profile fetch errors
         }
         

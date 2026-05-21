@@ -64,7 +64,10 @@ interface Stats {
 interface EmployersApiResponse {
   data: Employer[];
   stats: Stats;
-  countries: string[];
+  filters?: {
+    countries?: string[];
+    industries?: string[];
+  };
 }
 
 type TabKey = 'overview' | 'employees' | 'advances' | 'actions';
@@ -851,12 +854,13 @@ export default function AdminEmployers() {
           setCountries([...new Set(data.map((e) => e.country).filter(Boolean))]);
         } else {
           const data = payload as EmployersApiResponse;
-          setEmployers(data.data || []);
-          setStats({
-            ...data.stats,
-            total_employees: data.filter(e => e.status === 'approved').reduce((sum, e) => sum + e.employee_count, 0)
-          });
-          setCountries(data.countries || []);
+          const employers = data.data || [];
+          setEmployers(employers);
+          setStats(data.stats);
+          setCountries(
+            data.filters?.countries ??
+            [...new Set(employers.map((e) => e.country).filter(Boolean))],
+          );
         }
       } else {
         toast.error('Failed to fetch employers.');

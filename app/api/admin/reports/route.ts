@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis } from '@upstash/redis';
 import { z } from 'zod';
+
+type AdminUser = Pick<User, 'id' | 'email' | 'app_metadata' | 'user_metadata'>;
+
+interface ReportRow {
+  status?: string | null;
+  created_at?: string | null;
+}
 
 const ReportQuerySchema = z.object({
   type: z.enum(['all', 'financial', 'operational', 'compliance', 'performance']).default('all'),
@@ -22,7 +29,7 @@ const CreateReportSchema = z.object({
   scheduled_for: z.string().datetime().optional(),
 });
 
-async function verifyAdminUser(supabase: any): Promise<{ user: any; isAdmin: boolean }> {
+async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminUser | null; isAdmin: boolean }> {
   const {
     data: { user },
     error: authError,
@@ -162,7 +169,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      reports.forEach((report: any) => {
+      (reports as ReportRow[]).forEach((report) => {
         if (report.status === 'scheduled') stats.scheduledReports++;
         if (report.status === 'failed') stats.failedReports++;
         

@@ -3,7 +3,6 @@
 import React, { useState, useCallback } from 'react';
 import Script        from 'next/script';
 import Link          from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   ArrowRight, ArrowLeft, Mail, Lock,
   CheckCircle2, AlertCircle, Wallet
@@ -31,8 +30,6 @@ const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
 
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
-
   const [email,          setEmail]          = useState('');
   const [pageState,      setPageState]      = useState<PageState>('idle');
   const [errorMessage,   setErrorMessage]   = useState('');

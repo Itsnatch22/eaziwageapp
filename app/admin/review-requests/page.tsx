@@ -16,8 +16,6 @@ import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import pusherClient from '@/lib/pusher-client';
 
-// ─── Type Definitions ─────────────────────────────────────────────────────────
-
 type IconType = React.ComponentType<{ className?: string }>;
 
 type RequestStatus = 'pending' | 'approved' | 'disbursed' | 'resolved' | 'rejected' | 'in_review';
@@ -53,8 +51,6 @@ interface ResponsePayload {
   internal_notes: string;
   type: RequestType;
 }
-
-// ─── Sub-Components ───────────────────────────────────────────────────────────
 
 interface GradientIconBoxProps {
   icon: IconType;
@@ -231,11 +227,16 @@ const ReviewDetailModal = ({ request, isOpen, onClose, onSubmitResponse }: Revie
   const [internalNotes, setInternalNotes] = useState('');
 
   useEffect(() => {
-    if (request) {
-      setTimeout(() => setStatus(request.status || 'pending'), 0);
+    if (!request) return;
+
+    // Avoid synchronous setState calls during the effect render cycle.
+    const timeoutId = window.setTimeout(() => {
+      setStatus(request.status || 'pending');
       setResponse('');
       setInternalNotes('');
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [request]);
 
   if (!isOpen || !request) return null;

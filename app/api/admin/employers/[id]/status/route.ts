@@ -71,11 +71,12 @@ export async function PATCH(
 
   console.log(`[PATCH employer status] Attempting update for ID: ${id} to status: ${status}`);
 
-  let { data: employer, error: employerFetchError } = await adminSupabase
+  const { data: initialEmployer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
     .select('id,user_id,company_name,min_advance_amount,currency')
     .eq('id', id)
     .maybeSingle();
+  let employer = initialEmployer;
 
   if (!employer && !employerFetchError) {
     console.log(`[PATCH employer status] ID ${id} not found in onboarding, checking primary 'employers' table...`);

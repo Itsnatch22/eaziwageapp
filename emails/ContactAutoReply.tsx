@@ -44,7 +44,7 @@ export default function ContactAutoReply({
             <Heading style={h1}>Hi {name},</Heading>
 
             <Text style={text}>
-              Thank you for reaching out to us. We've received your message and
+              Thank you for reaching out to us. We&apos;ve received your message and
               our team will get back to you within 24 hours.
             </Text>
 
@@ -56,7 +56,7 @@ export default function ContactAutoReply({
 
             <Text style={text}>
               In the meantime, feel free to explore more about how EaziWage is
-              transforming financial wellbeing for Africa's workforce.
+              transforming financial wellbeing for Africa&apos;s workforce.
             </Text>
 
             <Text style={text}>
@@ -72,7 +72,7 @@ export default function ContactAutoReply({
               Nairobi, Kenya | +254 723 154900 | support@eaziwage.com
             </Text>
             <Text style={footerText}>
-              © 2026 EaziWage. Empowering Africa's workforce.
+              © 2026 EaziWage. Empowering Africa&apos;s workforce.
             </Text>
             <Text style={footerText}>
               <Link href={baseUrl} style={footerLink}>

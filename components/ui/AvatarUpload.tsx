@@ -24,6 +24,8 @@ export function AvatarUpload({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
+  const avatarStorage = supabase.storage.from('avatars');
+  type UploadResult = Awaited<ReturnType<typeof avatarStorage.upload>>;
 
   const initials = (fullName || 'User')
     .split(' ')
@@ -73,20 +75,18 @@ export function AvatarUpload({
       setPreviewUrl(objectUrl);
 
       // 2. Upload to Supabase Storage with a timeout
-      const uploadPromise = supabase.storage
-        .from('avatars')
-        .upload(filePath, file, {
+      const uploadPromise = avatarStorage.upload(filePath, file, {
           upsert: true,
           contentType: file.type,
         });
 
       // Add a 15-second timeout to the upload
-      const result = await Promise.race([
+      const result: UploadResult = await Promise.race([
         uploadPromise,
         new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => reject(new Error('Upload timed out. Please check your connection.')), 15000);
         })
-      ]) as any;
+      ]);
 
       if (timeoutId) clearTimeout(timeoutId);
 
@@ -102,9 +102,7 @@ export function AvatarUpload({
       console.log('AvatarUpload: Upload successful, getting public URL');
 
       // 3. Get Public URL
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      const { data: urlData } = avatarStorage.getPublicUrl(filePath);
 
       if (!urlData || !urlData.publicUrl) {
         throw new Error('Failed to get public URL');
@@ -136,10 +134,10 @@ export function AvatarUpload({
       if (onUploadSuccess) {
         onUploadSuccess(publicUrl);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (timeoutId) clearTimeout(timeoutId);
       console.error('AvatarUpload: Final catch error:', error);
-      toast.error(error.message || 'Failed to upload image');
+      toast.error(error instanceof Error ? error.message : 'Failed to upload image');
       setPreviewUrl(null);
     } finally {
       setUploading(false);

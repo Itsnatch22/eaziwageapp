@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { 
-  HelpCircle, MessageCircle, History, ExternalLink, Plus, 
-  Search, ChevronDown, CheckCircle2, Clock, AlertCircle, Loader2
+  HelpCircle, MessageCircle, History, ExternalLink, 
+  ChevronDown, Loader2
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
@@ -30,8 +30,16 @@ const FAQS = [
   }
 ];
 
+interface SupportTicket {
+  id: string;
+  subject: string;
+  message: string;
+  status: string;
+  created_at: string;
+}
+
 const SupportPage = () => {
-  const [tickets, setTickets] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -46,7 +54,7 @@ const SupportPage = () => {
         const data = await res.json();
         setTickets(data.tickets || []);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load support history');
     } finally {
       setLoading(false);
@@ -70,7 +78,7 @@ const SupportPage = () => {
         setNewTicket({ subject: '', message: '', category: 'General' });
         fetchTickets();
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to send ticket');
     } finally {
       setAdding(false);

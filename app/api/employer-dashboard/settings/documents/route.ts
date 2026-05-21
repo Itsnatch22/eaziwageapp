@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const fileName = `${documentType}_${Date.now()}.${fileExt}`;
     const filePath = `${user.id}/${fileName}`;
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("employer-documents")
       .upload(filePath, fileBuffer, {
         contentType: file.type,

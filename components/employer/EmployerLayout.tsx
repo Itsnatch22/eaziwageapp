@@ -1,7 +1,7 @@
 "use client"
 import { 
   LayoutDashboard, Users, CreditCard, BarChart3, Settings, LogOut, 
-  Menu, X, ChevronRight, Upload, HelpCircle, Shield, Wallet, MessageSquare, Building2
+  Menu, X, ChevronRight, Upload, HelpCircle, Shield, Wallet, MessageSquare
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
@@ -11,7 +11,7 @@ import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
 import { logout } from '@/actions/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import React,{ useState, useRef, useEffect, useCallback }from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
@@ -39,19 +39,11 @@ interface EmployerUser {
   id?: string;
   email?: string;
   full_name?: string;
+  avatar_url?: string;
   user_metadata?: {
     full_name?: string;
     name?: string;
   };
-}
-
-interface EmployerNotification {
-  id: string;
-  type: 'advance' | 'system' | 'employee' | string;
-  title: string;
-  message: string;
-  read: boolean;
-  created_at?: string;
 }
 
 const ContactSupportModal = ({ isOpen, onClose }: ContactSupportModalProps) => {
@@ -145,26 +137,9 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const location = usePathname();
   const user = useAuthStore((state) => state.user as EmployerUser | null);
   const [showContactModal, setShowContactModal] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [mounted] = useState(() => typeof window !== 'undefined');
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Cache busting for avatar URL - force refresh when avatar changes
-  const userAny = user as any;
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(userAny?.avatar_url);
-  useEffect(() => {
-    if (userAny?.avatar_url) {
-      const timestamp = Date.now();
-      const newUrl = userAny.avatar_url.includes('?') 
-        ? `${userAny.avatar_url}&t=${timestamp}`
-        : `${userAny.avatar_url}?t=${timestamp}`;
-      setAvatarUrl(newUrl);
-    } else {
-      setAvatarUrl(undefined);
-    }
-  }, [userAny?.avatar_url]);
+  const avatarUrl = user?.avatar_url;
 
   const fullName = mounted ? (user?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Employer') : 'Employer';
   const userEmail = mounted ? (user?.email || 'No email') : 'No email';
@@ -336,11 +311,7 @@ interface TopHeaderProps {
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
   const user = useAuthStore((state) => state.user as EmployerUser | null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [mounted] = useState(() => typeof window !== 'undefined');
 
   const hour = mounted ? new Date().getHours() : 9;
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
@@ -413,28 +384,6 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   const user = useAuthStore((state) => state.user as EmployerUser | null);
   const pathname = usePathname();
   const router = useRouter();
-  
-  // Cache busting for avatar URL - avoid SSR/first-paint mismatch
-  const [mounted, setMounted] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    if ((user as any)?.avatar_url) {
-      const timestamp = Date.now();
-      const newUrl = (user as any).avatar_url.includes('?') 
-        ? `${(user as any).avatar_url}&t=${timestamp}`
-        : `${(user as any).avatar_url}?t=${timestamp}`;
-      setAvatarUrl(newUrl);
-    } else {
-      setAvatarUrl(undefined);
-    }
-  }, [mounted, (user as any)?.avatar_url]);
-
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -485,7 +434,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
     
     const channel = pusherClient.subscribe(`employer-${user.id}`);
     
-    channel.bind('settings-updated', (data: any) => {
+    channel.bind('settings-updated', () => {
       toast.success('Organization settings updated', {
         description: 'Your organization settings have been updated by an administrator.',
         icon: <Settings className="w-5 h-5 text-blue-600" />,

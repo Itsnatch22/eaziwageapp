@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis } from '@upstash/redis';
 
-async function verifyAdminUser(supabase: any): Promise<{ user: any; isAdmin: boolean }> {
+type AdminUser = Pick<User, 'id' | 'email' | 'app_metadata' | 'user_metadata'>;
+
+interface AdminReportRow {
+  status?: string | null;
+  created_at?: string | null;
+}
+
+async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminUser | null; isAdmin: boolean }> {
   const {
     data: { user },
     error: authError,
@@ -69,7 +76,7 @@ export async function DELETE(
       .from('admin_reports')
       .select('id')
       .eq('id', id)
-      .single();
+      .single<AdminReportRow>();
 
     if (fetchError || !report) {
       return NextResponse.json({ error: 'Report not found' }, { status: 404 });

@@ -19,6 +19,8 @@ export enum Currency {
   USD = 'USD',
 }
 
+export type DusupayMetadata = Record<string, unknown>;
+
 export interface PayoutRequest {
   merchant_reference: string;
   transaction_method: PayoutMethod;
@@ -39,7 +41,7 @@ export interface PayoutResponse {
     merchant_reference: string;
     internal_reference: string;
     transaction_status: PayoutStatus;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -60,7 +62,7 @@ export interface WebhookPayload {
     customer_name: string;
     transaction_status: 'COMPLETED' | 'FAILED' | string;
     status_message: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -81,6 +83,39 @@ export interface ProviderResponse {
     provider_name: string;
     transaction_method: PayoutMethod;
     currency: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }[];
+}
+
+export interface BankCode {
+  bank_code?: string;
+  bank_name?: string;
+  branch_code?: string;
+  branch_name?: string;
+  [key: string]: unknown;
+}
+
+export interface BankCodesResponse {
+  code: number;
+  status: string;
+  data?: {
+    payout_banks?: BankCode[];
+    [key: string]: unknown;
+  };
+}
+
+export interface SendFundsPayload {
+  merchant_reference: string;
+  transaction_method: PayoutMethod;
+  currency: Currency;
+  amount: number;
+  provider_code: string;
+  customer_name: string;
+  description: string;
+  msisdn?: string;
+  account_number?: string;
+  extra_params?: {
+    bank_code?: string;
+    [key: string]: string | undefined;
+  };
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from 'react';
-import { X, AlertTriangle, User, Briefcase, Shield, DollarSign, MessageSquare } from 'lucide-react';
+import { X, AlertTriangle, Briefcase, Shield, DollarSign, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -124,7 +124,7 @@ export function DeleteAccountModal({ isOpen, onClose, onDeleteAccount, loading }
             <div>
               <CardTitle className="text-red-600">Delete Account</CardTitle>
               <CardDescription>
-                We're sorry to see you go. Please help us understand why you're leaving.
+                We&apos;re sorry to see you go. Please help us understand why you&apos;re leaving.
               </CardDescription>
             </div>
           </div>

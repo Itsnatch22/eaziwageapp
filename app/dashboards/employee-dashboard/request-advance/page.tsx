@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import {
   Info, ChevronDown, Clock,
   Smartphone, CheckCircle2, Zap, ArrowRight,
-  Shield, Loader2, Landmark, Wallet, TrendingUp, AlertCircle
+  Shield, Loader2, Landmark, Wallet, TrendingUp, AlertCircle,
+  type LucideIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, calculateFeePercentage, cn, getCurrencySymbol } from '@/lib/utils';
@@ -46,7 +47,7 @@ const XIcon = ({ className }: { className?: string }) => (
 const MetricCard = ({
   icon: Icon, label, value, subtext, accent = '#10b981'
 }: {
-  icon: any; label: string; value: string; subtext?: string; accent?: string;
+  icon: LucideIcon; label: string; value: string; subtext?: string; accent?: string;
 }) => (
   <div className="relative bg-white/50 dark:bg-white/4 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 overflow-hidden group transition-all duration-300 hover:border-white/80 dark:hover:border-white/20">
     {/* Subtle ambient glow */}

@@ -14,12 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Employee } from '@/lib/validations/kyc-validation';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type RiskLevel = 'low' | 'moderate' | 'elevated' | 'high';
-type AccountStatus = 'normal' | 'monitored' | 'suspended' | 'pending_review';
 type AlertSeverity = 'high' | 'medium' | 'low';
 type StatColor = 'primary' | 'emerald' | 'amber' | 'red';
 type RuleType = 'amount_threshold' | 'frequency' | 'velocity' | 'pattern' | 'employer_manipulation';
@@ -76,8 +72,6 @@ interface DashboardStats {
   fraudRate: number;
 }
 
-// ─── Risk Level Badge ─────────────────────────────────────────────────────────
-
 interface RiskBadgeProps {
   level: RiskLevel;
 }
@@ -98,30 +92,6 @@ const RiskBadge: React.FC<RiskBadgeProps> = ({ level }) => {
     </span>
   );
 };
-
-// ─── Status Badge ─────────────────────────────────────────────────────────────
-
-interface StatusBadgeProps {
-  status: AccountStatus;
-}
-
-const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
-  const config: Record<AccountStatus, { color: string; label: string }> = {
-    normal: { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400', label: 'Normal' },
-    monitored: { color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400', label: 'Monitored' },
-    suspended: { color: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400', label: 'Suspended' },
-    pending_review: { color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400', label: 'Pending Review' },
-  };
-  const { color, label } = config[status] ?? config.normal;
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${color}`}>
-      {label}
-    </span>
-  );
-};
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
 
 interface StatCardProps {
   icon: React.ElementType;
@@ -159,8 +129,6 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, title, value, subtitle,
     </div>
   );
 };
-
-// ─── Risk Taxonomy Section ────────────────────────────────────────────────────
 
 interface RiskCategory {
   name: string;
@@ -256,8 +224,6 @@ const RiskTaxonomySection: React.FC = () => {
     </div>
   );
 };
-
-// ─── Risk Scoring Section ─────────────────────────────────────────────────────
 
 interface ScoringFactor {
   factor: string;
@@ -377,8 +343,6 @@ const RiskScoringSection: React.FC = () => {
     </div>
   );
 };
-
-// ─── Suspension Triggers Section ──────────────────────────────────────────────
 
 interface SoftControl {
   control: string;
@@ -1108,8 +1072,6 @@ const ManualRulesSection: React.FC<ManualRulesSectionProps> = ({ rules, onToggle
   );
 };
 
-// ─── Fingerprint SVG Icon ─────────────────────────────────────────────────────
-
 interface FingerprintProps {
   className?: string;
 }
@@ -1128,8 +1090,6 @@ const Fingerprint: React.FC<FingerprintProps> = ({ className }) => (
   </svg>
 );
 
-// ─── Section Navigation ───────────────────────────────────────────────────────
-
 type SectionId =
   | 'overview'
   | 'rules'
@@ -1146,8 +1106,6 @@ interface NavSection {
   label: string;
   icon: React.ElementType;
 }
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function FraudDetection(): React.ReactElement {
   const [loading, setLoading] = useState<boolean>(true);
@@ -1190,7 +1148,7 @@ export default function FraudDetection(): React.ReactElement {
         riskScore: 85, 
         fraudRate: 0.05,
       });
-    } catch (err) {
+    } catch {
       toast.error('Failed to sync fraud data');
     } finally {
       setLoading(false);
@@ -1203,7 +1161,7 @@ export default function FraudDetection(): React.ReactElement {
 
   const handleToggleRule = async (ruleId: number): Promise<void> => {
     // API logic for toggle rule would go here
-    toast.success('Rule status updated');
+    toast.success(`Rule ${ruleId} status updated`);
   };
 
   const handleCreateRule = async (newRule: NewFraudRule): Promise<void> => {
@@ -1221,7 +1179,7 @@ export default function FraudDetection(): React.ReactElement {
         toast.success('Rule created successfully');
         fetchData();
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to create rule');
     }
   };
@@ -1259,7 +1217,8 @@ export default function FraudDetection(): React.ReactElement {
   }
 
   function handleReviewAlert(alert: FraudAlert): void {
-    throw new Error('Function not implemented.');
+    toast.info(`Reviewing alert "${alert.title}"`);
+    // TODO: replace with real review navigation or modal flow
   }
 
   return (

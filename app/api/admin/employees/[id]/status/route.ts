@@ -4,6 +4,22 @@ import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import pusherServer from '@/lib/pusher-server';
 
+interface EmployeeUpsertPayload {
+  user_id: string;
+  status: string;
+  kyc_status: string;
+  updated_at: string;
+  employer_id?: string;
+  employee_code?: string;
+  full_name?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  job_title?: string;
+  department?: string;
+  monthly_salary?: number;
+}
+
 function createAdminClient() {
   const env = getEnv();
   return createClient(
@@ -90,7 +106,7 @@ export async function PATCH(
       
       const displayName = profileData?.full_name || onboardingRecord?.full_name || 'Anonymous';
 
-      const upsertPayload: any = {
+      const upsertPayload: Partial<EmployeeUpsertPayload> = {
         user_id: userId,
         status: 'Active',
         kyc_status: 'approved',

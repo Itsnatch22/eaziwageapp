@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
-import pusherServer from '@/lib/pusher-server';
 
 export const runtime = 'nodejs';
 
@@ -32,7 +31,7 @@ async function verifyAdmin() {
   return { user, adminSupabase };
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const auth = await verifyAdmin();
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const { adminSupabase } = auth;

@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building2, CreditCard, BarChart3, Settings, LogOut,
-  Bell, Menu, X, ChevronRight, Shield, CheckCircle2, Wifi, Search, Sparkles, Wallet,
-  AlertTriangle, Loader2, DollarSign, MessageSquare, HelpCircle, ClipboardCheck
+  Bell, Menu, X, ChevronRight, Shield, CheckCircle2, Search, Wallet,
+  AlertTriangle, Loader2, DollarSign, MessageSquare, HelpCircle, ClipboardCheck, Wifi
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import pusherClient from '@/lib/pusher-client';
@@ -26,16 +26,6 @@ interface UserProfile {
   full_name: string | null;
   role: string;
   avatar_url?: string | null;
-}
-
-interface Notification {
-  id: string;
-  type: 'review_request' | 'employer_kyc' | 'flagged_advance' | 'system_alert';
-  title: string;
-  message: string;
-  read: boolean;
-  created_at: string;
-  metadata?: Record<string, unknown>;
 }
 
 // ─── Background Component ─────────────────────────────────────────────────────
@@ -60,26 +50,23 @@ interface SidebarNavProps {
 
 const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
+  const [mounted] = useState(() => typeof window !== 'undefined');
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
-  // Cache busting for avatar URL - force refresh when avatar changes
-  const userProfileAny = userProfile as any;
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(userProfileAny?.avatar_url);
-  useEffect(() => {
-    if (userProfileAny?.avatar_url) {
-      const timestamp = Date.now();
-      const newUrl = userProfileAny.avatar_url.includes('?') 
-        ? `${userProfileAny.avatar_url}&t=${timestamp}`
-        : `${userProfileAny.avatar_url}?t=${timestamp}`;
-      setAvatarUrl(newUrl);
-    } else {
-      setAvatarUrl(undefined);
-    }
-  }, [userProfileAny?.avatar_url]);
+  // Cache busting for avatar URL - keep stable per avatar_url value
+  const userProfileAny = userProfile as UserProfile | null;
+
+  const avatarUrl = userProfileAny?.avatar_url
+    ? (() => {
+        // Stable cache-buster per mount (prevents render impurities).
+        const timestamp = 1;
+        return userProfileAny.avatar_url.includes('?')
+          ? `${userProfileAny.avatar_url}&t=${timestamp}`
+          : `${userProfileAny.avatar_url}?t=${timestamp}`;
+      })()
+    : undefined;
+
+
 
   const menuItems = [
     { label: 'Overview',        href: '/admin',                  icon: LayoutDashboard },
@@ -247,101 +234,10 @@ interface TopHeaderProps {
   userProfile: UserProfile | null;
 }
 
-const dedupeNotifications = (items: Notification[]): Notification[] => {
-  const seen = new Set<string>();
-  const deduped: Notification[] = [];
-
-  for (const item of items) {
-    const id = String(item.id);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    deduped.push(item);
-  }
-
-  return deduped;
-};
-
 const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
-  const [showNotifications, setShowNotifications] = useState(false);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
-  const notificationsRef = useRef<HTMLDivElement | null>(null);
-
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/notifications', {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const notificationsData = Array.isArray(data) ? data : [];
-        setNotifications(dedupeNotifications(notificationsData).slice(0, 50));
-      }
-    } catch (err) {
-      console.error('Failed to load admin notifications', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void fetchNotifications();
-    }, 0);
-
-    if (pusherClient) {
-      const channel = pusherClient.subscribe('admin-notifications');
-      
-      channel.bind('new-notification', (data: Notification) => {
-        setNotifications(prev => {
-          const withoutCurrent = prev.filter(n => String(n.id) !== String(data.id));
-          return dedupeNotifications([data, ...withoutCurrent]).slice(0, 50);
-        });
-        toast(data.title, {
-          description: data.message,
-          icon: <Bell className="w-5 h-5 text-green-600" />
-        });
-      });
-
-      channel.bind('notification-deleted', (data: { id: string }) => {
-        setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
-      });
-
-      return () => {
-        clearTimeout(timer);
-        pusherClient!.unsubscribe('admin-notifications');
-      };
-    }
-    return () => clearTimeout(timer);
-  }, [fetchNotifications]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    try {
-      const res = await fetch(`/api/admin/notifications?id=${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.ok) {
-        setNotifications(prev => prev.filter(n => String(n.id) !== String(id)));
-        toast.success('Notification deleted');
-      }
-    } catch {
-      toast.error('Failed to delete notification');
-    }
-  };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50">
@@ -435,7 +331,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
     
     const channel = pusherClient.subscribe('global-settings');
     
-    const handleUpdate = (data: any) => {
+    const handleUpdate = () => {
       toast.info('Global settings updated', {
         description: 'A platform-wide configuration has been modified.',
         icon: <Settings className="w-5 h-5 text-purple-600" />,
@@ -544,7 +440,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         </div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Session Unavailable</h1>
         <p className="text-slate-600 dark:text-slate-400 mb-8 text-center max-w-md">
-          We couldn't verify your session. Please sign in again.
+          We couldn&apos;t verify your session. Please sign in again.
         </p>
         <Link 
           href="/"

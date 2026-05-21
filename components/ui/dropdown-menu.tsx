@@ -5,18 +5,22 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const DropdownMenu = ({ children }: React.PropsWithChildren) => <div>{children}</div>
+type DropdownTriggerChildProps = React.HTMLAttributes<HTMLElement> & {
+  className?: string
+  "data-slot"?: string
+}
+
 const DropdownMenuTrigger = React.forwardRef<
   HTMLButtonElement,
   React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }
 >(
   ({ className, asChild, children, ...props }, ref) => {
     if (asChild && React.isValidElement(children)) {
-      const child = children as React.ReactElement<any>
-      return React.cloneElement<any>(child, {
+      const child = children as React.ReactElement<DropdownTriggerChildProps>
+      return React.cloneElement(child, {
         ...props,
         className: cn(className, child.props?.className),
         'data-slot': 'dropdown-trigger-child',
-        ref: ref as any,
       })
     }
     return (

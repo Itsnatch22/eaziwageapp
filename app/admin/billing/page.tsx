@@ -7,9 +7,10 @@ import {
   CreditCard, Activity, Calendar, Download, Building2,
   MoreHorizontal, Eye, Settings
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, AreaChart, Area, Legend 
+  ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -57,18 +58,28 @@ interface Employer {
   updated_at:          string;
 }
 
-const MetricCard = ({ icon: Icon, label, value, subtext, variant = 'purple' }: any) => {
-  const variants: any = {
-    purple: 'from-purple-600 to-indigo-600 shadow-purple-500/25',
-    green: 'from-emerald-600 to-green-600 shadow-emerald-500/25',
-    blue: 'from-blue-600 to-cyan-600 shadow-blue-500/25',
-    amber: 'from-amber-500 to-orange-500 shadow-amber-500/25',
-  };
+type MetricVariant = 'purple' | 'green' | 'blue' | 'amber';
 
+interface MetricCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  subtext?: string;
+  variant?: MetricVariant;
+}
+
+const metricVariants: Record<MetricVariant, string> = {
+  purple: 'from-purple-600 to-indigo-600 shadow-purple-500/25',
+  green: 'from-emerald-600 to-green-600 shadow-emerald-500/25',
+  blue: 'from-blue-600 to-cyan-600 shadow-blue-500/25',
+  amber: 'from-amber-500 to-orange-500 shadow-amber-500/25',
+};
+
+const MetricCard = ({ icon: Icon, label, value, subtext, variant = 'purple' }: MetricCardProps) => {
   return (
     <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
       <div className="flex items-center gap-4 mb-4">
-        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center bg-linear-to-br shadow-lg", variants[variant])}>
+        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center bg-linear-to-br shadow-lg", metricVariants[variant])}>
           <Icon className="text-white w-6 h-6" />
         </div>
         <div>
@@ -127,7 +138,7 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100">
         <Activity className="w-8 h-8 text-purple-600 animate-spin" />
       </div>
     );
@@ -191,7 +202,7 @@ export default function BillingPage() {
 
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-white">Revenue Trend</h3>
-          <div className="h-[300px]">
+          <div className="h-75">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data.monthlyTrends}>
                 <defs>
@@ -215,7 +226,7 @@ export default function BillingPage() {
 
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-white">Disbursement Volume</h3>
-          <div className="h-[300px]">
+          <div className="h-75">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.monthlyTrends}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -275,7 +286,7 @@ export default function BillingPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden min-w-[60px]">
+                      <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden min-w-15">
                         <div 
                           className="h-full bg-purple-600 rounded-full" 
                           style={{ width: `${Math.min(employer.employee_count > 0 ? (employer.total_advances / employer.employee_count) * 20 : 0, 100)}%` }} 

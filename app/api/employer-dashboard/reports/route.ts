@@ -20,35 +20,6 @@ function endOf(d: Date): Date {
 }
 
 type DateRange = { from: Date; to: Date; label: string };
-type EmployeeStatus = 'approved' | 'pending' | 'rejected' | 'inactive' | 'suspended' | string;
-type AdvanceStatus = 'disbursed' | 'approved' | 'pending' | 'denied' | string;
-type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
-
-interface EmployeeRow {
-  id: string;
-  status: EmployeeStatus;
-}
-
-interface AdvanceRow {
-  id: string;
-  employee_id: string;
-  amount: number | string | null;
-  fee_amount: number | string | null;
-  status: AdvanceStatus;
-  disbursement_method: DisbursementMethod | null;
-  created_at: string;
-}
-
-interface PrevAdvanceRow {
-  amount: number | string | null;
-  fee_amount: number | string | null;
-  status: AdvanceStatus;
-}
-
-interface TrendRow {
-  amount: number | string | null;
-  created_at: string;
-}
 
 function getPeriodRange(period: string, monthParam?: string): DateRange {
   const now = new Date();

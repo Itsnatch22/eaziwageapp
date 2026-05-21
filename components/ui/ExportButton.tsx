@@ -11,15 +11,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
-interface ExportButtonProps {
-  data: any[];
+interface ExportButtonProps<T> {
+  data: T[];
   filename: string;
   headers: string[];
-  mapping: (item: any) => (string | number)[];
+  mapping: (item: T) => (string | number)[];
   title?: string;
 }
 
-export function ExportButton({ data, filename, headers, mapping, title = 'Export' }: ExportButtonProps) {
+export function ExportButton<T>({ data, filename, headers, mapping, title = 'Export' }: ExportButtonProps<T>) {
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async (format: 'csv' | 'pdf') => {

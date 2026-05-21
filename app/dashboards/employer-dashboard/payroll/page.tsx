@@ -1,10 +1,10 @@
 "use client"
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Upload, Download, Calendar, FileText, CheckCircle2, Clock, AlertCircle,
-  TrendingUp, Users, DollarSign, BarChart3, ChevronRight, Eye, Wifi,
+  Calendar, FileText, CheckCircle2, AlertCircle,
+  TrendingUp, Users, DollarSign, BarChart3, ChevronRight, Eye,
   CreditCard, Link2, RefreshCw, X, Copy, Check, XCircle, AlertTriangle,
-  Plug, Info,
+  Plug, Info, Download, Wifi,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,17 +46,6 @@ interface Integration {
   uptime?: number;
   latency_ms?: number;
   health_status?: 'healthy' | 'degraded' | 'down';
-}
-
-interface UploadResult {
-  upload_id: string;
-  status: 'processed' | 'partial' | 'failed';
-  total_rows: number;
-  processed_rows: number;
-  failed_rows: number;
-  error_summary: { row: number; field: string; message: string }[];
-  warning_summary: { row: number; field: string; message: string }[];
-  totals?: { gross: number; net: number; deductions: number };
 }
 
 interface PayrollRecord {
@@ -438,143 +427,6 @@ const PayrollHistoryItem = ({
   );
 };
 
-// ── Upload Result Banner ──────────────────────────────────────────────────────
-const UploadResultBanner = ({
-  result,
-  onDismiss,
-  currency = 'KES',
-}: { result: UploadResult; onDismiss: () => void; currency?: string }) => {
-  const isSuccess  = result.status === 'processed';
-  const isPartial  = result.status === 'partial';
-  const isFailed   = result.status === 'failed';
-
-  return (
-    <div className={cn(
-      "rounded-xl border p-4",
-      isSuccess ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20" :
-      isPartial ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20" :
-                  "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20"
-    )}>
-      <div className="flex items-start gap-3">
-        {isSuccess ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" /> :
-         isPartial ? <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" /> :
-                     <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />}
-        <div className="flex-1 min-w-0">
-          <p className={cn("font-semibold text-sm",
-            isSuccess ? "text-emerald-800 dark:text-emerald-200" :
-            isPartial ? "text-amber-800 dark:text-amber-200" :
-                        "text-red-800 dark:text-red-200"
-          )}>
-            {isSuccess ? `All ${result.processed_rows} rows processed successfully` :
-             isPartial ? `${result.processed_rows} of ${result.total_rows} rows processed — ${result.failed_rows} failed` :
-                         `Upload failed — all ${result.total_rows} rows were rejected`}
-          </p>
-
-          {/* Errors */}
-          {result.error_summary.length > 0 && (
-            <div className="mt-3 space-y-1.5">
-              <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wider">Errors</p>
-              {result.error_summary.slice(0, 5).map((e, i) => (
-                <div key={i} className="flex gap-2 text-xs text-red-700 dark:text-red-300 bg-red-100/50 dark:bg-red-500/10 rounded-lg px-3 py-1.5">
-                  <span className="font-mono shrink-0">Row {e.row}</span>
-                  <span className="text-red-500 dark:text-red-400 shrink-0">[{e.field}]</span>
-                  <span>{e.message}</span>
-                </div>
-              ))}
-              {result.error_summary.length > 5 && (
-                <p className="text-xs text-red-600 dark:text-red-400">
-                  + {result.error_summary.length - 5} more errors — download the error report to view all.
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Warnings */}
-          {result.warning_summary.length > 0 && (
-            <div className="mt-3 space-y-1.5">
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider">Warnings</p>
-              {result.warning_summary.slice(0, 3).map((w, i) => (
-                <div key={i} className="flex gap-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-100/50 dark:bg-amber-500/10 rounded-lg px-3 py-1.5">
-                  <span className="font-mono shrink-0">Row {w.row}</span>
-                  <span className="text-amber-500 dark:text-amber-400 shrink-0">[{w.field}]</span>
-                  <span>{w.message}</span>
-                </div>
-              ))}
-              {result.warning_summary.length > 3 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  + {result.warning_summary.length - 3} more warnings
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Totals on success */}
-          {(isSuccess || isPartial) && result.totals && (
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {[
-                { label: 'Gross', value: formatCurrency(result.totals.gross, currency) },
-                { label: 'Deductions', value: formatCurrency(result.totals.deductions, currency) },
-                { label: 'Net', value: formatCurrency(result.totals.net, currency) },
-              ].map(({ label, value }) => (
-                <div key={label} className="text-center p-2 bg-white/60 dark:bg-slate-800/40 rounded-lg">
-                  <p className="text-xs text-slate-500">{label}</p>
-                  <p className="font-bold text-slate-900 dark:text-white text-sm">{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <button onClick={onDismiss} className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0">
-          <X className="w-4 h-4 text-slate-400" />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ── Upload Step Card (with status feedback) ───────────────────────────────────
-const UploadStepCard = ({ step, title, description, icon: Icon, active, completed, warning, error: hasError }: {
-  step: number; title: string; description: string; icon: React.ElementType;
-  active?: boolean; completed?: boolean; warning?: boolean; error?: boolean;
-}) => (
-  <div className={cn(
-    "p-4 rounded-xl border-2 transition-all",
-    hasError    ? "border-red-400 bg-red-50 dark:bg-red-500/10" :
-    warning     ? "border-amber-400 bg-amber-50 dark:bg-amber-500/10" :
-    completed   ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" :
-    active      ? "border-primary bg-primary/5" :
-                  "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
-  )}>
-    <div className="flex items-start gap-3">
-      <div className={cn(
-        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-        hasError  ? "bg-red-500" :
-        warning   ? "bg-amber-500" :
-        completed ? "bg-emerald-500" :
-        active    ? "bg-primary" :
-                    "bg-slate-200 dark:bg-slate-700"
-      )}>
-        {hasError    ? <XCircle className="w-5 h-5 text-white" /> :
-         warning     ? <AlertTriangle className="w-5 h-5 text-white" /> :
-         completed   ? <CheckCircle2 className="w-5 h-5 text-white" /> :
-                       <Icon className={cn("w-5 h-5", active ? "text-white" : "text-slate-500")} />}
-      </div>
-      <div>
-        <p className="text-xs text-slate-500 dark:text-slate-400">Step {step}</p>
-        <p className={cn(
-          "font-medium",
-          hasError  ? "text-red-700 dark:text-red-300" :
-          warning   ? "text-amber-700 dark:text-amber-300" :
-          completed ? "text-emerald-700 dark:text-emerald-300" :
-          active    ? "text-primary" :
-                      "text-slate-600 dark:text-slate-400"
-        )}>{title}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{description}</p>
-      </div>
-    </div>
-  </div>
-);
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function EmployerPayroll() {
@@ -584,13 +436,9 @@ export default function EmployerPayroll() {
   const [payrollHistory, setPayrollHistory]   = useState<PayrollRecord[]>([]);
   const [integration, setIntegration]         = useState<Integration | null>(null);
   const [loading, setLoading]                 = useState(true);
-  const [uploading, setUploading]             = useState(false);
   const [syncing, setSyncing]                 = useState(false);
-  const [selectedFile, setSelectedFile]       = useState<File | null>(null);
   const [selectedMonth, setSelectedMonth]     = useState(new Date().toISOString().slice(0, 7));
-  const [uploadResult, setUploadResult]       = useState<UploadResult | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);
-  const [viewingRecord, setViewingRecord]     = useState<PayrollRecord | null>(null);
 
   // ── Fetch all data ─────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -628,23 +476,6 @@ export default function EmployerPayroll() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── File select ───────────────────────────────────────────────────────────
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-      toast.error('Please upload a CSV or Excel file');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File must be under 10 MB');
-      return;
-    }
-    setSelectedFile(file);
-    setUploadResult(null); // clear previous result when new file is chosen
-    toast.success(`File selected: ${file.name}`);
-  };
-
   const downloadTemplate = () => {
     const rows = [
       ['employee_code', 'days_worked', 'gross_salary', 'deductions'],
@@ -679,62 +510,6 @@ export default function EmployerPayroll() {
     } catch (err) {
       console.error('Failed to download payroll deduction file:', err);
       toast.error('Failed to download payroll deduction file');
-    }
-  };
-
-  // ── Upload ────────────────────────────────────────────────────────────────
-  const handleUpload = async () => {
-    if (!selectedFile) { toast.error('Please select a file first'); return; }
-
-    setUploading(true);
-    setUploadResult(null);
-    try {
-      // In production: parse the CSV/XLSX client-side here.
-      // For now we synthesise rows from the known employees list.
-      const activeEmps = employees.filter(e => e.status === 'approved').slice(0, 50);
-      const payrollRows = activeEmps.map(emp => ({
-        employee_code: emp.employee_code,
-        days_worked:   Math.floor(Math.random() * 5) + 20,
-        gross_salary:  emp.monthly_salary ?? 0,
-        deductions:    0,
-      }));
-
-      const response = await fetch('/api/employer-dashboard/payroll/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          month:           selectedMonth,
-          employees:       payrollRows,
-          file_name:       selectedFile.name,
-          file_size_bytes: selectedFile.size,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? 'Upload failed');
-      }
-
-      setUploadResult(data);
-      setSelectedFile(null);
-
-      if (data.status === 'processed') {
-        toast.success('Payroll uploaded and processed successfully!');
-      } else if (data.status === 'partial') {
-        toast.warning(`Upload partial — ${data.failed_rows} rows failed. See details below.`);
-      } else {
-        toast.error('Upload failed — all rows were rejected. See errors below.');
-      }
-
-      // Refresh history
-      const historyRes = await fetch('/api/employer-dashboard/payroll/history').then(r => r.ok ? r.json() : []);
-      setPayrollHistory(Array.isArray(historyRes) ? historyRes : []);
-
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to upload payroll');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -789,7 +564,7 @@ export default function EmployerPayroll() {
       if (!res.ok) throw new Error('Delete failed');
       setIntegration(null);
       toast.success('Integration removed successfully');
-    } catch (err) {
+    } catch {
       toast.error('Failed to remove integration');
     }
   };
@@ -804,12 +579,6 @@ export default function EmployerPayroll() {
   const platformFees         = Math.round(monthlyAdvances * (avgFeeRate / 100));
   const monthlyDeductions    = monthlyAdvances + platformFees;
   const apiConnectionStatus  = integration?.status === 'active';
-
-  // ── Upload step states ────────────────────────────────────────────────────
-  const uploadFailed   = uploadResult?.status === 'failed';
-  const uploadPartial  = uploadResult?.status === 'partial';
-  const uploadDone     = uploadResult?.status === 'processed';
-  const hasWarnings    = (uploadResult?.warning_summary?.length ?? 0) > 0;
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -1246,7 +1015,7 @@ export default function EmployerPayroll() {
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30 p-4 space-y-2">
               {payrollHistory.map(record => (
-                <PayrollHistoryItem key={record.id} record={record} onView={r => setViewingRecord(r)} currency={currency} />
+                <PayrollHistoryItem key={record.id} record={record} onView={() => {}} currency={currency} />
               ))}
             </div>
           )}

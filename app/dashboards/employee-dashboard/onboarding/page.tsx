@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { EMPLOYMENT_TYPES, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/stores/auth';
@@ -636,8 +636,6 @@ export default function Onboarding() {
     e.company_name.toLowerCase().includes(employerSearch.toLowerCase())
   );
 
-  const selectedEmployer = employers.find((e) => e.id === formData.employer_id) ?? null;
-
   const updateField = <K extends keyof OnboardingFormData>(field: K, value: OnboardingFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -673,7 +671,7 @@ export default function Onboarding() {
         video: { facingMode: 'user', width: 640, height: 480 } 
       });
       if (videoRef.current) videoRef.current.srcObject = stream;
-    } catch (err) {
+    } catch {
       toast.error('Camera access denied');
       setCapturingFaceId(false);
     }
@@ -1174,7 +1172,6 @@ export default function Onboarding() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
             <div className="space-y-2">
               <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Monthly Salary (Gross)</Label>
               <Input type="number" value={formData.monthly_salary} onChange={e => updateField('monthly_salary', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="Enter amount..." />

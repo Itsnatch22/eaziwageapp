@@ -89,7 +89,7 @@ export async function DELETE(req: NextRequest) {
         if (error) throw error;
         
         return NextResponse.json({ success: true });
-    } catch (err) {
+    } catch {
         return NextResponse.json({ error: "Internal error" }, { status: 500 });
     }
 }

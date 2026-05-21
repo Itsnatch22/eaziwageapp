@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect, useImperativeHandle, useRef } from 'react';
+import React, { useState, useEffect, useImperativeHandle, useRef, useCallback } from 'react';
 import { 
   Settings, Building2, Users, Sliders, Bell, Shield, 
   Save, RefreshCw, Search, Percent, Clock, DollarSign, AlertTriangle,
@@ -211,12 +211,6 @@ type TabId = 'global' | 'employer' | 'employee' | 'risk' | 'notifications' | 'bl
 
 interface SettingsSaveHandle {
   save: () => Promise<void>;
-}
-
-interface Tab {
-  id: TabId;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
 }
 
 // ─── Slider Component ─────────────────────────────────────────────────────────
@@ -615,8 +609,8 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
         const data = await response.json();
         setEmployers(data);
       }
-    } catch (error) {
-      console.error('Error fetching employers:', error);
+    } catch {
+      console.error('Error fetching employers:');
     } finally {
       setLoading(false);
     }
@@ -632,8 +626,8 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
         const data = await response.json();
         setEmployerSettings(data.settings);
       }
-    } catch (error) {
-      console.error('Error fetching employer settings:', error);
+    } catch {
+      console.error('Error fetching employer settings:');
     }
   };
 
@@ -655,7 +649,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
       } else {
         toast.error('Failed to save employer settings');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error saving employer settings');
     } finally {
       setSaving(false);
@@ -974,15 +968,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
   const [loading, setLoading] = useState<boolean>(true);
   const [, setSaving] = useState<boolean>(false);
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
-
-  useEffect(() => {
-    onSaveAvailabilityChange(Boolean(selectedEmployee && employeeSettings));
-  }, [employeeSettings, onSaveAvailabilityChange, selectedEmployee]);
-
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/settings/employees`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -991,12 +977,20 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
         const data = await response.json();
         setEmployees(data);
       }
-    } catch (error) {
-      console.error('Error fetching employees:', error);
+    } catch {
+      console.error('Error fetching employees:');
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
+
+  useEffect(() => {
+    onSaveAvailabilityChange(Boolean(selectedEmployee && employeeSettings));
+  }, [employeeSettings, onSaveAvailabilityChange, selectedEmployee]);
 
   const selectEmployee = async (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -1010,8 +1004,8 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
         setEmployeeStats(data.stats);
         setEmployerSettings(data.employer_settings);
       }
-    } catch (error) {
-      console.error('Error fetching employee settings:', error);
+    } catch {
+      console.error('Error fetching employee settings:');
     }
   };
 
@@ -1033,7 +1027,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
       } else {
         toast.error('Failed to save employee settings');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error saving employee settings');
     } finally {
       setSaving(false);
@@ -1599,11 +1593,7 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
     is_active: true
   });
 
-  useEffect(() => {
-    fetchBlackouts();
-  }, []);
-
-  const fetchBlackouts = async () => {
+  const fetchBlackouts = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/settings/blackouts`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -1612,12 +1602,16 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
         const data = await response.json();
         setBlackouts(data);
       }
-    } catch (error) {
-      console.error('Error fetching blackouts:', error);
+    } catch {
+      console.error('Error fetching blackouts:');
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchBlackouts();
+  }, [fetchBlackouts]);
 
   const saveBlackout = async () => {
     if (!newBlackout.name || !newBlackout.start_date || !newBlackout.end_date) {
@@ -1648,7 +1642,7 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
       } else {
         toast.error('Failed to save blackout period');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error saving blackout period');
     }
   };
@@ -1665,7 +1659,7 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
         toast.success('Blackout period deleted');
         fetchBlackouts();
       }
-    } catch (error) {
+    } catch {
       toast.error('Error deleting blackout period');
     }
   };
@@ -1867,11 +1861,7 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
     { type: 'privacy_policy', label: 'Privacy Policy', icon: Shield },
   ];
 
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
-
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/settings/legal-documents`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -1880,12 +1870,16 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
         const data = await response.json();
         setDocuments(data);
       }
-    } catch (error) {
-      console.error('Error fetching documents:', error);
+    } catch {
+      console.error('Error fetching documents:');
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   const selectDocument = async (docType: LegalDocument['document_type']) => {
     try {
@@ -1908,8 +1902,8 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
         setSelectedDoc(defaultDoc);
         setEditedContent(defaultDoc);
       }
-    } catch (error) {
-      console.error('Error fetching document:', error);
+    } catch {
+      console.error('Error fetching document:');
     }
   };
 
@@ -1936,7 +1930,7 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
       } else {
         toast.error('Failed to save document');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error saving document');
     }
   };
@@ -2090,11 +2084,11 @@ interface AuditTrailTabProps {
 }
 
 const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [, setLogs] = useState<AuditLog[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
-  const [admins, setAdmins] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [filters, setFilters] = useState<AuditFilters>({
+  const [, setAdmins] = useState<AdminUser[]>([]);
+  const [, setLoading] = useState<boolean>(true);
+  const [filters] = useState<AuditFilters>({
     auditType: '',
     settingsType: '',
     changedBy: '',
@@ -2103,16 +2097,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
   });
   const [pagination, setPagination] = useState<Pagination>({ skip: 0, limit: 50, total: 0 });
 
-  useEffect(() => {
-    fetchAuditData();
-    fetchAdmins();
-  }, []);
-
-  useEffect(() => {
-    fetchAuditLogs();
-  }, [filters, pagination.skip]);
-
-  const fetchAuditData = async () => {
+  const fetchAuditData = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/audit-trail/stats`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -2121,12 +2106,12 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
         const data = await response.json();
         setStats(data);
       }
-    } catch (error) {
-      console.error('Error fetching audit stats:', error);
+    } catch {
+      console.error('Error fetching audit stats:');
     }
-  };
+  }, [token]);
 
-  const fetchAdmins = async () => {
+  const fetchAdmins = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/audit-trail/admins`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -2135,12 +2120,12 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
         const data = await response.json();
         setAdmins(data);
       }
-    } catch (error) {
-      console.error('Error fetching admins:', error);
+    } catch {
+      console.error('Error fetching admins:');
     }
-  };
+  }, [token]);
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -2160,70 +2145,21 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
         setLogs(data.logs);
         setPagination(prev => ({ ...prev, total: data.total }));
       }
-    } catch (error) {
-      console.error('Error fetching audit logs:', error);
+    } catch {
+      console.error('Error fetching audit logs:');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, pagination.limit, pagination.skip, token]);
 
-  const clearFilters = () => {
-    setFilters({
-      auditType: '',
-      settingsType: '',
-      changedBy: '',
-      startDate: '',
-      endDate: ''
-    });
-    setPagination(prev => ({ ...prev, skip: 0 }));
-  };
+  useEffect(() => {
+    fetchAuditData();
+    fetchAdmins();
+  }, [fetchAuditData, fetchAdmins]);
 
-  const exportAuditLog = () => {
-    const csvContent = [
-      ['Date', 'Type', 'Changed By', 'Description', 'Employer', 'Employee'].join(','),
-      ...logs.map(log => [
-        log.changed_at,
-        log.type,
-        log.changed_by_name || 'Unknown',
-        log.description || '',
-        log.employer_name || '',
-        log.employee_name || ''
-      ].map(v => `"${v}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit_trail_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
-  const getTypeColor = (type: AuditLog['type']): string => {
-    const colors: Record<AuditLog['type'], string> = {
-      platform_settings: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400',
-      risk_settings: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
-      notification_settings: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
-      employer_settings: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400',
-      employee_settings: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
-      legal_document: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-400',
-      blackout: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'
-    };
-    return colors[type] || 'bg-slate-100 text-slate-700';
-  };
-
-  const getTypeLabel = (type: AuditLog['type']): string => {
-    const labels: Record<AuditLog['type'], string> = {
-      platform_settings: 'Platform Settings',
-      risk_settings: 'Risk Settings',
-      notification_settings: 'Notifications',
-      employer_settings: 'Employer Config',
-      employee_settings: 'Employee Config',
-      legal_document: 'Legal Document',
-      blackout: 'Blackout Period'
-    };
-    return labels[type] || type;
-  };
+  useEffect(() => {
+    fetchAuditLogs();
+  }, [fetchAuditLogs]);
 
   return (
     <div className="space-y-6">
@@ -2349,7 +2285,7 @@ const AdminProfileTab: React.FC = () => {
             <AvatarUpload
               currentAvatarUrl={profile.avatar_url ?? undefined}
               userId={profile.user_id}
-              onUploadSuccess={(_url: string) => {
+              onUploadSuccess={() => {
                 toast.success('Profile photo updated');
               }}
             />
@@ -2471,8 +2407,8 @@ const AdminSettings: React.FC = () => {
       if (globalRes.ok) setGlobalSettings(await globalRes.json());
       if (riskRes.ok) setRiskSettings(await riskRes.json());
       if (notifRes.ok) setNotificationSettings(await notifRes.json());
-    } catch (error) {
-      console.error('Error fetching settings:', error);
+    } catch {
+      console.error('Error fetching settings:');
       toast.error('Failed to load settings');
     } finally {
       setLoading(false);
@@ -2517,7 +2453,7 @@ const AdminSettings: React.FC = () => {
       await Promise.all(promises);
       toast.success('Settings saved successfully');
       setHasChanges(false);
-    } catch (error) {
+    } catch {
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);

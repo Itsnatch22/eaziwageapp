@@ -5,7 +5,7 @@ import pusherServer from "@/lib/pusher-server";
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
 
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
         .order('created_at', { ascending: false });
 
     if (error) {
+        console.error('Notifications fetch error:', error);
         return NextResponse.json({
             notifications: [
               { id: 1, type: 'advance', title: 'New Advance Request', message: 'John Kamau requested KES 15,000 advance', time: '2 hours ago', read: false },
@@ -69,8 +70,10 @@ export async function PUT(req: NextRequest) {
         }
         
         return NextResponse.json({ success: true });
-    } catch(err) {
-        return NextResponse.json({ error: "Error updating notifications" }, { status: 500 });
+    } catch (error: unknown) {
+        console.error('Notifications update error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Error updating notifications';
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
 
@@ -96,8 +99,10 @@ export async function DELETE(req: NextRequest) {
         await pusherServer.trigger(`employer-${user.id}`, 'notification-deleted', { id });
 
         return NextResponse.json({ success: true });
-    } catch (err) {
-        return NextResponse.json({ error: "Error deleting notification" }, { status: 500 });
+    } catch (error: unknown) {
+        console.error('Notification delete error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Error deleting notification';
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
 

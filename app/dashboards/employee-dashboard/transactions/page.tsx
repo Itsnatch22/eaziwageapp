@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  TrendingUp, CheckCircle2, Clock, AlertCircle,
-  History, Smartphone, Calendar, Download,
-  Loader2, Landmark, Search, ChevronRight
+  TrendingUp, AlertCircle,
+  History, Smartphone, Calendar,
+  Loader2, Landmark, Search, ChevronRight, CheckCircle2, Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ExportButton } from '@/components/ui/ExportButton';
@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useCurrency } from '@/hooks/useCurrency';
-import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
+import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -86,7 +86,7 @@ export default function Transactions() {
   const [userId, setUserId] = useState<string>('');
 
   // Confetti for first successful advance
-  const { showConfetti, triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
+  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
     key: userId ? ConfettiKeys.firstAdvance(userId) : '',
     intensity: 'high',
   });

@@ -5,6 +5,13 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { UserRoleEnum, isAdminRole } from '@/lib/validations/kyc-validation';
 import pusherServer from '@/lib/pusher-server';
 
+interface ReviewRequestPayload {
+  status: string;
+  response?: string;
+  internal_notes?: string;
+  type?: string;
+}
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -51,9 +58,9 @@ export async function PATCH(
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const { adminSupabase, user: adminUser } = auth;
 
-  const { status, response, internal_notes, type } = await req.json();
+  const { status, response, internal_notes, type } = await req.json() as ReviewRequestPayload;
 
-  let updateResult: any = null;
+  let updateResult: Record<string, unknown> | null = null;
 
   if (type === 'risk_score') {
     const { data: request, error: updateError } = await adminSupabase

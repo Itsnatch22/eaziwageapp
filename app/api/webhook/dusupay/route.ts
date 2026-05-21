@@ -3,6 +3,17 @@ import { dusupay, PayoutStatus } from '@/lib/dusupay';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyEmployee, notifyEmployer } from '@/lib/notifications';
 
+interface DusupayWebhookPayload {
+  merchant_reference?: string;
+  transaction_id?: string;
+  internal_reference?: string;
+  dusupay_reference?: string;
+  transaction_status?: string;
+  status?: string;
+  amount?: number | string;
+  currency?: string;
+}
+
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   console.log(`[Dusupay Webhook] Received request from ${ip}`);
@@ -16,11 +27,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = JSON.parse(rawBody);
-    const { event, payload } = dusupay.parseWebhook(body);
+    const body = JSON.parse(rawBody) as Record<string, unknown>;
+    const { event, payload } = dusupay.parseWebhook(body) as { event: string; payload: DusupayWebhookPayload };
     
     const merchantReference = payload.merchant_reference || payload.transaction_id;
-    const internalReference = payload.internal_reference || payload.dusupay_reference;
+    const internalReference = payload.internal_reference || payload.dusupay_reference || '';
     const transactionStatus = payload.transaction_status || payload.status;
     const amount = Number(payload.amount);
     const currency = payload.currency;
@@ -49,13 +60,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ received: true }, { status: 200 });
 
-  } catch (err: any) {
-    console.error('[Dusupay Webhook] Fatal error:', err);
+  } catch (error: unknown) {
+    console.error('[Dusupay Webhook] Fatal error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-async function handleCollectionEvent(event: string, payload: any, merchantRef: string, internalRef: string) {
+async function handleCollectionEvent(event: string, payload: DusupayWebhookPayload, merchantRef: string, internalRef: string) {
   if (!merchantRef.startsWith('DEP-')) return;
 
   const parts = merchantRef.split('-');
@@ -107,7 +118,7 @@ async function handleCollectionEvent(event: string, payload: any, merchantRef: s
       await notifyEmployer({
         userId: employer.user_id,
         type: 'system',
-        title: status === 'completed' ? '💰 Wallet Funded' : '❌ Funding Failed',
+        title: status === 'completed' ? 'Wallet Funded' : 'Funding Failed',
         message: status === 'completed' 
           ? `Your wallet has been successfully funded with ${amount}. You can now disburse advances.`
           : `We couldn't process your wallet funding of ${amount}. Please check your payment details.`,
@@ -121,12 +132,20 @@ async function handleCollectionEvent(event: string, payload: any, merchantRef: s
   console.log(`[Dusupay Webhook] Wallet funding ${status} for Employer: ${employerId}`);
 }
 
-async function handlePayoutEvent(event: string, payload: any, merchantRef: string, internalRef: string) {
-  const isCompleted = event === 'transaction.completed' || payload.status === PayoutStatus.COMPLETED;
+async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, merchantRef: string, internalRef: string) {
+  const isCompleted = event === 'transaction.completed' || (payload.status as string) === PayoutStatus.COMPLETED;
   const isFailed = ['transaction.failed', 'request.failed'].includes(event) || 
-                   [PayoutStatus.FAILED, PayoutStatus.CANCELLED].includes(payload.status);
-  let newStatus = isCompleted ? 'completed' : isFailed ? 'failed' : 'processing';
+                   [PayoutStatus.FAILED, PayoutStatus.CANCELLED].map(s => s as string).includes(payload.status || '');
+  const newStatus = isCompleted ? 'completed' : isFailed ? 'failed' : 'processing';
   
+interface AdvancePayoutRow {
+        id: string;
+        status: string;
+        employer_id: string;
+        amount: number;
+        employee_id: string;
+        employee_onboarding?: { user_id?: string | null } | null;
+      }
   const { data: advance } = await supabaseAdmin
     .from('advances')
     .select('id, status, employer_id, amount, employee_id, employee_onboarding(user_id)')
@@ -141,12 +160,16 @@ async function handlePayoutEvent(event: string, payload: any, merchantRef: strin
     }).eq('id', advance.id);
 
     try {
-      const employeeUserId = (advance.employee_onboarding as any)?.user_id;
+      const onboarding = advance.employee_onboarding;
+      const employeeUserId = Array.isArray(onboarding)
+        ? onboarding[0]?.user_id
+        : (onboarding as any)?.user_id;
+
       if (employeeUserId) {
         await notifyEmployee({
           userId: employeeUserId,
           type: 'advance_approval',
-          title: isCompleted ? '✅ Funds Received!' : '❌ Disbursement Failed',
+          title: isCompleted ? 'Funds Received!' : 'Disbursement Failed',
           message: isCompleted 
             ? `Your advance of ${advance.amount} has been successfully sent to your mobile wallet/account.`
             : `There was an issue sending your advance of ${advance.amount}. Please contact support.`,

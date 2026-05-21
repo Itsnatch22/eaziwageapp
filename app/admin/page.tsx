@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Building2, Users, CreditCard, Shield, CheckCircle2,
-  TrendingUp, ArrowRight, FileText, Wifi, Activity, AlertTriangle, 
-  DollarSign, BarChart3, RefreshCw, Bell, Info, AlertCircle, CheckSquare,
+  TrendingUp, ArrowRight, FileText, Activity, AlertTriangle, 
+  DollarSign, BarChart3, RefreshCw, Bell
 } from 'lucide-react';import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY, formatDateTime } from '@/lib/utils';
 import pusherClient from '@/lib/pusher-client';
-import { useCurrency } from '@/hooks/useCurrency';
 
 // Types
 type VariantColor = 'green' | 'slate' | 'black';
@@ -46,6 +45,14 @@ interface DashboardStats {
   monthly: { disbursed: number; advance_count: number; fees: number };
   risk: { avg_employer_score: number };
   api_health: Record<string, { status: APIStatus; latency_ms: number; uptime_percent: number }>;
+}
+
+interface ReconciliationEmployerSummary {
+  pending_recoupment: number;
+}
+
+interface ReconciliationResponse {
+  by_employer?: ReconciliationEmployerSummary[];
 }
 
 // Components
@@ -183,7 +190,6 @@ const NotificationCenter = ({ notifications }: { notifications: Notification[] }
 };
 
 export default function AdminDashboard() {
-  const { currency } = useCurrency();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,22 +199,22 @@ export default function AdminDashboard() {
   const [riskScoringCount, setRiskScoringCount] = useState<number | null>(null);
   const avgEmployerRisk = stats?.risk?.avg_employer_score ?? 3.5;
 
-  const fetchReconciliationStats = async () => {
+  const fetchReconciliationStats = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/reconciliation');
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as ReconciliationResponse;
         // Use pending_recoupment count or similar from the API
         // For the dashboard card, we'll use the number of employers with pending recoupment
-        const pendingCount = data.by_employer?.filter((e: any) => e.pending_recoupment > 0).length || 0;
+        const pendingCount = data.by_employer?.filter((e) => e.pending_recoupment > 0).length || 0;
         setReconciliationCount(pendingCount);
       }
     } catch (err) {
       console.error('Failed to fetch reconciliation stats:', err);
     }
-  };
+  }, []);
 
-  const fetchRiskScoringStats = async () => {
+  const fetchRiskScoringStats = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/employers?status=risk_review_in_progress');
       if (res.ok) {
@@ -218,10 +224,10 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error('Failed to fetch risk scoring stats:', err);
     }
-  };
+  }, []);
 
   // Define handlers before they are used
-  const handleUpdate = () => {
+  const handleUpdate = useCallback(() => {
     console.log('[Pusher] Admin dashboard update triggered');
     // Re-fetch data without showing full-page loader for better UX
     Promise.all([
@@ -241,19 +247,7 @@ export default function AdminDashboard() {
       setCacheStatus(cacheHeader as 'HIT' | 'MISS' | null);
     })
     .catch(err => console.error('Silent refresh failed:', err));
-  };
-
-  const fetchNotifications = async () => {
-    try {
-      const res = await fetch('/api/admin/notifications');
-      if (res.ok) {
-        const data = await res.json();
-        setNotifications(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch notifications:', err);
-    }
-  };
+  }, [fetchReconciliationStats, fetchRiskScoringStats]);
 
   const handleCacheRefresh = async () => {
     setRefreshingCache(true);
@@ -305,7 +299,7 @@ export default function AdminDashboard() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [fetchReconciliationStats, fetchRiskScoringStats]);
 
   useEffect(() => {
     if (!pusherClient) return;
@@ -335,7 +329,7 @@ export default function AdminDashboard() {
       channel.unbind('notification-deleted');
       pusherClient!.unsubscribe('admin-notifications');
     };
-  }, []);
+  }, [handleUpdate]);
 
   if (loading) {
     return (

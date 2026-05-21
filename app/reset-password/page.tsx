@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Script       from 'next/script';
 import Link         from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';

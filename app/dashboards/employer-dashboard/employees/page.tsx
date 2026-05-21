@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Users, Search, Download, TrendingUp, UserCheck, Clock,
-  Eye, Settings, CheckCircle2, XCircle, Calendar, Building2,
+  Users, Search, TrendingUp, UserCheck, Clock,
+  Eye, Settings, XCircle, Calendar, Building2,
   Globe, LucideIcon, AlertCircle, Upload, FileText, Check, X,
-  Loader2,
+  Loader2, LucideCheckCircle2
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -36,9 +36,32 @@ interface EWASettings {
   cooldown_period: number;
 }
 
+interface BulkUploadError {
+  email: string;
+  message: string;
+}
+
+interface BulkUploadResults {
+  total: number;
+  success: number;
+  failed: number;
+  errors: BulkUploadError[];
+}
+
+interface EmployeeKycUpdateEvent {
+  employeeId?: string;
+  status?: string;
+}
+
+interface RiskUpdateEvent {
+  type?: string;
+  risk_rating?: string;
+}
+
 interface Employee {
   id: string;
   full_name?: string;
+  name?: string;
   employee_code?: string;
   job_title?: string;
   department?: string;
@@ -94,7 +117,7 @@ const BulkOnboardModal: React.FC<{
 }> = ({ isOpen, onClose, onSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [results, setResults] = useState<{ total: number; success: number; failed: number; errors: any[] } | null>(null);
+  const [results, setResults] = useState<BulkUploadResults | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -136,15 +159,15 @@ const BulkOnboardModal: React.FC<{
             toast.success(`Successfully onboarded ${resultData.success} employees`);
             onSuccess();
           }
-        } catch (innerErr: any) {
-          toast.error(innerErr.message);
+        } catch (innerErr: unknown) {
+          toast.error(innerErr instanceof Error ? innerErr.message : 'Upload failed');
         } finally {
           setUploading(false);
         }
       };
       reader.readAsArrayBuffer(file);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
       setUploading(false);
     }
   };
@@ -178,7 +201,7 @@ const BulkOnboardModal: React.FC<{
                   <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">How it works</p>
                   <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
                     Download our template, fill in your employee details, and upload it here. 
-                    We'll create pending profiles and send invitations to each email.
+                    We&apos;ll create pending profiles and send invitations to each email.
                   </p>
                   <button onClick={downloadTemplate} className="text-xs font-bold text-blue-600 hover:underline mt-2">
                     Download CSV Template
@@ -305,7 +328,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 
 const KYCBadge: React.FC<{ status: string }> = ({ status }) => {
   const config = {
-    approved:     { icon: CheckCircle2, color: 'text-emerald-600' },
+    approved:     { icon: LucideCheckCircle2, color: 'text-emerald-600' },
     pending:      { icon: Clock,         color: 'text-amber-600'   },
     under_review: { icon: Clock,         color: 'text-blue-600'    },
     rejected:     { icon: XCircle,       color: 'text-red-600'     },
@@ -414,7 +437,7 @@ const EmployeeRow: React.FC<{
     />
     <div className="flex-1 min-w-0">
       <p className="font-semibold text-slate-900 dark:text-white truncate">
-        {employee.full_name || (employee as any).name || `Employee ${employee.employee_code || ''}`}
+        {employee.full_name || employee.name || `Employee ${employee.employee_code || ''}`}
       </p>
       <p className="text-xs text-slate-500 dark:text-slate-400">
         {[
@@ -794,12 +817,12 @@ const EmployerEmployees: React.FC = () => {
 
     const channel = pusherClient.subscribe(`employer-${employer.id}`);
     
-    const handleEmployeeUpdate = (data: any) => {
+    const handleEmployeeUpdate = (data: EmployeeKycUpdateEvent) => {
       console.log('[Pusher] Employee KYC update received by employer:', data);
       void fetchData();
     };
 
-    const handleRiskUpdate = (data: any) => {
+    const handleRiskUpdate = (data: RiskUpdateEvent) => {
       console.log('[Pusher] Risk score update received by admin:', data);
       if (data.type === 'risk_score_updated') {
         toast.success(`Risk score updated: ${data.risk_rating} rating`);
@@ -840,30 +863,6 @@ const EmployerEmployees: React.FC = () => {
     setEmployees((prev) =>
       prev.map((e) => (e.id === employeeId ? { ...e, ewa_settings: newSettings } : e)),
     );
-  };
-
-  // ── CSV export ────────────────────────────────────────────────────────────
-  const handleExportCSV = () => {
-    const headers = ['Name', 'Code', 'Job Title', 'Department', 'Salary', 'Tenure (months)', 'KYC Status', 'Status', 'Country'];
-    const rows = filteredEmployees.map((e) => [
-      e.full_name ?? '',
-      e.employee_code ?? '',
-      e.job_title ?? '',
-      e.department ?? '',
-      e.monthly_salary ?? 0,
-      e.tenure_months ?? 0,
-      e.kyc_status ?? '',
-      e.status ?? '',
-      e.country ?? '',
-    ]);
-    const csv = [headers, ...rows].map((r) => r.map(String).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `employees-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   // ── Client-side filtering ─────────────────────────────────────────────────

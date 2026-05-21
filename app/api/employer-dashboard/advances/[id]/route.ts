@@ -10,6 +10,16 @@ const actionSchema = z.object({
   action: z.enum(['approve', 'reject', 'deny']),
 });
 
+interface AdvanceRow {
+  id: string;
+  status: string;
+  amount: number;
+  employee_id: string;
+  employee_onboarding?: {
+    user_id?: string | null;
+  } | null;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -94,9 +104,10 @@ export async function PATCH(
         console.error(`[Advance Approval] Disbursement failed for ${id}:`, err);
       });
 
-    } catch (err: any) {
-      console.error(`[Advance Approval] Error: ${err.message}`);
-      return NextResponse.json({ error: err.message }, { status: 400 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to approve advance';
+      console.error(`[Advance Approval] Error: ${message}`);
+      return NextResponse.json({ error: message }, { status: 400 });
     }
   } else {
     const { error: updateError } = await supabase
@@ -110,7 +121,11 @@ export async function PATCH(
   }
 
   try {
-    const employeeUserId = (target.employee_onboarding as any)?.user_id;
+    const onboarding = target.employee_onboarding;
+    const employeeUserId = Array.isArray(onboarding) 
+      ? onboarding[0]?.user_id 
+      : (onboarding as any)?.user_id;
+    
     if (employeeUserId) {
         await notifyEmployee({
             userId: employeeUserId,

@@ -51,8 +51,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, result });
 
-  } catch (err: any) {
-    console.error(`[Admin Funding] Error: ${err.message}`);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[Admin Funding] Error: ${message}`);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -31,7 +31,6 @@ interface Notification {
 export default function EmployeeNotificationsPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
-    const [actionLoading, setActionLoading] = useState(false);
     const user = useAuthStore((state) => state.user);
 
     const fetchNotifications = useCallback(async () => {
@@ -84,7 +83,7 @@ export default function EmployeeNotificationsPage() {
                 setNotifications(prev => prev.map(n => (id && n.id !== id) ? n : { ...n, read: true }));
                 if (!id) toast.success('All marked as read');
             }
-        } catch (error) {
+        } catch {
             toast.error('Failed to update notifications');
         }
     };
@@ -99,7 +98,7 @@ export default function EmployeeNotificationsPage() {
                 setNotifications(prev => prev.filter(n => n.id !== id));
                 toast.success('Deleted');
             }
-        } catch (err) {
+        } catch {
             toast.error('Error');
         }
     };

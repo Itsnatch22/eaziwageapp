@@ -71,7 +71,7 @@ export default function NotificationsPage() {
                 toast.success(id ? 'Marked notification as read' : 'All notifications marked as read');
                 fetchNotifications();
             }
-        } catch (error) {
+        } catch {
             toast.error('Failed to update notifications');
         }
     };
@@ -86,7 +86,7 @@ export default function NotificationsPage() {
                 setNotifications(prev => prev.filter(n => n.id !== id));
                 toast.success('Notification deleted');
             }
-        } catch (err) {
+        } catch {
             toast.error('Failed to delete notification');
         }
     };

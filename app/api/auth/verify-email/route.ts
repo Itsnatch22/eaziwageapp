@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient }              from '@supabase/supabase-js';
-import { Resend }                    from 'resend';
 import { z }                         from 'zod';
-import { render }                    from '@react-email/render';
 
 import { getEnv }                      from '@/env';
 import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { hashToken, isValidTokenFormat, isTokenExpired } from '@/lib/token';
 
-const env    = getEnv();
-const resend = new Resend(env.RESEND_API_KEY);
+const env = getEnv();
 
 const supabase = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
@@ -17,18 +14,8 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-const FROM_EMAIL    = 'EaziWage <noreply@eaziwage.com>';
-const BASE_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
-const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
-const TOKEN_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours
-
 const VerifySchema = z.object({
   token: z.string().min(1, 'Token is required'),
-});
-
-const ResendSchema = z.object({
-  email:           z.string().email('Please enter a valid email address').max(254),
-  recaptcha_token: z.string().min(1, 'reCAPTCHA token is required'),
 });
 
 function getClientIp(req: NextRequest): string {
@@ -38,17 +25,6 @@ function getClientIp(req: NextRequest): string {
     req.headers.get('cf-connecting-ip')              ??
     '0.0.0.0'
   ).trim();
-}
-
-async function verifyRecaptcha(token: string, ip: string): Promise<boolean> {
-  try {
-    const res  = await fetch(RECAPTCHA_URL, {
-      method: 'POST',
-      body:   new URLSearchParams({ secret: env.RECAPTCHA_SECRET_KEY, response: token, remoteip: ip }),
-    });
-    const data = await res.json() as { success: boolean; score?: number };
-    return data.success && (data.score ?? 0) >= 0.5;
-  } catch { return false; }
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {

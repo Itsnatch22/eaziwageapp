@@ -42,20 +42,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { data: profile, error: profileError } = await adminSupabase
-      .from('profiles')
-      .select('role, full_name, email')
-      .eq('id', user.id)
-      .maybeSingle<{ role: string | null; full_name: string | null; email: string | null }>();
-
-    if (profileError) {
-      console.error('[GET /kyc/documents] Profile fetch error:', profileError);
-      return NextResponse.json(
-        { error: 'Failed to fetch user profile', code: 'PROFILE_ERROR' },
-        { status: 500 }
-      );
-    }
-
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get('status');
 

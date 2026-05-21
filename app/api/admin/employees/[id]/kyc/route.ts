@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { isAdminRole, UserRole } from '@/lib/validations/kyc-validation';
 import pusherServer from '@/lib/pusher-server';
 
 function createAdminClient() {
@@ -33,7 +33,7 @@ export async function PATCH(
       .eq('id', user.id)
       .single();
 
-    if (!profile || !isAdminRole(profile.role as any)) {
+    if (!profile || !isAdminRole(profile.role as UserRole)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

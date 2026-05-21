@@ -1,10 +1,9 @@
-// app/admin/risk-scoring/page.tsx
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Shield, Calculator, Building2, User, Search, Filter,
-  TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
-  Eye, MoreVertical, Download, RefreshCw, Info,
+  Shield, Calculator, Building2, Search,
+  TrendingUp, TrendingDown, AlertTriangle,
+  RefreshCw, Info,
   DollarSign, Users, XCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,10 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { cn, formatCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Employer {
   id: string;
@@ -89,8 +86,6 @@ interface ApiResponse {
     risk_factor: number;
   };
 }
-
-// ─── Components ───────────────────────────────────────────────────────────────
 
 interface GradientIconBoxProps {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
@@ -208,8 +203,6 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
     </span>
   );
 };
-
-// ─── Risk Assessment Modal ───────────────────────────────────────────────────
 
 interface RiskAssessmentModalProps {
   employer: Employer | null;
@@ -332,7 +325,7 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
       toast.success('Risk assessment saved successfully');
       onSuccess();
       onClose();
-    } catch (error) {
+    } catch {
       toast.error('Failed to save assessment');
     } finally {
       setLoading(false);
@@ -466,7 +459,7 @@ export default function AdminEmployersPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Fetch employers data
-  const fetchEmployers = async () => {
+  const fetchEmployers = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -492,11 +485,11 @@ export default function AdminEmployersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, statusFilter, countryFilter, riskRatingFilter]);
 
   useEffect(() => {
     fetchEmployers();
-  }, [statusFilter, countryFilter, riskRatingFilter]);
+  }, [fetchEmployers, statusFilter, countryFilter, riskRatingFilter]);
 
   // Handle search with debounce
   useEffect(() => {
@@ -506,7 +499,7 @@ export default function AdminEmployersPage() {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, fetchEmployers]);
 
   // Sorting function
   const handleSort = (field: keyof Employer) => {

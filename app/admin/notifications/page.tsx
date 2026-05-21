@@ -127,7 +127,7 @@ export default function AdminNotificationsPage() {
             setNotifications(prev => prev.filter(n => String(n.id) !== String(id)));
             toast.success('Notification deleted');
         }
-    } catch (err) {
+    } catch {
         toast.error('Failed to delete notification');
     }
   };

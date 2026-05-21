@@ -12,11 +12,6 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-type EmployerRow = {
-  id: string;
-  company_name: string | null;
-  employer_code: string | null;
-};
 
 export async function GET(req: Request): Promise<NextResponse> {
   try {

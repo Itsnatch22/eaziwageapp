@@ -1,7 +1,21 @@
 import { supabaseAdmin } from '../supabaseAdmin';
 import { dusupayClient } from '../dusupay/client';
-import { PayoutMethod, Currency } from '../dusupay/types';
-import { generateMerchantReference, formatPhoneNumber } from '../dusupay/utils';
+import { PayoutMethod, Currency, PayoutStatus } from '../dusupay/types';
+import { generateMerchantReference } from '../dusupay/utils';
+
+const mapPayoutStatusToAdvanceStatus = (status?: PayoutStatus) => {
+  switch (status) {
+    case PayoutStatus.COMPLETED:
+      return 'completed';
+    case PayoutStatus.FAILED:
+    case PayoutStatus.CANCELLED:
+      return 'failed';
+    case PayoutStatus.PROCESSING:
+    case PayoutStatus.PENDING:
+    default:
+      return 'processing';
+  }
+};
 
 export class PayoutService {
   /**
@@ -13,7 +27,6 @@ export class PayoutService {
     adminId: string,
     description: string = 'Funding from Stanbic'
   ) {
-    // 1. Check admin wallet balance (Main Stanbic Source)
     const { data: adminWallet, error: adminWalletError } = await supabaseAdmin
       .from('admin_wallets')
       .select('id, balance')
@@ -28,7 +41,6 @@ export class PayoutService {
       throw new Error('Insufficient funds in platform Stanbic source');
     }
 
-    // 2. Perform internal transaction
     const { data, error } = await supabaseAdmin.rpc('fund_employer_from_admin', {
       p_employer_id: employerId,
       p_admin_wallet_id: adminWallet.id,
@@ -48,7 +60,6 @@ export class PayoutService {
    * Reserve funds in the employer's wallet for an upcoming disbursement.
    */
   async reserveFunds(employerId: string, amount: number, advanceId: string) {
-    // 1. Get employer wallet
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from('employer_wallets')
       .select('id, balance, arrears_balance')
@@ -59,12 +70,8 @@ export class PayoutService {
       throw new Error('Employer wallet not found');
     }
 
-    // 2. Check if employer has enough balance
-    // If we allow arrears, we could proceed even if balance < amount
-    // For now, let's assume they need balance unless specified otherwise.
+    // Employer wallet balance must cover the reserved payout amount.
     if (wallet.balance < amount) {
-      // Option: Automatically move to arrears if allowed by organization settings
-      // For this implementation, we'll just check balance.
       throw new Error('Insufficient balance in employer wallet');
     }
 
@@ -94,7 +101,6 @@ export class PayoutService {
    * Disburse an approved advance to an employee via DusuPay.
    */
   async disburseAdvance(advanceId: string) {
-    // ... existing implementation ...
     // 1. Fetch advance details
     const { data: advance, error: advanceError } = await supabaseAdmin
       .from('advances')
@@ -173,20 +179,35 @@ export class PayoutService {
         raw_payload: payoutResponse
       });
 
-      // Update advance with internal reference
+      const transactionStatus = payoutResponse.data?.transaction_status;
+      const advanceUpdate: {
+        status: string;
+        internal_reference?: string;
+        disbursed_at?: string;
+      } = {
+        status: mapPayoutStatusToAdvanceStatus(transactionStatus),
+      };
+
       if (payoutResponse.data?.internal_reference) {
-        await supabaseAdmin
-          .from('advances')
-          .update({ internal_reference: payoutResponse.data.internal_reference })
-          .eq('id', advanceId);
+        advanceUpdate.internal_reference = payoutResponse.data.internal_reference;
       }
 
-      return payoutResponse;
-    } catch (err: any) {
-      // Handle failure
+      if (transactionStatus === PayoutStatus.COMPLETED) {
+        advanceUpdate.disbursed_at = new Date().toISOString();
+      }
+
       await supabaseAdmin
         .from('advances')
-        .update({ status: 'failed', reason: err.message })
+        .update(advanceUpdate)
+        .eq('id', advanceId);
+
+      return payoutResponse;
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : 'Unknown payout error';
+
+      await supabaseAdmin
+        .from('advances')
+        .update({ status: 'failed', reason })
         .eq('id', advanceId);
 
       throw err;
@@ -198,9 +219,6 @@ export class PayoutService {
    * This adds funds back to the Admin Wallet and settles the employer's arrears if any.
    */
   async handleRepayment(advanceId: string, amount: number) {
-    // This would typically be called when salary is processed
-    // 1. Mark advance as repaid
-    // 2. Add funds back to Admin Wallet
     const { data, error } = await supabaseAdmin.rpc('repay_advance_to_admin', {
       p_advance_id: advanceId,
       p_amount: amount

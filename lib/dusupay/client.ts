@@ -1,4 +1,11 @@
-import { PayoutRequest, PayoutResponse, BalanceResponse, ProviderResponse } from './types';
+import {
+  PayoutRequest,
+  PayoutResponse,
+  BalanceResponse,
+  ProviderResponse,
+  BankCodesResponse,
+  SendFundsPayload,
+} from './types';
 
 export class DusupayClient {
   private publicKey: string;
@@ -65,8 +72,8 @@ export class DusupayClient {
   /**
    * Get bank codes for bank transfers
    */
-  async getBankCodes(providerCode: string): Promise<any> {
-    return this.request<any>(`/data/payout-bank-codes?provider_code=${providerCode}`);
+  async getBankCodes(providerCode: string): Promise<BankCodesResponse> {
+    return this.request<BankCodesResponse>(`/data/payout-bank-codes?provider_code=${providerCode}`);
   }
 
   /**
@@ -74,7 +81,7 @@ export class DusupayClient {
    */
   async sendFunds(payout: PayoutRequest): Promise<PayoutResponse> {
     // Format payload as per DusuPay requirements
-    const payload: any = {
+    const payload: SendFundsPayload = {
       merchant_reference: payout.merchant_reference,
       transaction_method: payout.transaction_method,
       currency: payout.currency,

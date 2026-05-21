@@ -3,6 +3,18 @@ import { createClient }             from '@supabase/supabase-js';
 import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 
+type BillingAdvanceRow = {
+  amount?: number | string | null;
+  fee_amount?: number | string | null;
+  created_at?: string | null;
+  status?: string | null;
+  employer_id?: string | null;
+};
+
+type EmployerMetadata = {
+  credit_limit?: number;
+};
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip         = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-billing:${ip}`);
@@ -28,7 +40,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { data: advancesData, error: advancesError } = await supabase
       .from('advances')
-      .select('amount, fee_amount, created_at, status')
+      .select('amount, fee_amount, created_at, status, employer_id')
       .gte('created_at', sixMonthsAgo.toISOString());
 
     if (advancesError) throw advancesError;
@@ -91,7 +103,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const walletHealth = (wallets || []).map(w => {
       const employer = (employers || []).find(e => e.id === w.employer_id);
-      const creditLimit = Number((employer?.metadata as any)?.credit_limit || 1000000);
+      const metadata = employer?.metadata as EmployerMetadata | undefined;
+      const creditLimit = Number(metadata?.credit_limit ?? 1000000);
       const utilization = creditLimit > 0 ? Math.round((Number(w.balance) / creditLimit) * 100) : 0;
 
       return {
@@ -105,9 +118,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const totalArrears = walletHealth.reduce((sum, w) => sum + Number(w.arrears_balance || 0), 0);
 
     // 4. Top Revenue Generators
-    const employerRevenueMap = new Map();
-    (advancesData || []).forEach(adv => {
-      const employerId = (adv as any).employer_id;
+    const employerRevenueMap = new Map<string, number>();
+    (advancesData || []).forEach((adv: BillingAdvanceRow) => {
+      const employerId = adv.employer_id;
       if (employerId && adv.status === 'disbursed') {
         const current = employerRevenueMap.get(employerId) || 0;
         employerRevenueMap.set(employerId, current + Number(adv.fee_amount || 0));
@@ -129,6 +142,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         total_disbursed: cumulativeDisbursed,
         total_wallet_balance: totalWalletBalance,
         total_arrears: totalArrears,
+        top_revenue_generators: topRevenueGenerators,
       },
       monthlyTrends,
       walletHealth,

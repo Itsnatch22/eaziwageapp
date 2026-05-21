@@ -1,11 +1,12 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { 
-  Building2, Briefcase, Calendar, DollarSign, Shield, 
-  User, MapPin, BadgeCheck, Info, Loader2, Landmark
+import Image from 'next/image';
+import {
+  Building2, Briefcase, Calendar, DollarSign, Shield,
+  BadgeCheck, Info, Loader2, Landmark
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
-import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 
 interface EmploymentData {
@@ -29,13 +30,21 @@ interface EmploymentData {
   };
 }
 
-const DetailCard = ({ icon: Icon, label, value, subValue, variant = 'blue' }: any) => {
-  const colors: any = {
-    blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 border-blue-100 dark:border-blue-800',
-    emerald: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100 dark:border-emerald-800',
-    purple: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 border-purple-100 dark:border-purple-800',
-  };
+type DetailCardProps = {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  subValue?: string;
+  variant?: 'blue' | 'emerald' | 'purple';
+};
 
+const colors: Record<NonNullable<DetailCardProps['variant']>, string> = {
+  blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 border-blue-100 dark:border-blue-800',
+  emerald: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100 dark:border-emerald-800',
+  purple: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 border-purple-100 dark:border-purple-800',
+};
+
+const DetailCard = ({ icon: Icon, label, value, subValue, variant = 'blue' }: DetailCardProps) => {
   return (
     <div className="bg-white/50 dark:bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/60 dark:border-white/10 flex items-start gap-4">
       <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center border shrink-0", colors[variant])}>
@@ -110,23 +119,22 @@ const EmploymentDetails = () => {
            <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
               <div className="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-3xl font-bold overflow-hidden">
                  {employment.avatar_url ? (
-                    <img 
-                      src={employment.avatar_url} 
+                    <Image
+                      src={employment.avatar_url}
                       alt={employment.full_name}
+                      width={96}
+                      height={96}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const fallback = target.nextElementSibling as HTMLElement;
-                        if (fallback) {
-                          fallback.style.display = 'flex';
-                        }
+                      onError={() => {
+                        // Image component will fallback to initials if load fails.
                       }}
                     />
                   ) : null}
-                  <div style={{ display: employment.avatar_url ? 'none' : 'flex' }}>
-                    {employment.full_name?.charAt(0)}
-                  </div>
+                  {!employment.avatar_url ? (
+                    <div className="flex h-full w-full items-center justify-center">
+                      {employment.full_name?.charAt(0)}
+                    </div>
+                  ) : null}
               </div>
               <div className="text-center md:text-left">
                  <h2 className="text-3xl font-bold tracking-tight">{employment.full_name}</h2>

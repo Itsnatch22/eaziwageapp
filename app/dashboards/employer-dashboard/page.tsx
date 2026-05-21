@@ -3,16 +3,16 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Users, TrendingUp, Clock, ArrowRight, CreditCard, Building2, Upload,
+  Users, TrendingUp, ArrowRight, CreditCard, Building2, Upload,
   BarChart3, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownRight,
-  ChevronRight, Wallet, Calendar, DollarSign, Activity, RefreshCw,
+  ChevronRight, Wallet, Calendar, DollarSign, Activity, Clock,
   FileText, Zap, Landmark
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
-import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
+import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import pusherClient from '@/lib/pusher-client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -322,7 +322,7 @@ export default function EmployerDashboard() {
   const router = useRouter();
 
   // Confetti for first employee onboarded
-  const { showConfetti, triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
+  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
     key: employer?.id ? ConfettiKeys.firstEmployee(employer.id) : '',
     intensity: 'medium',
   });
@@ -377,7 +377,7 @@ export default function EmployerDashboard() {
           }
         }
       }
-    } catch (err: unknown) {
+    } catch {
       setError('Failed to load dashboard.');
     } finally {
       setLoading(false);
@@ -390,7 +390,7 @@ export default function EmployerDashboard() {
     if (!user?.id || !employer?.id || !pusherClient) return;
 
     const userChannel = pusherClient.subscribe(`user-${user.id}`);
-    const handleUpdate = (data: any) => {
+    const handleUpdate = (data: Record<string, unknown>) => {
       console.log('[Pusher] Employer overview update:', data);
       void load();
     };

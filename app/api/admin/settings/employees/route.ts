@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
@@ -9,7 +10,7 @@ function createAdminClient() {
   return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-async function verifyAdmin(supabase: any, adminSupabase: any) {
+async function verifyAdmin(supabase: SupabaseClient, adminSupabase: SupabaseClient): Promise<User | null> {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return null;
 
@@ -19,7 +20,12 @@ async function verifyAdmin(supabase: any, adminSupabase: any) {
   return user;
 }
 
-export async function GET(req: NextRequest) {
+interface EmployeeOnboardingRow {
+  employer?: { company_name?: string } | null;
+  [key: string]: unknown;
+}
+
+export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
@@ -38,8 +44,9 @@ export async function GET(req: NextRequest) {
       
     if (error) throw error;
     
-    const formatted = (employees || []).map((emp) => {
-      const employer = (emp as any).employer;
+    const formatted = (employees || []) as EmployeeOnboardingRow[];
+    const formattedResults = formatted.map((emp) => {
+      const employer = emp.employer;
       const employerName = Array.isArray(employer)
         ? employer[0]?.company_name
         : employer?.company_name;
@@ -50,7 +57,7 @@ export async function GET(req: NextRequest) {
       };
     });
     
-    return NextResponse.json(formatted);
+    return NextResponse.json(formattedResults);
   } catch (error) {
     console.error('[GET /api/admin/settings/employees] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

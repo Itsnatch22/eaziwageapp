@@ -24,6 +24,12 @@ const sizeClasses: Record<ButtonSize, string> = {
 const buttonBase =
   "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 
+type ButtonChildProps = React.HTMLAttributes<HTMLElement> & {
+  className?: string
+  disabled?: boolean
+  "data-slot"?: string
+}
+
 function buttonVariants({
   variant = "default",
   size = "default",
@@ -43,7 +49,16 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", asChild: _asChild = false, ...props }, ref) => {
+  ({ className, variant = "default", size = "default", asChild = false, children, ...props }, ref) => {
+    if (asChild && React.isValidElement(children)) {
+      const child = children as React.ReactElement<ButtonChildProps>
+      return React.cloneElement(child, {
+        ...(props as ButtonChildProps),
+        className: cn(buttonVariants({ variant, size, className }), child.props.className),
+        "data-slot": "button-child",
+      })
+    }
+
     return <button className={buttonVariants({ variant, size, className })} ref={ref} {...props} />
   }
 )

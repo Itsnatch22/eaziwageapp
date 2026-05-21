@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   FileText, Upload, Check, AlertCircle, Clock,
   Plus, Shield, ArrowRight, ExternalLink,
@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
-import { MilestoneConfetti, ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
+import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import { formatDateTime, DOCUMENT_TYPES, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -59,12 +59,12 @@ export default function EmployeeKYC() {
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     // Confetti for KYC approval
-    const { showConfetti, triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
+    const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
         key: userId ? ConfettiKeys.kycApproved(userId) : '',
         intensity: 'medium',
     });
 
-    const fetchDocuments = async () => {
+    const fetchDocuments = useCallback(async () => {
         try {
             setLoading(true);
             const [docsRes, overviewRes] = await Promise.all([
@@ -89,16 +89,16 @@ export default function EmployeeKYC() {
                     }
                 }
             }
-        } catch (error) {
+        } catch {
             toast.error('Failed to load documents');
         } finally {
             setLoading(false);
         }
-    };
+    }, [triggerConfetti]);
 
     useEffect(() => {
         fetchDocuments();
-    }, []);
+    }, [fetchDocuments]);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -141,7 +141,7 @@ export default function EmployeeKYC() {
               const errorData = await response.json();
               toast.error(errorData.error || 'Failed to upload document');
           }
-      } catch (error) {
+      } catch {
           toast.error('An error occurred while uploading');
       } finally {
           setUploading(false);

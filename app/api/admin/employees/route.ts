@@ -187,11 +187,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           department:     emp.department || 'Not Set',
           monthly_salary: emp.monthly_salary || 0,
           hire_date:      emp.hire_date || emp.start_date || null,
-          status: (
-            emp.status === 'Active' || emp.status === 'approved'
-              ? 'active'
-              : emp.status?.toLowerCase() || 'pending'
-          ) as any,
+          status: emp.status === 'Active' || emp.status === 'approved'
+            ? 'active'
+            : emp.status?.toLowerCase() || 'pending',
           kyc_status:     emp.kyc_status || emp.status || 'pending',
           // Resolve company name from correct join per table
           employer_name:  emp.employers?.company_name || emp.employer_onboarding?.company_name || 'Unlinked',

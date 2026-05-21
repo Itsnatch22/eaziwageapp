@@ -1,14 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { 
-  BarChart3, Download, Calendar, TrendingUp, DollarSign, Users, Building2,
-  CreditCard, Shield, Activity, Filter, RefreshCw, FileText, Eye,
-  ChevronDown, ChevronRight, Clock, AlertTriangle, CheckCircle2,
-  ArrowUp, ArrowDown, Minus, Search, X
+  BarChart3, Download, Calendar, DollarSign, Users, Building2,
+  CreditCard, Shield, Activity,  RefreshCw, FileText, Clock, AlertTriangle, 
+  Search, X
 } from 'lucide-react';
-import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -167,13 +165,6 @@ export default function AdminReports() {
     scheduledReports: 0,
     failedReports: 0
   });
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 20,
-    total: 0,
-    pages: 0
-  });
-
   const fetchReports = useCallback(async (page = 1) => {
     try {
       setIsLoading(true);
@@ -191,7 +182,6 @@ export default function AdminReports() {
 
       setReports(response.reports);
       setStats(response.stats);
-      setPagination(response.pagination);
     } catch (error) {
       console.error('Failed to fetch reports:', error);
       toast.error('Failed to fetch reports');
@@ -216,7 +206,7 @@ export default function AdminReports() {
     try {
       const template = reportTemplates.find(t => t.id === selectedTemplate);
       
-      const newReport = await apiClient('/api/admin/reports', {
+      await apiClient('/api/admin/reports', {
         method: 'POST',
         body: JSON.stringify({
           name: template?.name || 'Custom Report',

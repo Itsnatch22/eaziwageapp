@@ -3,6 +3,14 @@ import { createClient }             from '@supabase/supabase-js';
 import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 
+interface EmployeeSearchRow {
+  id?: string;
+  user_id?: string | null;
+  full_name?: string | null;
+  name?: string | null;
+  employer_id?: string | null;
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get('q');
@@ -49,8 +57,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .limit(5)
     ]);
 
-    const employees = employeesRes.data || [];
-    const onboarding = onboardingRes.data || [];
+    const employees = (employeesRes.data || []) as EmployeeSearchRow[];
+    const onboarding = (onboardingRes.data || []) as EmployeeSearchRow[];
 
     const { data: advances } = await supabase
       .from('advances')
@@ -74,7 +82,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ...uniqueEmployees.map(e => ({ 
         type: 'employee', 
         id: e.user_id || e.id, 
-        title: e.full_name || (e as any).name || 'Unknown Employee', 
+        title: e.full_name || e.name || 'Unknown Employee', 
         href: `/admin/employees?id=${e.user_id || e.id}` 
       })),
       ...(advances || []).map(a => ({ 

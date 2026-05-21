@@ -37,7 +37,6 @@ const LAST_NAMES = [
   'Mkandawire', 'Phiri', 'Banda', 'Chirwa', 'Tembo', 'Dlamini', 'Nkosi', 'Mokoena',
 ];
 
-const COUNTRIES = ['KE', 'UG', 'TZ', 'RW'];
 const CITIES: Record<string, string[]> = {
   KE: ['Nairobi', 'Mombasa', 'Kisumu'],
   UG: ['Kampala', 'Entebbe', 'Jinja'],
