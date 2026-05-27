@@ -21,6 +21,15 @@ function createAdminClient() {
   );
 }
 
+function normalizeEmploymentType(value: unknown): 'full-time' | 'part-time' | 'contract' | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.toLowerCase().replace(/_/g, '-');
+  if (['full-time', 'part-time', 'contract'].includes(normalized)) {
+    return normalized as 'full-time' | 'part-time' | 'contract';
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createRouteHandlerClient();
 
@@ -52,6 +61,14 @@ export async function POST(req: NextRequest) {
   }
 
   const data = parsed.data;
+  const normalizedEmploymentType = normalizeEmploymentType(data.employment_type);
+  if (!normalizedEmploymentType) {
+    return NextResponse.json(
+      { error: 'Invalid employment type. Must be full-time, part-time, or contract.' },
+      { status: 422 },
+    );
+  }
+
   const adminSupabase = createAdminClient();
 
   console.log('Verifying employer_id:', data.employer_id);
@@ -121,7 +138,6 @@ export async function POST(req: NextRequest) {
     tax_id,
     job_title,
     department,
-    employment_type,
     start_date,
     monthly_salary,
     bank_name,
@@ -166,7 +182,7 @@ export async function POST(req: NextRequest) {
     tax_id: tax_id || null,
     job_title,
     department: department || null,
-    employment_type,
+    employment_type: normalizedEmploymentType,
     start_date: start_date || null,
     monthly_salary,
     bank_name,
@@ -216,7 +232,7 @@ export async function POST(req: NextRequest) {
         job_title,
         department: department || null,
         monthly_salary,
-        employment_type,
+        employment_type: normalizedEmploymentType,
         status: 'pending',
         kyc_status: 'pending',
         hire_date: start_date ? new Date(start_date).toISOString() : null,

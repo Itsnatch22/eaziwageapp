@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY, formatDateTime } from '@/lib/utils';
 import pusherClient from '@/lib/pusher-client';
 
-// Types
 type VariantColor = 'green' | 'slate' | 'black';
 type IconSize = 'sm' | 'md' | 'lg';
 type IconComponent = React.ComponentType<{ className?: string }>;
@@ -54,8 +53,6 @@ interface ReconciliationEmployerSummary {
 interface ReconciliationResponse {
   by_employer?: ReconciliationEmployerSummary[];
 }
-
-// Components
 
 interface GradientIconBoxProps {
   icon: IconComponent;
@@ -204,8 +201,6 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/reconciliation');
       if (res.ok) {
         const data = await res.json() as ReconciliationResponse;
-        // Use pending_recoupment count or similar from the API
-        // For the dashboard card, we'll use the number of employers with pending recoupment
         const pendingCount = data.by_employer?.filter((e) => e.pending_recoupment > 0).length || 0;
         setReconciliationCount(pendingCount);
       }
@@ -226,10 +221,8 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // Define handlers before they are used
   const handleUpdate = useCallback(() => {
     console.log('[Pusher] Admin dashboard update triggered');
-    // Re-fetch data without showing full-page loader for better UX
     Promise.all([
       fetch('/api/admin/dashboard'),
       fetch('/api/admin/notifications'),
@@ -242,7 +235,6 @@ export default function AdminDashboard() {
       ]);
       setStats(dashboardData);
       setNotifications(notificationsData);
-      // Update cache status
       const cacheHeader = dashboardRes.headers.get('X-Cache');
       setCacheStatus(cacheHeader as 'HIT' | 'MISS' | null);
     })
@@ -255,7 +247,6 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/dashboard', { method: 'POST' });
       if (res.ok) {
         console.log('[AdminDashboard] Cache cleared successfully');
-        // After clearing cache, fetch fresh data
         const dataRes = await fetch('/api/admin/dashboard');
         if (dataRes.ok) {
           const data = await dataRes.json();
@@ -284,7 +275,6 @@ export default function AdminDashboard() {
         if (dashboardRes.ok) {
           const data = await dashboardRes.json();
           setStats(data);
-          // Set cache status from response headers
           const cacheHeader = dashboardRes.headers.get('X-Cache');
           setCacheStatus(cacheHeader as 'HIT' | 'MISS' | null);
         }

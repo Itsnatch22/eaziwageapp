@@ -36,7 +36,6 @@ class EnvironmentError extends Error {
 export function validateEnv(): EnvConfig {
   const errors: string[] = [];
 
-  // Check public variables
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     errors.push('NEXT_PUBLIC_SUPABASE_URL is not defined');
   } else if (!isValidUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)) {

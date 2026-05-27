@@ -86,7 +86,7 @@ export async function GET(req: Request) {
     .eq('employer_id', employer.id);
 
   if (employeeError) {
-    console.error('[credit-overview] ❌ Employee query error:', {
+    console.error('[credit-overview] Employee query error:', {
       message: employeeError.message,
       details: employeeError.details,
       hint: employeeError.hint,

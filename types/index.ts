@@ -1,6 +1,3 @@
-// ============================================================
-// EaziWage — Shared Types
-// ============================================================
 
 export type UserRole = 'super_admin' | 'employer_admin' | 'employee';
 export type EmployeeStatus = 'approved' | 'pending' | 'rejected' | 'inactive' | 'terminated';

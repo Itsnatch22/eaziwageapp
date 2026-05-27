@@ -71,7 +71,10 @@ export const employeeOnboardingSchema = z.object({
   tax_id: z.string().optional(),
   job_title: z.string().min(1, 'Job title is required'),
   department: z.string().optional(),
-  employment_type: z.string().min(1, 'Employment type is required'),
+  employment_type: z.preprocess(
+    (val) => typeof val === 'string' ? val.toLowerCase().replace(/_/g, '-') : val,
+    z.enum(['full-time', 'part-time', 'contract'], 'Employment type must be full-time, part-time, or contract'),
+  ),
   start_date: z.string().optional(),
   monthly_salary: z.number().nonnegative('Monthly salary must be 0 or more'),
   bank_name: z.string().min(1, 'Bank name is required'),

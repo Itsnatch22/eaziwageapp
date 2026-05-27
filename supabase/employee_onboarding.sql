@@ -69,6 +69,17 @@ create table public.employee_onboarding (
         ]
       )
     )
+  ),
+  constraint employee_onboarding_employment_type_check check (
+    (
+      employment_type = any (
+        array[
+          'full-time'::text,
+          'part-time'::text,
+          'contract'::text
+        ]
+      )
+    )
   )
 ) TABLESPACE pg_default;
 

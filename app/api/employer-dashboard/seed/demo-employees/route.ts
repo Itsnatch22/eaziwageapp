@@ -158,7 +158,7 @@ export async function POST() {
         date_of_birth:   randomDate(35),  // 0-35 years back
         job_title:       pick(titles),
         department:      dept,
-        employment_type: pick(['full_time', 'part_time', 'contract']),
+        employment_type: pick(['full-time', 'part-time', 'contract']),
         start_date:      randomDate(5),   // up to 5 years ago
         monthly_salary:  randomSalary(),
         country,

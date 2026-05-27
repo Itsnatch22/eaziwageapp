@@ -15,8 +15,6 @@ import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { toast }                   from 'sonner';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type EmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
 
 type PayrollCycle = 'weekly' | 'biweekly' | 'monthly';
@@ -73,8 +71,6 @@ interface EmployersApiResponse {
 type TabKey = 'overview' | 'employees' | 'advances' | 'actions';
 
 type VariantColor = 'green' | 'slate' | 'black';
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface GradientIconBoxProps {
   icon:    React.ComponentType<React.SVGProps<SVGSVGElement>>;
@@ -345,8 +341,6 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
     </div>
   </div>
 );
-
-// ─── Employer Detail Modal ────────────────────────────────────────────────────
 
 interface EmployerDetailModalProps {
   employer:  Employer | null;
@@ -944,7 +938,7 @@ export default function AdminEmployers() {
 
         if (res.ok) successCount++;
       } catch {
-        // Continue bulk operation
+         //Continue bulk operation
       }
     }
 
@@ -954,7 +948,6 @@ export default function AdminEmployers() {
     toast.success(`Successfully updated ${successCount} employer(s)`);
   };
 
-  // ── Filter ─────────────────────────────────────────────────────────────────
     return (
     <>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-employers-page">

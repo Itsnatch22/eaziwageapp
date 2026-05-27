@@ -10,8 +10,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ─── Article Content ───────────────────────────────────────────────────────────
-
 interface ArticleSection {
   heading: string;
   body: string;
@@ -24,8 +22,6 @@ interface ArticleContent {
   overview: string;
   sections: ArticleSection[];
 }
-
-// ─── Documentation Structure ───────────────────────────────────────────────────
 
 const docSections = [
   {
@@ -1093,15 +1089,11 @@ const docSections = [
   },
 ];
 
-// ─── Difficulty Colors ──────────────────────────────────────────────────────────
-
 const difficultyColors = {
   beginner: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300',
   intermediate: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
   advanced: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
 };
-
-// ─── Article Modal ──────────────────────────────────────────────────────────────
 
 interface Article {
   title: string;
@@ -1233,8 +1225,6 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
     </div>
   );
 }
-
-// ─── Main Component ─────────────────────────────────────────────────────────────
 
 export default function AdminDocs() {
   const [searchQuery, setSearchQuery] = useState('');

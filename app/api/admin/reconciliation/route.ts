@@ -80,7 +80,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         reference,
         created_at,
         employer_id,
-        employee:employee_id (full_name)
+        employee_id
       `)
       .in('status', ['disbursed', 'repaid']);
 
@@ -91,9 +91,38 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let totalRecouped = 0;
     let pendingRecoupment = 0;
 
-    (advances || []).forEach((adv) => {
-      const employerId = adv.employer_id;
-      
+    // Define lightweight types for linting
+    type AdvanceRow = {
+      id?: string;
+      amount?: number | string | null;
+      fee_amount?: number | string | null;
+      status?: string | null;
+      reference?: string | null;
+      created_at?: string | null;
+      employer_id?: string | null;
+      employee_id?: string | null;
+    };
+    type ProfileRow = { id: string; full_name?: string | null } | null;
+
+    const advancesRows = (advances || []) as AdvanceRow[];
+
+    // Build a map of employee_id -> full_name to avoid relying on DB relationship metadata
+    const employeeIds = Array.from(new Set(advancesRows.map((a) => a.employee_id).filter(Boolean))) as string[];
+    let profileMap: Record<string, string> = {};
+    if (employeeIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', employeeIds);
+
+      profileMap = (profiles || []).reduce((acc: Record<string, string>, p: ProfileRow) => {
+        if (p && p.id) acc[p.id] = p.full_name || 'Unknown Employee';
+        return acc;
+      }, {} as Record<string, string>);
+    }
+
+    advancesRows.forEach((advRow) => {
+      const employerId = (advRow.employer_id || '') as string;
       if (!byEmployer[employerId]) {
         byEmployer[employerId] = {
           employer_id: employerId,
@@ -108,15 +137,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         };
       }
 
-      const amount = Number(adv.amount || 0);
-      const fee = Number(adv.fee_amount || 0);
+      const amount = Number(advRow.amount || 0);
+      const fee = Number(advRow.fee_amount || 0);
       const total = amount + fee;
 
       byEmployer[employerId].total_advances += 1;
       byEmployer[employerId].total_amount += amount;
       byEmployer[employerId].total_fees += fee;
-      
-      if (adv.status === 'repaid') {
+
+      if (advRow.status === 'repaid') {
         byEmployer[employerId].recouped += total;
         totalRecouped += total;
       } else {
@@ -127,22 +156,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       totalDisbursed += amount;
       totalFees += fee;
 
-      const employeeRelation = adv.employee as
-        | { full_name?: string }
-        | Array<{ full_name?: string }>
-        | null
-        | undefined;
-      const employeeName = Array.isArray(employeeRelation)
-        ? employeeRelation[0]?.full_name
-        : employeeRelation?.full_name;
+      const employeeName = (advRow.employee_id && profileMap[advRow.employee_id]) || 'Unknown Employee';
 
       byEmployer[employerId].advances.push({
-        id: adv.id,
-        reference: adv.reference,
+        id: advRow.id || '',
+        reference: advRow.reference || '',
         employee_name: employeeName || 'Unknown Employee',
         amount: total,
-        status: adv.status === 'repaid' ? 'repaid' : 'pending',
-        created_at: adv.created_at,
+        status: advRow.status === 'repaid' ? 'repaid' : 'pending',
+        created_at: advRow.created_at || '',
       });
     });
 

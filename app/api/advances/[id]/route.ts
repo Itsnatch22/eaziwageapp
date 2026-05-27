@@ -35,13 +35,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role, role_normalized, is_admin')
+    .eq('id', user.id)
+    .maybeSingle<{ role: string | null; role_normalized: string | null; is_admin: boolean | null }>();
 
-  if (!['admin', 'hr'].includes(profile!.role!)) {
+  if (profileError || !profile) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { action } = await request.json();
+  const userRole = (profile.role || profile.role_normalized || '').toLowerCase();
+  const isAdmin = profile.is_admin === true;
+
+  if (!isAdmin && !['admin', 'hr'].includes(userRole)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const requestBody = await request.json();
+  const action = typeof requestBody?.action === 'string' ? requestBody.action : null;
+
+  if (action !== 'approve' && action !== 'deny') {
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  }
 
   if (action === 'approve') {
     const { data: advance, error: advanceError } = await supabase.from('advances').select('*').eq('id', id).single();

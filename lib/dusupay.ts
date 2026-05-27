@@ -335,14 +335,46 @@ export class DusupayService {
   }
 
   // ======================== WEBHOOK ========================
-  verifyWebhookSignature(rawBody: string, signature: string): boolean {
-    if (!this.config.webhookSecret) return true; // dev mode
+  verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
+    if (!this.config.webhookSecret) return false;
+
+    const headerParts = signatureHeader.split(',').map((part) => part.trim());
+    const timestampPart = headerParts.find((part) => part.startsWith('t='));
+    const signaturePart = headerParts.find((part) => part.startsWith('s='));
+    const timestamp = timestampPart?.split('=')[1];
+    const signature = signaturePart?.split('=')[1] ?? signatureHeader;
+
+    if (timestamp && signature) {
+      const parsedTimestamp = Number(timestamp);
+      const now = Date.now();
+      const timestampMs = Number.isFinite(parsedTimestamp)
+        ? parsedTimestamp * (timestamp.length <= 10 ? 1000 : 1)
+        : Date.parse(timestamp);
+
+      if (!Number.isFinite(timestampMs) || Math.abs(now - timestampMs) > 5 * 60 * 1000) {
+        return false;
+      }
+
+      const expected = createHmac('sha256', this.config.webhookSecret)
+        .update(`${timestamp}.${rawBody}`)
+        .digest('hex');
+
+      try {
+        return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex'));
+      } catch {
+        return false;
+      }
+    }
 
     const expected = createHmac('sha256', this.config.webhookSecret)
       .update(rawBody)
       .digest('hex');
 
-    return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+    try {
+      return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex'));
+    } catch {
+      return false;
+    }
   }
 
   parseWebhook(body: unknown): WebhookPayload {

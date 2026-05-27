@@ -7,8 +7,121 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight, Eye, EyeOff, Lock, Check, User, Mail,
   Building2, Search, X, Phone, AlertTriangle, ChevronDown,
-  Sparkles, AlertCircle, Wallet
+  Sparkles, AlertCircle, Wallet, Quote
 } from 'lucide-react';
+
+const testimonials = [
+  {
+    quote: "Building this one was a process, but am glad we finally got to establish it. Eaziwage is here to change our perspectives on how payroll systems work. Trust is the new currency and advance payment is how it's earned.",
+    name: "Mark K.",
+    title: "Co-Founder & Lead Dev",
+  },
+  {
+    quote: "We are building more than just a payment platform we are creating a bridge of trust. One that supports growth, accelerates timelines, reduces cancellations, and brings professionalism to every transaction.",
+    name: "Joel O",
+    title: "Co-Founder & Backend Dev",
+  },
+  {
+    quote: "At EaziWage, we're not just streamlining payments we're empowering connections, fostering trust, and driving success by making every transaction seamless, engaging, and impactful.",
+    name: "Henry K.",
+    title: "Co-Founder & CMO",
+  },
+  {
+    quote: "As a business owner, I witnessed the stress financial delays can bring to good people. We built EaziWage to create a bridge between effort and reward so that paydays reflect the rhythm of real life, not the limits of outdated systems.",
+    name: "Jason C.",
+    title: "Co-Founder & CEO",
+  },
+];
+
+function TestimonialsPanel() {
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActive((prev) => (prev + 1) % testimonials.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const t = testimonials[active];
+
+  return (
+    <div className="hidden lg:flex flex-col justify-between h-full min-h-screen bg-gradient-to-br from-green-700 via-green-600 to-emerald-500 p-12 relative overflow-hidden">
+      {/* Background decorations */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.12)_0%,transparent_60%)] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-400/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-green-800/20 rounded-full blur-[150px] pointer-events-none" />
+
+      {/* Logo */}
+      <div className="flex items-center gap-3 relative z-10">
+        <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/30">
+          <Wallet className="w-6 h-6 text-white" strokeWidth={2} />
+        </div>
+        <span className="font-bold text-xl text-white tracking-tight">EaziWage</span>
+      </div>
+
+      {/* Middle content */}
+      <div className="relative z-10 flex flex-col gap-8">
+        <div>
+          <h2 className="text-4xl font-serif font-bold text-white leading-snug mb-3">
+            Payroll that works<br />at the speed of life.
+          </h2>
+          <p className="text-green-100 text-base leading-relaxed max-w-sm">
+            Join thousands of employers and employees who trust EaziWage for seamless, instant wage access.
+          </p>
+        </div>
+
+        {/* Testimonial card */}
+        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-xl transition-all duration-500">
+          <Quote className="w-8 h-8 text-green-200 mb-4 opacity-80" />
+          <p className="text-white text-base leading-relaxed mb-6 min-h-[80px]">
+            {t.quote}
+          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white font-bold text-sm">
+              {t.name.charAt(0)}
+            </div>
+            <div>
+              <p className="text-white font-semibold text-sm">{t.name}</p>
+              <p className="text-green-200 text-xs">{t.title}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Dots */}
+        <div className="flex items-center gap-2">
+          {testimonials.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setActive(i)}
+              className={`rounded-full transition-all duration-300 ${
+                i === active
+                  ? 'w-6 h-2 bg-white'
+                  : 'w-2 h-2 bg-white/40 hover:bg-white/60'
+              }`}
+              aria-label={`Go to testimonial ${i + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Bottom stats */}
+      <div className="relative z-10 grid grid-cols-3 gap-4">
+        {[
+          { value: '10K+', label: 'Employees Served' },
+          { value: '98%', label: 'Satisfaction Rate' },
+          { value: '0%', label: 'Interest Rate' },
+        ].map((stat) => (
+          <div key={stat.label} className="text-center">
+            <p className="text-white font-bold text-xl">{stat.value}</p>
+            <p className="text-green-200 text-xs mt-0.5">{stat.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { createClient } from '@/lib/supabase/client';
@@ -416,25 +529,29 @@ function RegisterForm() {
         onReady={() => setRecaptchaReady(true)}
       />
 
-      <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
+      <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden lg:flex">
 
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.06)_0%,transparent_60%)] pointer-events-none" />
-        <div className="absolute top-20 right-0 w-150 h-150 bg-green-500/8 rounded-full blur-[150px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-125 h-125 bg-slate-900/5 dark:bg-green-900/10 rounded-full blur-[150px] pointer-events-none" />
+        {/* Left — Testimonials panel (desktop only) */}
+        <div className="lg:w-[45%] lg:flex-shrink-0">
+          <TestimonialsPanel />
+        </div>
 
-        {showCompanySearch && (
-          <CompanySearchModal
-            employers={employers}
-            onSelect={handleSelectCompany}
-            onNotFound={handleCompanyNotFound}
-            onClose={() => setShowCompanySearch(false)}
-          />
-        )}
+        {/* Right — Form panel */}
+        <div className="flex-1 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] pointer-events-none" />
 
-        {/* Main */}
-        <main className="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] px-4 sm:px-6 lg:px-8 py-8">
-          <div className="w-full max-w-md">
+          {showCompanySearch && (
+            <CompanySearchModal
+              employers={employers}
+              onSelect={handleSelectCompany}
+              onNotFound={handleCompanyNotFound}
+              onClose={() => setShowCompanySearch(false)}
+            />
+          )}
+
+          <main className="relative z-10 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-10 py-8">
+            <div className="w-full max-w-md">
 
             {/* Logo */}
             <div className="flex justify-center mb-6">
@@ -761,8 +878,9 @@ function RegisterForm() {
               </div>
             </div>
 
-          </div>
-        </main>
+            </div>
+          </main>
+        </div>
       </div>
     </>
   );

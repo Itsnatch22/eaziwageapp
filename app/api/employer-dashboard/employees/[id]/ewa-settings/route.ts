@@ -1,4 +1,3 @@
-
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ewaSettingsSchema } from '@/lib/validations/employee-validation';

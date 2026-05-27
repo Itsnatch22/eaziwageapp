@@ -1,7 +1,4 @@
-// lib/validations/risk.ts
 import { z } from 'zod';
-
-// ─── Review Request ──────────────────────────────────────────────────────────
 export const reviewRequestSchema = z.object({
   employerId: z.string().uuid('Invalid employer ID'),
   type: z.string().min(1).default('risk_review'),
@@ -10,9 +7,6 @@ export const reviewRequestSchema = z.object({
 
 export type ReviewRequestPayload = z.infer<typeof reviewRequestSchema>;
 
-// ─── Risk Factor shape returned to the UI ────────────────────────────────────
-// Matches the categoryScores structure the page expects:
-// { legal_compliance: { registration_status, tax_compliance, ewa_agreement }, ... }
 export const riskFactorSchema = z.object({
   legal_compliance: z.object({
     registration_status: z.number(),

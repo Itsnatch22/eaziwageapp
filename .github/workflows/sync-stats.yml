@@ -1,12 +1,3 @@
-# eaziwageapp — .github/workflows/sync-stats.yml
-#
-# Runs every 6 hours and hits the sync-stats route to aggregate
-# live data into public_stats for the marketing site.
-#
-# Setup:
-#   1. Go to eaziwageapp repo → Settings → Secrets and variables → Actions
-#   2. Add a secret named CRON_SECRET with the same value as your .env
-
 name: Sync Public Stats
 
 on:

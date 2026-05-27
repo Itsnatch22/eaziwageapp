@@ -10,7 +10,7 @@ import {
 } from '@/lib/validations/kyc-validation';
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
 import pusherServer from '@/lib/pusher-server';
-import { isDocumentFile, isImageFile } from '@/lib/upload-file-types';
+import { getSafeFileExtension, isDocumentFile, isImageFile } from '@/lib/upload-file-types';
 
 export const runtime = 'nodejs';
 
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File size must be under 5 MB.', code: 'FILE_TOO_LARGE' }, { status: 422 });
     }
 
-    const ext = file.name.split('.').pop() ?? 'bin';
+    const ext = getSafeFileExtension(file);
     const timestamp = Date.now();
     const storagePath = `${user.id}/${documentType}/${timestamp}.${ext}`;
 
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
 
     const { data: signedData } = await adminSupabase.storage
       .from(BUCKET)
-      .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+      .createSignedUrl(storagePath, 60 * 60 * 24); // 24-hour temporary access
 
     if (!signedData) {
       return NextResponse.json({ error: 'Could not generate URL', code: 'SIGNED_URL_ERROR' }, { status: 500 });

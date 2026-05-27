@@ -56,16 +56,13 @@ export const onboardingSubmitSchema = z.object({
   bank_name: z.string().optional(),
   bank_account_number: z.string().optional(),
 
-  // Contact
   contact_person: nonEmptyString('Contact person'),
   contact_email: z.string().email('Invalid email address'),
   contact_phone: nonEmptyString('Contact phone'),
   contact_position: z.string().optional(),
 
-  // Beneficial owners
   beneficial_owners: z.array(beneficialOwnerSchema).optional().default([]),
 
-  // Document URLs (already uploaded to storage before submit)
   certificate_of_incorporation: z.string().url().optional().or(z.literal('')),
   business_registration: z.string().url().optional().or(z.literal('')),
   tax_compliance_certificate: z.string().url().optional().or(z.literal('')),
@@ -81,13 +78,9 @@ export const onboardingSubmitSchema = z.object({
 
 export type OnboardingSubmitPayload = z.infer<typeof onboardingSubmitSchema>;
 
-// ─── Step progress update ────────────────────────────────────────────────────
-
 export const stepUpdateSchema = z.object({
   step: z.number().int().min(0).max(7),
 });
-
-// ─── Document upload ─────────────────────────────────────────────────────────
 
 export const ALLOWED_DOC_TYPES = [
   'certificate_of_incorporation',

@@ -18,8 +18,6 @@ import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { toast }                   from 'sonner';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type EmployeeStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
 
 type KYCStatus = 'approved' | 'pending' | 'submitted' | 'rejected';
@@ -47,7 +45,6 @@ interface Employee {
   kyc_status:       KYCStatus;
   risk_score:       number | null;
   
-  // KYC documents (booleans indicating if uploaded)
   id_document_front?:   boolean;
   id_document_back?:    boolean;
   selfie?:              boolean;
@@ -57,7 +54,6 @@ interface Employee {
   bank_statement?:      boolean;
   employment_contract?: boolean;
 
-  // Joined data
   employer_name?:  string;
   advance_stats?: {
     advance_count:      number;
@@ -103,8 +99,6 @@ interface RiskOverride {
   score:  number;
   reason: string;
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface GradientIconBoxProps {
   icon:     React.ComponentType<React.SVGProps<SVGSVGElement>>;
@@ -206,7 +200,6 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     },
   };
 
-  // Handle both 'active' and 'approved' statuses, fallback to 'pending' for unknown statuses
   const statusConfig = config[status] || config.pending;
 
   const { bg, text, label } = statusConfig;
@@ -246,12 +239,15 @@ const KYCBadge: React.FC<KYCBadgeProps> = ({ status }) => {
     },
   };
 
-  const { icon: Icon, color, bg } = config[status];
+  const safeStatus = typeof status === 'string' && status.length ? status : 'pending';
+  const statusConfig = config[safeStatus as KYCStatus] || config.pending;
+  const { icon: Icon, color, bg } = statusConfig;
+  const label = safeStatus.charAt(0).toUpperCase() + safeStatus.slice(1).replace(/_/g, ' ');
 
   return (
     <div className={cn('flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium', bg)}>
       <Icon className={cn('w-3.5 h-3.5', color)} />
-      <span className={color}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+      <span className={color}>{label}</span>
     </div>
   );
 };
@@ -384,8 +380,6 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
   </div>
 );
 
-// ─── Employee Detail Modal ────────────────────────────────────────────────────
-
 interface EmployeeDetailModalProps {
   employee:  Employee | null;
   currency:  string;
@@ -419,7 +413,6 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
 
     setLoading(true);
     try {
-      // GET /api/admin/employees/:id
       const res = await fetch(`/api/admin/employees/${employee.id}`);
       if (res.ok) {
         const data: Employee = await res.json();
@@ -459,7 +452,6 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     }
 
     try {
-      // PATCH /api/admin/employees/:id/status
       const res = await fetch(`/api/admin/employees/${employee.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -492,7 +484,6 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     }
 
     try {
-      // PATCH /api/admin/employees/:id/kyc
       const res = await fetch(`/api/admin/employees/${employee.id}/kyc`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -516,7 +507,6 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     if (!employee) return;
 
     try {
-      // PUT /api/admin/employees/:id
       const res = await fetch(`/api/admin/employees/${employee.id}`, {
         method:  'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -540,7 +530,6 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     if (!employee) return;
 
     try {
-      // PATCH /api/admin/employees/:id/risk-score
       const res = await fetch(`/api/admin/employees/${employee.id}/risk-score`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1089,8 +1078,6 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
   );
 };
 
-// ─── Quick Actions Modal ──────────────────────────────────────────────────────
-
 interface QuickActionsModalProps {
   employee: Employee | null;
   isOpen:   boolean;
@@ -1147,8 +1134,6 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function AdminEmployees() {
   const { currency } = useCurrency();
   const [employees,         setEmployees]         = useState<Employee[]>([]);
@@ -1162,16 +1147,13 @@ export default function AdminEmployees() {
   const [selectedIds,       setSelectedIds]       = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
-  // ── Fetch employees ───────────────────────────────────────────────────────
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
     try {
-      // GET /api/admin/employees (no employer_id filter → all employees)
       const res = await fetch('/api/admin/employees');
       const payload = await res.json();
       
       if (res.ok) {
-        // The API returns { data: Employee[], pagination: ... }
         setEmployees(payload.data || []);
       } else {
         toast.error(payload.error || 'Failed to fetch employees.');
@@ -1188,13 +1170,11 @@ export default function AdminEmployees() {
     fetchEmployees();
   }, [fetchEmployees]);
 
-  // ── Quick action handler ───────────────────────────────────────────────────
   const handleQuickAction = async (action: EmployeeStatus | 'kyc_approve') => {
     if (!selectedEmployee) return;
 
     try {
       if (action === 'kyc_approve') {
-        // PATCH /api/admin/employees/:id/kyc
         const res = await fetch(`/api/admin/employees/${selectedEmployee.id}/kyc`, {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -1206,7 +1186,6 @@ export default function AdminEmployees() {
           toast.error('Action failed.');
         }
       } else {
-        // PATCH /api/admin/employees/:id/status
         const res = await fetch(`/api/admin/employees/${selectedEmployee.id}/status`, {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -1226,8 +1205,7 @@ export default function AdminEmployees() {
 
     setShowQuickActions(false);
   };
-
-  // ── Bulk selection ─────────────────────────────────────────────────────────
+  
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredEmployees.length) {
       setSelectedIds(new Set());
@@ -1292,7 +1270,6 @@ export default function AdminEmployees() {
     }
   };
 
-  // ── Filter ─────────────────────────────────────────────────────────────────
   const filteredEmployees = employees.filter(e => {
     if (statusFilter && e.status !== statusFilter) return false;
     if (kycFilter && e.kyc_status !== kycFilter) return false;
@@ -1308,8 +1285,6 @@ export default function AdminEmployees() {
     }
     return true;
   });
-
-  // ── Stats ──────────────────────────────────────────────────────────────────
   const stats: Stats = {
     total:       employees.length,
     active:      employees.filter(e => e.status === 'active' || e.status === 'approved').length,

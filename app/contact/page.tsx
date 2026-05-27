@@ -19,8 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-/* ----------------------------- components ----------------------------- */
-
 const ContactInfoCard = ({ icon: Icon, label, value, href }: { icon: React.ElementType; label: string; value: string; href?: string }) => {
   const content = (
     <motion.div
@@ -47,8 +45,6 @@ const ContactInfoCard = ({ icon: Icon, label, value, href }: { icon: React.Eleme
 
   return content;
 };
-
-/* ------------------------------ page ----------------------------- */
 
 export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -253,7 +249,7 @@ export default function ContactPage() {
                           rows={5}
                           placeholder="Tell us more about your inquiry..."
                           {...register("message")}
-                          className="min-h-[120px] resize-none border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
+                          className="min-h-30 resize-none border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
                         />
                         {errors.message && <p className="text-xs font-medium text-red-500">{errors.message.message}</p>}
                       </div>

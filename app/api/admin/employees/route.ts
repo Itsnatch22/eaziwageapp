@@ -152,7 +152,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const empStatus =
           emp.status === 'Active' ? 'active' :
           emp.status === 'approved' ? 'active' :
-          emp.status?.toLowerCase() || 'pending';
+          (emp.status ?? 'pending').toLowerCase();
         return empStatus === status;
       });
     }

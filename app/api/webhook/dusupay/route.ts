@@ -15,12 +15,12 @@ interface DusupayWebhookPayload {
 }
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const ip = (req.headers.get('x-real-ip')?.trim() || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()) ?? 'unknown';
   console.log(`[Dusupay Webhook] Received request from ${ip}`);
 
   try {
     const rawBody = await req.text();
-    const signature = req.headers.get('dusupay-signature');
+    const signature = req.headers.get('dusupay-signature') ?? '';
 
     if (!signature || !dusupay.verifyWebhookSignature(rawBody, signature)) {
       console.error('[Dusupay Webhook] Invalid or missing signature');

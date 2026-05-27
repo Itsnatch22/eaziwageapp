@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// ── Supported payroll providers ───────────────────────────────────────────────
 export const PAYROLL_PROVIDERS = [
   'SAP',
   'Oracle',
@@ -15,7 +14,6 @@ export const PAYROLL_PROVIDERS = [
 
 export type PayrollProvider = (typeof PAYROLL_PROVIDERS)[number];
 
-// ── Connect a payroll integration ─────────────────────────────────────────────
 export const connectPayrollSchema = z.object({
   provider:        z.enum(PAYROLL_PROVIDERS).default('SAP'),
   provider_label:  z.string().max(80).optional(),
@@ -29,7 +27,6 @@ export const connectPayrollSchema = z.object({
 
 export type ConnectPayrollPayload = z.infer<typeof connectPayrollSchema>;
 
-// ── Per-employee row in a payroll upload ──────────────────────────────────────
 export const payrollRowSchema = z.object({
   employee_code: z.string().min(1, 'employee_code is required'),
   days_worked:   z.number().min(0).max(31).optional(),
@@ -39,7 +36,6 @@ export const payrollRowSchema = z.object({
 
 export type PayrollRow = z.infer<typeof payrollRowSchema>;
 
-// ── Manual upload payload ─────────────────────────────────────────────────────
 export const uploadPayrollSchema = z.object({
   month: z
     .string()
@@ -54,7 +50,6 @@ export const uploadPayrollSchema = z.object({
 
 export type UploadPayrollPayload = z.infer<typeof uploadPayrollSchema>;
 
-// ── Trigger a manual sync ─────────────────────────────────────────────────────
 export const triggerSyncSchema = z.object({
   integration_id: z.string().uuid('integration_id must be a UUID'),
 });

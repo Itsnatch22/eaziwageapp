@@ -1,10 +1,6 @@
 import { z } from 'zod';
 import { isDocumentFile } from '@/lib/upload-file-types';
 
-// ============================================================================
-// ENUMS
-// ============================================================================
-
 export const UserRoleEnum = z.enum([
   'employee',
   'employer',
@@ -45,11 +41,6 @@ export const DocumentTypeEnum = z.enum([
 ]);
 export type DocumentType = z.infer<typeof DocumentTypeEnum>;
 
-// ============================================================================
-// DATABASE SCHEMAS
-// ============================================================================
-
-// Profile Schema
 export const ProfileSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
@@ -64,7 +55,6 @@ export const ProfileSchema = z.object({
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 
-// Employee Schema
 export const EmployeeSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid().nullable(),
@@ -86,7 +76,6 @@ export const EmployeeSchema = z.object({
 });
 export type Employee = z.infer<typeof EmployeeSchema>;
 
-// KYC Document Schema
 export const KYCDocumentSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
@@ -105,7 +94,6 @@ export const KYCDocumentSchema = z.object({
 });
 export type KYCDocument = z.infer<typeof KYCDocumentSchema>;
 
-// Document Review History Schema
 export const DocumentReviewHistorySchema = z.object({
   id: z.string().uuid(),
   document_id: z.string().uuid(),
@@ -119,7 +107,6 @@ export const DocumentReviewHistorySchema = z.object({
 });
 export type DocumentReviewHistory = z.infer<typeof DocumentReviewHistorySchema>;
 
-// Notification Schema
 export const NotificationSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
@@ -134,11 +121,6 @@ export const NotificationSchema = z.object({
 });
 export type Notification = z.infer<typeof NotificationSchema>;
 
-// ============================================================================
-// API REQUEST/RESPONSE SCHEMAS
-// ============================================================================
-
-// Document Upload Schema
 export const DocumentUploadSchema = z.object({
   file: z.instanceof(File)
     .refine((file) => file.size <= 5 * 1024 * 1024, {
@@ -155,14 +137,12 @@ export const DocumentUploadSchema = z.object({
 });
 export type DocumentUpload = z.infer<typeof DocumentUploadSchema>;
 
-// Document Review Schema
 export const DocumentReviewSchema = z.object({
   status: z.enum(['approved', 'rejected']),
   notes: z.string().max(1000).optional().default(''),
 });
 export type DocumentReview = z.infer<typeof DocumentReviewSchema>;
 
-// Document Query Schema
 export const DocumentQuerySchema = z.object({
   status: DocumentStatusEnum.optional(),
   user_id: z.string().uuid().optional(),
@@ -170,17 +150,12 @@ export const DocumentQuerySchema = z.object({
 });
 export type DocumentQuery = z.infer<typeof DocumentQuerySchema>;
 
-// Employee Query Schema
 export const EmployeeQuerySchema = z.object({
   employer_id: z.string().uuid().optional(),
   status: EmployeeStatusEnum.optional(),
   search: z.string().optional(),
 });
 export type EmployeeQuery = z.infer<typeof EmployeeQuerySchema>;
-
-// ============================================================================
-// EXTENDED TYPES WITH RELATIONS
-// ============================================================================
 
 export type KYCDocumentWithEmployee = KYCDocument & {
   employee?: Employee;
@@ -196,10 +171,6 @@ export type DocumentWithHistory = KYCDocument & {
   history?: DocumentReviewHistory[];
 };
 
-// ============================================================================
-// RESPONSE TYPES
-// ============================================================================
-
 export const ApiSuccessResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
   z.object({
     data: dataSchema,
@@ -214,10 +185,6 @@ export const ApiErrorResponseSchema = z.object({
 });
 
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   national_id: 'National ID',
@@ -254,7 +221,7 @@ export const STATUS_CONFIG = {
   },
 } as const;
 
-export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+export const MAX_FILE_SIZE = 5 * 1024 * 1024; 
 export const ALLOWED_MIME_TYPES = [
   'image/*',
   'application/pdf',
@@ -273,10 +240,6 @@ export const ALLOWED_MIME_TYPES = [
   'text/plain',
 ] as const;
 
-// ============================================================================
-// UTILITY TYPES
-// ============================================================================
-
 export type DatabaseInsert<T> = Omit<
   T,
   'id' | 'created_at' | 'updated_at'
@@ -284,10 +247,6 @@ export type DatabaseInsert<T> = Omit<
 export type DatabaseUpdate<T> = Partial<
   Omit<T, 'id' | 'created_at' | 'updated_at'>
 >;
-
-// ============================================================================
-// VALIDATION HELPERS
-// ============================================================================
 
 export function validateDocumentType(type: unknown): DocumentType {
   return DocumentTypeEnum.parse(type);
@@ -301,9 +260,6 @@ export function isAdminRole(role: UserRole): boolean {
   return ['admin', 'super_admin', 'compliance', 'employer_admin'].includes(role);
 }
 
-// ============================================================================
-// TYPE GUARDS
-// ============================================================================
 
 export function isKYCDocument(obj: unknown): obj is KYCDocument {
   return KYCDocumentSchema.safeParse(obj).success;

@@ -1,8 +1,6 @@
 
 import { z } from 'zod';
 
-// ─── Query Params ─────────────────────────────────────────────────────────────
-
 export const ReportPeriodEnum = z.enum([
   'this_week',
   'this_month',
@@ -23,8 +21,6 @@ export const ReportsQuerySchema = z.object({
 });
 export type ReportsQuery = z.infer<typeof ReportsQuerySchema>;
 
-// ─── Response shape ───────────────────────────────────────────────────────────
-
 export const AdvanceSummarySchema = z.object({
   total:          z.number(),
   disbursed:      z.number(),
@@ -44,7 +40,7 @@ export const EmployeeSummarySchema = z.object({
   total:             z.number(),
   active:            z.number(),
   with_advances:     z.number(),
-  utilization_rate:  z.number(),  // 0-100
+  utilization_rate:  z.number(), 
 });
 export type EmployeeSummary = z.infer<typeof EmployeeSummarySchema>;
 
