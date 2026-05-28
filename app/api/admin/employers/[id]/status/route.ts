@@ -9,6 +9,15 @@ function generateCompanyCode(sourceId: string): string {
   return `EW-${sourceId.slice(0, 8).toUpperCase()}`;
 }
 
+function generatePrimaryCompanyCode(sourceId: string): string {
+  return sourceId.replace(/-/g, '').slice(0, 8).toUpperCase();
+}
+
+function toPrimaryEmployerStatus(status: string): 'approved' | 'pending' | 'suspended' {
+  if (status === 'approved' || status === 'suspended') return status;
+  return 'pending';
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -73,7 +82,7 @@ export async function PATCH(
 
   const { data: initialEmployer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
-    .select('id,user_id,company_name,min_advance_amount,currency')
+    .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,currency')
     .eq('id', id)
     .maybeSingle();
   let employer = initialEmployer;
@@ -82,14 +91,14 @@ export async function PATCH(
     console.log(`[PATCH employer status] ID ${id} not found in onboarding, checking primary 'employers' table...`);
     const { data: primaryEmp } = await adminSupabase
       .from('employers')
-      .select('id,user_id,company_name,min_advance_amount')
+      .select('id,user_id,company_name')
       .eq('id', id)
       .maybeSingle();
     
     if (primaryEmp) {
       const { data: fallbackOnboarding } = await adminSupabase
         .from('employer_onboarding')
-        .select('id,user_id,company_name,min_advance_amount,currency')
+        .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,currency')
         .eq('user_id', primaryEmp.user_id)
         .maybeSingle();
       
@@ -144,14 +153,14 @@ export async function PATCH(
   let resolvedCompanyCode: string | null = null;
   const { data: existingEmployer } = await adminSupabase
     .from('employers')
-    .select('id, employer_code')
-    .eq('id', employer.id)
+    .select('id, company_code, employer_code')
+    .eq('user_id', employer.user_id)
     .maybeSingle();
 
   if (status === 'approved' || existingEmployer) {
     const { data: profileRow } = await adminSupabase
       .from('profiles')
-      .select('company_code')
+      .select('email, phone, company_code')
       .eq('id', employer.user_id)
       .maybeSingle();
 
@@ -161,6 +170,12 @@ export async function PATCH(
       (profileRow?.company_code ? String(profileRow.company_code).trim() : '') ||
       generateCompanyCode(employer.id);
 
+    const primaryStatus = toPrimaryEmployerStatus(status);
+    const primaryCompanyCode =
+      existingEmployer?.company_code ||
+      (profileRow?.company_code ? String(profileRow.company_code).trim().replace(/[^a-zA-Z0-9]/g, '').slice(0, 20).toUpperCase() : '') ||
+      generatePrimaryCompanyCode(employer.id);
+
     if (resolvedCompanyCode) {
       await adminSupabase
         .from('profiles')
@@ -168,25 +183,45 @@ export async function PATCH(
         .eq('id', employer.user_id);
     }
 
-    const upsertPayload = {
-      id: employer.id,
+    const syncPayload = {
       user_id: employer.user_id,
-      company_name: employer.company_name,
+      company_name: employer.company_name || 'Unknown company',
+      company_code: primaryCompanyCode,
+      email: employer.contact_email || profileRow?.email,
+      phone: employer.contact_phone || profileRow?.phone || null,
       employer_code: resolvedCompanyCode,
-      status: status, // Sync the status (approved, suspended, etc.)
-      min_advance_amount: updatePayload.min_advance_amount ?? employer.min_advance_amount ?? 500,
-      currency: employer.currency,
+      status: primaryStatus,
+      industry: employer.industry || null,
+      country: employer.country || null,
+      registration_number: employer.registration_number || null,
+      tax_id: employer.tax_id || null,
+      address: employer.physical_address || null,
+      contact_person: employer.contact_person || null,
+      contact_email: employer.contact_email || null,
+      contact_phone: employer.contact_phone || null,
+      payroll_cycle: employer.payroll_cycle || null,
+      risk_score: employer.risk_score ?? null,
+      risk_rating: employer.risk_rating || null,
+      is_verified: primaryStatus === 'approved',
       updated_at: new Date().toISOString(),
     };
 
-    const { error: upsertError } = await adminSupabase
-      .from('employers')
-      .upsert(upsertPayload, { onConflict: 'id' });
+    const { error: syncError } = existingEmployer
+      ? await adminSupabase
+          .from('employers')
+          .update(syncPayload)
+          .eq('id', existingEmployer.id)
+      : await adminSupabase
+          .from('employers')
+          .insert({
+            ...syncPayload,
+            employer_id: employer.user_id,
+            created_at: new Date().toISOString(),
+          });
 
-    if (upsertError) {
-      console.error('[PATCH employer status] Upsert error:', upsertError);
-      // We don't necessarily want to fail the whole request if the secondary sync fails,
-      // but logging it is critical.
+    if (syncError) {
+      console.error('[PATCH employer status] Primary employers sync error:', syncError);
+      return NextResponse.json({ error: 'Employer status updated, but primary employer sync failed' }, { status: 500 });
     }
   }
 

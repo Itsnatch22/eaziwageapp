@@ -124,8 +124,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Combine both datasets, prioritizing employees table for approved users
-    const allEmployees = [...(employees || []), ...(onboardingEmployees || [])];
+    const onboardingByUserId = new Map((onboardingEmployees || []).map((emp) => [emp.user_id, emp]));
+    const liveEmployeeUserIds = new Set((employees || []).map((emp) => emp.user_id));
+
+    const mergedLiveEmployees = (employees || []).map((emp) => {
+      const onboarding = onboardingByUserId.get(emp.user_id);
+      if (!onboarding) return emp;
+
+      return {
+        ...emp,
+        status: onboarding.status ?? emp.status,
+        kyc_status: emp.kyc_status ?? onboarding.status,
+        national_id: onboarding.national_id,
+        country: onboarding.country,
+        advance_limit: onboarding.advance_limit,
+        earned_wages: onboarding.earned_wages,
+        employment_type: onboarding.employment_type,
+        employer_onboarding: onboarding.employer_onboarding,
+      };
+    });
+
+    const onboardingOnlyEmployees = (onboardingEmployees || []).filter((emp) => !liveEmployeeUserIds.has(emp.user_id));
+
+    // Combine both datasets, keeping live payroll data while displaying onboarding account status.
+    const allEmployees = [...mergedLiveEmployees, ...onboardingOnlyEmployees];
 
     // Remove duplicates — employees table takes priority (appears first)
     const uniqueEmployees = allEmployees.filter((emp, index, self) =>

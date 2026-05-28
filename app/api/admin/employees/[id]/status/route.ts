@@ -18,7 +18,11 @@ interface EmployeeUpsertPayload {
   job_title?: string;
   department?: string;
   monthly_salary?: number;
+  employment_type?: string;
+  hire_date?: string;
 }
+
+type EmployeeActionStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
 
 function createAdminClient() {
   const env = getEnv();
@@ -40,13 +44,28 @@ async function isSystemAdmin(userId: string): Promise<boolean> {
   return systemAdmin?.is_admin === true;
 }
 
+function toOnboardingStatus(status: EmployeeActionStatus): 'approved' | 'pending' | 'rejected' | 'suspended' {
+  return status === 'active' || status === 'approved' ? 'approved' : status;
+}
+
+function toLiveEmployeeStatus(status: EmployeeActionStatus): 'Active' | 'Inactive' {
+  return status === 'active' || status === 'approved' ? 'Active' : 'Inactive';
+}
+
+function toKycStatus(status: EmployeeActionStatus): 'approved' | 'pending' | 'rejected' | undefined {
+  if (status === 'active' || status === 'approved') return 'approved';
+  if (status === 'pending') return 'pending';
+  if (status === 'rejected') return 'rejected';
+  return undefined;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const { status, reason } = await req.json();
+    const { status, reason } = await req.json() as { status?: string; reason?: string };
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
@@ -57,18 +76,49 @@ export async function PATCH(
     if (!isAdmin) {
       return NextResponse.json({ error: 'Forbidden. Admin access required.' }, { status: 403 });
     }
+
+    if (status !== 'active' && status !== 'approved' && status !== 'pending' && status !== 'rejected' && status !== 'suspended') {
+      return NextResponse.json({ error: 'Invalid employee status' }, { status: 400 });
+    }
+
     // ── Find Onboarding Record ──────────────────────────────────────────────
     // The 'id' in the URL could be either the employee_onboarding.id (PK) 
-    // or the user_id (Auth ID). We try both.
-    const { data: onboardingRecord, error: fetchError } = await adminSupabase
+    // or the user_id (Auth ID). We try both, then fall back through employees.id.
+    const { data: initialOnboardingRecord, error: fetchError } = await adminSupabase
       .from('employee_onboarding')
       .select('*')
       .or(`id.eq.${id},user_id.eq.${id}`)
       .maybeSingle();
+    let onboardingRecord = initialOnboardingRecord;
 
     if (fetchError) {
       console.error('[PATCH status] fetch error:', fetchError);
       return NextResponse.json({ error: 'Failed to fetch onboarding record' }, { status: 500 });
+    }
+
+    const { data: initialEmployeeRecord, error: employeeFetchError } = await adminSupabase
+      .from('employees')
+      .select('id,user_id,status,kyc_status')
+      .or(`id.eq.${id},user_id.eq.${id}`)
+      .maybeSingle();
+
+    if (employeeFetchError) {
+      console.error('[PATCH status] employee fetch error:', employeeFetchError);
+      return NextResponse.json({ error: 'Failed to fetch employee record' }, { status: 500 });
+    }
+
+    if (!onboardingRecord && initialEmployeeRecord?.user_id) {
+      const { data: fallbackOnboarding, error: fallbackError } = await adminSupabase
+        .from('employee_onboarding')
+        .select('*')
+        .eq('user_id', initialEmployeeRecord.user_id)
+        .maybeSingle();
+
+      if (fallbackError) {
+        console.error('[PATCH status] fallback onboarding fetch error:', fallbackError);
+        return NextResponse.json({ error: 'Failed to fetch onboarding record' }, { status: 500 });
+      }
+      onboardingRecord = fallbackOnboarding;
     }
 
     if (!onboardingRecord) {
@@ -77,11 +127,33 @@ export async function PATCH(
       // We'll proceed to check the employees table below.
     }
 
-    const userId = onboardingRecord?.user_id || id;
-    const resolvedStatus = status === 'active' || status === 'approved' ? 'approved' : status;
+    const userId = onboardingRecord?.user_id || initialEmployeeRecord?.user_id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
+    }
+
+    const resolvedStatus = toOnboardingStatus(status);
+    const liveStatus = toLiveEmployeeStatus(status);
+    const kycStatus = toKycStatus(status);
+    const normalizedEmploymentType =
+      typeof onboardingRecord?.employment_type === 'string'
+        ? onboardingRecord.employment_type.replace(/_/g, '-').toLowerCase()
+        : undefined;
 
     // ── Update Onboarding Table ──────────────────────────────────────────────
     if (onboardingRecord) {
+      if (normalizedEmploymentType && normalizedEmploymentType !== onboardingRecord.employment_type) {
+        const { error: normaliseError } = await adminSupabase
+          .from('employee_onboarding')
+          .update({ employment_type: normalizedEmploymentType })
+          .eq('id', onboardingRecord.id);
+
+        if (normaliseError) {
+          console.error('[PATCH status] failed to normalise employment_type:', normaliseError);
+          return NextResponse.json({ error: 'Failed to normalise employment data' }, { status: 500 });
+        }
+      }
+
       const { error: updateError } = await adminSupabase
         .from('employee_onboarding')
         .update({ 
@@ -96,26 +168,67 @@ export async function PATCH(
       }
     }
 
-    // ── Sync to Primary 'employees' Table ─────────────────────────────────────
+    async function resolveEmployerId(ref: string | undefined) {
+      if (!ref) return null;
+
+      const { data: byId } = await adminSupabase
+        .from('employers')
+        .select('id')
+        .eq('id', ref)
+        .maybeSingle();
+      if (byId?.id) return byId.id;
+
+      const { data: onboardingEmployer } = await adminSupabase
+        .from('employer_onboarding')
+        .select('user_id')
+        .eq('id', ref)
+        .maybeSingle();
+
+      if (onboardingEmployer?.user_id) {
+        const { data: byEmployerUser } = await adminSupabase
+          .from('employers')
+          .select('id')
+          .eq('user_id', onboardingEmployer.user_id)
+          .maybeSingle();
+        if (byEmployerUser?.id) return byEmployerUser.id;
+      }
+
+      const { data: byEmployerRef } = await adminSupabase
+        .from('employers')
+        .select('id')
+        .eq('employer_id', ref)
+        .maybeSingle();
+      if (byEmployerRef?.id) return byEmployerRef.id;
+
+      return null;
+    }
+
     if (status === 'approved' || status === 'active') {
       const { data: profileData } = await adminSupabase
         .from('profiles')
         .select('full_name, email, phone')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       const displayName = profileData?.full_name || onboardingRecord?.full_name || 'Anonymous';
 
       const upsertPayload: Partial<EmployeeUpsertPayload> = {
         user_id: userId,
-        status: 'Active',
+        status: liveStatus,
         kyc_status: 'approved',
         updated_at: new Date().toISOString(),
       };
 
-      // Only include onboarding data if it exists
+      // Only include onboarding data if it exists — creating an employee requires
+      // a valid employer mapping (employees.employer_id is NOT NULL and FK'd).
       if (onboardingRecord) {
-        upsertPayload.employer_id = onboardingRecord.employer_id;
+        const resolvedEmployerId = await resolveEmployerId(onboardingRecord.employer_id);
+        if (!resolvedEmployerId) {
+          console.error('[PATCH status] no employer record found for onboarding id:', onboardingRecord.employer_id);
+          return NextResponse.json({ error: 'Employer record not found for onboarding id. Please create/approve the employer first.' }, { status: 400 });
+        }
+
+        upsertPayload.employer_id = resolvedEmployerId;
         upsertPayload.employee_code = onboardingRecord.employee_code;
         upsertPayload.full_name = displayName;
         upsertPayload.name = displayName;
@@ -124,14 +237,39 @@ export async function PATCH(
         upsertPayload.job_title = onboardingRecord.job_title;
         upsertPayload.department = onboardingRecord.department;
         upsertPayload.monthly_salary = onboardingRecord.monthly_salary;
-      }
+        upsertPayload.employment_type = normalizedEmploymentType || 'full-time';
+        upsertPayload.hire_date = onboardingRecord.start_date;
 
-      const { error: upsertError } = await adminSupabase
-        .from('employees')
-        .upsert(upsertPayload, { onConflict: 'user_id' });
+        const { error: upsertError } = await adminSupabase
+          .from('employees')
+          .upsert(upsertPayload, { onConflict: 'user_id' });
 
-      if (upsertError) {
-        console.error('[employees upsert error]', upsertError);
+        if (upsertError) {
+          console.error('[employees upsert error]', upsertError);
+          return NextResponse.json({ error: 'Failed to create/update employee', details: upsertError }, { status: 500 });
+        }
+      } else {
+        // No onboarding record — only update existing employee records (don't create new empty rows)
+        const { data: existingEmployee } = await adminSupabase
+          .from('employees')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (existingEmployee) {
+          const { error: updateErr } = await adminSupabase
+            .from('employees')
+            .update({ status: liveStatus, kyc_status: 'approved', updated_at: new Date().toISOString() })
+            .eq('user_id', userId);
+
+          if (updateErr) {
+            console.error('[PATCH status] failed to update existing employee status:', updateErr);
+            return NextResponse.json({ error: 'Failed to update existing employee status' }, { status: 500 });
+          }
+        } else {
+          console.warn('[PATCH status] No onboarding and no employee record for user:', userId);
+          return NextResponse.json({ error: 'Cannot create employee record: missing onboarding/employer mapping' }, { status: 400 });
+        }
       }
     } else {
       // Sync other statuses (suspended, rejected) to employees table if it exists
@@ -142,11 +280,21 @@ export async function PATCH(
         .maybeSingle();
 
       if (existingEmployee) {
-        const dbStatus = status === 'suspended' ? 'Inactive' : 'Inactive'; // Using 'Inactive' for now as per previous logic
-        await adminSupabase
+        const employeeUpdate: Record<string, unknown> = {
+          status: liveStatus,
+          updated_at: new Date().toISOString(),
+        };
+        if (kycStatus) employeeUpdate.kyc_status = kycStatus;
+
+        const { error: employeeUpdateError } = await adminSupabase
           .from('employees')
-          .update({ status: dbStatus, updated_at: new Date().toISOString() })
+          .update(employeeUpdate)
           .eq('user_id', userId);
+
+        if (employeeUpdateError) {
+          console.error('[PATCH status] employee status update error:', employeeUpdateError);
+          return NextResponse.json({ error: 'Failed to update employee status' }, { status: 500 });
+        }
       }
     }
 
@@ -203,7 +351,13 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });
   } catch (error) {
-    console.error('[PATCH /api/admin/employees/[id]/status] Error:', error);
+    try {
+      const serialized = JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+      console.error('[PATCH /api/admin/employees/[id]/status] Error (serialized):', serialized);
+    } catch (serErr) {
+      console.error('[PATCH /api/admin/employees/[id]/status] Error (raw):', error, 'Serialization failed:', serErr);
+    }
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
