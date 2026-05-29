@@ -1,6 +1,3 @@
-/**
- * Company search and validation utilities
- */
 
 export interface Company {
   id: string;
@@ -17,10 +14,6 @@ export interface CompanySearchResult {
   error?: string;
 }
 
-/**
- * Search for a company by name
- * This function calls the API endpoint to search for companies
- */
 export async function searchCompany(
   companyName: string
 ): Promise<CompanySearchResult> {

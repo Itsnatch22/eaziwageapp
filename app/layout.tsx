@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Playfair_Display } from "next/font/google";
+import { IBM_Plex_Mono, Playfair_Display, Geist } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+
 const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
   weight: ["400", "500", "600", "700"],
@@ -26,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body
         suppressHydrationWarning
         className={`${ibmPlexMono.variable} ${playfairDisplay.variable} antialiased`}

@@ -34,21 +34,39 @@ const testimonials = [
 
 function TestimonialsPanel() {
   const [active, setActive] = React.useState(0);
+  const [stats, setStats] = React.useState({
+    employeesServed: '10K+',
+    satisfactionRate: '98%',
+    interestRate: '0%'
+  });
 
   React.useEffect(() => {
     const timer = setInterval(() => {
       setActive((prev) => (prev + 1) % testimonials.length);
     }, 5000);
+
+    // Fetch real stats
+    fetch('/api/public/stats')
+      .then(res => res.json())
+      .then(data => {
+        setStats({
+          employeesServed: data.employeesServed,
+          satisfactionRate: data.satisfactionRate,
+          interestRate: data.interestRate
+        });
+      })
+      .catch(err => console.error('Failed to fetch stats:', err));
+
     return () => clearInterval(timer);
   }, []);
 
   const t = testimonials[active];
 
   return (
-    <div className="hidden lg:flex flex-col justify-between h-full min-h-screen bg-gradient-to-br from-green-700 via-green-600 to-emerald-500 p-12 relative overflow-hidden">
+    <div className="hidden lg:flex flex-col justify-between h-full min-h-screen bg-linear-to-br from-green-700 via-green-600 to-emerald-500 p-12 relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.12)_0%,transparent_60%)] pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-400/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-green-800/20 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-green-800/20 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Logo */}
       <div className="flex items-center gap-3 relative z-10">
@@ -72,7 +90,7 @@ function TestimonialsPanel() {
         {/* Testimonial card */}
         <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-xl transition-all duration-500">
           <Quote className="w-8 h-8 text-green-200 mb-4 opacity-80" />
-          <p className="text-white text-base leading-relaxed mb-6 min-h-[80px]">
+          <p className="text-white text-base leading-relaxed mb-6 min-h-20">
             {t.quote}
           </p>
           <div className="flex items-center gap-3">
@@ -107,9 +125,9 @@ function TestimonialsPanel() {
       {/* Bottom stats */}
       <div className="relative z-10 grid grid-cols-3 gap-4">
         {[
-          { value: '10K+', label: 'Employees Served' },
-          { value: '98%', label: 'Satisfaction Rate' },
-          { value: '0%', label: 'Interest Rate' },
+          { value: stats.employeesServed, label: 'Active Users' },
+          { value: stats.satisfactionRate, label: 'Satisfaction Rate' },
+          { value: stats.interestRate, label: 'Interest Rate' },
         ].map((stat) => (
           <div key={stat.label} className="text-center">
             <p className="text-white font-bold text-xl">{stat.value}</p>
@@ -262,7 +280,7 @@ export default function LoginPage() {
       <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden lg:flex">
 
         {/* Left — Testimonials panel (desktop only) */}
-        <div className="lg:w-[45%] lg:flex-shrink-0">
+        <div className="lg:w-[45%] lg:shrink-0">
           <TestimonialsPanel />
         </div>
 

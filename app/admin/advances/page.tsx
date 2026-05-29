@@ -186,7 +186,7 @@ export function AdvanceRow({
       <div className="flex items-center gap-1">
         <DropdownMenu>
           <DropdownMenuTrigger>
-            <button className="p-2 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors">
+            <button aria-label="Actions" className="p-2 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors">
               <MoreHorizontal className="w-4 h-4" />
             </button>
           </DropdownMenuTrigger>

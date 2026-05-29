@@ -131,8 +131,8 @@ export async function sendLoginNotification(
       from: FROM_EMAIL,
       to: email,
       subject: isNewDevice 
-        ? "🔔 New device login detected on your EaziWage account"
-        : "✅ New login to your EaziWage account",
+        ? "🚨 Security Alert: New device detected on your EaziWage account"
+        : "✅ Successful login to your EaziWage account",
       html: `
         <!DOCTYPE html>
         <html>
@@ -141,10 +141,14 @@ export async function sendLoginNotification(
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f6f9fc; margin: 0; padding: 20px;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 40px;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 40px; border: 1px solid #e5e7eb;">
               ${isNewDevice ? `
-                <div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-                  <h1 style="color: #92400e; margin: 0; font-size: 24px;">🔔 New Device Login</h1>
+                <div style="text-align: center; margin-bottom: 24px;">
+                  <div style="background-color: #fee2e2; width: 64px; height: 64px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <span style="font-size: 32px;">📱</span>
+                  </div>
+                  <h1 style="color: #111827; margin: 0; font-size: 24px; font-weight: 700;">New Device Detected</h1>
+                  <p style="color: #6b7280; font-size: 16px; margin-top: 8px;">We detected a login from a device we don't recognize.</p>
                 </div>
               ` : `
                 <div style="background-color: #dcfce7; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
@@ -156,39 +160,66 @@ export async function sendLoginNotification(
               
               <p style="color: #374151; font-size: 16px; line-height: 24px; margin: 0 0 24px;">
                 ${isNewDevice 
-                  ? "We noticed a login to your EaziWage account from a device we haven't seen before."
+                  ? "Your EaziWage account was recently signed into from a new device. If this was you, you can safely ignore this email. No further action is required."
                   : "Your EaziWage account was just accessed."
                 }
               </p>
 
-              <div style="background-color: #f3f4f6; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-                <p style="color: #374151; font-size: 14px; margin: 0 0 8px;"><strong>Login details:</strong></p>
-                <p style="color: #6b7280; font-size: 14px; margin: 0;">
-                  📅 Time: ${loginContext.timestamp.toLocaleString()}<br>
-                  🌐 IP Address: ${loginContext.ip}<br>
-                  ${loginContext.location ? `📍 Location: ${loginContext.location}<br>` : ''}
-                  💻 Device: ${loginContext.userAgent}
-                </p>
+              <div style="background-color: #f9fafb; border: 1px solid #f3f4f6; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+                <p style="color: #374151; font-size: 14px; margin: 0 0 12px; font-weight: 600;">Login Details:</p>
+                <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                  <tr>
+                    <td style="color: #6b7280; padding: 4px 0; width: 100px;">Time:</td>
+                    <td style="color: #111827; padding: 4px 0;">${loginContext.timestamp.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; padding: 4px 0;">Device:</td>
+                    <td style="color: #111827; padding: 4px 0;">${loginContext.userAgent}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; padding: 4px 0;">IP Address:</td>
+                    <td style="color: #111827; padding: 4px 0;">${loginContext.ip}</td>
+                  </tr>
+                  ${loginContext.location ? `
+                  <tr>
+                    <td style="color: #6b7280; padding: 4px 0;">Location:</td>
+                    <td style="color: #111827; padding: 4px 0;">${loginContext.location}</td>
+                  </tr>
+                  ` : ''}
+                </table>
               </div>
 
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${securityUrl}" style="background-color: #16a34a; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; display: inline-block;">
-                  Review Security Settings
-                </a>
-              </div>
+              ${isNewDevice ? `
+                <div style="background-color: #fff7ed; border: 1px solid #ffedd5; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                  <p style="color: #9a3412; font-size: 14px; margin: 0; line-height: 20px;">
+                    <strong>Wasn't you?</strong> Your account may be compromised. Please take these steps immediately:
+                  </p>
+                  <div style="margin-top: 12px; text-align: center;">
+                    <a href="${BASE_URL}/reset-password" style="background-color: #dc2626; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 14px; display: inline-block;">
+                      Secure My Account
+                    </a>
+                  </div>
+                </div>
+              ` : `
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${securityUrl}" style="background-color: #16a34a; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; display: inline-block;">
+                    Review Security Settings
+                  </a>
+                </div>
+              `}
 
               <p style="color: #6b7280; font-size: 14px; line-height: 20px; margin: 24px 0 0;">
-                <strong>Wasn't you?</strong> If you didn't log in, secure your account immediately:
+                To keep your account secure, we recommend:
               </p>
-              <ul style="color: #6b7280; font-size: 14px; margin: 8px 0;">
-                <li>Change your password at ${BASE_URL}/reset-password</li>
-                <li>Review active sessions and sign out unknown devices</li>
-                <li>Contact security@eaziwage.com for assistance</li>
+              <ul style="color: #6b7280; font-size: 14px; margin: 8px 0; padding-left: 20px;">
+                <li>Enable Two-Factor Authentication (2FA)</li>
+                <li>Never share your password with anyone</li>
+                <li>Use a strong, unique password for EaziWage</li>
               </ul>
 
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
               <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
-                © 2025 - ${newYear} EaziWage. This is an automated security notification.
+                © 2025 - ${newYear} EaziWage Security. This is an automated security notification.
               </p>
             </div>
           </body>

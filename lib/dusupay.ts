@@ -1,6 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
-// ======================== CONFIG ========================
 class DusupayConfig {
   publicKey: string;
   secretKey: string;
@@ -25,7 +24,6 @@ class DusupayConfig {
   }
 }
 
-// ======================== TYPES / ENUMS ========================
 export enum PayoutMethod {
   MOBILE_MONEY = 'MOBILE_MONEY',
   BANK = 'BANK',

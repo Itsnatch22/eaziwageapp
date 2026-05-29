@@ -5,9 +5,9 @@ import { z }                         from 'zod';
 
 import { getEnv }                          from '@/env';
 import { rateLimiter, checkRateLimit }     from '@/lib/rate-limit';
-import { sendAccountLockedEmail,
-         sendLoginNotification }           from '@/lib/security-alerts';
+import { sendAccountLockedEmail }          from '@/lib/security-alerts';
 import type { LoginContext }               from '@/lib/security-alerts';
+import { handleLoginSecurity }             from '@/lib/security-service';
 
 
 const env = getEnv();
@@ -383,32 +383,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     await clearFailedAttempts(successId, isEnvAdmin);
   }
 
-  if (!isEnvAdmin && profileRecord) {
+  // Enhanced Security: Check for new devices, log history, and send alerts
+  const successName = isEnvAdmin ? (adminRecord?.full_name ?? 'System Admin') : (profileRecord?.full_name ?? input.email);
+  if (successId) {
     const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
-
-    const { data: lastLogin } = await supabaseAdmin
-      .from('login_events')
-      .select('user_agent')
-      .eq('user_id', profileRecord.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single<{ user_agent: string }>();
-
-    const isNewDevice = !lastLogin || lastLogin.user_agent !== userAgent;
-
-    sendLoginNotification(input.email, profileRecord.full_name, loginCtx, isNewDevice).catch(
-      (err) => console.error('[security-alert] sendLoginNotification failed:', err),
+    
+    // Run security checks in background to not delay response
+    handleLoginSecurity(successId, input.email, successName, loginCtx).catch(
+      (err) => console.error('[security] handleLoginSecurity failed:', err)
     );
-
-    void (async () => {
-      const { error } = await supabaseAdmin.from('login_events').insert({
-        user_id:    profileRecord.id,
-        ip_address: ip,
-        user_agent: userAgent,
-        created_at: new Date().toISOString(),
-      });
-      if (error) console.error('[security-alert] Failed to record login event:', error);
-    })();
   }
 
   let responseRole: string;
