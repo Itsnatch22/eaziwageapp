@@ -13,10 +13,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
-import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import { useAuthStore } from '@/lib/stores/auth';
 import pusherClient from '@/lib/pusher-client';
 import { useCurrency } from '@/hooks/useCurrency';
+import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -133,8 +133,6 @@ const SpeedDial = ({
   );
 };
 
-// ─── Stat Block ───────────────────────────────────────────────────────────────
-
 const STAT_ACCENTS: Record<string, string> = {
   emerald: '#10b981',
   blue: '#3b82f6',
@@ -173,13 +171,11 @@ export default function EmployeeDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const [hasTriggeredOnboardingConfetti, setHasTriggeredOnboardingConfetti] = useState(false);
 
-  // Confetti for onboarding completion
-  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
-    key: user?.id ? ConfettiKeys.onboarding(user.id) : '',
-    intensity: 'light',
-  });
+  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti(
+    user?.id ? ConfettiKeys.ONBOARDING(user.id) : 'onboarding-default',
+    { intensity: 'high' }
+  );
 
   const fetchStats = useCallback(async () => {
     try {
@@ -193,16 +189,15 @@ export default function EmployeeDashboardPage() {
       setEmployee(data.employee);
       
       // Check if onboarding is complete (employee status is approved) and trigger confetti for first time
-      if (data.employee?.status === 'approved' && user?.id && !hasTriggeredOnboardingConfetti) {
+      if (data.employee?.status === 'approved' && user?.id) {
         triggerConfetti();
-        setHasTriggeredOnboardingConfetti(true);
       }
     } catch {
       setError('Failed to load');
     } finally {
       setLoading(false);
     }
-  }, [triggerConfetti, user?.id, hasTriggeredOnboardingConfetti]);
+  }, [triggerConfetti, user?.id]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
 

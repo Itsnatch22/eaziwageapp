@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "./env";
+import { getEnv } from "@/env";
 import { LoginContext, sendLoginNotification } from "./security-alerts";
 import crypto from "crypto";
 

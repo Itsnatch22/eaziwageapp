@@ -12,10 +12,10 @@ import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
-import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import pusherClient from '@/lib/pusher-client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
+import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -321,11 +321,10 @@ export default function EmployerDashboard() {
   const [error,    setError]    = useState<string | null>(null);
   const router = useRouter();
 
-  // Confetti for first employee onboarded
-  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
-    key: employer?.id ? ConfettiKeys.firstEmployee(employer.id) : '',
-    intensity: 'medium',
-  });
+  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti(
+    employer?.id ? ConfettiKeys.FIRST_EMPLOYEE(employer.id) : 'employer-onboarding-default',
+    { intensity: 'high' }
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -372,7 +371,7 @@ export default function EmployerDashboard() {
         if (j.stats) {
           setEmployeeStats(j.stats);
           // Check if this is the first employee onboarded - trigger confetti
-          if (j.stats.total_employees === 1 && employer?.id) {
+          if (j.stats.total_employees === 1 && profile?.id) {
             triggerConfetti();
           }
         }
@@ -382,7 +381,7 @@ export default function EmployerDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [router, employer?.id, triggerConfetti]);
+  }, [router, triggerConfetti]);
 
   useEffect(() => { load(); }, [load]);
 

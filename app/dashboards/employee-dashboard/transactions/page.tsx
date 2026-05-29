@@ -16,8 +16,6 @@ import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'completed' | 'rejected' | string;
 type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
 type FilterType = 'all' | 'pending' | 'completed' | 'failed';
@@ -47,8 +45,6 @@ interface StatusConfig {
   pulse?: boolean;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const getStatusConfig = (status: AdvanceStatus): StatusConfig => {
   switch (status) {
     case 'disbursed':
@@ -75,8 +71,6 @@ const formatDate = (dateString: string) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function Transactions() {
   const { currency } = useCurrency();
   const [advances, setAdvances] = useState<Advance[]>([]);
@@ -85,11 +79,10 @@ export default function Transactions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [userId, setUserId] = useState<string>('');
 
-  // Confetti for first successful advance
-  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
-    key: userId ? ConfettiKeys.firstAdvance(userId) : '',
-    intensity: 'high',
-  });
+  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti(
+    userId ? ConfettiKeys.FIRST_TRANSACTION(userId) : 'tx-default',
+    { intensity: 'medium' }
+  );
 
   useEffect(() => {
     const fetchAdvances = async () => {

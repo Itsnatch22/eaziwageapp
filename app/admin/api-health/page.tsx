@@ -246,7 +246,7 @@ const APICard: React.FC<APICardProps> = ({ api, icon: Icon }) => {
               {Object.entries(api.metadata).map(([key, value]) => (
                 <div key={key} className="flex justify-between gap-3">
                   <span className="text-slate-500 capitalize">{key.replace(/_/g, ' ')}:</span>
-                  <span className="break-words text-right font-medium">
+                  <span className="wrap-break-word text-right font-medium">
                     {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                   </span>
                 </div>

@@ -13,9 +13,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
-import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 import { formatDateTime, DOCUMENT_TYPES, cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
 
 interface Document {
     id: string;
@@ -58,11 +58,10 @@ export default function EmployeeKYC() {
     const [userId, setUserId] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    // Confetti for KYC approval
-    const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti({
-        key: userId ? ConfettiKeys.kycApproved(userId) : '',
-        intensity: 'medium',
-    });
+    const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti(
+      userId ? ConfettiKeys.KYC_APPROVAL(userId) : 'kyc-default',
+      { intensity: 'medium' }
+    );
 
     const fetchDocuments = useCallback(async () => {
         try {
