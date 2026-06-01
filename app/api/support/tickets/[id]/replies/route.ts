@@ -82,6 +82,17 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { data: ticket, error: ticketError } = await adminSupabase
+      .from('support_tickets')
+      .select('id, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (ticketError) throw ticketError;
+    if (!ticket) {
+      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
+    }
+
     const insert = {
       ticket_id: id,
       sender_id: user.id,

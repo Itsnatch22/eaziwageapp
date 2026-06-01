@@ -20,7 +20,7 @@ export async function PATCH(
     const body = await req.json();
     const status = typeof body?.status === 'string' ? body.status.trim() : null;
 
-    const allowed = ['open', 'pending', 'closed'];
+    const allowed = ['open', 'in_progress', 'resolved', 'closed', 'pending'];
     if (!status || !allowed.includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
