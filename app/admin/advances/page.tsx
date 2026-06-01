@@ -60,6 +60,7 @@ const statusStyles: Record<
 interface AdvanceDetailModalProps {
   advance: Advance | null;
   currency: string;
+  rates: Record<string, number>;
   onClose: () => void;
   isOpen: boolean;
   loading?: boolean;
@@ -119,6 +120,7 @@ interface Advance {
 interface AdvanceRowProps {
   advance: Advance;
   currency: string;
+  rates: Record<string, number>;
   onViewDetails: (advance: Advance) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
@@ -128,6 +130,7 @@ interface AdvanceRowProps {
 export function AdvanceRow({
   advance,
   currency,
+  rates,
   onViewDetails,
   onApprove,
   onReject,
@@ -334,6 +337,7 @@ export function FilterButton({ onClick, count = 0, active, children }: FilterBut
 export function AdvanceDetailModal({
   advance,
   currency,
+  rates,
   onClose,
   onApprove,
   onReject,
@@ -688,6 +692,7 @@ export default function AdminAdvances(){
                   key={advance.id} 
                   advance={advance}
                   currency={currency}
+                  rates={rates}
                   onViewDetails={(a) => {
                     setSelectedAdvance(a);
                     setShowDetailModal(true);
@@ -711,6 +716,7 @@ export default function AdminAdvances(){
       <AdvanceDetailModal
         advance={selectedAdvance}
         currency={currency}
+        rates={rates}
         isOpen={showDetailModal}
         onClose={() => {
           setShowDetailModal(false);

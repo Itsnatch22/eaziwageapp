@@ -35,6 +35,7 @@ interface Employee {
   email:            string;
   phone:            string | null;
   national_id:      string | null;
+  currency:         string | null;
   country:          string | null;
   job_title:        string;
   department:       string | null;
@@ -45,7 +46,7 @@ interface Employee {
   status:           EmployeeStatus;
   kyc_status:       KYCStatus;
   risk_score:       number | null;
-  
+
   id_document_front?:   boolean;
   id_document_back?:    boolean;
   selfie?:              boolean;
