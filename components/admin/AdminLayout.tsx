@@ -1,22 +1,41 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, Building2, CreditCard, BarChart3, Settings, LogOut,
-  Bell, Menu, X, ChevronRight, Shield, CheckCircle2, Search, Wallet,
-  AlertTriangle, Loader2, DollarSign, MessageSquare, HelpCircle, ClipboardCheck, Wifi
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import pusherClient from '@/lib/pusher-client';
-import { toast } from 'sonner';
-import { ChatWindow } from '../layout/ChatWindow';
-import { NotificationDropdown } from '../layout/NotificationDropdown';
-import { logout } from '@/actions/auth';
-import Link from 'next/link';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { CommandPalette } from './CommandPalette';
-import { useAuthStore } from '@/lib/stores/auth';
+  LayoutDashboard,
+  Users,
+  Building2,
+  CreditCard,
+  BarChart3,
+  Settings,
+  LogOut,
+  Bell,
+  Menu,
+  X,
+  ChevronRight,
+  Shield,
+  CheckCircle2,
+  Search,
+  Wallet,
+  AlertTriangle,
+  Loader2,
+  DollarSign,
+  MessageSquare,
+  HelpCircle,
+  ClipboardCheck,
+  Wifi,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import pusherClient from "@/lib/pusher-client";
+import { toast } from "sonner";
+import { ChatWindow } from "../layout/ChatWindow";
+import { NotificationDropdown } from "../layout/NotificationDropdown";
+import { logout } from "@/actions/auth";
+import Link from "next/link";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CommandPalette } from "./CommandPalette";
+import { useAuthStore } from "@/lib/stores/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,8 +69,7 @@ interface SidebarNavProps {
 
 const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
   const pathname = usePathname();
-  const [mounted] = useState(() => typeof window !== 'undefined');
-
+  const [mounted] = useState(() => typeof window !== "undefined");
 
   // Cache busting for avatar URL - keep stable per avatar_url value
   const userProfileAny = userProfile as UserProfile | null;
@@ -60,60 +78,75 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
     ? (() => {
         // Stable cache-buster per mount (prevents render impurities).
         const timestamp = 1;
-        return userProfileAny.avatar_url.includes('?')
+        return userProfileAny.avatar_url.includes("?")
           ? `${userProfileAny.avatar_url}&t=${timestamp}`
           : `${userProfileAny.avatar_url}?t=${timestamp}`;
       })()
     : undefined;
 
-
-
   const menuItems = [
-    { label: 'Overview',        href: '/admin',                  icon: LayoutDashboard },
-    { label: 'Advances',        href: '/admin/advances',         icon: CreditCard },
-    { label: 'KYC Review',      href: '/admin/kyc-review',       icon: CheckCircle2 },
-    { label: 'Employers',       href: '/admin/employers',        icon: Building2 },
-    { label: 'Employees',       href: '/admin/employees',        icon: Users },
-    { label: 'Review Requests', href: '/admin/review-requests',  icon: Shield },
-    { label: 'Risk Scoring', href: '/admin/risk-scoring',  icon: ClipboardCheck },
-    { label: 'Notifications',   href: '/admin/notifications',    icon: Bell },
-    { label: 'Fraud Detection', href: '/admin/fraud-detection',  icon: AlertTriangle },
-    { label: 'Reconciliation',  href: '/admin/reconciliation',   icon: BarChart3 },
-    { label: 'Billing & Revenue', href: '/admin/billing',        icon: DollarSign },
-    { label: 'System Health',   href: '/admin/api-health',       icon: Wifi },
-    { label: 'Settings',        href: '/admin/settings',         icon: Settings },
+    { label: "Overview", href: "/admin", icon: LayoutDashboard },
+    { label: "Advances", href: "/admin/advances", icon: CreditCard },
+    { label: "KYC Review", href: "/admin/kyc-review", icon: CheckCircle2 },
+    { label: "Employers", href: "/admin/employers", icon: Building2 },
+    { label: "Employees", href: "/admin/employees", icon: Users },
+    { label: "Review Requests", href: "/admin/review-requests", icon: Shield },
+    {
+      label: "Risk Scoring",
+      href: "/admin/risk-scoring",
+      icon: ClipboardCheck,
+    },
+    { label: "Notifications", href: "/admin/notifications", icon: Bell },
+    { label: "Support", href: "/admin/support", icon: MessageSquare },
+    {
+      label: "Fraud Detection",
+      href: "/admin/fraud-detection",
+      icon: AlertTriangle,
+    },
+    { label: "Reconciliation", href: "/admin/reconciliation", icon: BarChart3 },
+    { label: "Billing & Revenue", href: "/admin/billing", icon: DollarSign },
+    { label: "System Health", href: "/admin/api-health", icon: Wifi },
+    { label: "Settings", href: "/admin/settings", icon: Settings },
   ];
 
   const isActive = (path: string) => {
-    return path === '/admin' ? pathname === '/admin' : pathname.startsWith(path);
+    return path === "/admin"
+      ? pathname === "/admin"
+      : pathname.startsWith(path);
   };
 
-  const fullName = mounted ? (userProfile?.full_name || userProfile?.email?.split('@')[0] || 'Admin') : 'Admin';
-  const initials = mounted ? (fullName
-    .split(' ')
-    .filter(Boolean)
-    .map((n: string) => n[0])
-    .join('')
-    .toUpperCase() || 'A') : 'A';
+  const fullName = mounted
+    ? userProfile?.full_name || userProfile?.email?.split("@")[0] || "Admin"
+    : "Admin";
+  const initials = mounted
+    ? fullName
+        .split(" ")
+        .filter(Boolean)
+        .map((n: string) => n[0])
+        .join("")
+        .toUpperCase() || "A"
+    : "A";
 
   return (
     <>
       {/* Mobile Overlay */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar */}
-      <aside className={cn(
-        "fixed left-0 top-0 h-screen w-72 z-50 transition-transform duration-300 lg:translate-x-0",
-        isOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
+      <aside
+        className={cn(
+          "fixed left-0 top-0 h-screen w-72 z-50 transition-transform duration-300 lg:translate-x-0",
+          isOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
         {/* Glass Background */}
         <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50" />
-        
+
         <div className="relative flex flex-col h-full overflow-hidden">
           {/* Logo Section */}
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 shrink-0">
@@ -126,7 +159,9 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
                 />
               </div>
               <div>
-                <span className="font-heading font-bold text-xl text-slate-900 dark:text-white block">EaziWage</span>
+                <span className="font-heading font-bold text-xl text-slate-900 dark:text-white block">
+                  EaziWage
+                </span>
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300">
                   Admin Hub
                 </span>
@@ -134,7 +169,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
             </Link>
 
             {/* Mobile Close Button */}
-            <button 
+            <button
               onClick={onClose}
               className="absolute top-6 right-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
             >
@@ -156,15 +191,17 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
                     "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
                     active
                       ? "bg-green-600 text-white shadow-lg shadow-green-600/25"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50",
                   )}
                 >
-                  <div className={cn(
-                    "w-9 h-9 rounded-xl flex items-center justify-center transition-all",
-                    active 
-                      ? "bg-white/20" 
-                      : "bg-linear-to-br from-green-600 to-emerald-600"
-                  )}>
+                  <div
+                    className={cn(
+                      "w-9 h-9 rounded-xl flex items-center justify-center transition-all",
+                      active
+                        ? "bg-white/20"
+                        : "bg-linear-to-br from-green-600 to-emerald-600",
+                    )}
+                  >
                     <Icon className="w-5 h-5 text-white" />
                   </div>
                   <span className="font-medium">{item.label}</span>
@@ -180,11 +217,15 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
                   <HelpCircle className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Admin Help</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Documentation</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Admin Help
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Documentation
+                  </p>
                 </div>
               </div>
-              <Link 
+              <Link
                 href="/admin/docs"
                 className="w-full mt-2 px-4 py-2 bg-white dark:bg-slate-800 text-green-600 text-sm font-medium rounded-xl hover:shadow-md transition-all inline-block text-center"
               >
@@ -207,7 +248,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
                   {fullName}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                  {userProfile?.email || 'No email'}
+                  {userProfile?.email || "No email"}
                 </p>
               </div>
             </div>
@@ -236,8 +277,12 @@ interface TopHeaderProps {
 
 const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-  const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
+  const greeting =
+    hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+  const [activeChat, setActiveChat] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   return (
     <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50">
@@ -251,32 +296,42 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{greeting}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {greeting}
+              </p>
               <h1 className="text-lg font-bold text-slate-900 dark:text-white">
-                {userProfile?.full_name || 'Admin Portal'}
+                {userProfile?.full_name || "Admin Portal"}
               </h1>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+              onClick={() =>
+                window.dispatchEvent(
+                  new KeyboardEvent("keydown", { key: "k", metaKey: true }),
+                )
+              }
               className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors mr-2"
             >
               <Search className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-widest">Search</span>
+              <span className="text-xs font-bold uppercase tracking-widest">
+                Search
+              </span>
               <kbd className="text-[10px] font-bold opacity-50 ml-1">⌘K</kbd>
             </button>
 
             <button
-              onClick={() => setActiveChat({ id: 'system-support', name: 'Support Channel' })}
+              onClick={() =>
+                setActiveChat({ id: "system-support", name: "Support Channel" })
+              }
               className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
             >
               <MessageSquare className="w-5 h-5" />
             </button>
 
             {userProfile?.id && (
-              <NotificationDropdown 
+              <NotificationDropdown
                 role="admin"
                 userId={userProfile.id}
                 apiPath="/api/admin/notifications"
@@ -290,7 +345,7 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
       </div>
 
       {activeChat && userProfile && (
-        <ChatWindow 
+        <ChatWindow
           currentUserId={userProfile.id}
           otherUserId={activeChat.id}
           otherUserName={activeChat.name}
@@ -309,41 +364,43 @@ interface AdminPortalLayoutProps {
 
 export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const globalUser = useAuthStore(state => state.user);
+  const globalUser = useAuthStore((state) => state.user);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [sessionMissing, setSessionMissing] = useState(false);
   const fetchInProgress = useRef(false);
-  
+
   const router = useRouter();
 
   useEffect(() => {
     if (globalUser && userProfile && globalUser.id === userProfile.id) {
       if (globalUser.avatar_url !== userProfile.avatar_url) {
-        setUserProfile(prev => prev ? { ...prev, avatar_url: globalUser.avatar_url } : null);
+        setUserProfile((prev) =>
+          prev ? { ...prev, avatar_url: globalUser.avatar_url } : null,
+        );
       }
     }
   }, [globalUser, userProfile]);
 
   useEffect(() => {
     if (!userProfile?.id || !pusherClient) return;
-    
-    const channel = pusherClient.subscribe('global-settings');
-    
+
+    const channel = pusherClient.subscribe("global-settings");
+
     const handleUpdate = () => {
-      toast.info('Global settings updated', {
-        description: 'A platform-wide configuration has been modified.',
+      toast.info("Global settings updated", {
+        description: "A platform-wide configuration has been modified.",
         icon: <Settings className="w-5 h-5 text-purple-600" />,
       });
     };
 
-    channel.bind('platform-updated', handleUpdate);
-    channel.bind('risk-updated', handleUpdate);
-    channel.bind('notifications-updated', handleUpdate);
+    channel.bind("platform-updated", handleUpdate);
+    channel.bind("risk-updated", handleUpdate);
+    channel.bind("notifications-updated", handleUpdate);
 
     return () => {
-      pusherClient!.unsubscribe('global-settings');
+      pusherClient!.unsubscribe("global-settings");
     };
   }, [userProfile?.id]);
 
@@ -354,7 +411,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   useEffect(() => {
     // Wait for hydration before checking auth
     if (!isHydrated) return;
-    
+
     // If already authorized or check in progress, skip
     if (isAuthorized !== null || fetchInProgress.current) return;
 
@@ -363,13 +420,13 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       fetchInProgress.current = true;
 
       try {
-        console.log('[AdminLayout] Fetching admin profile');
-        const res = await fetch('/api/admin/me', {
-          credentials: 'include',
+        console.log("[AdminLayout] Fetching admin profile");
+        const res = await fetch("/api/admin/me", {
+          credentials: "include",
         });
 
         if (res.status === 401) {
-          console.warn('[AdminLayout] No active session');
+          console.warn("[AdminLayout] No active session");
           setSessionMissing(true);
           setIsAuthorized(false);
           return;
@@ -377,7 +434,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
 
         if (!res.ok) {
           const errorText = await res.text();
-          console.error('[AdminLayout] API error:', res.status, errorText);
+          console.error("[AdminLayout] API error:", res.status, errorText);
           setIsAuthorized(false);
           return;
         }
@@ -385,44 +442,59 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         const data = await res.json();
 
         if (data.error) {
-          console.error('[AdminLayout] Admin profile data error:', data.error);
-          if (data.code === 'AUTH_REQUIRED') setSessionMissing(true);
+          console.error("[AdminLayout] Admin profile data error:", data.error);
+          if (data.code === "AUTH_REQUIRED") setSessionMissing(true);
           setIsAuthorized(false);
           return;
         }
 
-        const allowedRoles = ['admin', 'super_admin', 'compliance', 'employer_admin'];
-        
+        const allowedRoles = [
+          "admin",
+          "super_admin",
+          "compliance",
+          "employer_admin",
+        ];
+
         // Check if user has an admin role
-        const hasAdminRole = data.is_admin || 
-          (data.role_candidates && data.role_candidates.some((role: string) => allowedRoles.includes(role.toLowerCase())));
+        const hasAdminRole =
+          data.is_admin ||
+          (data.role_candidates &&
+            data.role_candidates.some((role: string) =>
+              allowedRoles.includes(role.toLowerCase()),
+            ));
 
         if (!hasAdminRole) {
-          console.warn('[AdminLayout] User does not have admin role. Candidates:', data.role_candidates);
+          console.warn(
+            "[AdminLayout] User does not have admin role. Candidates:",
+            data.role_candidates,
+          );
           setIsAuthorized(false);
-          
+
           // Try to determine where to redirect based on role
-          const role = data.profiles_role || data.app_metadata_role || data.user_metadata_role;
-          if (role === 'employer') {
-            router.replace('/dashboards/employer-dashboard');
-          } else if (role === 'employee') {
-            router.replace('/dashboards/employee-dashboard');
+          const role =
+            data.profiles_role ||
+            data.app_metadata_role ||
+            data.user_metadata_role;
+          if (role === "employer") {
+            router.replace("/dashboards/employer-dashboard");
+          } else if (role === "employee") {
+            router.replace("/dashboards/employee-dashboard");
           }
           return;
         }
 
-        console.log('[AdminLayout] Admin access granted for:', data.email);
+        console.log("[AdminLayout] Admin access granted for:", data.email);
         setSessionMissing(false);
         setUserProfile({
           id: data.user_id,
           email: data.email,
           full_name: data.full_name,
-          role: data.profiles_role || 'admin',
+          role: data.profiles_role || "admin",
           avatar_url: data.avatar_url,
         });
         setIsAuthorized(true);
       } catch (err) {
-        console.error('[AdminLayout] Check failed:', err);
+        console.error("[AdminLayout] Check failed:", err);
         setIsAuthorized(false);
       } finally {
         fetchInProgress.current = false;
@@ -438,11 +510,13 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center mb-6">
           <Shield className="w-8 h-8 text-red-600" />
         </div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Session Unavailable</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          Session Unavailable
+        </h1>
         <p className="text-slate-600 dark:text-slate-400 mb-8 text-center max-w-md">
           We couldn&apos;t verify your session. Please sign in again.
         </p>
-        <Link 
+        <Link
           href="/"
           className="px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-semibold hover:opacity-90 transition-opacity"
         >
@@ -457,7 +531,9 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 text-green-600 animate-spin" />
-          <p className="text-sm font-medium text-slate-500 animate-pulse">Verifying access...</p>
+          <p className="text-sm font-medium text-slate-500 animate-pulse">
+            Verifying access...
+          </p>
         </div>
       </div>
     );
@@ -469,11 +545,14 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center mb-6">
           <Shield className="w-8 h-8 text-red-600" />
         </div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Unauthorized Access</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          Unauthorized Access
+        </h1>
         <p className="text-slate-600 dark:text-slate-400 mb-8 text-center max-w-md">
-          Your account does not have the necessary permissions to access the Admin Hub.
+          Your account does not have the necessary permissions to access the
+          Admin Hub.
         </p>
-        <Link 
+        <Link
           href="/"
           className="px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-semibold hover:opacity-90 transition-opacity"
         >
@@ -488,14 +567,19 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       <AdminBackground />
       <CommandPalette />
 
-      <AdminSidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} userProfile={userProfile} />
-      
+      <AdminSidebarNav
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        userProfile={userProfile}
+      />
+
       <div className="lg:ml-72 relative">
-        <AdminTopHeader onMenuClick={() => setSidebarOpen(true)} userProfile={userProfile} />
-        
-        <main className="p-4 lg:p-8">
-          {children}
-        </main>
+        <AdminTopHeader
+          onMenuClick={() => setSidebarOpen(true)}
+          userProfile={userProfile}
+        />
+
+        <main className="p-4 lg:p-8">{children}</main>
       </div>
     </div>
   );
