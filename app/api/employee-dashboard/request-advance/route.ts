@@ -65,8 +65,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const organizationId = profile?.organization_id ?? employee.employer_id;
-  if (profileError || !organizationId) {
+  let organizationId = profile?.organization_id ?? null;
+  if (!organizationId) {
+    const { data: employeeOrg, error: employeeOrgError } = await supabase
+      .from('employees')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (employeeOrgError) {
+      return NextResponse.json({ message: employeeOrgError.message }, { status: 500 });
+    }
+
+    organizationId = employeeOrg?.organization_id ?? null;
+  }
+
+  if (!organizationId) {
     return NextResponse.json(
       { message: 'Organization not found for this user.' },
       { status: 400 },
