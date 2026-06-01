@@ -58,7 +58,7 @@ export const employeeOnboardingSchema = z.object({
   employee_code: z.string().optional(),
   national_id: z.string().min(1, 'National ID is required'),
   id_type: z.enum(['national_id', 'passport']),
-  nationality: z.string().optional(),
+  nationality: z.string().optional().default('Kenyan'),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
   country: z.string().min(1, 'Country is required'),
   address_line1: z.string().min(1, 'Address line 1 is required'),
