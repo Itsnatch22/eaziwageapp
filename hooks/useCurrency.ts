@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { getCurrencyFromCountry, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
+import { DEFAULT_ADMIN_CURRENCY, getCurrencySymbol } from '@/lib/utils';
 import { useAuthStore } from '@/lib/stores/auth';
 
 export function useCurrency() {
   const user = useAuthStore((state) => state.user);
   const [currency, setCurrency] = useState('KES');
   const [loading, setLoading] = useState(true);
+  const [symbol, setSymbol] = useState('KSh');
 
   useEffect(() => {
     async function fetchCurrency() {
@@ -16,26 +17,39 @@ export function useCurrency() {
       }
 
       try {
-        if (user.role === 'admin') {
-          setCurrency(DEFAULT_ADMIN_CURRENCY);
+        if (user.role === 'super_admin') {
+          const c = DEFAULT_ADMIN_CURRENCY;
+          setCurrency(c);
+          setSymbol(getCurrencySymbol(c));
           setLoading(false);
           return;
         }
 
         const supabase = createClient();
+        let tableName = '';
+        if (user.role === 'employer_admin') tableName = 'employer_onboarding';
+        else if (user.role === 'employee') tableName = 'employee_onboarding';
+        else {
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase
-          .from('profiles')
-          .select('phone_country_code')
-          .eq('id', user.id)
+          .from(tableName)
+          .select('currency')
+          .eq('user_id', user.id)
           .single();
 
-        if (error) {
-          // console.error('Error fetching currency:', error);
-        } else if (data?.phone_country_code) {
-          setCurrency(getCurrencyFromCountry(data.phone_country_code));
+        if (!error && data?.currency) {
+          setCurrency(data.currency);
+          setSymbol(getCurrencySymbol(data.currency));
+        } else {
+          setCurrency('KES');
+          setSymbol(getCurrencySymbol('KES'));
         }
       } catch {
-        // console.error('useCurrency error:', err);
+        setCurrency('KES');
+        setSymbol(getCurrencySymbol('KES'));
       } finally {
         setLoading(false);
       }
@@ -44,5 +58,5 @@ export function useCurrency() {
     fetchCurrency();
   }, [user?.id, user?.role]);
 
-  return { currency, loading };
+  return { currency, loading, symbol };
 }

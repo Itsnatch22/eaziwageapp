@@ -50,7 +50,6 @@ async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminU
     return { user, isAdmin: true };
   }
 
-  // Check user metadata roles
   const roleCandidates = [user.app_metadata?.role, user.user_metadata?.role]
     .filter((r): r is string => typeof r === 'string' && r.length > 0)
     .map((r) => r.toLowerCase());
@@ -116,20 +115,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const supabase = await createRouteHandlerClient();
 
   try {
-    // First verify the user is an admin using the same logic as admin me route
     const { user, isAdmin } = await verifyAdminUser(supabase);
 
     if (!user || !isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Build the query
     let query = supabase
       .from('admin_reports')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
 
-    // Apply filters
     if (type !== 'all') {
       query = query.eq('type', type);
     }
@@ -142,7 +138,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
-    // Apply pagination
     const offset = (page - 1) * limit;
     query = query.range(offset, offset + limit - 1);
 
@@ -156,7 +151,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Calculate stats
     const stats = {
       totalReports: count || 0,
       reportsThisMonth: 0,
@@ -232,7 +226,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const supabase = await createRouteHandlerClient();
 
   try {
-    // Verify the user is an admin using the same logic as admin me route
     const { user, isAdmin } = await verifyAdminUser(supabase);
 
     if (!user || !isAdmin) {
@@ -251,7 +244,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { name, description, type, period } = parsed.data;
 
-    // Create the report
     const { data: report, error } = await supabase
       .from('admin_reports')
       .insert({
@@ -302,7 +294,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     }, 2000);
 
-    // Clear relevant cache
     const redis = new Redis({
       url: env.UPSTASH_REDIS_REST_URL,
       token: env.UPSTASH_REDIS_REST_TOKEN,

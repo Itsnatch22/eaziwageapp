@@ -10,8 +10,9 @@ import { ExportButton } from '@/components/ui/ExportButton';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { formatCurrency, formatDateTime, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
+import { formatCurrency, formatDateTime, cn, DEFAULT_ADMIN_CURRENCY, convertToUSD } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast } from 'sonner';
 
 type VariantColor = 'purple' | 'green' | 'amber' | 'red' | 'blue';
@@ -154,15 +155,15 @@ export function AdvanceRow({
       </div>
 
       <div className="text-right w-28">
-        <p className="font-bold">{formatCurrency(advance.amount, currency)}</p>
+        <p className="font-bold">{formatCurrency(convertToUSD(advance.amount, currency, rates), 'USD')}</p>
         <p className="text-xs text-slate-500">
-          Fee: {formatCurrency(advance.fee_amount, currency)}
+          Fee: {formatCurrency(convertToUSD(advance.fee_amount, currency, rates), 'USD')}
         </p>
       </div>
 
       <div className="text-right w-28 hidden md:block">
         <p className="font-bold text-purple-600">
-          {formatCurrency(advance.net_amount, currency)}
+          {formatCurrency(convertToUSD(advance.net_amount, currency, rates), 'USD')}
         </p>
         <p className="text-xs text-slate-500">Net</p>
       </div>
@@ -372,15 +373,15 @@ export function AdvanceDetailModal({
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-2">
             <div className="flex justify-between">
               <span className="text-slate-600 dark:text-slate-400">Amount Requested</span>
-              <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(advance.amount, currency)}</span>
+              <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(convertToUSD(advance.amount, currency, rates), 'USD')}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-600 dark:text-slate-400">Service Fee ({advance.fee_percentage?.toFixed(1)}%)</span>
-              <span className="font-medium text-red-600">-{formatCurrency(advance.fee_amount, currency)}</span>
+              <span className="font-medium text-red-600">-{formatCurrency(convertToUSD(advance.fee_amount, currency, rates), 'USD')}</span>
             </div>
             <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2">
               <span className="font-semibold text-slate-900 dark:text-white">Net Amount</span>
-              <span className="font-bold text-purple-600">{formatCurrency(advance.net_amount, currency)}</span>
+              <span className="font-bold text-purple-600">{formatCurrency(convertToUSD(advance.net_amount, currency, rates), 'USD')}</span>
             </div>
           </div>
           
@@ -461,6 +462,7 @@ export function AdvanceDetailModal({
 
 export default function AdminAdvances(){
   const { currency } = useCurrency();
+  const { rates } = useExchangeRates();
   const [advances, setAdvances] = useState<Advance[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAdvance, setSelectedAdvance] = useState<Advance | null>(null);
@@ -615,8 +617,8 @@ export default function AdminAdvances(){
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={CreditCard} label="Total Advances" value={stats.total} variant="purple" />
           <MetricCard icon={Clock} label="Pending" value={stats.pending} subtext="Awaiting approval" variant="amber" />
-          <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats.total_amount, DEFAULT_ADMIN_CURRENCY)} variant="green" />
-          <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(stats.total_fees, DEFAULT_ADMIN_CURRENCY)} variant="blue" />
+          <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(convertToUSD(stats.total_amount, currency, rates), 'USD')} variant="green" />
+          <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(convertToUSD(stats.total_fees, currency, rates), 'USD')} variant="blue" />
         </div>
 
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">

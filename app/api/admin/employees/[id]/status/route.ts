@@ -80,10 +80,7 @@ export async function PATCH(
     if (status !== 'active' && status !== 'approved' && status !== 'pending' && status !== 'rejected' && status !== 'suspended') {
       return NextResponse.json({ error: 'Invalid employee status' }, { status: 400 });
     }
-
-    // ── Find Onboarding Record ──────────────────────────────────────────────
-    // The 'id' in the URL could be either the employee_onboarding.id (PK) 
-    // or the user_id (Auth ID). We try both, then fall back through employees.id.
+    
     const { data: initialOnboardingRecord, error: fetchError } = await adminSupabase
       .from('employee_onboarding')
       .select('*')
@@ -140,7 +137,6 @@ export async function PATCH(
         ? onboardingRecord.employment_type.replace(/_/g, '-').toLowerCase()
         : undefined;
 
-    // ── Update Onboarding Table ──────────────────────────────────────────────
     if (onboardingRecord) {
       if (normalizedEmploymentType && normalizedEmploymentType !== onboardingRecord.employment_type) {
         const { error: normaliseError } = await adminSupabase
@@ -219,8 +215,6 @@ export async function PATCH(
         updated_at: new Date().toISOString(),
       };
 
-      // Only include onboarding data if it exists — creating an employee requires
-      // a valid employer mapping (employees.employer_id is NOT NULL and FK'd).
       if (onboardingRecord) {
         const resolvedEmployerId = await resolveEmployerId(onboardingRecord.employer_id);
         if (!resolvedEmployerId) {
@@ -249,7 +243,6 @@ export async function PATCH(
           return NextResponse.json({ error: 'Failed to create/update employee', details: upsertError }, { status: 500 });
         }
       } else {
-        // No onboarding record — only update existing employee records (don't create new empty rows)
         const { data: existingEmployee } = await adminSupabase
           .from('employees')
           .select('id')
@@ -272,7 +265,6 @@ export async function PATCH(
         }
       }
     } else {
-      // Sync other statuses (suspended, rejected) to employees table if it exists
       const { data: existingEmployee } = await adminSupabase
         .from('employees')
         .select('id')

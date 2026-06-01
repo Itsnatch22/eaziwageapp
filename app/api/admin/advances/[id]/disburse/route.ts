@@ -8,7 +8,6 @@ export async function POST(
   const { id } = await params;
 
   try {
-    // Initiate disbursement using the PayoutService
     const result = await payoutService.disburseAdvance(id);
 
     return NextResponse.json({ 

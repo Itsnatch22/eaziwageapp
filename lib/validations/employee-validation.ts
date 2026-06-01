@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// ─── EWA settings update ─────────────────────────────────────────────────────
 export const ewaSettingsSchema = z.object({
   ewa_enabled: z.boolean(),
   max_advance_percentage: z
@@ -26,7 +25,6 @@ export const ewaSettingsSchema = z.object({
 
 export type EWASettingsPayload = z.infer<typeof ewaSettingsSchema>;
 
-// ─── Employee document types ──────────────────────────────────────────────────
 export const employeeDocumentTypeSchema = z.enum([
   'face_id',
   'id_front',
@@ -46,14 +44,13 @@ export const employeeDocumentTypeSchema = z.enum([
 
 export type EmployeeDocumentType = z.infer<typeof employeeDocumentTypeSchema>;
 
-// ─── Employee list query params ───────────────────────────────────────────────
 export const employeeListQuerySchema = z.object({
   status: z.enum(['approved', 'pending', 'rejected', 'options', '']).optional(),
   department: z.string().optional(),
   country: z.string().optional(),
   search: z.string().optional(),
-  from: z.string().optional(),  // ISO date
-  to: z.string().optional(),    // ISO date
+  from: z.string().optional(),  
+  to: z.string().optional(),  
 });
 
 export const employeeOnboardingSchema = z.object({

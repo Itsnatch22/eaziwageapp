@@ -435,8 +435,6 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function AdminEmployersPage() {
   const [loading, setLoading] = useState(true);
   const [employers, setEmployers] = useState<Employer[]>([]);
@@ -444,21 +442,17 @@ export default function AdminEmployersPage() {
   const [filters, setFilters] = useState<ApiResponse['filters'] | null>(null);
   const [framework, setFramework] = useState<ApiResponse['framework'] | null>(null);
   
-  // Modal state
   const [selectedEmployer, setSelectedEmployer] = useState<Employer | null>(null);
   const [showAssessment, setShowAssessment] = useState(false);
 
-  // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [countryFilter, setCountryFilter] = useState<string>('');
   const [riskRatingFilter, setRiskRatingFilter] = useState<string>('');
   
-  // Sorting
   const [sortField, setSortField] = useState<keyof Employer>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Fetch employers data
   const fetchEmployers = useCallback(async () => {
     try {
       setLoading(true);
@@ -491,7 +485,6 @@ export default function AdminEmployersPage() {
     fetchEmployers();
   }, [fetchEmployers, statusFilter, countryFilter, riskRatingFilter]);
 
-  // Handle search with debounce
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchTerm.length === 0 || searchTerm.length >= 2) {
@@ -501,7 +494,6 @@ export default function AdminEmployersPage() {
     return () => clearTimeout(timer);
   }, [searchTerm, fetchEmployers]);
 
-  // Sorting function
   const handleSort = (field: keyof Employer) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');

@@ -22,7 +22,6 @@ async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminU
     return { user: null, isAdmin: false };
   }
 
-  // Check environment admin emails first (most reliable)
   const env = getEnv();
   const adminEmails = (env.ADMIN_EMAILS || '')
     .replace(/^"|"$/g, '')
@@ -34,7 +33,6 @@ async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminU
     return { user, isAdmin: true };
   }
 
-  // Check user metadata roles
   const roleCandidates = [user.app_metadata?.role, user.user_metadata?.role]
     .filter((r): r is string => typeof r === 'string' && r.length > 0)
     .map((r) => r.toLowerCase());
@@ -64,14 +62,12 @@ export async function DELETE(
   const supabase = await createRouteHandlerClient();
 
   try {
-    // Verify the user is an admin using the same logic as admin me route
     const { user, isAdmin } = await verifyAdminUser(supabase);
 
     if (!user || !isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // First check if the report exists
     const { data: report, error: fetchError } = await supabase
       .from('admin_reports')
       .select('id')
@@ -82,7 +78,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Report not found' }, { status: 404 });
     }
 
-    // Delete the report
     const { error: deleteError } = await supabase
       .from('admin_reports')
       .delete()
@@ -95,8 +90,7 @@ export async function DELETE(
         { status: 500 }
       );
     }
-
-    // Clear cache
+    
     const redis = new Redis({
       url: env.UPSTASH_REDIS_REST_URL,
       token: env.UPSTASH_REDIS_REST_TOKEN,

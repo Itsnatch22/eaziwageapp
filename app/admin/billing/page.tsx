@@ -12,7 +12,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
-import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY } from '@/lib/utils';
+import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY, convertToUSD } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
+import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { Button } from '@/components/ui/button';
 
 interface BillingData {
@@ -93,6 +95,8 @@ const MetricCard = ({ icon: Icon, label, value, subtext, variant = 'purple' }: M
 };
 
 export default function BillingPage() {
+  const { currency } = useCurrency();
+  const { rates } = useExchangeRates();
   const [data, setData] = useState<BillingData | null>(null);
   const [employers, setEmployers] = useState<Employer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,28 +175,28 @@ export default function BillingPage() {
         <MetricCard 
           icon={DollarSign} 
           label="Total Revenue" 
-          value={formatCurrency(data.summary.total_revenue, DEFAULT_ADMIN_CURRENCY)} 
+          value={formatCurrency(convertToUSD(data.summary.total_revenue, currency, rates), 'USD')} 
           variant="purple"
           subtext="Cumulative platform fees earned"
         />
         <MetricCard 
           icon={CreditCard} 
           label="Total Disbursed" 
-          value={formatCurrency(data.summary.total_disbursed, DEFAULT_ADMIN_CURRENCY)} 
+          value={formatCurrency(convertToUSD(data.summary.total_disbursed, currency, rates), 'USD')} 
           variant="blue"
           subtext="All-time advances processed"
         />
         <MetricCard 
           icon={Wallet} 
           label="Wallet Balances" 
-          value={formatCurrency(data.summary.total_wallet_balance, DEFAULT_ADMIN_CURRENCY)} 
+          value={formatCurrency(convertToUSD(data.summary.total_wallet_balance, currency, rates), 'USD')} 
           variant="green"
           subtext="Total employer funds on platform"
         />
         <MetricCard 
           icon={BarChart3} 
           label="Arrears" 
-          value={formatCurrency(data.summary.total_arrears, DEFAULT_ADMIN_CURRENCY)} 
+          value={formatCurrency(convertToUSD(data.summary.total_arrears, currency, rates), 'USD')} 
           variant="amber"
           subtext="Outstanding repayments due"
         />
@@ -274,14 +278,14 @@ export default function BillingPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                    {formatCurrency(employer.monthly_payroll, DEFAULT_ADMIN_CURRENCY)}
+                    {formatCurrency(convertToUSD(employer.monthly_payroll, currency, rates), 'USD')}
                   </td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       "px-2.5 py-1 rounded-lg text-xs font-medium",
                       "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
                     )}>
-                      {formatCurrency(0, DEFAULT_ADMIN_CURRENCY)}
+                      {formatCurrency(convertToUSD(0, currency, rates), 'USD')}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -366,7 +370,7 @@ export default function BillingPage() {
                     <span className="font-semibold text-slate-900 dark:text-white">{gen.company_name}</span>
                   </td>
                   <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                    {formatCurrency(gen.revenue, DEFAULT_ADMIN_CURRENCY)}
+                    {formatCurrency(convertToUSD(gen.revenue, currency, rates), 'USD')}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-xs font-bold text-purple-600">

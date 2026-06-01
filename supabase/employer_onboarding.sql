@@ -60,7 +60,7 @@ create table public.employer_onboarding (
   cooldown_period integer null default 7,
   settings jsonb null default '{}'::jsonb,
   deleted_at timestamp with time zone null,
-  currency text null,
+  currency text not null,
   constraint employer_onboarding_pkey primary key (id),
   constraint employer_onboarding_company_code_key unique (company_code),
   constraint employer_onboarding_reviewed_by_fkey foreign KEY (reviewed_by) references auth.users (id),

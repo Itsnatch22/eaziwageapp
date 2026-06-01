@@ -1,9 +1,10 @@
 import { createClient } from "../supabase/client";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { toast } from "react-hot-toast";
 
 interface AuthState {
-  user: (User & { full_name?: string; avatar_url?: string }) | null;
+  user: (User & { full_name?: string; avatar_url?: string; role?: 'super_admin' | 'employer_admin' | 'employee' }) | null;
   loading: boolean;
 }
 
@@ -47,56 +48,52 @@ export function updateUserAvatar(avatarUrl: string) {
   }
 }
 
+// Helper to fetch user role
+async function fetchUserRole(supabase: any, userId: string): Promise<'super_admin' | 'employer_admin' | 'employee' | undefined> {
+  // Check admin
+  const { data: admin } = await supabase.from('system_admins').select('id').eq('id', userId).single();
+  if (admin) return 'super_admin';
+
+  // Check employer
+  const { data: employer } = await supabase.from('employer_onboarding').select('id').eq('user_id', userId).single();
+  if (employer) return 'employer_admin';
+
+  // Check employee
+  const { data: employee } = await supabase.from('employee_onboarding').select('id').eq('user_id', userId).single();
+  if (employee) return 'employee';
+
+  return undefined;
+}
+
 // Client-side initialization
 if (typeof window !== 'undefined') {
   const initializeAuth = async () => {
     const supabase = createClient();
 
-    const syncUser = async () => {
+    const syncUser = async (sessionUser?: User) => {
       try {
-        // Get user with a more generous timeout (5 seconds instead of 2)
-        const result = await Promise.race([
-          supabase.auth.getUser(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Auth timeout')), 5000)
-          ),
-        ]) as Awaited<ReturnType<typeof supabase.auth.getUser>>;
-
-        const { data: { user }, error } = result;
+        const user = sessionUser || (await supabase.auth.getUser()).data.user;
         
-        if (error) {
-          console.error('Error getting user:', error);
+        if (!user) {
           setState({ user: null, loading: false });
           return;
         }
 
-        if (user) {
-          // Fetch avatar_url from profiles table
-          let avatar_url: string | undefined;
-          try {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('avatar_url')
-              .eq('id', user.id)
-              .single();
-            avatar_url = profile?.avatar_url;
-          } catch {
-            // Ignore profile fetch errors - it's okay if this fails
-            console.log('Could not fetch profile avatar');
-          }
-          
-          const enhancedUser = {
-            ...user,
-            full_name: user.user_metadata?.full_name || user.user_metadata?.name || "",
-            avatar_url: avatar_url || user.user_metadata?.avatar_url,
-          };
-          setState({ user: enhancedUser, loading: false });
-        } else {
-          setState({ user: null, loading: false });
-        }
+        // Fetch profile and role
+        const [profileResult, role] = await Promise.all([
+          supabase.from('profiles').select('avatar_url').eq('id', user.id).single(),
+          fetchUserRole(supabase, user.id)
+        ]);
+        
+        const enhancedUser = {
+          ...user,
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || "",
+          avatar_url: profileResult.data?.avatar_url || user.user_metadata?.avatar_url,
+          role,
+        };
+        setState({ user: enhancedUser, loading: false });
       } catch (error) {
         console.error('Error syncing user:', error);
-        // Set loading to false even on error to prevent infinite loading
         setState({ user: null, loading: false });
       }
     };
@@ -109,34 +106,14 @@ if (typeof window !== 'undefined') {
       console.log('Auth state change:', event);
       
       if (session?.user) {
-        // Fetch avatar_url from profiles table on auth state change
-        let avatar_url: string | undefined;
-        try {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('avatar_url')
-            .eq('id', session.user.id)
-            .single();
-          avatar_url = profile?.avatar_url;
-        } catch {
-          // Ignore profile fetch errors
-        }
-        
-        const enhancedUser = {
-          ...session.user,
-          full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || "",
-          avatar_url: avatar_url || session.user.user_metadata?.avatar_url,
-        };
-        setState({ user: enhancedUser, loading: false });
+        await syncUser(session.user);
       } else if (event === 'SIGNED_OUT') {
         setState({ user: null, loading: false });
       } else {
-        // For other events without a session, keep current state but ensure loading is false
         setState({ loading: false });
       }
     });
 
-    // Cleanup on unmount (though this rarely happens in practice)
     return () => {
       subscription.unsubscribe();
     };
@@ -144,7 +121,6 @@ if (typeof window !== 'undefined') {
 
   initializeAuth().catch((err) => {
     console.error('Failed to initialize auth:', err);
-    // Ensure loading is set to false even if initialization fails
     setState({ user: null, loading: false });
   });
 }

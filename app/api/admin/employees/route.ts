@@ -89,8 +89,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { employer_id, status, search, limit, offset } = queryParams.data;
 
-    // employees.employer_id → employers (FK)
-    // employee_onboarding.employer_id → employer_onboarding (FK)
     const [employeesResult, onboardingResult] = await Promise.all([
       adminSupabase
         .from('employees')
@@ -141,20 +139,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         earned_wages: onboarding.earned_wages,
         employment_type: onboarding.employment_type,
         employer_onboarding: onboarding.employer_onboarding,
+        currency: onboarding.currency,
       };
     });
 
     const onboardingOnlyEmployees = (onboardingEmployees || []).filter((emp) => !liveEmployeeUserIds.has(emp.user_id));
 
-    // Combine both datasets, keeping live payroll data while displaying onboarding account status.
     const allEmployees = [...mergedLiveEmployees, ...onboardingOnlyEmployees];
 
-    // Remove duplicates — employees table takes priority (appears first)
     const uniqueEmployees = allEmployees.filter((emp, index, self) =>
       index === self.findIndex((e) => e.user_id === emp.user_id)
     );
 
-    // Apply filters
     let filteredEmployees = uniqueEmployees;
 
     if (search) {
@@ -183,7 +179,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       filteredEmployees = filteredEmployees.filter((emp) => emp.employer_id === employer_id);
     }
 
-    // Pagination
     const total = filteredEmployees.length;
     const paginatedEmployees = filteredEmployees.slice(offset, offset + limit);
 
@@ -213,8 +208,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ? 'active'
             : emp.status?.toLowerCase() || 'pending',
           kyc_status:     emp.kyc_status || emp.status || 'pending',
-          // Resolve company name from correct join per table
           employer_name:  emp.employers?.company_name || emp.employer_onboarding?.company_name || 'Unlinked',
+          currency:       emp.currency || 'KES',
           created_at:     emp.created_at,
           updated_at:     emp.updated_at,
         };

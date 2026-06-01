@@ -41,7 +41,7 @@ interface EmployerApplication {
   city?: string;
   status: DocumentStatus;
   created_at: string;
-  // Document URLs
+
   certificate_of_incorporation?: string;
   business_registration?: string;
   tax_compliance_certificate?: string;
@@ -54,7 +54,7 @@ interface EmployerApplication {
   proof_of_bank_account?: string;
   employment_contract_template?: string;
   reviewer_notes?: string;
-  // Financials
+
   bank_name?: string;
   bank_account_number?: string;
 }
@@ -272,7 +272,6 @@ export default function KYCReviewPage() {
 
   const getUserName = (uid: string) => usersById[uid]?.full_name || 'Unknown User';
 
-  // Categorize documents by role
   const employeeDocuments = documents.filter(d => (usersById[d.user_id]?.role || 'employee') === 'employee');
   const employerStandaloneDocs = documents.filter(d => usersById[d.user_id]?.role === 'employer');
 
@@ -422,8 +421,6 @@ export default function KYCReviewPage() {
   );
 }
 
-// ─── Review Modal ─────────────────────────────────────────────────────────────
-
 interface ReviewModalProps {
   doc: KYCDocument | null;
   employer: EmployerApplication | null;
@@ -444,7 +441,6 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
   if (!isEmployerApp && !doc) return null;
   const selectedDoc = doc as KYCDocument;
   
-  // For standalone documents, check the user role from usersById
   const userRole = doc ? (usersById[doc.user_id]?.role || 'employee') : 'employer';
   const isEmployerDoc = userRole === 'employer';
   const isEmployer = isEmployerApp || isEmployerDoc;

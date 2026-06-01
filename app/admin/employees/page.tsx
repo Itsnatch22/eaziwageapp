@@ -14,8 +14,9 @@ import { Slider }                  from '@/components/ui/slider';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast }                   from 'sonner';
 
 type EmployeeStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
@@ -275,6 +276,7 @@ const FilterButton: React.FC<FilterButtonProps> = ({ active, onClick, children }
 interface EmployeeRowProps {
   employee:       Employee;
   currency:       string;
+  rates:          Record<string, number>;
   isSelected:     boolean;
   onToggleSelect: (id: string) => void;
   onViewDetails:  (employee: Employee) => void;
@@ -284,6 +286,7 @@ interface EmployeeRowProps {
 const EmployeeRow: React.FC<EmployeeRowProps> = ({ 
   employee, 
   currency,
+  rates,
   isSelected, 
   onToggleSelect, 
   onViewDetails, 
@@ -327,7 +330,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
     {/* Salary */}
     <div className="text-right hidden sm:block w-24 shrink-0">
       <p className="font-bold text-slate-900 dark:text-white">
-        {formatCurrency(employee.monthly_salary, currency)}
+        {formatCurrency(convertToUSD(employee.monthly_salary, employee.currency || 'KES', rates), 'USD')}
       </p>
       <p className="text-xs text-slate-500 dark:text-slate-400">Monthly</p>
     </div>
@@ -383,6 +386,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
 interface EmployeeDetailModalProps {
   employee:  Employee | null;
   currency:  string;
+  rates:     Record<string, number>;
   isOpen:    boolean;
   onClose:   () => void;
   onRefresh: () => void;
@@ -391,6 +395,7 @@ interface EmployeeDetailModalProps {
 const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ 
   employee, 
   currency,
+  rates,
   isOpen, 
   onClose, 
   onRefresh, 
@@ -632,19 +637,19 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                   </div>
                   <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl text-center">
                     <p className="text-2xl font-bold text-green-600">
-                      {formatCurrency(employeeDetail.advance_stats.total_advances, currency)}
+                      {formatCurrency(convertToUSD(employeeDetail.advance_stats.total_advances, data.currency || 'KES', rates), 'USD')}
                     </p>
                     <p className="text-xs text-slate-500">Amount Advanced</p>
                   </div>
                   <div className="p-4 bg-slate-50/50 dark:bg-slate-900/20 rounded-xl text-center">
                     <p className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-                      {formatCurrency(employeeDetail.advance_stats.pending_repayment, currency)}
+                      {formatCurrency(convertToUSD(employeeDetail.advance_stats.pending_repayment, data.currency || 'KES', rates), 'USD')}
                     </p>
                     <p className="text-xs text-slate-500">Pending Repayment</p>
                   </div>
                   <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center">
                     <p className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-                      {formatCurrency(employeeDetail.advance_stats.total_fees_paid, currency)}
+                      {formatCurrency(convertToUSD(employeeDetail.advance_stats.total_fees_paid, data.currency || 'KES', rates), 'USD')}
                     </p>
                     <p className="text-xs text-slate-500">Fees Paid</p>
                   </div>
@@ -770,19 +775,19 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Monthly Salary</span>
                         <span className="font-medium text-slate-900 dark:text-white">
-                          {formatCurrency(data.monthly_salary, currency)}
+                          {formatCurrency(convertToUSD(data.monthly_salary, currency, rates), 'USD')}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Advance Limit</span>
                         <span className="font-medium text-green-600">
-                          {formatCurrency(data.advance_limit, currency)}
+                          {formatCurrency(convertToUSD(data.advance_limit, currency, rates), 'USD')}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Earned Wages</span>
                         <span className="font-medium text-green-600">
-                          {formatCurrency(data.earned_wages, currency)}
+                          {formatCurrency(convertToUSD(data.earned_wages, currency, rates), 'USD')}
                         </span>
                       </div>
                     </div>
@@ -869,7 +874,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold text-slate-900 dark:text-white">
-                          {formatCurrency(adv.amount, currency)}
+                          {formatCurrency(convertToUSD(adv.amount, currency, rates), 'USD')}
                         </p>
                         <p className="text-xs text-slate-500">{formatDateTime(adv.created_at)}</p>
                       </div>
@@ -887,7 +892,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                           {adv.status.charAt(0).toUpperCase() + adv.status.slice(1)}
                         </span>
                         <p className="text-xs text-slate-500 mt-1">
-                          Fee: {formatCurrency(adv.fee_amount, currency)}
+                          Fee: {formatCurrency(convertToUSD(adv.fee_amount, currency, rates), 'USD')}
                         </p>
                       </div>
                     </div>
@@ -1136,6 +1141,7 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
 
 export default function AdminEmployees() {
   const { currency } = useCurrency();
+  const { rates } = useExchangeRates();
   const [employees,         setEmployees]         = useState<Employee[]>([]);
   const [loading,           setLoading]           = useState(true);
   const [searchTerm,        setSearchTerm]        = useState('');
@@ -1504,6 +1510,7 @@ export default function AdminEmployees() {
                   key={employee.id} 
                   employee={employee}
                   currency={currency}
+                  rates={rates}
                   isSelected={selectedIds.has(employee.id)}
                   onToggleSelect={toggleSelectOne}
                   onViewDetails={e => {
@@ -1532,6 +1539,7 @@ export default function AdminEmployees() {
       <EmployeeDetailModal 
         employee={selectedEmployee}
         currency={currency}
+        rates={rates}
         isOpen={showDetailModal}
         onClose={() => {
           setShowDetailModal(false);

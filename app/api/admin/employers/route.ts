@@ -329,8 +329,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       monthly_payroll: employeeMeta.payroll,
     };
   });
-
-  // Trigger Pusher notifications for employers with updated risk scores
+  
   const updatedEmployers = result.filter(row => {
     const currentRiskFactors = riskFactorsByEmployer.get(row.id);
     const previousRiskScore = Number(row.risk_score ?? 0);

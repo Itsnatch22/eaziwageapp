@@ -25,6 +25,7 @@ export interface Employee {
   kyc_status: KYCStatus;
   status: EmployeeStatus;
   country: CountryCode;
+  currency: string;
   phone_number: string | null;
   national_id: string | null;
   disbursement_channel: DisbursementChannel | null;

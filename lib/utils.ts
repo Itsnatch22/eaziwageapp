@@ -209,6 +209,13 @@ export function truncateText({text, maxLength = 50}: TruncateTextParams) {
   return text.slice(0, maxLength) + '...';
 }
 
+export function convertToUSD(amount: number, currency: string, rates: Record<string, number>): number {
+  if (currency.toUpperCase() === 'USD') return amount;
+  const rate = rates[currency.toUpperCase()];
+  if (!rate) return amount;
+  return amount / rate;
+}
+
 interface GenerateInitialsParams {
   name: string;
 }

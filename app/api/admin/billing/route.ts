@@ -92,7 +92,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (walletError) throw walletError;
 
-    // Fetch employer names and credit limits for wallets
     const employerIds = (wallets || []).map(w => w.employer_id);
     const { data: employers, error: empError } = await supabase
       .from('employers')
@@ -117,7 +116,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const totalWalletBalance = walletHealth.reduce((sum, w) => sum + Number(w.balance || 0), 0);
     const totalArrears = walletHealth.reduce((sum, w) => sum + Number(w.arrears_balance || 0), 0);
 
-    // 4. Top Revenue Generators
     const employerRevenueMap = new Map<string, number>();
     (advancesData || []).forEach((adv: BillingAdvanceRow) => {
       const employerId = adv.employer_id;

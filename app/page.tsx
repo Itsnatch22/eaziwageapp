@@ -45,7 +45,6 @@ function TestimonialsPanel() {
       setActive((prev) => (prev + 1) % testimonials.length);
     }, 5000);
 
-    // Fetch real stats
     fetch('/api/public/stats')
       .then(res => res.json())
       .then(data => {

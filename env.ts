@@ -60,7 +60,6 @@ export function validateEnv(): EnvConfig {
     errors.push('NEXT_PUBLIC_PUSHER_CLUSTER is not defined');
   }
 
-  // Check server-side variables (only on server)
   if (typeof window === 'undefined') {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       errors.push('SUPABASE_SERVICE_ROLE_KEY is not defined');
@@ -131,9 +130,6 @@ export function validateEnv(): EnvConfig {
   };
 }
 
-/**
- * Validates URL format
- */
 function isValidUrl(url: string): boolean {
   try {
     new URL(url);
@@ -143,10 +139,6 @@ function isValidUrl(url: string): boolean {
   }
 }
 
-/**
- * Get validated environment config
- * Caches the result after first validation
- */
 let cachedEnv: EnvConfig | null = null;
 
 export function getEnv(): EnvConfig {

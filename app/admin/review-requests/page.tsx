@@ -229,7 +229,6 @@ const ReviewDetailModal = ({ request, isOpen, onClose, onSubmitResponse }: Revie
   useEffect(() => {
     if (!request) return;
 
-    // Avoid synchronous setState calls during the effect render cycle.
     const timeoutId = window.setTimeout(() => {
       setStatus(request.status || 'pending');
       setResponse('');
@@ -372,8 +371,6 @@ const ReviewDetailModal = ({ request, isOpen, onClose, onSubmitResponse }: Revie
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function ReviewRequests() {
   const [requests, setRequests] = useState<ReviewRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -400,7 +397,6 @@ export default function ReviewRequests() {
   useEffect(() => {
     fetchRequests();
 
-    // Pusher for real-time updates
     if (!pusherClient) return;
 
     const channel = pusherClient.subscribe('admin-reviews');
@@ -433,7 +429,7 @@ export default function ReviewRequests() {
       });
       if (!res.ok) throw new Error('Update failed');
       toast.success('Review submitted successfully');
-      fetchRequests(); // Refresh
+      fetchRequests(); 
     } catch (error) {
       console.error('Failed to submit review:', error);
       toast.error('Failed to submit review');

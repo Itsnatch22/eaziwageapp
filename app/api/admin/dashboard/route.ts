@@ -44,7 +44,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     token: env.UPSTASH_REDIS_REST_TOKEN,
   });
 
-  const CACHE_TTL = 300; // 5 minutes cache
+  const CACHE_TTL = 300; 
   const cacheKey = 'admin:dashboard:stats';
 
   try {

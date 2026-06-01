@@ -14,7 +14,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
 
-// Types
 type ReportPeriod = 'today' | 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 type ReportStatus = 'generating' | 'ready' | 'failed' | 'scheduled';
 
@@ -54,7 +53,6 @@ interface ReportsResponse {
   };
 }
 
-// Generate real-time dates based on current date
 const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 const yesterday = new Date(today);
@@ -220,7 +218,6 @@ export default function AdminReports() {
       setShowNewReportModal(false);
       setSelectedTemplate('');
       
-      // Refresh reports list
       fetchReports();
     } catch (error) {
       console.error('Failed to generate report:', error);
@@ -407,7 +404,7 @@ export default function AdminReports() {
                 <div className="p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 flex-1 min-w-0">
-                      <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                      <div className="w-12 h-12 bg-linear-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shrink-0">
                         <Icon className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -416,13 +413,13 @@ export default function AdminReports() {
                             {report.name}
                           </h3>
                           <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium flex-shrink-0",
+                            "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium shrink-0",
                             typeColors[report.type]
                           )}>
                             {report.type}
                           </span>
                           <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium flex-shrink-0",
+                            "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium shrink-0",
                             statusColors[report.status]
                           )}>
                             {report.status}
@@ -479,7 +476,7 @@ export default function AdminReports() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       {report.status === 'ready' && report.downloadUrl && (
                         <Button
                           size="sm"

@@ -22,7 +22,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   try {
-    // Query both onboarding and live employers to get accurate names
     const [onboardingRes, liveRes] = await Promise.all([
       supabase
         .from('employer_onboarding')
@@ -91,7 +90,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let totalRecouped = 0;
     let pendingRecoupment = 0;
 
-    // Define lightweight types for linting
     type AdvanceRow = {
       id?: string;
       amount?: number | string | null;
@@ -106,7 +104,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const advancesRows = (advances || []) as AdvanceRow[];
 
-    // Build a map of employee_id -> full_name to avoid relying on DB relationship metadata
     const employeeIds = Array.from(new Set(advancesRows.map((a) => a.employee_id).filter(Boolean))) as string[];
     let profileMap: Record<string, string> = {};
     if (employeeIds.length > 0) {

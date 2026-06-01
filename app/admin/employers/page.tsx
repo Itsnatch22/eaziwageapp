@@ -11,8 +11,9 @@ import { Input }                   from '@/components/ui/input';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
+import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast }                   from 'sonner';
 
 type EmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
@@ -248,6 +249,7 @@ const FilterButton: React.FC<FilterButtonProps> = ({ active, onClick, children }
 interface EmployerRowProps {
   employer:       Employer;
   currency:       string;
+  rates:          Record<string, number>;
   isSelected:     boolean;
   onToggleSelect: (id: string) => void;
   onViewDetails:  (employer: Employer) => void;
@@ -257,6 +259,7 @@ interface EmployerRowProps {
 const EmployerRow: React.FC<EmployerRowProps> = ({ 
   employer, 
   currency,
+  rates,
   isSelected, 
   onToggleSelect, 
   onViewDetails, 
@@ -303,7 +306,7 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
     
     {/* Monthly Advances */}
     <div className="text-right hidden md:block w-28 shrink-0">
-      <p className="font-bold text-green-600">{formatCurrency(employer.total_advances, currency)}</p>
+      <p className="font-bold text-green-600">{formatCurrency(convertToUSD(employer.total_advances, currency, rates), 'USD')}</p>
       <p className="text-xs text-slate-500">Advances</p>
     </div>
     
@@ -345,6 +348,7 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
 interface EmployerDetailModalProps {
   employer:  Employer | null;
   currency:  string;
+  rates:     Record<string, number>;
   isOpen:    boolean;
   onClose:   () => void;
   onRefresh: () => void;
@@ -353,6 +357,7 @@ interface EmployerDetailModalProps {
 const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({ 
   employer, 
   currency,
+  rates,
   isOpen, 
   onClose, 
   onRefresh, 
@@ -377,7 +382,6 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
       if (empRes.ok) {
         const empPayload = await empRes.json();
         const empData: Employee[] = Array.isArray(empPayload) ? empPayload : (empPayload.data ?? []);
-        // The API already filters by employer_id, so we can set it directly
         setEmployees(empData);
       }
     } catch (err) {
@@ -397,7 +401,6 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
     if (!employer) return;
 
     try {
-      // PATCH /api/admin/employers/:id/status
       const res = await fetch(`/api/admin/employers/${employer.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -491,13 +494,13 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 </div>
                 <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl text-center">
                   <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(data.total_advances, currency)}
+                    {formatCurrency(convertToUSD(data.total_advances, currency, rates), 'USD')}
                   </p>
                   <p className="text-xs text-slate-500">Total Advances</p>
                 </div>
                 <div className="p-4 bg-slate-50/50 dark:bg-slate-900/20 rounded-xl text-center">
                   <p className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-                    {formatCurrency(data.monthly_payroll, currency)}
+                    {formatCurrency(convertToUSD(data.monthly_payroll, currency, rates), 'USD')}
                   </p>
                   <p className="text-xs text-slate-500">Monthly Payroll</p>
                 </div>
@@ -612,7 +615,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                           {emp.full_name || emp.employee_code}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {emp.job_title} • {formatCurrency(emp.monthly_salary, currency)}
+                          {emp.job_title} • {formatCurrency(convertToUSD(emp.monthly_salary, currency, rates), 'USD')}
                         </p>
                       </div>
                       <StatusBadge status={emp.status} />
@@ -727,8 +730,6 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   );
 };
 
-// ─── Quick Actions Modal ──────────────────────────────────────────────────────
-
 interface QuickActionsModalProps {
   employer: Employer | null;
   isOpen:   boolean;
@@ -795,10 +796,9 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function AdminEmployers() {
   const { currency } = useCurrency();
+  const { rates } = useExchangeRates();
   const [employers,         setEmployers]         = useState<Employer[]>([]);
   const [stats,             setStats]             = useState<Stats>({
     total: 0,
@@ -823,7 +823,6 @@ export default function AdminEmployers() {
     return () => clearTimeout(t);
   }, [searchTerm]);
 
-  // ── Fetch employers ───────────────────────────────────────────────────────
   const fetchEmployers = useCallback(async () => {
     setLoading(true);
     try {
@@ -874,12 +873,10 @@ export default function AdminEmployers() {
     setSelectedIds(new Set());
   }, [debouncedSearch, statusFilter, countryFilter]);
 
-  // ── Quick action handler ───────────────────────────────────────────────────
   const handleQuickAction = async (newStatus: EmployerStatus) => {
     if (!selectedEmployer) return;
 
     try {
-      // PATCH /api/admin/employers/:id/status
       const res = await fetch(`/api/admin/employers/${selectedEmployer.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -899,7 +896,6 @@ export default function AdminEmployers() {
     setShowQuickActions(false);
   };
 
-  // ── Bulk selection ─────────────────────────────────────────────────────────
   const toggleSelectAll = () => {
     if (selectedIds.size === employers.length) {
       setSelectedIds(new Set());
@@ -929,7 +925,6 @@ export default function AdminEmployers() {
     let successCount = 0;
     for (const id of selectedIds) {
       try {
-        // PATCH /api/admin/employers/:id/status
         const res = await fetch(`/api/admin/employers/${id}/status`, {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -938,7 +933,7 @@ export default function AdminEmployers() {
 
         if (res.ok) successCount++;
       } catch {
-         //Continue bulk operation
+        
       }
     }
 
@@ -1120,6 +1115,7 @@ export default function AdminEmployers() {
                   key={employer.id} 
                   employer={employer}
                   currency={currency}
+                  rates={rates}
                   isSelected={selectedIds.has(employer.id)}
                   onToggleSelect={toggleSelectOne}
                   onViewDetails={e => {
@@ -1148,6 +1144,7 @@ export default function AdminEmployers() {
       <EmployerDetailModal 
         employer={selectedEmployer}
         currency={currency}
+        rates={rates}
         isOpen={showDetailModal}
         onClose={() => {
           setShowDetailModal(false);
@@ -1168,5 +1165,3 @@ export default function AdminEmployers() {
     </>
   );
 }
-
-

@@ -460,8 +460,6 @@ const SuspensionTriggersSection: React.FC = () => {
   );
 };
 
-// ─── Payroll Integrity Section ────────────────────────────────────────────────
-
 interface PayrollControl {
   title: string;
   description: string;
@@ -530,8 +528,6 @@ const PayrollIntegritySection: React.FC = () => {
   );
 };
 
-// ─── Behavioral Analytics Section ─────────────────────────────────────────────
-
 interface AnalyticsPattern {
   pattern: string;
   description: string;
@@ -582,8 +578,6 @@ const BehavioralAnalyticsSection: React.FC = () => {
     </div>
   );
 };
-
-// ─── Suspension Process Section ───────────────────────────────────────────────
 
 interface ProcessStep {
   step: number;
@@ -643,8 +637,6 @@ const SuspensionProcessSection: React.FC = () => {
     </div>
   );
 };
-
-// ─── Active Fraud Alerts ──────────────────────────────────────────────────────
 
 interface ActiveFraudAlertsProps {
   alerts: FraudAlert[];
@@ -709,8 +701,6 @@ const ActiveFraudAlerts: React.FC<ActiveFraudAlertsProps> = ({ alerts, onReview 
   </div>
 );
 
-// ─── KPIs Section ─────────────────────────────────────────────────────────────
-
 interface KPI {
   label: string;
   value: string;
@@ -754,8 +744,6 @@ const KPIsSection: React.FC = () => {
     </div>
   );
 };
-
-// ─── Manual Rules Section ─────────────────────────────────────────────────────
 
 interface ManualRulesSectionProps {
   rules: FraudRule[];
@@ -1144,7 +1132,7 @@ export default function FraudDetection(): React.ReactElement {
 
       setStats({
         activeAlerts: liveAlerts.length,
-        suspendedAccounts: 0, // Need aggregation for this
+        suspendedAccounts: 0,
         riskScore: 85, 
         fraudRate: 0.05,
       });
@@ -1160,8 +1148,7 @@ export default function FraudDetection(): React.ReactElement {
   }, [fetchData]);
 
   const handleToggleRule = async (ruleId: number): Promise<void> => {
-    // API logic for toggle rule would go here
-    toast.success(`Rule ${ruleId} status updated`);
+   toast.success(`Rule ${ruleId} status updated`);
   };
 
   const handleCreateRule = async (newRule: NewFraudRule): Promise<void> => {

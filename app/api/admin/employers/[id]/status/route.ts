@@ -149,7 +149,6 @@ export async function PATCH(
 
   console.log(`[PATCH employer status] Successfully updated record ${activeId}`);
 
-  // ── Sync to Primary 'employers' Table ──────────────────────────────────────
   let resolvedCompanyCode: string | null = null;
   const { data: existingEmployer } = await adminSupabase
     .from('employers')

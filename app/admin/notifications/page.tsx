@@ -13,7 +13,6 @@ import { toast }                   from 'sonner';
 import Link from 'next/link';
 import pusherClient from '@/lib/pusher-client';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Notification {
   id:         string;
@@ -24,8 +23,6 @@ interface Notification {
   created_at: string;
   metadata?:  Record<string, unknown>;
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 const NotificationIcon = ({ type }: { type: string }) => {
   const config = {
@@ -44,8 +41,6 @@ const NotificationIcon = ({ type }: { type: string }) => {
     </div>
   );
 };
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminNotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);

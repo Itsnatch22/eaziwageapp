@@ -15,10 +15,6 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 
-
-// ─── Type Definitions ─────────────────────────────────────────────────────────
-
-// Global Settings Types
 interface GlobalSettings {
   default_advance_percent?: number;
   min_advance_amount?: number;
@@ -39,7 +35,6 @@ interface GlobalSettings {
   enabled_countries?: string[];
 }
 
-// Risk Settings Types
 interface RiskSettings {
   employer_low_threshold?: number;
   employer_medium_threshold?: number;
@@ -57,7 +52,6 @@ interface RiskSettings {
   reverification_frequency?: 'monthly' | 'quarterly' | 'biannually' | 'annually' | 'never';
 }
 
-// Notification Settings Types
 interface NotificationSettings {
   email_new_employer?: boolean;
   email_large_advance?: boolean;
@@ -73,7 +67,6 @@ interface NotificationSettings {
   admin_sms_numbers?: string;
 }
 
-// Employer Types
 interface Employer {
   id: string;
   company_name: string;
@@ -102,7 +95,6 @@ interface EmployerSettings {
   weekend_access?: boolean;
 }
 
-// Employee Types
 interface Employee {
   id: string;
   full_name: string;
@@ -130,7 +122,6 @@ interface EmployeeStats {
   repayment_rate?: number;
 }
 
-// Blackout Types
 interface Blackout {
   id: string;
   name: string;
@@ -141,7 +132,6 @@ interface Blackout {
   is_active: boolean;
 }
 
-// Legal Document Types
 interface LegalDocument {
   id?: string;
   document_type: 'employee_terms' | 'employer_partnership' | 'privacy_policy';
@@ -158,7 +148,6 @@ interface DocumentType {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-// Audit Types
 interface AuditLog {
   id: string;
   type: 'platform_settings' | 'risk_settings' | 'notification_settings' | 'employer_settings' | 'employee_settings' | 'legal_document' | 'blackout';
@@ -206,14 +195,12 @@ interface Pagination {
   total: number;
 }
 
-// Tab Types
 type TabId = 'global' | 'employer' | 'employee' | 'risk' | 'notifications' | 'blackouts' | 'legal' | 'audit' | 'security';
 
 interface SettingsSaveHandle {
   save: () => Promise<void>;
 }
 
-// ─── Slider Component ─────────────────────────────────────────────────────────
 
 interface RangeSliderProps {
   label: string;
@@ -263,8 +250,6 @@ const RangeSlider: React.FC<RangeSliderProps> = ({
   </div>
 );
 
-// ─── Toggle Component ─────────────────────────────────────────────────────────
-
 interface ToggleProps {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
@@ -299,8 +284,6 @@ const Toggle: React.FC<ToggleProps> = ({
   </div>
 );
 
-// ─── Section Card Component ───────────────────────────────────────────────────
-
 interface SectionCardProps {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -329,8 +312,6 @@ const SectionCard: React.FC<SectionCardProps> = ({
     <div className="p-6">{children}</div>
   </div>
 );
-
-// ─── Global Settings Tab ──────────────────────────────────────────────────────
 
 interface GlobalSettingsTabProps {
   settings: GlobalSettings;
@@ -575,8 +556,6 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
     </div>
   );
 };
-
-// ─── Employer Configuration Tab ───────────────────────────────────────────────
 
 interface EmployerConfigTabProps {
   token: string | null;
@@ -950,8 +929,6 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
 
 EmployerConfigTab.displayName = 'EmployerConfigTab';
 
-// ─── Employee Configuration Tab ───────────────────────────────────────────────
-
 interface EmployeeConfigTabProps {
   token: string | null;
   onSave: () => void;
@@ -1252,8 +1229,6 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
 
 EmployeeConfigTab.displayName = 'EmployeeConfigTab';
 
-// ─── Risk & Compliance Tab ────────────────────────────────────────────────────
-
 interface RiskComplianceTabProps {
   settings: RiskSettings;
   onUpdate: (updatedSettings: RiskSettings) => void;
@@ -1433,8 +1408,6 @@ const RiskComplianceTab: React.FC<RiskComplianceTabProps> = ({
     </div>
   );
 };
-
-// ─── Notification Settings Tab ────────────────────────────────────────────────
 
 interface NotificationSettingsTabProps {
   settings: NotificationSettings;
@@ -1842,8 +1815,6 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
   );
 };
 
-// ─── Legal Documents Tab ──────────────────────────────────────────────────────
-
 interface LegalDocumentsTabProps {
   token: string | null;
 }
@@ -1891,7 +1862,6 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
         setSelectedDoc(data);
         setEditedContent(data);
       } else {
-        // Create default
         const defaultDoc: LegalDocument = { 
           document_type: docType, 
           title: '', 
@@ -2077,8 +2047,6 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
   );
 };
 
-// ─── Audit Trail Dashboard Tab ────────────────────────────────────────────────
-
 interface AuditTrailTabProps {
   token: string | null;
 }
@@ -2222,8 +2190,6 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
   );
 };
 
-// ─── Admin Profile Tab ────────────────────────────────────────────────────────
-
 interface AdminProfileData {
   user_id: string;
   email: string;
@@ -2344,8 +2310,6 @@ const AdminProfileTab: React.FC = () => {
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 const AdminSettings: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
@@ -2357,12 +2321,10 @@ const AdminSettings: React.FC = () => {
   const [employerSaveAvailable, setEmployerSaveAvailable] = useState(false);
   const [employeeSaveAvailable, setEmployeeSaveAvailable] = useState(false);
 
-  // Settings States
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({});
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({});
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
   
-  // Security States
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);

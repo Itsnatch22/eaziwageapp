@@ -29,11 +29,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden. Employer access required.' }, { status: 403 });
     }
 
-    const { data: employer } = await supabase
+    const { data: employer, error: employerError } = await supabase
       .from('employer_onboarding')
       .select('id, company_name, bank_name, bank_account_number')
       .eq('user_id', user.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
+
+    if (employerError) {
+      console.error('[bank-change-request] Employer fetch error:', employerError);
+      return NextResponse.json({ error: 'Failed to fetch employer profile' }, { status: 500 });
+    }
 
     if (!employer) {
       return NextResponse.json({ error: 'Employer record not found' }, { status: 404 });
@@ -64,6 +72,7 @@ export async function POST(req: NextRequest) {
 
     if (requestError) {
       console.error('[bank-change-request] DB error:', requestError);
+      return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
     }
 
     const env = getEnv();

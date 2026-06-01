@@ -1,12 +1,7 @@
-// lib/validations/employer-onboarding.ts
 import { z } from 'zod';
-
-// ─── Reusable primitives ────────────────────────────────────────────────────
 
 const nonEmptyString = (label: string) =>
   z.string({ message: `${label} is required` }).min(1, `${label} is required`);
-
-// ─── Beneficial Owner ────────────────────────────────────────────────────────
 
 export const beneficialOwnerSchema = z.object({
   full_name: nonEmptyString('Full name'),
@@ -22,26 +17,21 @@ export const beneficialOwnerSchema = z.object({
 
 export type BeneficialOwner = z.infer<typeof beneficialOwnerSchema>;
 
-// ─── Main onboarding submission ──────────────────────────────────────────────
 
 export const onboardingSubmitSchema = z.object({
-  // Company
   company_name: nonEmptyString('Company name'),
   registration_number: nonEmptyString('Registration number'),
   date_of_incorporation: z.string().optional(),
   country: nonEmptyString('Country'),
 
-  // Address
   physical_address: nonEmptyString('Physical address'),
   city: nonEmptyString('City'),
   postal_code: z.string().optional(),
   county_region: z.string().optional(),
 
-  // Tax
   tax_id: z.string().optional(),
   vat_number: z.string().optional(),
 
-  // Business
   industry: nonEmptyString('Industry'),
   sector: nonEmptyString('Sector'),
   business_description: z.string().optional(),
@@ -49,7 +39,6 @@ export const onboardingSubmitSchema = z.object({
   employee_count: z.number().int().min(0),
   countries_of_operation: z.array(z.string()).min(1, 'Select at least one country of operation'),
 
-  // Financial
   annual_revenue_range: z.string().optional(),
   payroll_cycle: nonEmptyString('Payroll cycle'),
   monthly_payroll_amount: z.number().min(0).optional(),
