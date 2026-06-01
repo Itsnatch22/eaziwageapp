@@ -29,12 +29,20 @@ export async function GET() {
 
     if (transactionError) throw transactionError;
 
-    // 3. Get satisfaction rate (simulated based on successful transactions or constant if no feedback table)
+    // 3. Get approved employer count
+    const { count: approvedEmployerCount, error: employerError } = await supabaseAdmin
+      .from('employers')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'approved');
+
+    if (employerError) throw employerError;
+
+    // 4. Get satisfaction rate (simulated based on successful transactions or constant if no feedback table)
     // For now, let's use a dynamic but high base + small random factor or calculation
     // If we had a feedback table, we'd query it here.
     const satisfactionRate = 98 + (Math.random() > 0.5 ? 1 : 0);
 
-    // 4. Interest rate (always 0% by business model)
+    // 5. Interest rate (always 0% by business model)
     const interestRate = 0;
 
     // Format numbers (e.g., 1200 -> 1.2K+)
@@ -49,9 +57,11 @@ export async function GET() {
       employeesServed: formatCount(employeeCount || 0),
       satisfactionRate: `${satisfactionRate}%`,
       interestRate: `${interestRate}%`,
+      employersCount: formatCount(approvedEmployerCount || 0),
       raw: {
         employees: employeeCount,
-        transactions: transactionCount
+        transactions: transactionCount,
+        employers: approvedEmployerCount
       }
     });
   } catch (error) {

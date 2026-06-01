@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Mail,
@@ -19,7 +19,17 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-const ContactInfoCard = ({ icon: Icon, label, value, href }: { icon: React.ElementType; label: string; value: string; href?: string }) => {
+const ContactInfoCard = ({
+  icon: Icon,
+  label,
+  value,
+  href,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  href?: string;
+}) => {
   const content = (
     <motion.div
       whileHover={{ y: -5 }}
@@ -29,8 +39,12 @@ const ContactInfoCard = ({ icon: Icon, label, value, href }: { icon: React.Eleme
         <Icon className="h-6 w-6" />
       </div>
       <div>
-        <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
-        <p className="text-lg font-semibold text-slate-900 dark:text-white">{value}</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {label}
+        </p>
+        <p className="text-lg font-semibold text-slate-900 dark:text-white">
+          {value}
+        </p>
       </div>
     </motion.div>
   );
@@ -49,6 +63,7 @@ const ContactInfoCard = ({ icon: Icon, label, value, href }: { icon: React.Eleme
 export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [employersCount, setEmployersCount] = useState("100+");
 
   const {
     register,
@@ -58,6 +73,21 @@ export default function ContactPage() {
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
   });
+
+  useEffect(() => {
+    fetch("/api/public/stats")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.employersCount) {
+          setEmployersCount(data.employersCount);
+        } else if (data.raw?.employers != null) {
+          setEmployersCount(`${data.raw.employers}+`);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load employer stats:", error);
+      });
+  }, []);
 
   const onSubmit = async (data: ContactFormData) => {
     if (data.honeypot) return;
@@ -79,7 +109,9 @@ export default function ContactPage() {
         // Reset success state after 10 seconds
         setTimeout(() => setIsSuccess(false), 10000);
       } else {
-        toast.error(result.error || "Failed to send message. Please try again.");
+        toast.error(
+          result.error || "Failed to send message. Please try again.",
+        );
       }
     } catch (error: unknown) {
       console.error(error);
@@ -101,7 +133,6 @@ export default function ContactPage() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 py-24 lg:px-8 lg:py-32">
         <div className="grid gap-16 lg:grid-cols-2 lg:items-start">
-          
           {/* Left Side: Copy */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -121,12 +152,16 @@ export default function ContactPage() {
               </motion.div>
 
               <h1 className="text-5xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-7xl">
-                Let&apos;s Start a <span className="text-emerald-600 dark:text-emerald-400">Conversation.</span>
+                Let&apos;s Start a{" "}
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  Conversation.
+                </span>
               </h1>
 
               <p className="max-w-xl text-lg leading-relaxed text-slate-600 dark:text-slate-400">
-                Have questions about EaziWage? Whether you&apos;re an employer looking to 
-                empower your team or an employee wanting to learn more, we&apos;re here to help.
+                Have questions about EaziWage? Whether you&apos;re an employer
+                looking to empower your team or an employee wanting to learn
+                more, we&apos;re here to help.
               </p>
 
               <div className="space-y-4 pt-8">
@@ -151,7 +186,10 @@ export default function ContactPage() {
 
               <div className="pt-10">
                 <div className="flex items-center gap-4 text-sm font-medium text-slate-500 dark:text-slate-400">
-                  <span>Trusted by 100+ forward-thinking companies across Africa</span>
+                  <span>
+                    Trusted by {employersCount} forward-thinking companies
+                    across Africa
+                  </span>
                   <ArrowRight className="h-4 w-4" />
                 </div>
               </div>
@@ -177,13 +215,15 @@ export default function ContactPage() {
                     <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20 text-green-500">
                       <CheckCircle2 className="h-10 w-10" />
                     </div>
-                    <h2 className="mb-4 text-3xl font-bold text-slate-900 dark:text-white">Message Received!</h2>
+                    <h2 className="mb-4 text-3xl font-bold text-slate-900 dark:text-white">
+                      Message Received!
+                    </h2>
                     <p className="mx-auto max-w-xs text-slate-600 dark:text-slate-400">
-                      Thank you for reaching out. Our team will review your message and 
-                      get back to you within 24 hours.
+                      Thank you for reaching out. Our team will review your
+                      message and get back to you within 24 hours.
                     </p>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="mt-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-white"
                       onClick={() => setIsSuccess(false)}
                     >
@@ -197,29 +237,54 @@ export default function ContactPage() {
                     exit={{ opacity: 0 }}
                   >
                     <div className="mb-10">
-                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Send a Message</h2>
+                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                        Send a Message
+                      </h2>
                       <p className="mt-2 text-slate-600 dark:text-slate-400">
-                        Fill out the form and we&apos;ll get back to you shortly.
+                        Fill out the form and we&apos;ll get back to you
+                        shortly.
                       </p>
                     </div>
 
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                      <input type="text" className="sr-only" {...register("honeypot")} tabIndex={-1} />
-                      
+                    <form
+                      onSubmit={handleSubmit(onSubmit)}
+                      className="space-y-6"
+                    >
+                      <input
+                        type="text"
+                        className="sr-only"
+                        {...register("honeypot")}
+                        tabIndex={-1}
+                      />
+
                       <div className="grid gap-6 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="name" className="text-slate-700 dark:text-slate-300">Full Name</Label>
+                          <Label
+                            htmlFor="name"
+                            className="text-slate-700 dark:text-slate-300"
+                          >
+                            Full Name
+                          </Label>
                           <Input
                             id="name"
                             placeholder="John Doe"
                             {...register("name")}
                             className="h-14 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
                           />
-                          {errors.name && <p className="text-xs font-medium text-red-500">{errors.name.message}</p>}
+                          {errors.name && (
+                            <p className="text-xs font-medium text-red-500">
+                              {errors.name.message}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="email" className="text-slate-700 dark:text-slate-300">Email Address</Label>
+                          <Label
+                            htmlFor="email"
+                            className="text-slate-700 dark:text-slate-300"
+                          >
+                            Email Address
+                          </Label>
                           <Input
                             id="email"
                             type="email"
@@ -227,23 +292,41 @@ export default function ContactPage() {
                             {...register("email")}
                             className="h-14 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
                           />
-                          {errors.email && <p className="text-xs font-medium text-red-500">{errors.email.message}</p>}
+                          {errors.email && (
+                            <p className="text-xs font-medium text-red-500">
+                              {errors.email.message}
+                            </p>
+                          )}
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="subject" className="text-slate-700 dark:text-slate-300">Subject</Label>
+                        <Label
+                          htmlFor="subject"
+                          className="text-slate-700 dark:text-slate-300"
+                        >
+                          Subject
+                        </Label>
                         <Input
                           id="subject"
                           placeholder="How can we help?"
                           {...register("subject")}
                           className="h-14 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
                         />
-                        {errors.subject && <p className="text-xs font-medium text-red-500">{errors.subject.message}</p>}
+                        {errors.subject && (
+                          <p className="text-xs font-medium text-red-500">
+                            {errors.subject.message}
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="message" className="text-slate-700 dark:text-slate-300">Message</Label>
+                        <Label
+                          htmlFor="message"
+                          className="text-slate-700 dark:text-slate-300"
+                        >
+                          Message
+                        </Label>
                         <Textarea
                           id="message"
                           rows={5}
@@ -251,7 +334,11 @@ export default function ContactPage() {
                           {...register("message")}
                           className="min-h-30 resize-none border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
                         />
-                        {errors.message && <p className="text-xs font-medium text-red-500">{errors.message.message}</p>}
+                        {errors.message && (
+                          <p className="text-xs font-medium text-red-500">
+                            {errors.message.message}
+                          </p>
+                        )}
                       </div>
 
                       <Button
@@ -276,7 +363,7 @@ export default function ContactPage() {
                 )}
               </AnimatePresence>
             </div>
-            
+
             {/* Decoration */}
             <div className="absolute -bottom-6 -right-6 -z-10 h-64 w-64 rounded-full bg-green-500/8 blur-3xl" />
           </motion.div>
