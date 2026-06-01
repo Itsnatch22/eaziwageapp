@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
     email: user.email,
     national_id,
     id_type,
-    nationality: nationality || null,
+    nationality: nationality || (country === 'Kenya' ? 'Kenyan' : null), // Default to Kenyan if not provided
     date_of_birth,
     country,
     address_line1,

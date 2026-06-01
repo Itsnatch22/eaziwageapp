@@ -43,7 +43,7 @@ import {
   IMAGE_ACCEPT,
   isDocumentFile,
   isImageFile,
-} from "@/lib/upload-file-types";
+} from "@/lib/upload-file-types"
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
@@ -240,7 +240,6 @@ We DO NOT sell your personal data to third parties.
 
 For privacy inquiries: privacy@eaziwage.com`;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type IconType = React.ComponentType<{ className?: string }>;
 type IdType = "national_id" | "passport";
