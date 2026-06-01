@@ -1,134 +1,156 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
-  ArrowRight, CheckCircle2,
-  Phone, Briefcase, Wallet, Check, Sparkles,
-  Shield, FileText, AlertCircle, ChevronDown,
-  Upload, Camera, Home, Receipt, Search,
-  ScanFace, Loader2, Landmark as BankIcon
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+  ArrowRight,
+  CheckCircle2,
+  Phone,
+  Briefcase,
+  Wallet,
+  Check,
+  Sparkles,
+  Shield,
+  FileText,
+  AlertCircle,
+  ChevronDown,
+  Upload,
+  Camera,
+  Home,
+  Receipt,
+  Search,
+  ScanFace,
+  Loader2,
+  Landmark as BankIcon,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-import Link from 'next/link';
-import { useAuthStore } from '@/lib/stores/auth';
-import { EmployeeBackground } from '@/components/employee/EmployeeLayout';
-import { DOCUMENT_ACCEPT, IMAGE_ACCEPT, isDocumentFile, isImageFile } from '@/lib/upload-file-types';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import Link from "next/link";
+import { useAuthStore } from "@/lib/stores/auth";
+import { EmployeeBackground } from "@/components/employee/EmployeeLayout";
+import {
+  DOCUMENT_ACCEPT,
+  IMAGE_ACCEPT,
+  isDocumentFile,
+  isImageFile,
+} from "@/lib/upload-file-types";
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
 const COUNTRIES_OF_WORK = [
-  { code: 'KE', name: 'Kenya', providers: ['M-PESA', 'Airtel Money'] },
-  { code: 'UG', name: 'Uganda', providers: ['MTN MoMo', 'Airtel Money'] },
-  { code: 'TZ', name: 'Tanzania', providers: ['M-PESA', 'Tigo Pesa'] },
-  { code: 'RW', name: 'Rwanda', providers: ['MTN MoMo', 'Airtel Money'] },
+  { code: "KE", name: "Kenya", providers: ["M-PESA", "Airtel Money"] },
+  { code: "UG", name: "Uganda", providers: ["MTN MoMo", "Airtel Money"] },
+  { code: "TZ", name: "Tanzania", providers: ["M-PESA", "Tigo Pesa"] },
+  { code: "RW", name: "Rwanda", providers: ["MTN MoMo", "Airtel Money"] },
 ];
 
 const BANKS_BY_COUNTRY: Record<string, string[]> = {
   KE: [
-    'Absa Bank Kenya',
-    'Access Bank Kenya',
-    'African Banking Corporation',
-    'Bank of Africa Kenya',
-    'Bank of Baroda Kenya',
-    'Bank of India Kenya',
-    'Citibank N.A. Kenya',
-    'Commercial International Bank (CIB)',
-    'Co-operative Bank of Kenya',
-    'Credit Bank',
-    'Diamond Trust Bank (DTB)',
-    'Ecobank Kenya',
-    'Equity Bank Kenya',
-    'Family Bank',
-    'First Community Bank',
-    'Gulf African Bank',
-    'Housing Finance Company',
-    'I&M Bank Kenya',
-    'KCB Bank Kenya',
-    'Middle East Bank Kenya',
-    'NCBA Bank Kenya',
-    'Prime Bank',
-    'SBM Bank Kenya',
-    'Stanbic Bank Kenya',
-    'Standard Chartered Kenya',
-    'UBA Kenya',
-    'Victoria Commercial Bank',
-    'Zenith Bank Kenya',
+    "Absa Bank Kenya",
+    "Access Bank Kenya",
+    "African Banking Corporation",
+    "Bank of Africa Kenya",
+    "Bank of Baroda Kenya",
+    "Bank of India Kenya",
+    "Citibank N.A. Kenya",
+    "Commercial International Bank (CIB)",
+    "Co-operative Bank of Kenya",
+    "Credit Bank",
+    "Diamond Trust Bank (DTB)",
+    "Ecobank Kenya",
+    "Equity Bank Kenya",
+    "Family Bank",
+    "First Community Bank",
+    "Gulf African Bank",
+    "Housing Finance Company",
+    "I&M Bank Kenya",
+    "KCB Bank Kenya",
+    "Middle East Bank Kenya",
+    "NCBA Bank Kenya",
+    "Prime Bank",
+    "SBM Bank Kenya",
+    "Stanbic Bank Kenya",
+    "Standard Chartered Kenya",
+    "UBA Kenya",
+    "Victoria Commercial Bank",
+    "Zenith Bank Kenya",
   ],
   TZ: [
-    'CRDB Bank',
-    'NMB Bank',
-    'NBC Bank',
-    'Absa Bank Tanzania',
-    'Stanbic Bank Tanzania',
-    'Standard Chartered Tanzania',
-    'Citibank Tanzania',
-    'Diamond Trust Bank Tanzania',
-    'Ecobank Tanzania',
-    'Exim Bank Tanzania',
-    'KCB Bank Tanzania',
-    'Bank of Africa Tanzania',
-    'Access Bank Tanzania',
-    'Equity Bank Tanzania',
-    'I&M Bank Tanzania',
-    'Bank of India Tanzania',
-    'United Bank for Africa Tanzania',
-    'Mkombozi Commercial Bank',
-    'DCB Commercial Bank',
-    'Azania Bank',
+    "CRDB Bank",
+    "NMB Bank",
+    "NBC Bank",
+    "Absa Bank Tanzania",
+    "Stanbic Bank Tanzania",
+    "Standard Chartered Tanzania",
+    "Citibank Tanzania",
+    "Diamond Trust Bank Tanzania",
+    "Ecobank Tanzania",
+    "Exim Bank Tanzania",
+    "KCB Bank Tanzania",
+    "Bank of Africa Tanzania",
+    "Access Bank Tanzania",
+    "Equity Bank Tanzania",
+    "I&M Bank Tanzania",
+    "Bank of India Tanzania",
+    "United Bank for Africa Tanzania",
+    "Mkombozi Commercial Bank",
+    "DCB Commercial Bank",
+    "Azania Bank",
   ],
   UG: [
-    'Absa Bank Uganda',
-    'Access Bank Uganda',
-    'Bank of Africa Uganda',
-    'Bank of Baroda Uganda',
-    'Bank of India Uganda',
-    'Cairo Bank Uganda',
-    'Centenary Bank',
-    'Citibank Uganda',
-    'DFCU Bank',
-    'Diamond Trust Bank Uganda',
-    'Ecobank Uganda',
-    'Equity Bank Uganda',
-    'Exim Bank Uganda',
-    'Housing Finance Bank',
-    'I&M Bank Uganda',
-    'KCB Bank Uganda',
-    'NCBA Bank Uganda',
-    'PostBank Uganda',
-    'Salaam Bank Uganda',
-    'Stanbic Bank Uganda',
-    'Standard Chartered Uganda',
-    'Tropical Bank',
-    'United Bank for Africa Uganda',
+    "Absa Bank Uganda",
+    "Access Bank Uganda",
+    "Bank of Africa Uganda",
+    "Bank of Baroda Uganda",
+    "Bank of India Uganda",
+    "Cairo Bank Uganda",
+    "Centenary Bank",
+    "Citibank Uganda",
+    "DFCU Bank",
+    "Diamond Trust Bank Uganda",
+    "Ecobank Uganda",
+    "Equity Bank Uganda",
+    "Exim Bank Uganda",
+    "Housing Finance Bank",
+    "I&M Bank Uganda",
+    "KCB Bank Uganda",
+    "NCBA Bank Uganda",
+    "PostBank Uganda",
+    "Salaam Bank Uganda",
+    "Stanbic Bank Uganda",
+    "Standard Chartered Uganda",
+    "Tropical Bank",
+    "United Bank for Africa Uganda",
   ],
   RW: [
-    'Bank of Kigali',
-    'BPR Bank Rwanda',
-    'I&M Bank Rwanda',
-    'Ecobank Rwanda',
-    'GT Bank Rwanda',
-    'Equity Bank Rwanda',
-    'NCBA Rwanda',
-    'Access Bank Rwanda',
-    'Bank of Africa Rwanda',
-    'KCB Bank Rwanda',
-    'Urwego Bank',
-    'AB Bank Rwanda',
-    'Cogebanque',
-    'Zigama CSS',
-    'Development Bank of Rwanda (BRD)',
-    'Unguka Bank',
+    "Bank of Kigali",
+    "BPR Bank Rwanda",
+    "I&M Bank Rwanda",
+    "Ecobank Rwanda",
+    "GT Bank Rwanda",
+    "Equity Bank Rwanda",
+    "NCBA Rwanda",
+    "Access Bank Rwanda",
+    "Bank of Africa Rwanda",
+    "KCB Bank Rwanda",
+    "Urwego Bank",
+    "AB Bank Rwanda",
+    "Cogebanque",
+    "Zigama CSS",
+    "Development Bank of Rwanda (BRD)",
+    "Unguka Bank",
   ],
 };
-
 
 const TERMS_CONTENT = `Last Updated: October 2025
 
@@ -221,29 +243,29 @@ For privacy inquiries: privacy@eaziwage.com`;
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type IconType = React.ComponentType<{ className?: string }>;
-type IdType = 'national_id' | 'passport';
+type IdType = "national_id" | "passport";
 
 type OnboardingDocKey =
-  | 'face_id'
-  | 'id_front'
-  | 'id_back'
-  | 'address_proof'
-  | 'tax_certificate'
-  | 'payslip_1'
-  | 'payslip_2'
-  | 'bank_statement'
-  | 'employment_contract';
+  | "face_id"
+  | "id_front"
+  | "id_back"
+  | "address_proof"
+  | "tax_certificate"
+  | "payslip_1"
+  | "payslip_2"
+  | "bank_statement"
+  | "employment_contract";
 
 const DOC_KEY_TO_TYPE: Record<OnboardingDocKey, string> = {
-    face_id: 'face_id',
-    id_front: 'national_id',
-    id_back: 'national_id',
-    address_proof: 'utility_bill',
-    tax_certificate: 'tax_certificate',
-    payslip_1: 'payslip',
-    payslip_2: 'payslip',
-    bank_statement: 'bank_statement',
-    employment_contract: 'employment_contract',
+  face_id: "face_id",
+  id_front: "national_id",
+  id_back: "national_id",
+  address_proof: "utility_bill",
+  tax_certificate: "tax_certificate",
+  payslip_1: "payslip",
+  payslip_2: "payslip",
+  bank_statement: "bank_statement",
+  employment_contract: "employment_contract",
 };
 
 interface UploadedDocument {
@@ -291,7 +313,7 @@ interface Employer {
 interface FileUploaderProps {
   label: string;
   accept?: string;
-  kind?: 'image' | 'document';
+  kind?: "image" | "document";
   description?: string;
   onUpload: (file: File) => void;
   uploadedFile: UploadedDocument | null;
@@ -307,14 +329,14 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { id: 'welcome', title: 'Welcome', icon: Sparkles },
-  { id: 'terms', title: 'Terms', icon: Shield },
-  { id: 'face_id', title: 'Face ID', icon: ScanFace },
-  { id: 'identity', title: 'Identity', icon: FileText },
-  { id: 'address', title: 'Address', icon: Home },
-  { id: 'tax', title: 'Tax', icon: Receipt },
-  { id: 'employment', title: 'Job', icon: Briefcase },
-  { id: 'payment', title: 'Payment', icon: Wallet },
+  { id: "welcome", title: "Welcome", icon: Sparkles },
+  { id: "terms", title: "Terms", icon: Shield },
+  { id: "face_id", title: "Face ID", icon: ScanFace },
+  { id: "identity", title: "Identity", icon: FileText },
+  { id: "address", title: "Address", icon: Home },
+  { id: "tax", title: "Tax", icon: Receipt },
+  { id: "employment", title: "Job", icon: Briefcase },
+  { id: "payment", title: "Payment", icon: Wallet },
 ];
 
 // ─── Sub-Components ───────────────────────────────────────────────────────────
@@ -330,28 +352,38 @@ const StepIndicator = ({ steps, currentStep }: StepIndicatorProps) => (
       const active = index === currentStep;
       const completed = index < currentStep;
       const Icon = step.icon;
-      
+
       return (
         <React.Fragment key={step.id}>
           <div className="flex flex-col items-center gap-2 group relative">
-            <div className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500",
-              completed ? "bg-primary text-white scale-90" : 
-              active ? "bg-primary text-white shadow-xl shadow-primary/25 ring-4 ring-primary/10" : 
-              "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400"
-            )}>
-              {completed ? <Check className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+            <div
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500",
+                completed
+                  ? "bg-primary text-white scale-90"
+                  : active
+                    ? "bg-primary text-white shadow-xl shadow-primary/25 ring-4 ring-primary/10"
+                    : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400",
+              )}
+            >
+              {completed ? (
+                <Check className="w-5 h-5" />
+              ) : (
+                <Icon className="w-5 h-5" />
+              )}
             </div>
-            <span className={cn(
-              "text-[10px] font-bold uppercase tracking-widest absolute -bottom-6 whitespace-nowrap transition-colors duration-300",
-              active ? "text-primary" : "text-slate-400"
-            )}>
+            <span
+              className={cn(
+                "text-[10px] font-bold uppercase tracking-widest absolute -bottom-6 whitespace-nowrap transition-colors duration-300",
+                active ? "text-primary" : "text-slate-400",
+              )}
+            >
               {step.title}
             </span>
           </div>
           {index < steps.length - 1 && (
             <div className="flex-1 h-0.5 mx-2 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
-              <div 
+              <div
                 className="absolute inset-0 bg-primary transition-transform duration-700 ease-in-out origin-left"
                 style={{ transform: `scaleX(${completed ? 1 : 0})` }}
               />
@@ -364,8 +396,15 @@ const StepIndicator = ({ steps, currentStep }: StepIndicatorProps) => (
 );
 
 const FileUploader = ({
-  label, accept, kind = 'document', description, onUpload,
-  uploadedFile, uploading, required = false, testId
+  label,
+  accept,
+  kind = "document",
+  description,
+  onUpload,
+  uploadedFile,
+  uploading,
+  required = false,
+  testId,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -378,13 +417,18 @@ const FileUploader = ({
   };
 
   const validateAndUpload = (file: File) => {
-    const validFile = kind === 'image' ? isImageFile(file) : isDocumentFile(file);
+    const validFile =
+      kind === "image" ? isImageFile(file) : isDocumentFile(file);
     if (!validFile) {
-      toast.error(kind === 'image' ? 'Please upload an image file' : 'Please upload an image or document file');
+      toast.error(
+        kind === "image"
+          ? "Please upload an image file"
+          : "Please upload an image or document file",
+      );
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size must be under 5MB');
+      toast.error("File size must be under 5MB");
       return;
     }
     onUpload(file);
@@ -398,7 +442,7 @@ const FileUploader = ({
   const handleDragIn = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragCounter(prev => prev + 1);
+    setDragCounter((prev) => prev + 1);
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
       setDragActive(true);
     }
@@ -407,7 +451,7 @@ const FileUploader = ({
   const handleDragOut = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragCounter(prev => prev - 1);
+    setDragCounter((prev) => prev - 1);
     if (dragCounter === 1) {
       setDragActive(false);
     }
@@ -416,12 +460,12 @@ const FileUploader = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
       validateAndUpload(file);
     }
-    
+
     setDragActive(false);
     setDragCounter(0);
   };
@@ -431,7 +475,13 @@ const FileUploader = ({
       <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
         {label} {required && <span className="text-red-500">*</span>}
       </Label>
-      <input ref={fileInputRef} type="file" accept={accept ?? (kind === 'image' ? IMAGE_ACCEPT : DOCUMENT_ACCEPT)} onChange={handleFileSelect} className="hidden" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={accept ?? (kind === "image" ? IMAGE_ACCEPT : DOCUMENT_ACCEPT)}
+        onChange={handleFileSelect}
+        className="hidden"
+      />
       <div
         onClick={() => !uploading && fileInputRef.current?.click()}
         onDragEnter={handleDragIn}
@@ -440,41 +490,57 @@ const FileUploader = ({
         onDrop={handleDrop}
         className={cn(
           "relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 group",
-          dragActive 
-            ? "border-primary bg-primary/5 scale-[1.02]" 
-            : uploadedFile 
-              ? "border-primary bg-primary/3 dark:bg-primary/3" 
-              : "border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+          dragActive
+            ? "border-primary bg-primary/5 scale-[1.02]"
+            : uploadedFile
+              ? "border-primary bg-primary/3 dark:bg-primary/3"
+              : "border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50",
         )}
       >
         {uploading ? (
           <div className="flex flex-col items-center gap-2 py-2">
             <Loader2 className="w-6 h-6 text-primary animate-spin" />
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Processing...</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+              Processing...
+            </p>
           </div>
         ) : uploadedFile ? (
           <div className="flex flex-col items-center gap-2">
             <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
               <Check className="w-5 h-5" />
             </div>
-            <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-full px-4">{uploadedFile.name}</p>
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Click to replace</p>
+            <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-full px-4">
+              {uploadedFile.name}
+            </p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase">
+              Click to replace
+            </p>
           </div>
         ) : dragActive ? (
           <div className="flex flex-col items-center gap-2 py-4">
             <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary animate-pulse">
               <Upload className="w-5 h-5" />
             </div>
-            <p className="text-xs font-bold text-primary uppercase tracking-widest">Drop file here</p>
-            <p className="text-[10px] text-slate-400 font-medium">Release to upload</p>
+            <p className="text-xs font-bold text-primary uppercase tracking-widest">
+              Drop file here
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium">
+              Release to upload
+            </p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
             <div className="w-10 h-10 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
               <Upload className="w-5 h-5" />
             </div>
-            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">Choose File or Drag & Drop</p>
-            {description && <p className="text-[10px] text-slate-400 font-medium">{description}</p>}
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
+              Choose File or Drag & Drop
+            </p>
+            {description && (
+              <p className="text-[10px] text-slate-400 font-medium">
+                {description}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -487,21 +553,24 @@ const FileUploader = ({
 export default function Onboarding() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const [identity, setIdentity] = useState<{ full_name?: string; email?: string } | null>(null);
+  const [identity, setIdentity] = useState<{
+    full_name?: string;
+    email?: string;
+  } | null>(null);
   const userFullName =
     user?.full_name ||
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||
     identity?.full_name ||
-    '';
-  const userFirstName = userFullName.trim().split(/\s+/)[0] || '';
+    "";
+  const userFirstName = userFullName.trim().split(/\s+/)[0] || "";
 
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [employers, setEmployers] = useState<Employer[]>([]);
-  const [employerSearch, setEmployerSearch] = useState('');
+  const [employerSearch, setEmployerSearch] = useState("");
   const [employersLoading, setEmployersLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsContent, setShowTermsContent] = useState(false);
   const [showPrivacyContent, setShowPrivacyContent] = useState(false);
@@ -512,7 +581,9 @@ export default function Onboarding() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [uploadingFile, setUploadingFile] = useState<OnboardingDocKey | null>(null);
+  const [uploadingFile, setUploadingFile] = useState<OnboardingDocKey | null>(
+    null,
+  );
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFilesState>({
     face_id: null,
     id_front: null,
@@ -526,70 +597,116 @@ export default function Onboarding() {
   });
 
   const [formData, setFormData] = useState<OnboardingFormData>({
-    employer_id: '', employee_code: '', national_id: '', id_type: 'national_id',
-    nationality: '', date_of_birth: '', employment_type: '', job_title: '',
-    department: '', monthly_salary: '', bank_name: '', bank_account: '',
-    mobile_money_provider: '', mobile_money_number: '', country: '',
-    tax_id: '', address_line1: '', address_line2: '', city: '',
-    postal_code: '', start_date: '',
-    joining_month: '', joining_year: '',
+    employer_id: "",
+    employee_code: "",
+    national_id: "",
+    id_type: "national_id",
+    nationality: "",
+    date_of_birth: "",
+    employment_type: "",
+    job_title: "",
+    department: "",
+    monthly_salary: "",
+    bank_name: "",
+    bank_account: "",
+    mobile_money_provider: "",
+    mobile_money_number: "",
+    country: "",
+    tax_id: "",
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    postal_code: "",
+    start_date: "",
+    joining_month: "",
+    joining_year: "",
   });
 
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const res = await fetch('/api/employee-dashboard/profile');
+        const res = await fetch("/api/employee-dashboard/profile");
         if (res.ok) {
           const data = await res.json();
           const profile = data?.profile?.employee;
-          const status = String(profile?.kyc_status || '').toLowerCase();
-          
-          // Block access if already approved or pending review
-      
+          const status = String(profile?.kyc_status || "").toLowerCase();
 
-          setIdentity({ full_name: data?.profile?.full_name || '', email: data?.profile?.email || '' });
+          // Block access if already approved or pending review
+
+          setIdentity({
+            full_name: data?.profile?.full_name || "",
+            email: data?.profile?.email || "",
+          });
 
           // If rejected, pre-fill form with existing data
-          if (status === 'rejected' && profile) {
-            setFormData(prev => ({
+          if (status === "rejected" && profile) {
+            setFormData((prev) => ({
               ...prev,
-              employer_id: profile.employer_id || '',
-              employee_code: profile.employee_code || '',
-              national_id: profile.national_id || '',
-              id_type: profile.id_type || 'national_id',
-              nationality: profile.nationality || '',
-              date_of_birth: profile.date_of_birth || '',
-              employment_type: profile.employment_type || '',
-              job_title: profile.job_title || '',
-              department: profile.department || '',
-              monthly_salary: profile.monthly_salary?.toString() || '',
-              bank_name: profile.bank_name || '',
-              bank_account: profile.bank_account || '',
-              mobile_money_provider: profile.mobile_money_provider || '',
-              mobile_money_number: profile.mobile_money_number || '',
-              country: profile.country || '',
-              tax_id: profile.tax_id || '',
-              address_line1: profile.address_line1 || '',
-              address_line2: profile.address_line2 || '',
-              city: profile.city || '',
-              postal_code: profile.postal_code || '',
-              start_date: profile.start_date || '',
+              employer_id: profile.employer_id || "",
+              employee_code: profile.employee_code || "",
+              national_id: profile.national_id || "",
+              id_type: profile.id_type || "national_id",
+              nationality: profile.nationality || "",
+              date_of_birth: profile.date_of_birth || "",
+              employment_type: profile.employment_type || "",
+              job_title: profile.job_title || "",
+              department: profile.department || "",
+              monthly_salary: profile.monthly_salary?.toString() || "",
+              bank_name: profile.bank_name || "",
+              bank_account: profile.bank_account || "",
+              mobile_money_provider: profile.mobile_money_provider || "",
+              mobile_money_number: profile.mobile_money_number || "",
+              country: profile.country || "",
+              tax_id: profile.tax_id || "",
+              address_line1: profile.address_line1 || "",
+              address_line2: profile.address_line2 || "",
+              city: profile.city || "",
+              postal_code: profile.postal_code || "",
+              start_date: profile.start_date || "",
             }));
 
             // Also try to restore file names (urls won't be valid for local state but we show the names)
-            setUploadedFiles(prev => ({
+            setUploadedFiles((prev) => ({
               ...prev,
-              id_front: profile.id_front ? { name: 'Previous ID Front', url: profile.id_front } : null,
-              id_back: profile.id_back ? { name: 'Previous ID Back', url: profile.id_back } : null,
-              address_proof: profile.utility_bill ? { name: 'Previous Proof of Address', url: profile.utility_bill } : null,
-              tax_certificate: profile.tax_certificate ? { name: 'Previous Tax Certificate', url: profile.tax_certificate } : null,
-              payslip_1: profile.payslip ? { name: 'Previous Payslip', url: profile.payslip } : null,
-              bank_statement: profile.bank_statement ? { name: 'Previous Bank Statement', url: profile.bank_statement } : null,
-              employment_contract: profile.employment_contract ? { name: 'Previous Contract', url: profile.employment_contract } : null,
+              id_front: profile.id_front
+                ? { name: "Previous ID Front", url: profile.id_front }
+                : null,
+              id_back: profile.id_back
+                ? { name: "Previous ID Back", url: profile.id_back }
+                : null,
+              address_proof: profile.utility_bill
+                ? {
+                    name: "Previous Proof of Address",
+                    url: profile.utility_bill,
+                  }
+                : null,
+              tax_certificate: profile.tax_certificate
+                ? {
+                    name: "Previous Tax Certificate",
+                    url: profile.tax_certificate,
+                  }
+                : null,
+              payslip_1: profile.payslip
+                ? { name: "Previous Payslip", url: profile.payslip }
+                : null,
+              bank_statement: profile.bank_statement
+                ? {
+                    name: "Previous Bank Statement",
+                    url: profile.bank_statement,
+                  }
+                : null,
+              employment_contract: profile.employment_contract
+                ? {
+                    name: "Previous Contract",
+                    url: profile.employment_contract,
+                  }
+                : null,
             }));
           }
         }
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
     };
     checkStatus();
   }, [router]);
@@ -597,20 +714,22 @@ export default function Onboarding() {
   useEffect(() => {
     async function checkExistingStatus() {
       try {
-        const res = await fetch('/api/employee-dashboard/profile');
+        const res = await fetch("/api/employee-dashboard/profile");
         if (res.ok) {
           const data = await res.json();
-          const status = String(data?.profile?.employee?.kyc_status || '').toLowerCase();
-          if (status === 'approved') {
-            router.replace('/dashboards/employee-dashboard');
+          const status = String(
+            data?.profile?.employee?.kyc_status || "",
+          ).toLowerCase();
+          if (status === "approved") {
+            router.replace("/dashboards/employee-dashboard");
           }
           setIdentity({
-            full_name: data?.profile?.full_name || '',
-            email: data?.profile?.email || '',
+            full_name: data?.profile?.full_name || "",
+            email: data?.profile?.email || "",
           });
         }
       } catch (err) {
-        console.error('Failed to check status:', err);
+        console.error("Failed to check status:", err);
       }
     }
     checkExistingStatus();
@@ -620,11 +739,11 @@ export default function Onboarding() {
     const fetchEmployers = async () => {
       setEmployersLoading(true);
       try {
-        const res = await fetch('/api/employee-dashboard/employers');
+        const res = await fetch("/api/employee-dashboard/employers");
         const data = await res.json();
         setEmployers(data.employers || []);
       } catch (err) {
-        console.error('Failed to fetch employers:', err);
+        console.error("Failed to fetch employers:", err);
       } finally {
         setEmployersLoading(false);
       }
@@ -633,31 +752,37 @@ export default function Onboarding() {
   }, []);
 
   const filteredEmployers = employers.filter((e) =>
-    e.company_name.toLowerCase().includes(employerSearch.toLowerCase())
+    e.company_name.toLowerCase().includes(employerSearch.toLowerCase()),
   );
 
-  const updateField = <K extends keyof OnboardingFormData>(field: K, value: OnboardingFormData[K]) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const updateField = <K extends keyof OnboardingFormData>(
+    field: K,
+    value: OnboardingFormData[K],
+  ) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleFileUpload = async (file: File, docKey: OnboardingDocKey) => {
     setUploadingFile(docKey);
     try {
       const fd = new FormData();
-      fd.append('file', file);
-      fd.append('document_type', DOC_KEY_TO_TYPE[docKey]);
+      fd.append("file", file);
+      fd.append("document_type", DOC_KEY_TO_TYPE[docKey]);
 
-      const res = await fetch('/api/employee-dashboard/kyc/documents', { method: 'POST', body: fd });
+      const res = await fetch("/api/employee-dashboard/kyc/documents", {
+        method: "POST",
+        body: fd,
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      if (!res.ok) throw new Error(data.error || "Upload failed");
 
-      setUploadedFiles(prev => ({
+      setUploadedFiles((prev) => ({
         ...prev,
         [docKey]: { name: file.name, url: data.document_url },
       }));
-      toast.success('File saved');
+      toast.success("File saved");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed');
+      toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploadingFile(null);
     }
@@ -667,19 +792,21 @@ export default function Onboarding() {
   const startFaceCapture = async () => {
     try {
       setCapturingFaceId(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user', width: 640, height: 480 } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: 640, height: 480 },
       });
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch {
-      toast.error('Camera access denied');
+      toast.error("Camera access denied");
       setCapturingFaceId(false);
     }
   };
 
   const stopFaceCapture = () => {
     if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      (videoRef.current.srcObject as MediaStream)
+        .getTracks()
+        .forEach((t) => t.stop());
       videoRef.current.srcObject = null;
     }
     setCapturingFaceId(false);
@@ -690,24 +817,30 @@ export default function Onboarding() {
     const canvas = canvasRef.current;
     canvas.width = videoRef.current.videoWidth;
     canvas.height = videoRef.current.videoHeight;
-    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
-    
-    canvas.toBlob(async (blob) => {
-      if (blob) {
-        const file = new File([blob], 'face_id.jpg', { type: 'image/jpeg' });
-        await handleFileUpload(file, 'face_id');
-        setFaceIdCaptured(true);
-        stopFaceCapture();
-      }
-    }, 'image/jpeg', 0.8);
+    canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
+
+    canvas.toBlob(
+      async (blob) => {
+        if (blob) {
+          const file = new File([blob], "face_id.jpg", { type: "image/jpeg" });
+          await handleFileUpload(file, "face_id");
+          setFaceIdCaptured(true);
+          stopFaceCapture();
+        }
+      },
+      "image/jpeg",
+      0.8,
+    );
   };
 
   const handleSubmit = async () => {
-    setError('');
+    setError("");
     setLoading(true);
     try {
       const docUrls: Record<string, string> = {};
-      Object.entries(uploadedFiles).forEach(([k, v]) => { if (v?.url) docUrls[k] = v.url; });
+      Object.entries(uploadedFiles).forEach(([k, v]) => {
+        if (v?.url) docUrls[k] = v.url;
+      });
 
       // Construct start_date from joining_month and joining_year
       let finalStartDate = formData.start_date;
@@ -715,39 +848,40 @@ export default function Onboarding() {
         finalStartDate = `${formData.joining_year}-${formData.joining_month}-01`;
       }
 
-      const res = await fetch('/api/employee-dashboard/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          ...formData, 
-          ...docUrls, 
+      const res = await fetch("/api/employee-dashboard/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          ...docUrls,
           start_date: finalStartDate,
-          monthly_salary: parseFloat(formData.monthly_salary) || 0 
+          monthly_salary: parseFloat(formData.monthly_salary) || 0,
         }),
       });
 
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.error || 'Submission failed');
+        throw new Error(d.error || "Submission failed");
       }
 
       toast.success("Application submitted!");
-      router.push('/dashboards/employee-dashboard/payment-methods');
+      router.push("/dashboards/employee-dashboard/payment-methods");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Submission failed');
+      setError(err instanceof Error ? err.message : "Submission failed");
     } finally {
       setLoading(false);
     }
   };
 
   const nextStep = () => {
-    if (currentStep === 1 && !agreedToTerms) return setError('Please accept terms');
-    setError('');
-    if (currentStep < STEPS.length - 1) setCurrentStep(s => s + 1);
+    if (currentStep === 1 && !agreedToTerms)
+      return setError("Please accept terms");
+    setError("");
+    if (currentStep < STEPS.length - 1) setCurrentStep((s) => s + 1);
   };
 
   const prevStep = () => {
-    setError('');
+    setError("");
     setCurrentStep((s) => Math.max(0, s - 1));
   };
 
@@ -758,164 +892,325 @@ export default function Onboarding() {
 
   const canProceed = (): boolean => {
     switch (currentStep) {
-      case 0: return true;
-      case 1: return agreedToTerms;
-      case 2: return true; 
-      case 3: return !!(formData.national_id && formData.date_of_birth && uploadedFiles.id_front);
-      case 4: return !!(formData.country && formData.address_line1 && formData.city && uploadedFiles.address_proof);
-      case 5: return true;
-      case 6: return !!(formData.employer_id && formData.job_title && formData.joining_month && formData.joining_year && uploadedFiles.payslip_1);
-      case 7: return !!(formData.country && formData.bank_name && formData.mobile_money_number && formData.bank_account && uploadedFiles.bank_statement);
-      default: return false;
+      case 0:
+        return true;
+      case 1:
+        return agreedToTerms;
+      case 2:
+        return true;
+      case 3:
+        return !!(
+          formData.national_id &&
+          formData.date_of_birth &&
+          uploadedFiles.id_front
+        );
+      case 4:
+        return !!(
+          formData.country &&
+          formData.address_line1 &&
+          formData.city &&
+          uploadedFiles.address_proof
+        );
+      case 5:
+        return true;
+      case 6:
+        return !!(
+          formData.employer_id &&
+          formData.job_title &&
+          formData.joining_month &&
+          formData.joining_year &&
+          uploadedFiles.payslip_1
+        );
+      case 7:
+        return !!(
+          formData.country &&
+          formData.bank_name &&
+          formData.mobile_money_number &&
+          formData.bank_account &&
+          uploadedFiles.bank_statement
+        );
+      default:
+        return false;
     }
   };
 
   const renderStepContent = () => {
     switch (currentStep) {
-      case 0: return (
-        <div className="text-center py-8">
-          <div className="w-20 h-20 bg-linear-to-br from-primary to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-primary/25">
-            <Sparkles className="w-10 h-10 text-white" />
+      case 0:
+        return (
+          <div className="text-center py-8">
+            <div className="w-20 h-20 bg-linear-to-br from-primary to-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-primary/25">
+              <Sparkles className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4">
+              Ready to unlock your wages
+              {userFirstName ? `, ${userFirstName}` : ""}?
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-10 max-w-md mx-auto leading-relaxed">
+              Let&apos;s get you verified. This secure process takes less than 5
+              minutes and ensures your account stays private.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { icon: Shield, text: "Biometric Secure" },
+                { icon: Wallet, text: "Instant Access" },
+                { icon: CheckCircle2, text: "AML Compliant" },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col items-center gap-2 p-4 bg-slate-50/50 dark:bg-white/2 rounded-2xl border border-slate-100 dark:border-slate-800/50"
+                >
+                  <item.icon className="w-5 h-5 text-primary" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    {item.text}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-          <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4">
-            Ready to unlock your wages{userFirstName ? `, ${userFirstName}` : ''}?
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 mb-10 max-w-md mx-auto leading-relaxed">
-            Let&apos;s get you verified. This secure process takes less than 5 minutes and ensures your account stays private.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[
-              { icon: Shield, text: 'Biometric Secure' },
-              { icon: Wallet, text: 'Instant Access' },
-              { icon: CheckCircle2, text: 'AML Compliant' },
-            ].map((item, i) => (
-              <div key={i} className="flex flex-col items-center gap-2 p-4 bg-slate-50/50 dark:bg-white/2 rounded-2xl border border-slate-100 dark:border-slate-800/50">
-                <item.icon className="w-5 h-5 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{item.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
+        );
 
-      case 1: return (
-        <div className="space-y-6 py-4">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Legal Agreements</h2>
-            <p className="text-slate-500 text-sm mt-1">Review our commitment to your privacy and security.</p>
-          </div>
-          <div className="space-y-4 max-w-md mx-auto">
-            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-              <button onClick={() => setShowTermsContent(!showTermsContent)} className="w-full p-4 flex items-center justify-between group">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary"><Shield className="w-4 h-4" /></div>
-                  <span className="font-bold text-sm">Terms of Service</span>
-                </div>
-                <ChevronDown className={cn("w-4 h-4 transition-transform", showTermsContent && "rotate-180")} />
-              </button>
-              {showTermsContent && (
-                <div className="p-4 border-t border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto">
-                  <pre className="text-[10px] text-slate-500 whitespace-pre-wrap font-sans leading-relaxed">{TERMS_CONTENT}</pre>
-                </div>
-              )}
+      case 1:
+        return (
+          <div className="space-y-6 py-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+                Legal Agreements
+              </h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Review our commitment to your privacy and security.
+              </p>
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-              <button onClick={() => setShowPrivacyContent(!showPrivacyContent)} className="w-full p-4 flex items-center justify-between group">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary"><Shield className="w-4 h-4" /></div>
-                  <span className="font-bold text-sm">Privacy Policy</span>
-                </div>
-                <ChevronDown className={cn("w-4 h-4 transition-transform", showPrivacyContent && "rotate-180")} />
-              </button>
-              {showPrivacyContent && (
-                <div className="p-4 border-t border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto">
-                  <pre className="text-[10px] text-slate-500 whitespace-pre-wrap font-sans leading-relaxed">{PRIVACY_CONTENT}</pre>
-                </div>
-              )}
-            </div>
-            <div className="flex items-start gap-3 p-5 bg-primary/5 rounded-2xl border border-primary/10">
-              <input type="checkbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="mt-1 h-5 w-5 rounded-lg border-primary text-primary focus:ring-primary" />
-              <label className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                I have read and agree to the <strong>Terms of Service</strong> and <strong>Privacy Policy</strong>.
-              </label>
-            </div>
-          </div>
-        </div>
-      );
-
-      case 2: return (
-        <div className="space-y-8 py-4">
-          <div className="text-center">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Face ID Check</h2>
-            <p className="text-slate-500 text-sm mt-1">Enable secure biometric login for quick access.</p>
-          </div>
-          
-          <div className="max-w-md mx-auto">
-            {faceIdCaptured && uploadedFiles.face_id ? (
-              <div className="text-center py-10 bg-emerald-500/5 rounded-3xl border-2 border-emerald-500/20">
-                <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-emerald-500/25">
-                  <Check className="w-10 h-10 text-white" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900 dark:text-white">Face ID Captured</h4>
-                <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-widest">Biometric data secured</p>
-                <Button variant="outline" onClick={retakeFaceId} className="mt-6 rounded-xl border-slate-200">Retake Photo</Button>
-              </div>
-            ) : capturingFaceId ? (
-              <div className="space-y-6">
-                <div className="relative bg-black rounded-[2rem] overflow-hidden aspect-square shadow-2xl ring-8 ring-slate-100 dark:ring-slate-900">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-[70%] h-[80%] border-2 border-white/30 rounded-[100%] shadow-[0_0_0_1000px_rgba(0,0,0,0.4)]" />
+            <div className="space-y-4 max-w-md mx-auto">
+              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <button
+                  onClick={() => setShowTermsContent(!showTermsContent)}
+                  className="w-full p-4 flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <span className="font-bold text-sm">Terms of Service</span>
                   </div>
-                  <canvas ref={canvasRef} className="hidden" />
-                </div>
-                <div className="flex gap-4">
-                  <Button variant="outline" onClick={stopFaceCapture} className="flex-1 h-12 rounded-2xl">Cancel</Button>
-                  <Button onClick={captureFaceId} disabled={uploadingFile === 'face_id'} className="flex-1 h-12 rounded-2xl bg-primary text-white font-black uppercase tracking-widest">
-                    {uploadingFile === 'face_id' ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Capture'}
+                  <ChevronDown
+                    className={cn(
+                      "w-4 h-4 transition-transform",
+                      showTermsContent && "rotate-180",
+                    )}
+                  />
+                </button>
+                {showTermsContent && (
+                  <div className="p-4 border-t border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto">
+                    <pre className="text-[10px] text-slate-500 whitespace-pre-wrap font-sans leading-relaxed">
+                      {TERMS_CONTENT}
+                    </pre>
+                  </div>
+                )}
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <button
+                  onClick={() => setShowPrivacyContent(!showPrivacyContent)}
+                  className="w-full p-4 flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <span className="font-bold text-sm">Privacy Policy</span>
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      "w-4 h-4 transition-transform",
+                      showPrivacyContent && "rotate-180",
+                    )}
+                  />
+                </button>
+                {showPrivacyContent && (
+                  <div className="p-4 border-t border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto">
+                    <pre className="text-[10px] text-slate-500 whitespace-pre-wrap font-sans leading-relaxed">
+                      {PRIVACY_CONTENT}
+                    </pre>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-start gap-3 p-5 bg-primary/5 rounded-2xl border border-primary/10">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-1 h-5 w-5 rounded-lg border-primary text-primary focus:ring-primary"
+                />
+                <label className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  I have read and agree to the <strong>Terms of Service</strong>{" "}
+                  and <strong>Privacy Policy</strong>.
+                </label>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 2:
+        return (
+          <div className="space-y-8 py-4">
+            <div className="text-center">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                Face ID Check
+              </h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Enable secure biometric login for quick access.
+              </p>
+            </div>
+
+            <div className="max-w-md mx-auto">
+              {faceIdCaptured && uploadedFiles.face_id ? (
+                <div className="text-center py-10 bg-emerald-500/5 rounded-3xl border-2 border-emerald-500/20">
+                  <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-emerald-500/25">
+                    <Check className="w-10 h-10 text-white" />
+                  </div>
+                  <h4 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Face ID Captured
+                  </h4>
+                  <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-widest">
+                    Biometric data secured
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={retakeFaceId}
+                    className="mt-6 rounded-xl border-slate-200"
+                  >
+                    Retake Photo
                   </Button>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-slate-50/50 dark:bg-slate-900/50 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
-                <div className="w-24 h-24 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl text-slate-300">
-                  <ScanFace className="w-12 h-12" />
+              ) : capturingFaceId ? (
+                <div className="space-y-6">
+                  <div className="relative bg-black rounded-[2rem] overflow-hidden aspect-square shadow-2xl ring-8 ring-slate-100 dark:ring-slate-900">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover scale-x-[-1]"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-[70%] h-[80%] border-2 border-white/30 rounded-[100%] shadow-[0_0_0_1000px_rgba(0,0,0,0.4)]" />
+                    </div>
+                    <canvas ref={canvasRef} className="hidden" />
+                  </div>
+                  <div className="flex gap-4">
+                    <Button
+                      variant="outline"
+                      onClick={stopFaceCapture}
+                      className="flex-1 h-12 rounded-2xl"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={captureFaceId}
+                      disabled={uploadingFile === "face_id"}
+                      className="flex-1 h-12 rounded-2xl bg-primary text-white font-black uppercase tracking-widest"
+                    >
+                      {uploadingFile === "face_id" ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        "Capture"
+                      )}
+                    </Button>
+                  </div>
                 </div>
-                <Button onClick={startFaceCapture} className="h-14 px-8 rounded-2xl bg-primary text-white font-black uppercase tracking-widest shadow-xl shadow-primary/25">
-                  <Camera className="w-5 h-5 mr-2" /> Start Camera
-                </Button>
-                <p className="mt-6 text-[10px] text-slate-400 font-bold uppercase tracking-widest">Or skip this step for now</p>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-12 bg-slate-50/50 dark:bg-slate-900/50 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+                  <div className="w-24 h-24 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl text-slate-300">
+                    <ScanFace className="w-12 h-12" />
+                  </div>
+                  <Button
+                    onClick={startFaceCapture}
+                    className="h-14 px-8 rounded-2xl bg-primary text-white font-black uppercase tracking-widest shadow-xl shadow-primary/25"
+                  >
+                    <Camera className="w-5 h-5 mr-2" /> Start Camera
+                  </Button>
+                  <p className="mt-6 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    Or skip this step for now
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      );
+        );
 
-      case 3: return (
-        <div className="space-y-6 py-4">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Identity</h2>
-            <p className="text-slate-500 text-sm mt-1">Official identification for KYC compliance.</p>
-          </div>
-          <div className="max-w-md mx-auto space-y-5">
-            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/50 dark:border-slate-800">
-              <button onClick={() => updateField('id_type', 'national_id')} className={cn("py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all", formData.id_type === 'national_id' ? "bg-white dark:bg-slate-800 text-primary shadow-sm" : "text-slate-400")}>National ID</button>
-              <button onClick={() => updateField('id_type', 'passport')} className={cn("py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all", formData.id_type === 'passport' ? "bg-white dark:bg-slate-800 text-primary shadow-sm" : "text-slate-400")}>Passport</button>
+      case 3:
+        return (
+          <div className="space-y-6 py-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                Identity
+              </h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Official identification for KYC compliance.
+              </p>
             </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">{formData.id_type === 'passport' ? 'Passport' : 'ID'} Number</Label>
-                <Input value={formData.national_id} onChange={e => updateField('national_id', e.target.value)} placeholder="Enter number..." className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
+            <div className="max-w-md mx-auto space-y-5">
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/50 dark:border-slate-800">
+                <button
+                  onClick={() => updateField("id_type", "national_id")}
+                  className={cn(
+                    "py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                    formData.id_type === "national_id"
+                      ? "bg-white dark:bg-slate-800 text-primary shadow-sm"
+                      : "text-slate-400",
+                  )}
+                >
+                  National ID
+                </button>
+                <button
+                  onClick={() => updateField("id_type", "passport")}
+                  className={cn(
+                    "py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                    formData.id_type === "passport"
+                      ? "bg-white dark:bg-slate-800 text-primary shadow-sm"
+                      : "text-slate-400",
+                  )}
+                >
+                  Passport
+                </button>
               </div>
-              <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Date of Birth</Label>
-                <Input type="date" value={formData.date_of_birth} onChange={e => updateField('date_of_birth', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    {formData.id_type === "passport" ? "Passport" : "ID"} Number
+                  </Label>
+                  <Input
+                    value={formData.national_id}
+                    onChange={(e) => updateField("national_id", e.target.value)}
+                    placeholder="Enter number..."
+                    className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Date of Birth
+                  </Label>
+                  <Input
+                    type="date"
+                    value={formData.date_of_birth}
+                    onChange={(e) =>
+                      updateField("date_of_birth", e.target.value)
+                    }
+                    className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
+                  />
+                </div>
+                <FileUploader
+                  label="Document Photo (Front)"
+                  kind="image"
+                  onUpload={(f: File) => handleFileUpload(f, "id_front")}
+                  uploadedFile={uploadedFiles.id_front}
+                  uploading={uploadingFile === "id_front"}
+                  required
+                />
               </div>
-              <FileUploader label="Document Photo (Front)" kind="image" onUpload={(f: File) => handleFileUpload(f, 'id_front')} uploadedFile={uploadedFiles.id_front} uploading={uploadingFile === 'id_front'} required />
             </div>
           </div>
-        </div>
-      );
+        );
 
       case 4: // Address Verification
         return (
@@ -931,19 +1226,27 @@ export default function Onboarding() {
                 Provide your current residential address
               </p>
             </div>
-            
+
             <div className="space-y-4 max-w-md mx-auto">
               <div className="flex flex-col gap-2">
                 <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
                   Country of Work *
                 </Label>
-                <Select value={formData.country} onValueChange={(v) => updateField('country', v)}>
-                  <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700" data-testid="onboarding-country">
+                <Select
+                  value={formData.country}
+                  onValueChange={(v) => updateField("country", v)}
+                >
+                  <SelectTrigger
+                    className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+                    data-testid="onboarding-country"
+                  >
                     <SelectValue placeholder="Select your country" />
                   </SelectTrigger>
                   <SelectContent>
                     {COUNTRIES_OF_WORK.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -959,7 +1262,7 @@ export default function Onboarding() {
                 <Input
                   placeholder="Street address, P.O. box"
                   value={formData.address_line1}
-                  onChange={(e) => updateField('address_line1', e.target.value)}
+                  onChange={(e) => updateField("address_line1", e.target.value)}
                   className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
                   data-testid="onboarding-address1"
                 />
@@ -972,7 +1275,7 @@ export default function Onboarding() {
                 <Input
                   placeholder="Apartment, suite, building (optional)"
                   value={formData.address_line2}
-                  onChange={(e) => updateField('address_line2', e.target.value)}
+                  onChange={(e) => updateField("address_line2", e.target.value)}
                   className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
                   data-testid="onboarding-address2"
                 />
@@ -986,7 +1289,7 @@ export default function Onboarding() {
                   <Input
                     placeholder="e.g. Nairobi"
                     value={formData.city}
-                    onChange={(e) => updateField('city', e.target.value)}
+                    onChange={(e) => updateField("city", e.target.value)}
                     className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
                     data-testid="onboarding-city"
                   />
@@ -998,7 +1301,7 @@ export default function Onboarding() {
                   <Input
                     placeholder="e.g. 00100"
                     value={formData.postal_code}
-                    onChange={(e) => updateField('postal_code', e.target.value)}
+                    onChange={(e) => updateField("postal_code", e.target.value)}
                     className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
                     data-testid="onboarding-postal"
                   />
@@ -1012,14 +1315,15 @@ export default function Onboarding() {
                   Proof of Address *
                 </h4>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Upload a utility bill, bank statement, or lease agreement (less than 3 months old)
+                  Upload a utility bill, bank statement, or lease agreement
+                  (less than 3 months old)
                 </p>
                 <FileUploader
                   label="Address Proof Document"
                   description="Utility bill, bank statement, or lease"
-                  onUpload={(file) => handleFileUpload(file, 'address_proof')}
+                  onUpload={(file) => handleFileUpload(file, "address_proof")}
                   uploadedFile={uploadedFiles.address_proof}
-                  uploading={uploadingFile === 'address_proof'}
+                  uploading={uploadingFile === "address_proof"}
                   testId="upload-address-proof"
                   required
                 />
@@ -1042,14 +1346,16 @@ export default function Onboarding() {
                 Provide your tax identification number for compliance
               </p>
             </div>
-            
+
             <div className="space-y-4 max-w-md mx-auto">
               <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800/30">
                 <div className="flex gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm text-amber-800 dark:text-amber-200">
-                      <strong>Why we need this:</strong> Tax compliance is required by financial regulations in all our operating countries.
+                      <strong>Why we need this:</strong> Tax compliance is
+                      required by financial regulations in all our operating
+                      countries.
                     </p>
                   </div>
                 </div>
@@ -1062,12 +1368,13 @@ export default function Onboarding() {
                 <Input
                   placeholder="Enter your TIN"
                   value={formData.tax_id}
-                  onChange={(e) => updateField('tax_id', e.target.value)}
+                  onChange={(e) => updateField("tax_id", e.target.value)}
                   className="h-14 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
                   data-testid="onboarding-tin"
                 />
                 <p className="text-xs text-slate-500 dark:text-slate-400 ml-1">
-                  Also known as PIN in Kenya, TIN in Tanzania, or TIN in Uganda/Rwanda
+                  Also known as PIN in Kenya, TIN in Tanzania, or TIN in
+                  Uganda/Rwanda
                 </p>
               </div>
 
@@ -1078,89 +1385,154 @@ export default function Onboarding() {
                   Tax Certificate (Optional)
                 </h4>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Upload your tax registration certificate or compliance certificate
+                  Upload your tax registration certificate or compliance
+                  certificate
                 </p>
                 <FileUploader
                   label="Tax Certificate"
                   description="TIN certificate or compliance document"
-                  onUpload={(file) => handleFileUpload(file, 'tax_certificate')}
+                  onUpload={(file) => handleFileUpload(file, "tax_certificate")}
                   uploadedFile={uploadedFiles.tax_certificate}
-                  uploading={uploadingFile === 'tax_certificate'}
+                  uploading={uploadingFile === "tax_certificate"}
                   testId="upload-tax-cert"
                 />
               </div>
 
               <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                Don&apos;t have your TIN yet? You can <button type="button" onClick={nextStep} className="text-primary font-medium hover:underline">skip this step</button> and add it later.
+                Don&apos;t have your TIN yet? You can{" "}
+                <button
+                  type="button"
+                  onClick={nextStep}
+                  className="text-primary font-medium hover:underline"
+                >
+                  skip this step
+                </button>{" "}
+                and add it later.
               </p>
             </div>
           </div>
         );
 
-      case 6: return (
-        <div className="space-y-6 py-4">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Employment</h2>
-            <p className="text-slate-500 text-sm mt-1">Verify your active status with your employer.</p>
-          </div>
-          <div className="max-w-md mx-auto space-y-5">
-            <div className="space-y-2">
-              <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Select Employer</Label>
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input value={employerSearch} onChange={e => setEmployerSearch(e.target.value)} placeholder="Search companies..." className="pl-10 h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800" />
-              </div>
-              <div className="max-h-48 overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/50 bg-white/30 dark:bg-black/20">
-                {employersLoading ? (
-                  <div className="p-8 text-center">
-                    <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto mb-2" />
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Searching partners...</p>
-                  </div>
-                ) : filteredEmployers.length > 0 ? (
-                  filteredEmployers.map(emp => (
-                    <button key={emp.id} onClick={() => updateField('employer_id', emp.id)} className={cn("w-full text-left p-4 text-sm font-bold flex items-center justify-between group transition-colors", formData.employer_id === emp.id ? "bg-primary text-white" : "hover:bg-primary/5 text-slate-700 dark:text-slate-300")}>
-                      <div className="flex flex-col">
-                        <span>{emp.company_name}</span>
-                        <span className={cn("text-[10px] uppercase tracking-wider font-bold", formData.employer_id === emp.id ? "text-white/70" : "text-slate-400")}>
-                          {emp.industry} • {emp.city}, {emp.country}
-                        </span>
-                      </div>
-                      {formData.employer_id === emp.id && <CheckCircle2 className="w-5 h-5 text-white" />}
-                    </button>
-                  ))
-                ) : (
-                  <div className="p-8 text-center">
-                    <AlertCircle className="w-6 h-6 text-slate-300 mx-auto mb-2" />
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">No matching partners found</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="pt-2">
-                <p className="text-[10px] text-slate-500 font-medium">
-                  Don&apos;t see your employer? Enter your company code instead:
-                </p>
-                <Input 
-                  value={formData.employee_code} 
-                  onChange={e => updateField('employee_code', e.target.value)} 
-                  placeholder="e.g. CO-12345" 
-                  className="h-10 mt-2 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-slate-800 text-xs"
-                />
-              </div>
+      case 6:
+        return (
+          <div className="space-y-6 py-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                Employment
+              </h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Verify your active status with your employer.
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="max-w-md mx-auto space-y-5">
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Job Title</Label>
-                <Input value={formData.job_title} onChange={e => updateField('job_title', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="e.g. Sales Manager" />
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  Select Employer
+                </Label>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    value={employerSearch}
+                    onChange={(e) => setEmployerSearch(e.target.value)}
+                    placeholder="Search companies..."
+                    className="pl-10 h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800"
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/50 bg-white/30 dark:bg-black/20">
+                  {employersLoading ? (
+                    <div className="p-8 text-center">
+                      <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto mb-2" />
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">
+                        Searching partners...
+                      </p>
+                    </div>
+                  ) : filteredEmployers.length > 0 ? (
+                    filteredEmployers.map((emp) => (
+                      <button
+                        key={emp.id}
+                        onClick={() => updateField("employer_id", emp.id)}
+                        className={cn(
+                          "w-full text-left p-4 text-sm font-bold flex items-center justify-between group transition-colors",
+                          formData.employer_id === emp.id
+                            ? "bg-primary text-white"
+                            : "hover:bg-primary/5 text-slate-700 dark:text-slate-300",
+                        )}
+                      >
+                        <div className="flex flex-col">
+                          <span>{emp.company_name}</span>
+                          <span
+                            className={cn(
+                              "text-[10px] uppercase tracking-wider font-bold",
+                              formData.employer_id === emp.id
+                                ? "text-white/70"
+                                : "text-slate-400",
+                            )}
+                          >
+                            {emp.industry} • {emp.city}, {emp.country}
+                          </span>
+                        </div>
+                        {formData.employer_id === emp.id && (
+                          <CheckCircle2 className="w-5 h-5 text-white" />
+                        )}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center">
+                      <AlertCircle className="w-6 h-6 text-slate-300 mx-auto mb-2" />
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">
+                        No matching partners found
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Don&apos;t see your employer? Enter your company code
+                    instead:
+                  </p>
+                  <Input
+                    value={formData.employee_code}
+                    onChange={(e) =>
+                      updateField("employee_code", e.target.value)
+                    }
+                    placeholder="e.g. CO-12345"
+                    className="h-10 mt-2 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-slate-800 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Job Title
+                  </Label>
+                  <Input
+                    value={formData.job_title}
+                    onChange={(e) => updateField("job_title", e.target.value)}
+                    className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
+                    placeholder="e.g. Sales Manager"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Department
+                  </Label>
+                  <Input
+                    value={formData.department}
+                    onChange={(e) => updateField("department", e.target.value)}
+                    className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
+                    placeholder="e.g. Operations"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Department</Label>
-                <Input value={formData.department} onChange={e => updateField('department', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="e.g. Operations" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Employment Type</Label>
-              <Select value={formData.employment_type} onValueChange={v => updateField('employment_type', v)}>
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  Employment Type
+                </Label>
+                <Select
+                  value={formData.employment_type}
+                  onValueChange={(v) => updateField("employment_type", v)}
+                >
                   <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
@@ -1171,122 +1543,200 @@ export default function Onboarding() {
                   </SelectContent>
                 </Select>
               </div>
-            <div className="space-y-2">
-              <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Monthly Salary (Gross)</Label>
-              <Input type="number" value={formData.monthly_salary} onChange={e => updateField('monthly_salary', e.target.value)} className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50" placeholder="Enter amount..." />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Joining Date</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <Select value={formData.joining_month} onValueChange={v => updateField('joining_month', v)}>
-                  <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
-                    <SelectValue placeholder="Month" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {["January", "February", "March", "April", "May", "Jun", "July", "August", "September", "October", "November", "December"].map((m, i) => (
-                      <SelectItem key={m} value={(i + 1).toString().padStart(2, '0')}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={formData.joining_year} onValueChange={v => updateField('joining_year', v)}>
-                  <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
-                    <SelectValue placeholder="Year" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {Array.from({ length: 30 }, (_, i) => (new Date().getFullYear() - i).toString()).map(y => (
-                      <SelectItem key={y} value={y}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  Monthly Salary (Gross)
+                </Label>
+                <Input
+                  type="number"
+                  value={formData.monthly_salary}
+                  onChange={(e) =>
+                    updateField("monthly_salary", e.target.value)
+                  }
+                  className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
+                  placeholder="Enter amount..."
+                />
               </div>
-              <p className="text-[9px] text-slate-500 font-medium mt-1">Select the month and year you joined the company.</p>
-            </div>
 
-            <FileUploader label="Latest Payslip" onUpload={(f: File) => handleFileUpload(f, 'payslip_1')} uploadedFile={uploadedFiles.payslip_1} uploading={uploadingFile === 'payslip_1'} required />
-          </div>
-        </div>
-      );
-
-      case 7: return (
-        <div className="space-y-6 py-4">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Payout</h2>
-            <p className="text-slate-500 text-sm mt-1">Where should we send your funds?</p>
-          </div>
-          <div className="max-w-md mx-auto space-y-6">
-            <div className="p-5 bg-primary/5 rounded-3xl border border-primary/10">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
-                <BankIcon className="w-3.5 h-3.5" /> Bank Details
-              </h4>
-
-              <div className="space-y-4">
-                <div className="flex flex-col gap-2">
-                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Enrolled Bank *</Label>
-                  <Select value={formData.bank_name} onValueChange={(v) => updateField('bank_name', v)}>
-                    <SelectTrigger className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800">
-                      <SelectValue placeholder="Select your bank" />
+              <div className="space-y-2">
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  Joining Date
+                </Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <Select
+                    value={formData.joining_month}
+                    onValueChange={(v) => updateField("joining_month", v)}
+                  >
+                    <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                      <SelectValue placeholder="Month" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      {(BANKS_BY_COUNTRY[formData.country] ?? []).map((bank) => (
-                        <SelectItem key={bank} value={bank}>
-                          {bank}
+                      {[
+                        "January",
+                        "February",
+                        "March",
+                        "April",
+                        "May",
+                        "Jun",
+                        "July",
+                        "August",
+                        "September",
+                        "October",
+                        "November",
+                        "December",
+                      ].map((m, i) => (
+                        <SelectItem
+                          key={m}
+                          value={(i + 1).toString().padStart(2, "0")}
+                        >
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={formData.joining_year}
+                    onValueChange={(v) => updateField("joining_year", v)}
+                  >
+                    <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {Array.from({ length: 30 }, (_, i) =>
+                        (new Date().getFullYear() - i).toString(),
+                      ).map((y) => (
+                        <SelectItem key={y} value={y}>
+                          {y}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
-                <Input
-                  value={formData.bank_account}
-                  onChange={(e) => updateField('bank_account', e.target.value)}
-                  placeholder="Account Number"
-                  className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800"
-                  data-testid="onboarding-bank-account"
-                />
+                <p className="text-[9px] text-slate-500 font-medium mt-1">
+                  Select the month and year you joined the company.
+                </p>
               </div>
+
+              <FileUploader
+                label="Latest Payslip"
+                onUpload={(f: File) => handleFileUpload(f, "payslip_1")}
+                uploadedFile={uploadedFiles.payslip_1}
+                uploading={uploadingFile === "payslip_1"}
+                required
+              />
             </div>
-
-            <div className="p-5 bg-indigo-500/5 rounded-3xl border border-indigo-500/10">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-4 flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5" /> Mobile Money
-              </h4>
-              <div className="space-y-4">
-                <Select value={formData.mobile_money_provider} onValueChange={(v) => updateField('mobile_money_provider', v)}>
-                  <SelectTrigger className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800">
-                    <SelectValue placeholder="Select Provider" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {(COUNTRIES_OF_WORK.find((c) => c.code === formData.country)?.providers ?? []).map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Input
-                  value={formData.mobile_money_number}
-                  onChange={(e) => updateField('mobile_money_number', e.target.value)}
-                  placeholder="Mobile Number"
-                  className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800"
-                  data-testid="onboarding-mobile-number"
-                />
-              </div>
-            </div>
-
-            <FileUploader
-              label="Recent Bank Statement"
-              onUpload={(f: File) => handleFileUpload(f, 'bank_statement')}
-              uploadedFile={uploadedFiles.bank_statement}
-              uploading={uploadingFile === 'bank_statement'}
-              required
-            />
           </div>
-        </div>
-      );
+        );
 
-      default: return <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest">Form Section {currentStep}</div>;
+      case 7:
+        return (
+          <div className="space-y-6 py-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                Payout
+              </h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Where should we send your funds?
+              </p>
+            </div>
+            <div className="max-w-md mx-auto space-y-6">
+              <div className="p-5 bg-primary/5 rounded-3xl border border-primary/10">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
+                  <BankIcon className="w-3.5 h-3.5" /> Bank Details
+                </h4>
+
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
+                      Enrolled Bank *
+                    </Label>
+                    <Select
+                      value={formData.bank_name}
+                      onValueChange={(v) => updateField("bank_name", v)}
+                    >
+                      <SelectTrigger className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800">
+                        <SelectValue placeholder="Select your bank" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {(BANKS_BY_COUNTRY[formData.country] ?? []).map(
+                          (bank) => (
+                            <SelectItem key={bank} value={bank}>
+                              {bank}
+                            </SelectItem>
+                          ),
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Input
+                    value={formData.bank_account}
+                    onChange={(e) =>
+                      updateField("bank_account", e.target.value)
+                    }
+                    placeholder="Account Number"
+                    className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800"
+                    data-testid="onboarding-bank-account"
+                  />
+                </div>
+              </div>
+
+              <div className="p-5 bg-emerald-500/5 rounded-3xl border border-emerald-500/10">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-4 flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5" /> Mobile Money
+                </h4>
+                <div className="space-y-4">
+                  <Select
+                    value={formData.mobile_money_provider}
+                    onValueChange={(v) =>
+                      updateField("mobile_money_provider", v)
+                    }
+                  >
+                    <SelectTrigger className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800">
+                      <SelectValue placeholder="Select Provider" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {(
+                        COUNTRIES_OF_WORK.find(
+                          (c) => c.code === formData.country,
+                        )?.providers ?? []
+                      ).map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Input
+                    value={formData.mobile_money_number}
+                    onChange={(e) =>
+                      updateField("mobile_money_number", e.target.value)
+                    }
+                    placeholder="Mobile Number"
+                    className="h-12 rounded-xl bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800"
+                    data-testid="onboarding-mobile-number"
+                  />
+                </div>
+              </div>
+
+              <FileUploader
+                label="Recent Bank Statement"
+                onUpload={(f: File) => handleFileUpload(f, "bank_statement")}
+                uploadedFile={uploadedFiles.bank_statement}
+                uploading={uploadingFile === "bank_statement"}
+                required
+              />
+            </div>
+          </div>
+        );
+
+      default:
+        return (
+          <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest">
+            Form Section {currentStep}
+          </div>
+        );
     }
   };
 
@@ -1299,7 +1749,9 @@ export default function Onboarding() {
           <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all duration-500 shadow-xl shadow-primary/25 ring-4 ring-primary/5">
             <span className="text-white font-black text-2xl">E</span>
           </div>
-          <span className="font-heading font-black text-2xl text-slate-900 dark:text-white tracking-tight">EaziWage</span>
+          <span className="font-heading font-black text-2xl text-slate-900 dark:text-white tracking-tight">
+            EaziWage
+          </span>
         </Link>
       </header>
 
@@ -1310,7 +1762,9 @@ export default function Onboarding() {
           {error && (
             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
               <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-              <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">{error}</p>
+              <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                {error}
+              </p>
             </div>
           )}
 
@@ -1319,27 +1773,31 @@ export default function Onboarding() {
           </div>
 
           <div className="flex items-center justify-between gap-4 max-w-md mx-auto">
-            <Button 
-              variant="ghost" 
-              onClick={prevStep} 
-              disabled={currentStep === 0} 
+            <Button
+              variant="ghost"
+              onClick={prevStep}
+              disabled={currentStep === 0}
               className="h-14 px-8 rounded-2xl font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all disabled:opacity-0"
             >
               Back
             </Button>
-            
+
             {currentStep === STEPS.length - 1 ? (
-              <Button 
-                onClick={handleSubmit} 
-                disabled={loading || !canProceed()} 
+              <Button
+                onClick={handleSubmit}
+                disabled={loading || !canProceed()}
                 className="flex-1 h-14 bg-primary text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-primary/30 transition-all hover:scale-[1.02] active:scale-95"
               >
-                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Complete Setup'}
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  "Complete Setup"
+                )}
               </Button>
             ) : (
-              <Button 
-                onClick={nextStep} 
-                disabled={!canProceed()} 
+              <Button
+                onClick={nextStep}
+                disabled={!canProceed()}
                 className="flex-1 h-14 bg-primary text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-primary/30 transition-all hover:scale-[1.02] active:scale-95"
               >
                 Continue <ArrowRight className="w-5 h-5 ml-2" />
