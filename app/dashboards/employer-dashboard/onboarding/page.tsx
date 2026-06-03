@@ -20,8 +20,7 @@ import { PAYROLL_CYCLES } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/stores/auth"; // keep your existing store
 import { DOCUMENT_ACCEPT, isDocumentFile } from "@/lib/upload-file-types";
-
-// ─── Static data ──────────────────────────────────────────────────────────────
+import { DocTooltip } from "@/components/shared/DocTooltip";
 
 const COUNTRIES = [
   { code: "KE", name: "Kenya" },
@@ -106,8 +105,6 @@ const STEPS = [
   { id: "contact", title: "Contact", icon: Phone },
 ];
 
-// ─── FileUploader ─────────────────────────────────────────────────────────────
-
 interface FileUploaderProps {
   label: string;
   description: string;
@@ -117,10 +114,11 @@ interface FileUploaderProps {
   testId?: string;
   required?: boolean;
   optional?: boolean;
+  tooltip?: string;
 }
 
 const FileUploader = ({
-  label, description, onUpload, uploadedFile, uploading, testId, required = false, optional = false,
+  label, description, onUpload, uploadedFile, uploading, testId, required = false, optional = false, tooltip,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -182,11 +180,13 @@ const FileUploader = ({
 
   return (
     <div className="space-y-2">
-      <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium flex items-center gap-1">
+      <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium flex items-center gap-1.5">
         {label}
         {required && <span className="text-red-500">*</span>}
-        {optional && <span className="text-slate-400 text-xs font-normal">(Optional - Can skip)</span>}
+        {optional && <span className="text-slate-400 text-xs font-normal">(Optional)</span>}
+        {tooltip && <DocTooltip content={tooltip} />}
       </Label>
+
       <input ref={fileInputRef} type="file" accept={DOCUMENT_ACCEPT} onChange={handleFileSelect} className="hidden" data-testid={testId} />
       <div
         onClick={() => !uploading && fileInputRef.current?.click()}
@@ -237,8 +237,6 @@ const FileUploader = ({
   );
 };
 
-// ─── BeneficialOwnerRow ───────────────────────────────────────────────────────
-
 interface BeneficialOwner {
   full_name: string;
   id_number: string;
@@ -279,8 +277,6 @@ const BeneficialOwnerRow = ({ owner, index, onUpdate, onRemove }: BeneficialOwne
   </div>
 );
 
-// ─── API helpers ──────────────────────────────────────────────────────────────
-
 async function apiUploadDocument(formData: FormData) {
   const res = await fetch("/api/employer-dashboard/onboarding/upload", {
     method: "POST",
@@ -314,8 +310,6 @@ async function apiUpdateStep(step: number) {
     body: JSON.stringify({ step }),
   }).catch(() => {/* non-critical */});
 }
-
-// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function EmployerOnboarding() {
   const router = useRouter();
@@ -482,7 +476,6 @@ export default function EmployerOnboarding() {
     fetchExistingData();
   }, [userFullName, userEmail]);
 
-  // ── Fetch sectors on mount ───────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/employer-dashboard/sectors")
       .then((r) => r.json())
@@ -496,7 +489,6 @@ export default function EmployerOnboarding() {
       .catch((err) => console.error("Failed to fetch sectors:", err));
   }, []);
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
   const updateField = (field: string, value: unknown) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
@@ -516,7 +508,6 @@ export default function EmployerOnboarding() {
   const removeOwner = (index: number) =>
     setBeneficialOwners((prev) => prev.filter((_, i) => i !== index));
 
-  // ── File upload ──────────────────────────────────────────────────────────
   const handleFileUpload = async (file: File, documentType: string) => {
     setUploadingFile(documentType);
     try {
@@ -539,7 +530,6 @@ export default function EmployerOnboarding() {
     }
   };
 
-  // ── Navigation ───────────────────────────────────────────────────────────
   const nextStep = () => {
     if (currentStep === 1 && !agreedToTerms) {
       setError("Please accept the Terms to continue");
@@ -572,7 +562,6 @@ export default function EmployerOnboarding() {
     }
   };
 
-  // ── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     setError("");
     setLoading(true);
@@ -614,12 +603,10 @@ export default function EmployerOnboarding() {
     }
   };
 
-  // ── Render step content ──────────────────────────────────────────────────
-  const filteredSectors = sectors.filter((s) => s.industry === formData.industry);
+ const filteredSectors = sectors.filter((s) => s.industry === formData.industry);
 
   const renderStepContent = () => {
     switch (currentStep) {
-      // ── Step 0: Welcome ──────────────────────────────────────────────────
       case 0:
         return (
           <div className="text-center py-8">
@@ -656,7 +643,6 @@ export default function EmployerOnboarding() {
           </div>
         );
 
-      // ── Step 1: Terms ────────────────────────────────────────────────────
       case 1:
         return (
           <div className="py-6">
@@ -695,7 +681,6 @@ export default function EmployerOnboarding() {
           </div>
         );
 
-      // ── Step 2: Company Info ─────────────────────────────────────────────
       case 2:
         return (
           <div className="py-6">
@@ -734,14 +719,32 @@ export default function EmployerOnboarding() {
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Registration Documents</h4>
-                <FileUploader label="Certificate of Incorporation" description="Company incorporation certificate" onUpload={(file) => handleFileUpload(file, "certificate_of_incorporation")} uploadedFile={uploadedFiles.certificate_of_incorporation} uploading={uploadingFile === "certificate_of_incorporation"} testId="upload-coi" optional />
-                <FileUploader label="Business Registration" description="Business registration certificate" onUpload={(file) => handleFileUpload(file, "business_registration")} uploadedFile={uploadedFiles.business_registration} uploading={uploadingFile === "business_registration"} testId="upload-br" optional />
+                <FileUploader
+                  label="Certificate of Incorporation"
+                  description="Company incorporation certificate"
+                  tooltip="Proves your company is legally registered. Financial regulators require this to verify business legitimacy before enabling wage advance services."
+                  onUpload={(file) => handleFileUpload(file, "certificate_of_incorporation")}
+                  uploadedFile={uploadedFiles.certificate_of_incorporation}
+                  uploading={uploadingFile === "certificate_of_incorporation"}
+                  testId="upload-coi"
+                  optional
+                />
+                
+                <FileUploader
+                  label="Business Registration"
+                  description="Business registration certificate"
+                  tooltip="Confirms your company's trading name and registration with the relevant authority in your country of operation."
+                  onUpload={(file) => handleFileUpload(file, "business_registration")}
+                  uploadedFile={uploadedFiles.business_registration}
+                  uploading={uploadingFile === "business_registration"}
+                  testId="upload-br"
+                  optional
+                />
               </div>
             </div>
           </div>
         );
 
-      // ── Step 3: Address ──────────────────────────────────────────────────
       case 3:
         return (
           <div className="py-6">
@@ -783,15 +786,43 @@ export default function EmployerOnboarding() {
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Address & Tax Documents</h4>
-                <FileUploader label="Proof of Address" description="Utility bill or lease agreement" onUpload={(file) => handleFileUpload(file, "proof_of_address")} uploadedFile={uploadedFiles.proof_of_address} uploading={uploadingFile === "proof_of_address"} testId="upload-poa" optional />
-                <FileUploader label="Tax Compliance Certificate" description="KRA tax compliance certificate" onUpload={(file) => handleFileUpload(file, "tax_compliance_certificate")} uploadedFile={uploadedFiles.tax_compliance_certificate} uploading={uploadingFile === "tax_compliance_certificate"} testId="upload-tcc" optional />
-                <FileUploader label="KRA PIN Certificate" description="KRA PIN registration certificate" onUpload={(file) => handleFileUpload(file, "kra_pin_certificate")} uploadedFile={uploadedFiles.kra_pin_certificate} uploading={uploadingFile === "kra_pin_certificate"} testId="upload-kra" optional />
+                <FileUploader
+                  label="Proof of Address"
+                  description="Utility bill or lease agreement"
+                  tooltip="Verifies your business operates at the stated location. Must be less than 3 months old — a utility bill or signed lease works."
+                  onUpload={(file) => handleFileUpload(file, "proof_of_address")}
+                  uploadedFile={uploadedFiles.proof_of_address}
+                  uploading={uploadingFile === "proof_of_address"}
+                  testId="upload-poa"
+                  optional
+                />
+                
+                <FileUploader
+                  label="Tax Compliance Certificate"
+                  description="KRA tax compliance certificate"
+                  tooltip="Shows your company is up to date with tax obligations. This is a requirement for financial partnerships under CBK and CMA regulations."
+                  onUpload={(file) => handleFileUpload(file, "tax_compliance_certificate")}
+                  uploadedFile={uploadedFiles.tax_compliance_certificate}
+                  uploading={uploadingFile === "tax_compliance_certificate"}
+                  testId="upload-tcc"
+                  optional
+                />
+                
+                <FileUploader
+                  label="KRA PIN Certificate"
+                  description="KRA PIN registration certificate"
+                  tooltip="Your KRA PIN is needed for tax reporting on wage advances disbursed to your employees as required by the Kenya Revenue Authority."
+                  onUpload={(file) => handleFileUpload(file, "kra_pin_certificate")}
+                  uploadedFile={uploadedFiles.kra_pin_certificate}
+                  uploading={uploadingFile === "kra_pin_certificate"}
+                  testId="upload-kra"
+                  optional
+                />
               </div>
             </div>
           </div>
         );
 
-      // ── Step 4: Beneficial Ownership ─────────────────────────────────────
       case 4:
         return (
           <div className="py-6">
@@ -826,7 +857,6 @@ export default function EmployerOnboarding() {
           </div>
         );
 
-      // ── Step 5: Business Operations ──────────────────────────────────────
       case 5:
         return (
           <div className="py-6">
@@ -910,14 +940,32 @@ export default function EmployerOnboarding() {
 
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Business Documents</h4>
-                <FileUploader label="Business Permit" description="Current business operating permit" onUpload={(file) => handleFileUpload(file, "business_permit")} uploadedFile={uploadedFiles.business_permit} uploading={uploadingFile === "business_permit"} testId="upload-permit" optional />
-                <FileUploader label="Employment Contract Template" description="Sample employee contract" onUpload={(file) => handleFileUpload(file, "employment_contract_template")} uploadedFile={uploadedFiles.employment_contract_template} uploading={uploadingFile === "employment_contract_template"} testId="upload-contract" optional />
+                <FileUploader
+                  label="Business Permit"
+                  description="Current business operating permit"
+                  tooltip="Confirms your business is licensed to operate in the current period. Regulators require this to validate active business status."
+                  onUpload={(file) => handleFileUpload(file, "business_permit")}
+                  uploadedFile={uploadedFiles.business_permit}
+                  uploading={uploadingFile === "business_permit"}
+                  testId="upload-permit"
+                  optional
+                />
+                
+                <FileUploader
+                  label="Employment Contract Template"
+                  description="Sample employee contract"
+                  tooltip="Helps us understand your employment structure — permanent vs contract staff — so we configure advance limits and repayment terms correctly."
+                  onUpload={(file) => handleFileUpload(file, "employment_contract_template")}
+                  uploadedFile={uploadedFiles.employment_contract_template}
+                  uploading={uploadingFile === "employment_contract_template"}
+                  testId="upload-contract"
+                  optional
+                />
               </div>
             </div>
           </div>
         );
 
-      // ── Step 6: Financial ────────────────────────────────────────────────
       case 6:
         return (
           <div className="py-6">
@@ -969,15 +1017,43 @@ export default function EmployerOnboarding() {
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Financial Documents</h4>
-                <FileUploader label="Audited Financials" description="Most recent audited financial statements" onUpload={(file) => handleFileUpload(file, "audited_financials")} uploadedFile={uploadedFiles.audited_financials} uploading={uploadingFile === "audited_financials"} testId="upload-financials" optional />
-                <FileUploader label="Bank Statement" description="Last 3 months bank statements" onUpload={(file) => handleFileUpload(file, "bank_statement")} uploadedFile={uploadedFiles.bank_statement} uploading={uploadingFile === "bank_statement"} testId="upload-bank-stmt" optional />
-                <FileUploader label="Proof of Bank Account" description="Bank confirmation letter or account opening document" onUpload={(file) => handleFileUpload(file, "proof_of_bank_account")} uploadedFile={uploadedFiles.proof_of_bank_account} uploading={uploadingFile === "proof_of_bank_account"} testId="upload-bank-proof" optional />
+                <FileUploader
+                  label="Audited Financials"
+                  description="Most recent audited financial statements"
+                  tooltip="Used to assess your company's financial health and determine your employees' advance capacity. Audited statements provide the most reliable picture."
+                  onUpload={(file) => handleFileUpload(file, "audited_financials")}
+                  uploadedFile={uploadedFiles.audited_financials}
+                  uploading={uploadingFile === "audited_financials"}
+                  testId="upload-financials"
+                  optional
+                />
+                
+                <FileUploader
+                  label="Bank Statement"
+                  description="Last 3 months bank statements"
+                  tooltip="Verifies payroll consistency and your company's funding capability. We look for regular payroll outflows that match your stated employee count."
+                  onUpload={(file) => handleFileUpload(file, "bank_statement")}
+                  uploadedFile={uploadedFiles.bank_statement}
+                  uploading={uploadingFile === "bank_statement"}
+                  testId="upload-bank-stmt"
+                  optional
+                />
+                
+                <FileUploader
+                  label="Proof of Bank Account"
+                  description="Bank confirmation letter or account opening document"
+                  tooltip="Confirms the bank account used for payroll disbursements is registered under your business name — required to prevent fraud."
+                  onUpload={(file) => handleFileUpload(file, "proof_of_bank_account")}
+                  uploadedFile={uploadedFiles.proof_of_bank_account}
+                  uploading={uploadingFile === "proof_of_bank_account"}
+                  testId="upload-bank-proof"
+                  optional
+                />
               </div>
             </div>
           </div>
         );
 
-      // ── Step 7: Contact ──────────────────────────────────────────────────
       case 7:
         return (
           <div className="py-6">
@@ -1021,7 +1097,6 @@ export default function EmployerOnboarding() {
     }
   };
 
-  // ── Shell ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
       <div className="absolute inset-0 gradient-mesh" />

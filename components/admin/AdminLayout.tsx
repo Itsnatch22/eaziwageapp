@@ -37,6 +37,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CommandPalette } from "./CommandPalette";
 import { useAuthStore } from "@/lib/stores/auth";
 
+import { DashboardBreadcrumbs } from "../layout/DashboardBreadcrumbs";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UserProfile {
@@ -579,7 +581,10 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
           userProfile={userProfile}
         />
 
-        <main className="p-4 lg:p-8">{children}</main>
+        <main className="p-4 lg:p-8">
+          <DashboardBreadcrumbs />
+          {children}
+        </main>
       </div>
     </div>
   );

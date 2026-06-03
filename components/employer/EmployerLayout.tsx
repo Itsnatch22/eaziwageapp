@@ -18,6 +18,7 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
+import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
 
 
 export const EmployerBackground = () => (
@@ -456,6 +457,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
         <TopHeader onMenuClick={() => setSidebarOpen(true)} employer={employer} />
         
         <main className="p-4 lg:p-8">
+          <DashboardBreadcrumbs />
           {children}
         </main>
       </div>

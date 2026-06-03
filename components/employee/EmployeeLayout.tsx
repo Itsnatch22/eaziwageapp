@@ -16,6 +16,7 @@ import pusherClient from '@/lib/pusher-client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
+import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
 
 interface EmployeeUser {
   id?: string;
@@ -434,6 +435,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
       <div className="lg:ml-72 relative flex flex-col min-h-screen">
         <EmployeeTopHeader onMenuClick={() => setSidebarOpen(true)} user={user} title={title} />
         <main className="p-4 lg:p-8 flex-1 pb-32 lg:pb-8">
+          <DashboardBreadcrumbs />
           {children}
         </main>
         <FloatingNav />

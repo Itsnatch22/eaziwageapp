@@ -44,8 +44,7 @@ import {
   isDocumentFile,
   isImageFile,
 } from "@/lib/upload-file-types"
-
-// ─── Static data ──────────────────────────────────────────────────────────────
+import {DocTooltip} from "@/components/shared/DocTooltip";
 
 const COUNTRIES_OF_WORK = [
   { code: "KE", name: "Kenya", providers: ["M-PESA", "Airtel Money"] },
@@ -314,6 +313,7 @@ interface FileUploaderProps {
   accept?: string;
   kind?: "image" | "document";
   description?: string;
+  tooltip?: string;     
   onUpload: (file: File) => void;
   uploadedFile: UploadedDocument | null;
   uploading: boolean;
@@ -327,6 +327,7 @@ interface Step {
   icon: IconType;
 }
 
+
 const STEPS: Step[] = [
   { id: "welcome", title: "Welcome", icon: Sparkles },
   { id: "terms", title: "Terms", icon: Shield },
@@ -337,8 +338,6 @@ const STEPS: Step[] = [
   { id: "employment", title: "Job", icon: Briefcase },
   { id: "payment", title: "Payment", icon: Wallet },
 ];
-
-// ─── Sub-Components ───────────────────────────────────────────────────────────
 
 interface StepIndicatorProps {
   steps: Step[];
@@ -404,6 +403,7 @@ const FileUploader = ({
   uploading,
   required = false,
   testId,
+  tooltip,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -471,8 +471,9 @@ const FileUploader = ({
 
   return (
     <div className="space-y-3" data-testid={testId}>
-      <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+      <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
         {label} {required && <span className="text-red-500">*</span>}
+        {tooltip && <DocTooltip content={tooltip} />}
       </Label>
       <input
         ref={fileInputRef}
@@ -546,8 +547,6 @@ const FileUploader = ({
     </div>
   );
 };
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Onboarding() {
   const router = useRouter();
@@ -630,14 +629,11 @@ export default function Onboarding() {
           const profile = data?.profile?.employee;
           const status = String(profile?.kyc_status || "").toLowerCase();
 
-          // Block access if already approved or pending review
-
           setIdentity({
             full_name: data?.profile?.full_name || "",
             email: data?.profile?.email || "",
           });
 
-          // If rejected, pre-fill form with existing data
           if (status === "rejected" && profile) {
             setFormData((prev) => ({
               ...prev,
@@ -664,7 +660,6 @@ export default function Onboarding() {
               start_date: profile.start_date || "",
             }));
 
-            // Also try to restore file names (urls won't be valid for local state but we show the names)
             setUploadedFiles((prev) => ({
               ...prev,
               id_front: profile.id_front
@@ -841,7 +836,6 @@ export default function Onboarding() {
         if (v?.url) docUrls[k] = v.url;
       });
 
-      // Construct start_date from joining_month and joining_year
       let finalStartDate = formData.start_date;
       if (formData.joining_month && formData.joining_year) {
         finalStartDate = `${formData.joining_year}-${formData.joining_month}-01`;
@@ -1201,6 +1195,7 @@ export default function Onboarding() {
                 <FileUploader
                   label="Document Photo (Front)"
                   kind="image"
+                  tooltip="We verify your identity against government records as required by KYC regulations. This keeps your account and advances secure."
                   onUpload={(f: File) => handleFileUpload(f, "id_front")}
                   uploadedFile={uploadedFiles.id_front}
                   uploading={uploadingFile === "id_front"}
@@ -1211,7 +1206,7 @@ export default function Onboarding() {
           </div>
         );
 
-      case 4: // Address Verification
+      case 4: 
         return (
           <div className="py-6">
             <div className="text-center mb-8">
@@ -1320,6 +1315,7 @@ export default function Onboarding() {
                 <FileUploader
                   label="Address Proof Document"
                   description="Utility bill, bank statement, or lease"
+                  tooltip="Confirms your residential address for regulatory compliance. Must be less than 3 months old. Required under anti-money laundering (AML) regulations."
                   onUpload={(file) => handleFileUpload(file, "address_proof")}
                   uploadedFile={uploadedFiles.address_proof}
                   uploading={uploadingFile === "address_proof"}
@@ -1331,7 +1327,7 @@ export default function Onboarding() {
           </div>
         );
 
-      case 5: // Tax Identification
+      case 5:
         return (
           <div className="py-6">
             <div className="text-center mb-8">
@@ -1390,6 +1386,7 @@ export default function Onboarding() {
                 <FileUploader
                   label="Tax Certificate"
                   description="TIN certificate or compliance document"
+                  tooltip="Required for tax reporting on wage advances you receive. The KRA and other revenue authorities in our operating countries mandate this for financial services."
                   onUpload={(file) => handleFileUpload(file, "tax_certificate")}
                   uploadedFile={uploadedFiles.tax_certificate}
                   uploading={uploadingFile === "tax_certificate"}
@@ -1618,6 +1615,7 @@ export default function Onboarding() {
 
               <FileUploader
                 label="Latest Payslip"
+                tooltip="Verifies your current salary so we can calculate your eligible advance limit accurately. We use your net pay — not gross — to set a fair limit."
                 onUpload={(f: File) => handleFileUpload(f, "payslip_1")}
                 uploadedFile={uploadedFiles.payslip_1}
                 uploading={uploadingFile === "payslip_1"}
@@ -1721,6 +1719,7 @@ export default function Onboarding() {
 
               <FileUploader
                 label="Recent Bank Statement"
+                tooltip="Confirms your bank account details and shows your salary is deposited regularly. We check that the account matches the name on your ID to prevent fraud."
                 onUpload={(f: File) => handleFileUpload(f, "bank_statement")}
                 uploadedFile={uploadedFiles.bank_statement}
                 uploading={uploadingFile === "bank_statement"}

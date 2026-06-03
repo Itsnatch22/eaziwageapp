@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { EmptyState } from '@/app/empty';
 import {
   TrendingUp, AlertCircle,
   History, Smartphone, Calendar,
@@ -258,19 +259,15 @@ export default function Transactions() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Syncing ledger…</p>
             </div>
           ) : filteredItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center px-6">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-                style={{ background: '#f1f5f912', border: '1px solid #e2e8f020' }}>
-                <History className="w-8 h-8 text-slate-300 dark:text-white/10" />
-              </div>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">No Activity</p>
-              <p className="text-xs text-slate-400 mt-1 max-w-48">You haven&apos;t made any advance requests yet.</p>
-              <Link href="/dashboards/employee-dashboard/request-advance" className="mt-5">
-                <Button className="h-10 px-6 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-105">
-                  Request Funds
-                </Button>
-              </Link>
-            </div>
+            <EmptyState
+              icon={History}
+              title="No Activity"
+              description="You haven't made any advance requests yet."
+              action={{
+                label: "Request Funds",
+                href: "/dashboards/employee-dashboard/request-advance"
+              }}
+            />
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-white/5">
               {filteredItems.map((item) => {

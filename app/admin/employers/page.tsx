@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { EmptyState } from '@/app/empty';
 import { 
   Building2, Search, Download, Users, Clock,
   MoreHorizontal, Eye, CheckCircle2, XCircle, X,
@@ -1080,17 +1081,13 @@ export default function AdminEmployers() {
               <div className="w-12 h-12 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
             </div>
           ) : employers.length === 0 ? (
-            <div className="text-center py-16 px-4">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Building2 className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="font-semibold text-slate-900 dark:text-white">No employers found</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                {searchTerm || statusFilter || countryFilter
-                  ? 'Try adjusting your search or filters'
-                  : 'No employers have registered yet'}
-              </p>
-            </div>
+            <EmptyState
+              icon={Building2}
+              title="No employers found"
+              description={searchTerm || statusFilter || countryFilter
+                ? 'Try adjusting your search or filters'
+                : 'No employers have registered yet'}
+            />
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
               {/* Header */}

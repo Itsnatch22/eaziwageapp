@@ -1,5 +1,6 @@
 "use client"
 import React,{ useState, useEffect, useCallback } from 'react';
+import { EmptyState } from '@/app/empty';
 import { 
   CreditCard, Search, CheckCircle2, XCircle, Clock, Eye,
   MoreHorizontal, Wallet, ArrowUpRight, RefreshCw, AlertTriangle,
@@ -664,15 +665,11 @@ export default function AdminAdvances(){
               <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
             </div>
           ) : filteredAdvances.length === 0 ? (
-            <div className="text-center py-16 px-4">
-              <div className="w-16 h-16 bg-purple-100 dark:bg-purple-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <CreditCard className="w-8 h-8 text-purple-600" />
-              </div>
-              <h3 className="font-semibold text-slate-900 dark:text-white">No advances found</h3>
-              <p className="text-sm text-slate-500 mt-1">
-                {searchTerm || statusFilter ? 'Try adjusting your search or filters' : 'No advance requests yet'}
-              </p>
-            </div>
+            <EmptyState
+              icon={CreditCard}
+              title="No advances found"
+              description={searchTerm || statusFilter ? 'Try adjusting your search or filters' : 'No advance requests yet'}
+            />
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
 

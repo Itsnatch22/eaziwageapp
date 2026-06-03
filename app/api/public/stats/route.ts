@@ -4,7 +4,6 @@ import { getEnv } from '@/env';
 
 const env = getEnv();
 
-// Use service role to bypass RLS for public stats
 const supabaseAdmin = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
   env.SUPABASE_SERVICE_ROLE_KEY,
@@ -13,7 +12,6 @@ const supabaseAdmin = createClient(
 
 export async function GET() {
   try {
-    // 1. Get total employees (users with role 'employee')
     const { count: employeeCount, error: employeeError } = await supabaseAdmin
       .from('profiles')
       .select('*', { count: 'exact', head: true })
@@ -21,7 +19,6 @@ export async function GET() {
 
     if (employeeError) throw employeeError;
 
-    // 2. Get total transactions (approved advances)
     const { count: transactionCount, error: transactionError } = await supabaseAdmin
       .from('advances')
       .select('*', { count: 'exact', head: true })
@@ -29,7 +26,6 @@ export async function GET() {
 
     if (transactionError) throw transactionError;
 
-    // 3. Get approved employer count
     const { count: approvedEmployerCount, error: employerError } = await supabaseAdmin
       .from('employers')
       .select('*', { count: 'exact', head: true })
@@ -42,10 +38,8 @@ export async function GET() {
     // If we had a feedback table, we'd query it here.
     const satisfactionRate = 98 + (Math.random() > 0.5 ? 1 : 0);
 
-    // 5. Interest rate (always 0% by business model)
     const interestRate = 0;
 
-    // Format numbers (e.g., 1200 -> 1.2K+)
     const formatCount = (num: number) => {
       if (num >= 1000) {
         return `${(num / 1000).toFixed(1)}K+`;
@@ -66,7 +60,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error('[public-stats] Error fetching stats:', error);
-    // Fallback to semi-realistic defaults if error
     return NextResponse.json({
       employeesServed: '2.5K+',
       satisfactionRate: '99%',
