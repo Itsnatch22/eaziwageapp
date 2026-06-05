@@ -115,18 +115,20 @@ export async function GET(
 
   const { data: liveEmployer } = await adminSupabase
     .from('employers')
-    .select('employer_code')
-    .eq('id', id)
+    .select('id, employer_code')
+    .eq('onboarding_id', id)
     .maybeSingle();
 
   const employerCode = liveEmployer?.employer_code || profileRow?.company_code || `EW-${employer.id.slice(0, 8).toUpperCase()}`;
 
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const [employeeResult, advancesResult] = await Promise.all([
-    adminSupabase
-      .from('employees')
-      .select('monthly_salary,status')
-      .eq('employer_id', id),
+    liveEmployer?.id
+      ? adminSupabase
+          .from('employees')
+          .select('monthly_salary,status')
+          .eq('employer_id', liveEmployer.id)
+      : Promise.resolve({ data: [] as Array<{ monthly_salary: number | null; status: string | null }> }),
     adminSupabase
       .from('advances')
       .select('amount')
@@ -134,8 +136,8 @@ export async function GET(
       .gte('created_at', startOfMonth),
   ]);
 
-  const activeEmployees = (employeeResult.data ?? []).filter((e) => e.status === 'active' || e.status === 'Active');
-  const employeeCount = activeEmployees.length;
+  const activeEmployees = (employeeResult.data ?? []).filter((e) => e.status?.toLowerCase() === 'active');
+  const employeeCount = employeeResult.data?.length ?? 0;
   const monthlyPayroll = activeEmployees.reduce((sum, e) => sum + (e.monthly_salary ?? 0), 0);
   const totalAdvances = (advancesResult.data ?? []).reduce((sum, a) => sum + (a.amount ?? 0), 0);
 

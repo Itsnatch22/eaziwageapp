@@ -79,12 +79,10 @@ export async function POST() {
     }
 
     const { data: employer, error: employerError } = await supabase
-      .from('employer_onboarding')
-      .select('id, company_name, country')
+      .from('employers')
+      .select('id, onboarding_id, company_name, country')
       .eq('user_id', user.id)
       .eq('status', 'approved')
-      .order('created_at', { ascending: false })
-      .limit(1)
       .maybeSingle();
 
     if (employerError) {
@@ -102,7 +100,7 @@ export async function POST() {
     const { count, error: countError } = await supabase
       .from('employee_onboarding')
       .select('id', { count: 'exact', head: true })
-      .eq('employer_id', employer.id);
+      .eq('employer_id', employer.onboarding_id);
 
     if (countError) {
       console.error('[seed/demo-employees] Count error:', countError);
@@ -151,7 +149,7 @@ export async function POST() {
 
       rows.push({
         user_id:         demoUser.user.id, // Unique user_id for each employee
-        employer_id:     employer.id,
+        employer_id:     employer.onboarding_id,
         employee_code:   `EMP-${String(i + 1).padStart(4, '0')}`,
         national_id:     `DEMO-${String(i + 1).padStart(6, '0')}`,
         id_type:         'national_id' as const,

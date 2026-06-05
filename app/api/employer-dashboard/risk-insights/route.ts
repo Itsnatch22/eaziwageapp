@@ -150,15 +150,20 @@ export async function GET() {
   }
 
   const { data: employer, error: empError } = await supabase
-    .from('employer_onboarding')
+    .from('employers')
     .select(
-      `id, company_name, industry, sector, city, country, employee_count,
+      `id, company_name, industry, country,
        status, risk_score, risk_rating, contact_person, contact_email,
-       payroll_cycle, annual_revenue_range, submitted_at, created_at`,
+       payroll_cycle, created_at, onboarding_id,
+       employer_onboarding!onboarding_id (
+         sector,
+         city,
+         employee_count,
+         annual_revenue_range,
+         submitted_at
+       )`,
     )
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (empError) {
@@ -175,6 +180,9 @@ export async function GET() {
       { status: 404 },
     );
   }
+  const onboarding = Array.isArray(employer.employer_onboarding)
+    ? employer.employer_onboarding[0]
+    : employer.employer_onboarding;
 
   const { data: rf, error: rfError } = await supabase
     .from('employer_risk_factors')
@@ -186,7 +194,7 @@ export async function GET() {
        beneficial_ownership, pep_screening,
        composite_score, scored_at, notes`,
     )
-    .eq('employer_id', employer.id)
+    .eq('employer_id', employer.onboarding_id)
     .maybeSingle();
 
   if (rfError) {
@@ -247,27 +255,34 @@ export async function GET() {
 
   const { data: pendingReview } = await supabase
     .from('risk_review_requests')
-    .select('id, requested_at, reason')
-    .eq('employer_id', employer.id)
+    .select('id, created_at, message')
+    .eq('employer_id', employer.onboarding_id)
     .eq('status', 'pending')
     .limit(1)
     .maybeSingle();
+  const pendingReviewPayload = pendingReview
+    ? {
+        ...pendingReview,
+        requested_at: pendingReview.created_at,
+        reason: pendingReview.message,
+      }
+    : null;
 
   return NextResponse.json({
     id:                   employer.id,
     company_name:         employer.company_name,
     industry:             employer.industry,
-    sector:               employer.sector,
-    city:                 employer.city,
+    sector:               onboarding?.sector,
+    city:                 onboarding?.city,
     country:              employer.country,
     currency:             currency,
-    employee_count:       employer.employee_count,
+    employee_count:       onboarding?.employee_count,
     status:               employer.status,
     contact_person:       employer.contact_person,
     contact_email:        employer.contact_email,
     payroll_cycle:        employer.payroll_cycle,
-    annual_revenue_range: employer.annual_revenue_range,
-    submitted_at:         employer.submitted_at,
+    annual_revenue_range: onboarding?.annual_revenue_range,
+    submitted_at:         onboarding?.submitted_at,
 
     // Risk Scoring (Framework Compliant)
     risk_score:  computedCRS,
@@ -283,8 +298,8 @@ export async function GET() {
     // Metadata
     risk_scored_at:     rf?.scored_at ?? null,
     risk_notes:         rf?.notes     ?? null,
-    has_pending_review: !!pendingReview || employer.status === 'risk_review_in_progress',
-    pending_review:     pendingReview ?? null,
+    has_pending_review: !!pendingReviewPayload || employer.status === 'risk_review_in_progress',
+    pending_review:     pendingReviewPayload,
 
     // Framework Version
     framework_version: 'REV1',

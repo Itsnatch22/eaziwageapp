@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q')?.trim() ?? '';
 
   let query = adminSupabase
-    .from('employer_onboarding')
+    .from('employers')
     .select('id, company_name, industry, city, country, countries_of_operation, status')
     .eq('status', 'approved')
     .order('company_name');

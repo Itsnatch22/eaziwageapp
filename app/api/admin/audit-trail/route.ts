@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
 
     if (employerIds.length > 0) {
       const { data: employers } = await adminSupabase
-        .from('employer_onboarding')
+        .from('employers')
         .select('id, company_name')
         .in('id', employerIds);
       (employers || []).forEach((row) => {

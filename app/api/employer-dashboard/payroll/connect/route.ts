@@ -31,11 +31,9 @@ export async function GET() {
     }
 
     const { data: employer, error: employerError } = await supabase
-      .from('employer_onboarding')
-      .select('id')
+      .from('employers')
+      .select('id, onboarding_id')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .maybeSingle();
 
     if (employerError) {
@@ -59,7 +57,7 @@ export async function GET() {
           error_message, duration_ms, created_at
         )
       `)
-      .eq('employer_id', employer.id)
+      .eq('employer_id', employer.onboarding_id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -92,11 +90,9 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: employer, error: employerError } = await supabase
-      .from('employer_onboarding')
-      .select('id')
+      .from('employers')
+      .select('id, onboarding_id')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .maybeSingle();
 
     if (employerError) {
@@ -124,7 +120,7 @@ export async function POST(req: NextRequest) {
     const { data: existing, error: existingError } = await supabase
       .from('payroll_integrations')
       .select('id, integration_code, webhook_secret')
-      .eq('employer_id', employer.id)
+      .eq('employer_id', employer.onboarding_id)
       .eq('provider', provider)
       .maybeSingle();
 
@@ -163,7 +159,7 @@ export async function POST(req: NextRequest) {
       const { error: insertErr } = await supabase
         .from('payroll_integrations')
         .insert({
-          employer_id:      employer.id,
+          employer_id:      employer.onboarding_id,
           provider,
           provider_label,
           integration_code: integrationCode,

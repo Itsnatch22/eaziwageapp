@@ -243,7 +243,13 @@ export async function POST(req: NextRequest) {
     const idDocType = data.id_type === 'passport' ? 'passport' : 'national_id';
     
     if (face_id) docSyncs.push({ user_id: user.id, document_type: 'face_id', document_url: face_id, status: 'pending' });
-    if (id_front) docSyncs.push({ user_id: user.id, document_type: idDocType, document_url: id_front, status: 'pending' });
+    if (id_front) docSyncs.push({
+      user_id: user.id,
+      document_type: idDocType,
+      document_url: id_front,
+      document_number: national_id,
+      status: 'pending',
+    });
     if (address_proof) docSyncs.push({ user_id: user.id, document_type: 'utility_bill', document_url: address_proof, status: 'pending' });
     if (tax_certificate) docSyncs.push({ user_id: user.id, document_type: 'tax_certificate', document_url: tax_certificate, status: 'pending' });
     if (payslip_1) docSyncs.push({ user_id: user.id, document_type: 'payslip', document_url: payslip_1, status: 'pending' });

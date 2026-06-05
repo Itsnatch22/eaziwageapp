@@ -10,6 +10,20 @@ export const runtime = 'nodejs';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+const EMPLOYER_DOCUMENT_FIELDS = [
+  'certificate_of_incorporation',
+  'business_registration',
+  'tax_compliance_certificate',
+  'cr12_document',
+  'kra_pin_certificate',
+  'business_permit',
+  'audited_financials',
+  'bank_statement',
+  'proof_of_address',
+  'proof_of_bank_account',
+  'employment_contract_template',
+] as const;
+
 async function getOrCreateDraft(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: existing } = await supabase
     .from('employer_onboarding')
@@ -76,23 +90,32 @@ export async function POST(req: NextRequest) {
     const onboardingId = await getOrCreateDraft(supabase, user.id);
 
     const employerCurrency = getCurrencyFromCountry(fields.country);
+    const { data: existingDraft } = await supabase
+      .from('employer_onboarding')
+      .select(EMPLOYER_DOCUMENT_FIELDS.join(','))
+      .eq('id', onboardingId)
+      .maybeSingle();
+
+    const documentUrls = {
+      certificate_of_incorporation: certificate_of_incorporation || existingDraft?.certificate_of_incorporation || null,
+      business_registration: business_registration || existingDraft?.business_registration || null,
+      tax_compliance_certificate: tax_compliance_certificate || existingDraft?.tax_compliance_certificate || null,
+      cr12_document: cr12_document || existingDraft?.cr12_document || null,
+      kra_pin_certificate: kra_pin_certificate || existingDraft?.kra_pin_certificate || null,
+      business_permit: business_permit || existingDraft?.business_permit || null,
+      audited_financials: audited_financials || existingDraft?.audited_financials || null,
+      bank_statement: bank_statement || existingDraft?.bank_statement || null,
+      proof_of_address: proof_of_address || existingDraft?.proof_of_address || null,
+      proof_of_bank_account: proof_of_bank_account || existingDraft?.proof_of_bank_account || null,
+      employment_contract_template: employment_contract_template || existingDraft?.employment_contract_template || null,
+    };
 
     const { error: upsertError } = await supabase
       .from('employer_onboarding')
       .update({
         ...fields,
         currency: employerCurrency,
-        certificate_of_incorporation: certificate_of_incorporation || null,
-        business_registration: business_registration || null,
-        tax_compliance_certificate: tax_compliance_certificate || null,
-        cr12_document: cr12_document || null,
-        kra_pin_certificate: kra_pin_certificate || null,
-        business_permit: business_permit || null,
-        audited_financials: audited_financials || null,
-        bank_statement: bank_statement || null,
-        proof_of_address: proof_of_address || null,
-        proof_of_bank_account: proof_of_bank_account || null,
-        employment_contract_template: employment_contract_template || null,
+        ...documentUrls,
         // Workflow
         status: 'pending',
         risk_score: 0,

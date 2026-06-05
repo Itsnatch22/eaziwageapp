@@ -24,11 +24,10 @@ export async function GET() {
 
     // 1. Get Employer Record (must be approved and not deleted)
     const { data: employer, error: employerError } = await adminSupabase
-      .from('employer_onboarding')
-      .select('id, status, deleted_at')
+      .from('employers')
+      .select('id, status, onboarding_id, employer_onboarding!onboarding_id(deleted_at)')
       .eq('user_id', user.id)
       .eq('status', 'approved')
-      .is('deleted_at', null)
       .maybeSingle();
 
     if (employerError) {
@@ -39,8 +38,8 @@ export async function GET() {
     if (!employer) {
       // Check if employer exists but is not approved or was deleted
       const { data: anyEmployer } = await adminSupabase
-        .from('employer_onboarding')
-        .select('id, status, deleted_at')
+        .from('employers')
+        .select('id, status, onboarding_id, employer_onboarding!onboarding_id(deleted_at)')
         .eq('user_id', user.id)
         .maybeSingle();
       
@@ -48,18 +47,29 @@ export async function GET() {
         return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
       }
       
-      if (anyEmployer.deleted_at) {
+      const anyOnboarding = Array.isArray(anyEmployer.employer_onboarding)
+        ? anyEmployer.employer_onboarding[0]
+        : anyEmployer.employer_onboarding;
+
+      if (anyOnboarding?.deleted_at) {
         return NextResponse.json({ error: 'Account has been terminated' }, { status: 403 });
       }
       
       return NextResponse.json({ error: 'Employer not approved. Please complete onboarding.' }, { status: 403 });
+    }
+    const onboarding = Array.isArray(employer.employer_onboarding)
+      ? employer.employer_onboarding[0]
+      : employer.employer_onboarding;
+
+    if (onboarding?.deleted_at) {
+      return NextResponse.json({ error: 'Account has been terminated' }, { status: 403 });
     }
 
     // 2. Get Wallet
     const { data: wallet, error: walletError } = await adminSupabase
       .from('employer_wallets')
       .select('*')
-      .eq('employer_id', employer.id)
+      .eq('employer_id', employer.onboarding_id)
       .maybeSingle();
 
     if (walletError) throw walletError;
@@ -70,7 +80,7 @@ export async function GET() {
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
         .insert({
-          employer_id: employer.id,
+          employer_id: employer.onboarding_id,
           balance: 0,
           arrears_balance: 0,
           currency: 'KES'

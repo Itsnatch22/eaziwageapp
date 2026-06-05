@@ -30,12 +30,18 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: employer, error: employerError } = await supabase
-      .from('employer_onboarding')
-      .select('id, company_name, bank_name, bank_account_number')
+      .from('employers')
+      .select(`
+        id,
+        onboarding_id,
+        company_name,
+        employer_onboarding!onboarding_id (
+          bank_name,
+          bank_account_number,
+          deleted_at
+        )
+      `)
       .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .maybeSingle();
 
     if (employerError) {
@@ -44,6 +50,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (!employer) {
+      return NextResponse.json({ error: 'Employer record not found' }, { status: 404 });
+    }
+    const onboarding = Array.isArray(employer.employer_onboarding)
+      ? employer.employer_onboarding[0]
+      : employer.employer_onboarding;
+
+    if (onboarding?.deleted_at) {
       return NextResponse.json({ error: 'Employer record not found' }, { status: 404 });
     }
 
@@ -58,10 +71,10 @@ export async function POST(req: NextRequest) {
     const { data: requestRecord, error: requestError } = await supabase
       .from('bank_change_requests')
       .insert({
-        employer_id: employer.id,
+        employer_id: employer.onboarding_id,
         user_id: user.id,
-        old_bank_name: employer.bank_name,
-        old_account_number: employer.bank_account_number,
+        old_bank_name: onboarding?.bank_name,
+        old_account_number: onboarding?.bank_account_number,
         new_bank_name: bank_name,
         new_account_number: bank_account_number,
         reason: reason || 'Not provided',
@@ -90,10 +103,10 @@ export async function POST(req: NextRequest) {
         message: `${employer.company_name} is requesting to change their bank details.`,
         read: false,
         metadata: {
-          employer_id: employer.id,
+          employer_id: employer.onboarding_id,
           company_name: employer.company_name,
-          current_bank: employer.bank_name,
-          current_account: employer.bank_account_number,
+          current_bank: onboarding?.bank_name,
+          current_account: onboarding?.bank_account_number,
           requested_bank: bank_name,
           requested_account: bank_account_number,
           reason: reason || 'Not provided',

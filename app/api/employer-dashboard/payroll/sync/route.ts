@@ -13,11 +13,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: employer } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+    .from('employers')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (!employer) {
@@ -41,7 +39,7 @@ export async function POST(req: NextRequest) {
     .from('payroll_integrations')
     .select('id, provider, status, sync_mode, sync_frequency, sync_time')
     .eq('id', integration_id)
-    .eq('employer_id', employer.id)
+    .eq('employer_id', employer.onboarding_id)
     .maybeSingle();
 
   if (intgErr) {
@@ -77,7 +75,7 @@ export async function POST(req: NextRequest) {
     .from('payroll_sync_logs')
     .insert({
       integration_id,
-      employer_id:      employer.id,
+      employer_id:      employer.onboarding_id,
       triggered_by:     'manual',
       status:           syncStatus,
       records_received: recordsReceived,

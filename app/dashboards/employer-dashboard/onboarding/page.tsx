@@ -18,9 +18,10 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PAYROLL_CYCLES } from "@/lib/utils";
 import { toast } from "sonner";
-import { useAuthStore } from "@/lib/stores/auth"; // keep your existing store
+import { useAuthStore } from "@/lib/stores/auth";
 import { DOCUMENT_ACCEPT, isDocumentFile } from "@/lib/upload-file-types";
 import { DocTooltip } from "@/components/shared/DocTooltip";
+import { OnboardingSubmitPayload } from "@/lib/validations/employer-onboarding";
 
 const COUNTRIES = [
   { code: "KE", name: "Kenya" },
@@ -284,7 +285,7 @@ async function apiUploadDocument(formData: FormData) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? "Upload failed");
-  return data as { document_url: string; document_type: string };
+  return data as { document_url: string; document_type: string; storage_path: string };
 }
 
 async function apiSubmitOnboarding(payload: Record<string, unknown>) {
@@ -295,7 +296,6 @@ async function apiSubmitOnboarding(payload: Record<string, unknown>) {
   });
   const data = await res.json();
   if (!res.ok) {
-    // Re-throw with detail array so the catch block can format it
     const err = new Error(data.error ?? "Submission failed") as Error & { detail?: unknown };
     err.detail = data.detail;
     throw err;
@@ -322,7 +322,7 @@ export default function EmployerOnboarding() {
 
   // File upload states
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<Record<string, { name: string; url: string } | null>>({
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, { name: string; url: string; path?: string } | null>>({
     certificate_of_incorporation: null,
     business_registration: null,
     tax_compliance_certificate: null,
@@ -413,7 +413,6 @@ export default function EmployerOnboarding() {
     fetchProfileFallback();
   }, [userFullName, userEmail]);
 
-  // ── Fetch existing data for recovery ───────────────────────────────────
   useEffect(() => {
     const fetchExistingData = async () => {
       try {
@@ -508,27 +507,31 @@ export default function EmployerOnboarding() {
   const removeOwner = (index: number) =>
     setBeneficialOwners((prev) => prev.filter((_, i) => i !== index));
 
-  const handleFileUpload = async (file: File, documentType: string) => {
-    setUploadingFile(documentType);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("document_type", documentType);
+const handleFileUpload = async (file: File, documentType: string) => {
+  setUploadingFile(documentType);
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("document_type", documentType);
 
-      const response = await apiUploadDocument(fd);
+    const response = await apiUploadDocument(fd);
 
-      setUploadedFiles((prev) => ({
-        ...prev,
-        [documentType]: { name: file.name, url: response.document_url },
-      }));
+    setUploadedFiles((prev) => ({
+      ...prev,
+      [documentType]: {
+        name: file.name,
+        url: response.document_url, 
+        path: response.storage_path, 
+      },
+    }));
 
-      toast.success("Document uploaded successfully!");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to upload document");
-    } finally {
-      setUploadingFile(null);
-    }
-  };
+    toast.success("Document uploaded successfully!");
+  } catch (err: unknown) {
+    toast.error(err instanceof Error ? err.message : "Failed to upload document");
+  } finally {
+    setUploadingFile(null);
+  }
+};
 
   const nextStep = () => {
     if (currentStep === 1 && !agreedToTerms) {
@@ -563,28 +566,27 @@ export default function EmployerOnboarding() {
   };
 
   const handleSubmit = async () => {
-    setError("");
-    setLoading(true);
+  setError("");
+  setLoading(true);
 
-    try {
-      // Collect uploaded document URLs
-      const docUrls: Record<string, string> = {};
-      Object.entries(uploadedFiles).forEach(([key, value]) => {
-        if (value?.url) docUrls[key] = value.url;
-      });
+  try {
+    const docPaths: Record<string, string> = {};
+    Object.entries(uploadedFiles).forEach(([key, value]) => {
+      if (value?.path) docPaths[key] = value.path;
+    });
 
-      await apiSubmitOnboarding({
-        ...formData,
-        employee_count: parseInt(formData.employee_count) || 0,
-        years_in_operation: parseInt(formData.years_in_operation) || 0,
-        monthly_payroll_amount: parseFloat(formData.monthly_payroll_amount) || 0,
-        beneficial_owners: beneficialOwners.filter((o) => o.full_name.trim()),
-        countries_of_operation: countriesOfOperation,
-        ...docUrls,
-      });
+    await apiSubmitOnboarding({
+      ...formData,
+      employee_count: parseInt(formData.employee_count) || 0,
+      years_in_operation: parseInt(formData.years_in_operation) || 0,
+      monthly_payroll_amount: parseFloat(formData.monthly_payroll_amount) || 0,
+      beneficial_owners: beneficialOwners.filter((o) => o.full_name.trim()),
+      countries_of_operation: countriesOfOperation,
+      ...docPaths,
+    });
 
-      toast.success("Company profile created! Our team will review your application.");
-      router.push("/dashboards/employer-dashboard");
+    toast.success("Company profile created! Our team will review your application.");
+    router.push("/dashboards/employer-dashboard");
     } catch (err: unknown) {
       let errorMessage = "Failed to create company profile";
       if (err instanceof Error) {

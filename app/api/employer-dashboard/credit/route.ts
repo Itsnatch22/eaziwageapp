@@ -39,10 +39,9 @@ export async function GET(req: Request) {
 
   console.log('[credit-overview] Fetching employer for user:', user.id);
   const { data: employer, error: employerError } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+    .from('employers')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
-    .limit(1)
     .maybeSingle();
 
   if (employerError) {
@@ -73,7 +72,7 @@ export async function GET(req: Request) {
   const { data: wallet } = await supabase
     .from('employer_wallets')
     .select('balance')
-    .eq('employer_id', employer.id)
+    .eq('employer_id', employer.onboarding_id)
     .maybeSingle();
 
   const companyCreditLimit = Number(wallet?.balance ?? 0);
@@ -81,7 +80,7 @@ export async function GET(req: Request) {
 
   console.log('[credit-overview] Fetching employees for employer:', employer.id);
   const { data: employees, error: employeeError } = await supabase
-    .from('employee_onboarding')
+    .from('employees')
     .select('id')
     .eq('employer_id', employer.id);
 

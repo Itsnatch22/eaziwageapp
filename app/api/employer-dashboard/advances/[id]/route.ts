@@ -15,7 +15,7 @@ interface AdvanceRow {
   status: string;
   amount: number;
   employee_id: string;
-  employee_onboarding?: {
+  employees?: {
     user_id?: string | null;
   } | null;
 }
@@ -43,11 +43,9 @@ export async function PATCH(
   }
 
   const { data: employer, error: employerError } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+    .from('employers')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (employerError) {
@@ -58,7 +56,7 @@ export async function PATCH(
   }
 
   const { data: employeeRows, error: employeesError } = await supabase
-    .from('employee_onboarding')
+    .from('employees')
     .select('id')
     .eq('employer_id', employer.id);
 
@@ -73,7 +71,7 @@ export async function PATCH(
 
   const { data: target, error: targetError } = await supabase
     .from('advances')
-    .select('id, status, amount, employee_id, employee_onboarding(user_id)')
+    .select('id, status, amount, employee_id, employees(user_id)')
     .eq('id', id)
     .in('employee_id', employeeIds)
     .maybeSingle();
@@ -91,7 +89,7 @@ export async function PATCH(
   
   if (action === 'approve') {
     try {
-      await payoutService.reserveFunds(employer.id, target.amount, id);
+      await payoutService.reserveFunds(employer.onboarding_id, target.amount, id);
 
       const { error: updateError } = await supabase
         .from('advances')
@@ -121,10 +119,11 @@ export async function PATCH(
   }
 
   try {
-    const onboarding = target.employee_onboarding;
-    const employeeUserId = Array.isArray(onboarding) 
-      ? onboarding[0]?.user_id 
-      : (onboarding as any)?.user_id;
+    const targetRow = target as AdvanceRow;
+    const employee = targetRow.employees;
+    const employeeUserId = Array.isArray(employee) 
+      ? employee[0]?.user_id 
+      : employee?.user_id;
     
     if (employeeUserId) {
         await notifyEmployee({

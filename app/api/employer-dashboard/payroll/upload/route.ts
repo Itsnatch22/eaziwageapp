@@ -18,11 +18,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: employer } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+    .from('employers')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (!employer) {
@@ -46,7 +44,7 @@ export async function POST(req: NextRequest) {
     .from('payroll_uploads')
     .upsert(
       {
-        employer_id:    employer.id,
+        employer_id:    employer.onboarding_id,
         month,
         source:         'manual',
         status:         'processing',
@@ -71,7 +69,7 @@ export async function POST(req: NextRequest) {
   const { data: knownEmployees } = await supabase
     .from('employee_onboarding')
     .select('id, employee_code, monthly_salary, status')
-    .eq('employer_id', employer.id);
+    .eq('employer_id', employer.onboarding_id);
 
   const employeeMap = new Map(
     (knownEmployees ?? []).map(e => [e.employee_code, e])
@@ -163,7 +161,7 @@ export async function POST(req: NextRequest) {
 
     rowResults.push({
       upload_id:     uploadId,
-      employer_id:   employer.id,
+      employer_id:   employer.onboarding_id,
       employee_code: row.employee_code,
       employee_id:   known?.id ?? null,
       days_worked:   row.days_worked ?? null,

@@ -22,7 +22,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user profile for full_name and avatar
     const { data: profile, error: profileError } = await adminSupabase
       .from('profiles')
       .select('full_name, avatar_url')
@@ -65,7 +64,7 @@ export async function GET() {
     const { data: policy, error: policyError } = await adminSupabase
       .from('policies')
       .select('*')
-      .eq('organization_id', onboarding.employer_id)
+      .eq('employer_id', onboarding.employer_id)
       .maybeSingle();
 
     if (policyError) {

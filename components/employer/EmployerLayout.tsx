@@ -385,6 +385,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   const user = useAuthStore((state) => state.user as EmployerUser | null);
   const pathname = usePathname();
   const router = useRouter();
+  const isEmployerDashboardHome = pathname === '/dashboards/employer-dashboard';
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -414,12 +415,17 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
             return;
             
           case 'not_onboarded':
-          case 'draft':
           case 'pending':
           case 'submitted':
+          case 'risk_review_in_progress':
           case 'rejected':
+            if (isEmployerDashboardHome) return;
+            router.push('/dashboards/employer-dashboard');
+            return;
+
+          case 'draft':
           default:
-            // Not yet onboarded or pending approval - go to onboarding
+            // Not yet onboarded - go to onboarding
             router.push('/dashboards/employer-dashboard/onboarding');
             return;
         }
@@ -428,7 +434,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
       }
     };
     void checkAccess();
-  }, [user?.id, pathname, router]);
+  }, [user?.id, pathname, router, isEmployerDashboardHome]);
 
   useEffect(() => {
     if (!user?.id || !pusherClient) return;

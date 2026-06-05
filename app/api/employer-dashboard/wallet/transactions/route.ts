@@ -15,8 +15,8 @@ export async function GET() {
   }
 
   const { data: employer } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+    .from('employers')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -27,7 +27,7 @@ export async function GET() {
   const { data: wallet } = await supabase
     .from('employer_wallets')
     .select('id, balance, currency')
-    .eq('employer_id', employer.id)
+    .eq('employer_id', employer.onboarding_id)
     .maybeSingle();
 
   if (!wallet) {

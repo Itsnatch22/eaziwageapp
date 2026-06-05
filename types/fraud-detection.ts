@@ -1,4 +1,3 @@
-
 import { ComponentType } from 'react';
 
 export type RuleType = 'amount_threshold' | 'frequency' | 'velocity' | 'pattern';

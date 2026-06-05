@@ -15,12 +15,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: onboardingEmp, error: employerError } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+  const { data: employer, error: employerError } = await supabase
+    .from('employers')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (employerError) {
@@ -30,17 +28,9 @@ export async function GET(req: NextRequest) {
   // Collect all possible employer IDs — employees may have registered under
   // employer_onboarding.id OR employers.id depending on which table existed at signup time.
   const employerIds: string[] = [];
-  if (onboardingEmp?.id) employerIds.push(onboardingEmp.id);
-
-  // Always also check the synced employers table for a matching id
-  const { data: syncedEmp } = await supabase
-    .from('employers')
-    .select('id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (syncedEmp?.id && !employerIds.includes(syncedEmp.id)) {
-    employerIds.push(syncedEmp.id);
+  if (employer?.onboarding_id) employerIds.push(employer.onboarding_id);
+  if (employer?.id && !employerIds.includes(employer.id)) {
+    employerIds.push(employer.id);
   }
 
   if (employerIds.length === 0) {

@@ -11,11 +11,9 @@ export async function GET() {
     }
 
     const { data: employer, error } = await supabase
-      .from('employer_onboarding')
-      .select('id, status, deleted_at')
+      .from('employers')
+      .select('id, status, onboarding_id, employer_onboarding!onboarding_id(deleted_at)')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .maybeSingle();
 
     if (error) {
@@ -29,11 +27,15 @@ export async function GET() {
       });
     }
 
-    if (employer.deleted_at) {
+    const onboarding = Array.isArray(employer.employer_onboarding)
+      ? employer.employer_onboarding[0]
+      : employer.employer_onboarding;
+
+    if (onboarding?.deleted_at) {
       return NextResponse.json({ 
         status: 'terminated',
         message: 'Account has been terminated',
-        deleted_at: employer.deleted_at
+        deleted_at: onboarding.deleted_at
       });
     }
 

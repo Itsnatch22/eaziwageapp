@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { EmployeeSchema } from '@/lib/validations/kyc-validation';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 
 const QueryParamsSchema = z.object({
@@ -14,6 +13,12 @@ const QueryParamsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+function normalizeEmployeeStatus(status: string | null | undefined) {
+  return status === 'Active' || status === 'approved'
+    ? 'active'
+    : status?.toLowerCase() || 'pending';
+}
 
 function createAdminClient() {
   const env = getEnv();
@@ -89,7 +94,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { employer_id, status, search, limit, offset } = queryParams.data;
 
-    const [employeesResult, onboardingResult] = await Promise.all([
+    const [employeesResult, pendingKycDocumentsResult] = await Promise.all([
       adminSupabase
         .from('employees')
         .select(`
@@ -99,65 +104,48 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           )
         `)
         .order('created_at', { ascending: false }),
-
       adminSupabase
-        .from('employee_onboarding')
-        .select(`
-          *,
-          employer_onboarding!employer_id (
-            company_name
-          )
-        `)
-        .order('created_at', { ascending: false }),
+        .from('employee_kyc_documents')
+        .select('id,user_id')
+        .eq('status', 'pending'),
     ]);
 
     const { data: employees, error: employeeErr } = employeesResult;
-    const { data: onboardingEmployees, error: onboardingErr } = onboardingResult;
+    const { data: pendingKycDocuments, error: pendingKycDocumentsErr } = pendingKycDocumentsResult;
 
-    if (employeeErr || onboardingErr) {
-      console.error('[GET /api/admin/employees] Query error:', { employeeErr, onboardingErr });
+    if (employeeErr || pendingKycDocumentsErr) {
+      console.error('[GET /api/admin/employees] Query error:', { employeeErr, pendingKycDocumentsErr });
       return NextResponse.json(
         { error: 'Failed to fetch employees', code: 'QUERY_ERROR' },
         { status: 500 }
       );
     }
 
-    const onboardingByUserId = new Map((onboardingEmployees || []).map((emp) => [emp.user_id, emp]));
-    const liveEmployeeUserIds = new Set((employees || []).map((emp) => emp.user_id));
-
-    const mergedLiveEmployees = (employees || []).map((emp) => {
-      const onboarding = onboardingByUserId.get(emp.user_id);
-      if (!onboarding) return emp;
-
-      return {
-        ...emp,
-        status: onboarding.status ?? emp.status,
-        kyc_status: emp.kyc_status ?? onboarding.status,
-        national_id: onboarding.national_id,
-        country: onboarding.country,
-        advance_limit: onboarding.advance_limit,
-        earned_wages: onboarding.earned_wages,
-        employment_type: onboarding.employment_type,
-        employer_onboarding: onboarding.employer_onboarding,
-        currency: onboarding.currency,
-      };
-    });
-
-    const onboardingOnlyEmployees = (onboardingEmployees || []).filter((emp) => !liveEmployeeUserIds.has(emp.user_id));
-
-    const allEmployees = [...mergedLiveEmployees, ...onboardingOnlyEmployees];
-
-    const uniqueEmployees = allEmployees.filter((emp, index, self) =>
-      index === self.findIndex((e) => e.user_id === emp.user_id)
+    const allEmployees = employees ?? [];
+    const employeeUserIds = new Set(allEmployees.map((emp) => emp.user_id).filter(Boolean));
+    const pendingEmployeeKycDocuments = (pendingKycDocuments ?? []).filter(
+      (doc) => doc.user_id && employeeUserIds.has(doc.user_id)
     );
 
-    let filteredEmployees = uniqueEmployees;
+    const pendingKycByUserId = new Map<string, number>();
+    pendingEmployeeKycDocuments.forEach((doc) => {
+      if (!doc.user_id) return;
+      pendingKycByUserId.set(doc.user_id, (pendingKycByUserId.get(doc.user_id) ?? 0) + 1);
+    });
+
+    const stats = {
+      total: allEmployees.length,
+      active: allEmployees.filter((emp) => normalizeEmployeeStatus(emp.status) === 'active').length,
+      pending_kyc: pendingEmployeeKycDocuments.length,
+      suspended: allEmployees.filter((emp) => normalizeEmployeeStatus(emp.status) === 'suspended').length,
+    };
+
+    let filteredEmployees = allEmployees;
 
     if (search) {
       const searchLower = search.toLowerCase();
       filteredEmployees = filteredEmployees.filter((emp) =>
         (emp.full_name && emp.full_name.toLowerCase().includes(searchLower)) ||
-        (emp.name && emp.name.toLowerCase().includes(searchLower)) ||
         (emp.email && emp.email.toLowerCase().includes(searchLower)) ||
         (emp.employee_code && emp.employee_code.toLowerCase().includes(searchLower)) ||
         (emp.job_title && emp.job_title.toLowerCase().includes(searchLower)) ||
@@ -167,10 +155,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (status) {
       filteredEmployees = filteredEmployees.filter((emp) => {
-        const empStatus =
-          emp.status === 'Active' ? 'active' :
-          emp.status === 'approved' ? 'active' :
-          (emp.status ?? 'pending').toLowerCase();
+        const empStatus = normalizeEmployeeStatus(emp.status);
         return empStatus === status;
       });
     }
@@ -184,13 +169,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (!paginatedEmployees || paginatedEmployees.length === 0) {
       return NextResponse.json(
-        { data: [], pagination: { total: 0, limit, offset, hasMore: false } },
+        { data: [], stats, pagination: { total: 0, limit, offset, hasMore: false } },
         { status: 200 }
       );
     }
 
     const validatedEmployees = paginatedEmployees
       .map((emp) => {
+        const statusValue = normalizeEmployeeStatus(emp.status);
+        const kycStatus = emp.kyc_status || 'pending';
+
         const flattened = {
           id:             emp.id,
           user_id:        emp.user_id,
@@ -200,28 +188,41 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           name:           emp.name || emp.full_name || 'Anonymous User',
           email:          emp.email,
           phone:          emp.phone,
+          country:        emp.country || null,
           job_title:      emp.job_title || 'Not Set',
           department:     emp.department || 'Not Set',
           monthly_salary: emp.monthly_salary || 0,
-          hire_date:      emp.hire_date || emp.start_date || null,
-          status: emp.status === 'Active' || emp.status === 'approved'
-            ? 'active'
-            : emp.status?.toLowerCase() || 'pending',
-          kyc_status:     emp.kyc_status || emp.status || 'pending',
+          advance_limit:  emp.advance_limit || 0,
+          earned_wages:   emp.earned_wages || 0,
+          employment_type: emp.employment_type || 'full-time',
+          hire_date:      emp.hire_date || null,
+          termination_date: emp.termination_date || null,
+          status:         statusValue,
+          kyc_status:     kycStatus,
           employer_name:  emp.employers?.company_name || emp.employer_onboarding?.company_name || 'Unlinked',
           currency:       emp.currency || 'KES',
+          risk_score:     emp.risk_score ?? null,
+          id_document_front: Boolean(emp.id_document_front),
+          id_document_back: Boolean(emp.id_document_back),
+          selfie: Boolean(emp.selfie),
+          address_proof: Boolean(emp.address_proof),
+          payslip_1: Boolean(emp.payslip_1),
+          payslip_2: Boolean(emp.payslip_2),
+          bank_statement: Boolean(emp.bank_statement),
+          employment_contract: Boolean(emp.employment_contract),
+          pending_kyc_documents: emp.user_id ? pendingKycByUserId.get(emp.user_id) ?? 0 : 0,
           created_at:     emp.created_at,
           updated_at:     emp.updated_at,
         };
 
-        const parsed = EmployeeSchema.safeParse(flattened);
-        return parsed.success ? parsed.data : flattened;
+        return flattened;
       })
       .filter(Boolean);
 
     return NextResponse.json(
       {
         data: validatedEmployees,
+        stats,
         pagination: {
           total,
           limit,

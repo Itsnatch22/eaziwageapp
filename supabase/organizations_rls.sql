@@ -1,16 +1,8 @@
 
--- ═══════════════════════════════════════════════════════════════════════════
--- RLS Policies for organizations table
--- Allows authenticated users to read organizations they belong to
--- ═══════════════════════════════════════════════════════════════════════════
-
--- Enable RLS on organizations table
 ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if they exist
 DROP POLICY IF EXISTS "authenticated_users_can_read_their_organization" ON organizations;
 
--- Authenticated users can read organizations they belong to via profiles or employees
 CREATE POLICY "authenticated_users_can_read_their_organization"
 ON organizations
 FOR SELECT

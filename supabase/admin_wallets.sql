@@ -1,5 +1,3 @@
-
--- 1. Create Admin Wallet to track Eaziwage's internal balance
 CREATE TABLE IF NOT EXISTS public.admin_wallets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL DEFAULT 'Main Stanbic Source',
@@ -9,12 +7,10 @@ CREATE TABLE IF NOT EXISTS public.admin_wallets (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Insert the default Main Wallet if it doesn't exist
 INSERT INTO public.admin_wallets (name, balance, currency)
 VALUES ('Main Stanbic Source', 0, 'KES')
 ON CONFLICT DO NOTHING;
 
--- 3. Track Admin Wallet Transactions (Funding DusuPay from Stanbic, etc)
 CREATE TABLE IF NOT EXISTS public.admin_wallet_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     admin_wallet_id UUID NOT NULL REFERENCES public.admin_wallets(id) ON DELETE CASCADE,
@@ -27,7 +23,6 @@ CREATE TABLE IF NOT EXISTS public.admin_wallet_transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. Track DusuPay Wallet Mirror (to match DusuPay API balance)
 CREATE TABLE IF NOT EXISTS public.dusupay_wallet_mirror (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     currency TEXT NOT NULL,
@@ -36,12 +31,10 @@ CREATE TABLE IF NOT EXISTS public.dusupay_wallet_mirror (
     UNIQUE(currency)
 );
 
--- 5. Trigger for updated_at on admin_wallets
 CREATE TRIGGER update_admin_wallets_updated_at 
 BEFORE UPDATE ON public.admin_wallets 
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 6. RLS Policies (Admin Only)
 ALTER TABLE public.admin_wallets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_wallet_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dusupay_wallet_mirror ENABLE ROW LEVEL SECURITY;

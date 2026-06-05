@@ -3,6 +3,7 @@ import { IBM_Plex_Mono, Playfair_Display, Geist } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { cn } from "@/lib/utils";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -35,6 +36,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${ibmPlexMono.variable} ${playfairDisplay.variable} antialiased`}
       >
+        <OfflineBanner />
         {children}
         <Analytics />
       </body>

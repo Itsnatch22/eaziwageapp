@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: employer } = await adminSupabase
-      .from('employer_onboarding')
-      .select('id')
+      .from('employers')
+      .select('id, onboarding_id')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       .from('termination_feedback')
       .insert({
         user_id: user.id,
-        employer_id: employer?.id,
+        employer_id: employer?.onboarding_id,
         reason,
         other_reason,
         additional_comments

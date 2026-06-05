@@ -249,12 +249,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     riskFactorsByEmployer.set(rf.employer_id, rf as RiskFactors & { employer_id: string; scored_at: string | null });
   });
 
+  const { data: liveEmployers } = employerIds.length
+    ? await adminSupabase
+        .from('employers')
+        .select('id, onboarding_id')
+        .in('onboarding_id', employerIds)
+    : { data: [] as Array<{ id: string; onboarding_id: string | null }> };
+
+  const onboardingIdByLiveEmployerId = new Map(
+    (liveEmployers ?? [])
+      .filter((employer): employer is { id: string; onboarding_id: string } => Boolean(employer.onboarding_id))
+      .map((employer) => [employer.id, employer.onboarding_id])
+  );
+  const liveEmployerIds = (liveEmployers ?? []).map((employer) => employer.id);
+
   const [employeesResult, advancesResult] = await Promise.all([
-    employerIds.length
+    liveEmployerIds.length
       ? adminSupabase
           .from('employees')
           .select('employer_id, monthly_salary, status')
-          .in('employer_id', employerIds)
+          .in('employer_id', liveEmployerIds)
       : Promise.resolve({ data: [] as Array<{ employer_id: string; monthly_salary: number | null; status: string | null }> }),
     employerIds.length
       ? adminSupabase
@@ -267,10 +281,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const employeesByEmployer = new Map<string, { count: number; payroll: number }>();
   (employeesResult.data ?? []).forEach((employee) => {
-    const curr = employeesByEmployer.get(employee.employer_id) ?? { count: 0, payroll: 0 };
-    const active = employee.status === 'active';
-    employeesByEmployer.set(employee.employer_id, {
-      count: curr.count + (active ? 1 : 0),
+    const onboardingId = onboardingIdByLiveEmployerId.get(employee.employer_id);
+    if (!onboardingId) return;
+
+    const curr = employeesByEmployer.get(onboardingId) ?? { count: 0, payroll: 0 };
+    const active = employee.status?.toLowerCase() === 'active';
+    employeesByEmployer.set(onboardingId, {
+      count: curr.count + 1,
       payroll: curr.payroll + (active ? employee.monthly_salary ?? 0 : 0),
     });
   });

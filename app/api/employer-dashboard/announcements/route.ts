@@ -38,8 +38,8 @@ export async function GET() {
     }
 
     const { data: employer } = await adminSupabase
-      .from('employer_onboarding')
-      .select('id')
+      .from('employers')
+      .select('id, onboarding_id')
       .eq('user_id', user.id)
       .eq('status', 'approved')
       .maybeSingle();
@@ -52,7 +52,7 @@ export async function GET() {
       .from('notifications')
       .select('id, title, message, created_at, metadata')
       .eq('type', 'announcement')
-      .eq('metadata->>sender_id', String(employer.id))
+      .eq('metadata->>sender_id', String(employer.onboarding_id))
       .order('created_at', { ascending: false });
 
     if (annError) {
@@ -92,8 +92,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: employer } = await adminSupabase
-      .from('employer_onboarding')
-      .select('id, company_name')
+      .from('employers')
+      .select('id, onboarding_id, company_name')
       .eq('user_id', user.id)
       .eq('status', 'approved')
       .maybeSingle();
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     const { data: employees } = await adminSupabase
       .from('employee_onboarding')
       .select('user_id')
-      .eq('employer_id', employer.id)
+      .eq('employer_id', employer.onboarding_id)
       .not('user_id', 'is', null)
       .eq('status', 'approved');
 
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
       read: false,
       metadata: {
         announcement_id: announcementId,
-        sender_id: employer.id,
+        sender_id: employer.onboarding_id,
         sender_name: employer.company_name,
         is_announcement: true
       }

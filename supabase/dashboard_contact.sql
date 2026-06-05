@@ -1,4 +1,3 @@
--- Create dashboard_contact table
 CREATE TABLE IF NOT EXISTS public.dashboard_contact (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -13,17 +12,13 @@ CREATE TABLE IF NOT EXISTS public.dashboard_contact (
     metadata JSONB DEFAULT '{}'::jsonb
 );
 
--- Enable Row Level Security (RLS)
 ALTER TABLE public.dashboard_contact ENABLE ROW LEVEL SECURITY;
 
--- Create policies
--- Allow anyone to insert (public contact form)
 CREATE POLICY "Enable public insert for contact form" 
 ON public.dashboard_contact 
 FOR INSERT 
 WITH CHECK (true);
 
--- Allow only admins to view/update
 CREATE POLICY "Allow authenticated admins to view contact messages" 
 ON public.dashboard_contact 
 FOR SELECT 
@@ -40,6 +35,5 @@ USING (auth.role() = 'service_role' OR EXISTS (
   SELECT 1 FROM public.system_admins WHERE email = auth.email()
 ));
 
--- Index for performance
 CREATE INDEX IF NOT EXISTS idx_dashboard_contact_email ON public.dashboard_contact(email);
 CREATE INDEX IF NOT EXISTS idx_dashboard_contact_submitted_at ON public.dashboard_contact(submitted_at DESC);

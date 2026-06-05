@@ -42,28 +42,29 @@ export async function GET() {
   }
 
   const { data: employer, error: employerError } = await supabase
-    .from('employer_onboarding')
+    .from('employers')
     .select(`
       id,
       company_name,
       industry,
-      sector,
-      city,
       country,
-      employee_count,
       status,
       risk_score,
       risk_rating,
       contact_person,
       contact_email,
       payroll_cycle,
-      annual_revenue_range,
-      submitted_at,
-      created_at
+      created_at,
+      onboarding_id,
+      employer_onboarding!onboarding_id (
+        sector,
+        city,
+        employee_count,
+        annual_revenue_range,
+        submitted_at
+      )
     `)
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (employerError) {
@@ -74,11 +75,14 @@ export async function GET() {
   if (!employer) {
     return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
   }
+  const onboarding = Array.isArray(employer.employer_onboarding)
+    ? employer.employer_onboarding[0]
+    : employer.employer_onboarding;
 
   const { data: riskFactorsRow } = await supabase
     .from('employer_risk_factors')
     .select('*')
-    .eq('employer_id', employer.id)
+    .eq('employer_id', employer.onboarding_id)
     .maybeSingle();
 
   const risk_factors = riskFactorsRow
@@ -112,14 +116,24 @@ export async function GET() {
   const { data: pendingReview } = await supabase
     .from('risk_review_requests')
     .select('id, status, created_at')
-    .eq('employer_id', employer.id)
+    .eq('employer_id', employer.onboarding_id)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   return NextResponse.json({
-    ...employer,
+    id: employer.id,
+    company_name: employer.company_name,
+    industry: employer.industry,
+    country: employer.country,
+    status: employer.status,
+    contact_person: employer.contact_person,
+    contact_email: employer.contact_email,
+    payroll_cycle: employer.payroll_cycle,
+    created_at: employer.created_at,
+    onboarding_id: employer.onboarding_id,
+    ...onboarding,
     risk_score: Number(employer.risk_score ?? 3.0),
     risk_rating: employer.risk_rating ?? 'B',
     risk_factors,

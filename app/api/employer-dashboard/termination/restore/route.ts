@@ -23,8 +23,8 @@ export async function POST() {
     }
 
     const { data: employer, error: employerError } = await adminSupabase
-      .from('employer_onboarding')
-      .select('id, company_name')
+      .from('employers')
+      .select('id, onboarding_id, company_name')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -35,14 +35,14 @@ export async function POST() {
     const { error: restoreEmployerError } = await adminSupabase
       .from('employer_onboarding')
       .update({ deleted_at: null })
-      .eq('id', employer.id);
+      .eq('id', employer.onboarding_id);
 
     if (restoreEmployerError) throw restoreEmployerError;
 
     await adminSupabase
       .from('employee_onboarding')
       .update({ status: 'approved' }) 
-      .eq('employer_id', employer.id);
+      .eq('employer_id', employer.onboarding_id);
     
     await adminSupabase
       .from('employees')

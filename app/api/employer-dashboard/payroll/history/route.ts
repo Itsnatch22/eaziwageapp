@@ -13,11 +13,9 @@ export async function GET() {
     }
 
     const { data: employer, error: employerError } = await supabase
-      .from('employer_onboarding')
-      .select('id')
+      .from('employers')
+      .select('id, onboarding_id')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .maybeSingle();
 
     if (employerError) {
@@ -44,7 +42,7 @@ export async function GET() {
           row_status, row_errors, row_warnings, source_row
         )
       `)
-      .eq('employer_id', employer.id)
+      .eq('employer_id', employer.onboarding_id)
       .order('month', { ascending: false })
       .limit(24); // 2 years of monthly uploads
 

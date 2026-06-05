@@ -52,17 +52,17 @@ export const onboardingSubmitSchema = z.object({
 
   beneficial_owners: z.array(beneficialOwnerSchema).optional().default([]),
 
-  certificate_of_incorporation: z.string().url().optional().or(z.literal('')),
-  business_registration: z.string().url().optional().or(z.literal('')),
-  tax_compliance_certificate: z.string().url().optional().or(z.literal('')),
-  cr12_document: z.string().url().optional().or(z.literal('')),
-  kra_pin_certificate: z.string().url().optional().or(z.literal('')),
-  business_permit: z.string().url().optional().or(z.literal('')),
-  audited_financials: z.string().url().optional().or(z.literal('')),
-  bank_statement: z.string().url().optional().or(z.literal('')),
-  proof_of_address: z.string().url().optional().or(z.literal('')),
-  proof_of_bank_account: z.string().url().optional().or(z.literal('')),
-  employment_contract_template: z.string().url().optional().or(z.literal('')),
+  certificate_of_incorporation: z.string().optional().or(z.literal('')),
+  business_registration: z.string().optional().or(z.literal('')),
+  tax_compliance_certificate: z.string().optional().or(z.literal('')),
+  cr12_document: z.string().optional().or(z.literal('')),
+  kra_pin_certificate: z.string().optional().or(z.literal('')),
+  business_permit: z.string().optional().or(z.literal('')),
+  audited_financials: z.string().optional().or(z.literal('')),
+  bank_statement: z.string().optional().or(z.literal('')),
+  proof_of_address: z.string().optional().or(z.literal('')),
+  proof_of_bank_account: z.string().optional().or(z.literal('')),
+  employment_contract_template: z.string().optional().or(z.literal('')),
 });
 
 export type OnboardingSubmitPayload = z.infer<typeof onboardingSubmitSchema>;

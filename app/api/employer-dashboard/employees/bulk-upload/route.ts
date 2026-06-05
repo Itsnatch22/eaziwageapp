@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: employer, error: employerError } = await adminSupabase
-      .from('employer_onboarding')
-      .select('id, company_name')
+      .from('employers')
+      .select('id, onboarding_id, company_name')
       .eq('user_id', user.id)
       .eq('status', 'approved')
       .maybeSingle();
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         const { data: duplicateCheck } = await adminSupabase
           .from('employee_onboarding')
           .select('id, email_placeholder, employee_code')
-          .eq('employer_id', employer.id)
+          .eq('employer_id', employer.onboarding_id)
           .or(`email_placeholder.eq.${email},employee_code.eq.${emp.employee_code}`)
           .maybeSingle();
 
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         const { error: insertError } = await adminSupabase
           .from('employee_onboarding')
           .insert({
-            employer_id: employer.id,
+            employer_id: employer.onboarding_id,
             user_id: existingProfile?.id || null,
             full_name_placeholder: emp.full_name,
             email_placeholder: emp.email.toLowerCase(),

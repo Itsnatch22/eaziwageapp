@@ -59,7 +59,6 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Get all advances
     const { data: advances, error: advancesError } = await supabase
       .from('advances')
       .select(
@@ -73,7 +72,6 @@ export async function GET(request: Request) {
 
     const typedAdvances = (advances ?? []) as AdvanceRow[];
 
-    // Get all employee IDs
     const employeeIds = typedAdvances.map((a) => a.employee_id);
     const employerIds = typedAdvances.map((a) => a.employer_id).filter(Boolean);
 
@@ -102,7 +100,7 @@ export async function GET(request: Request) {
 
     if (employerIds.length > 0) {
       const { data: employers } = await supabase
-        .from('employer_onboarding')
+        .from('employers') 
         .select('id, company_name')
         .in('id', employerIds);
 

@@ -6,11 +6,80 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { DocumentStatusEnum } from '@/lib/validations/kyc-validation';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 
+const EMPLOYER_DOCUMENT_FIELDS = [
+  'certificate_of_incorporation',
+  'business_registration',
+  'tax_compliance_certificate',
+  'cr12_document',
+  'kra_pin_certificate',
+  'business_permit',
+  'audited_financials',
+  'bank_statement',
+  'proof_of_address',
+  'proof_of_bank_account',
+  'employment_contract_template',
+] as const;
+
 function createAdminClient() {
   const env = getEnv();
   return createSupabaseClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+async function findLatestEmployerDocumentUrl(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+  documentType: (typeof EMPLOYER_DOCUMENT_FIELDS)[number]
+) {
+  const bucket = adminSupabase.storage.from('employer-documents');
+
+  const { data: nestedFiles } = await bucket.list(`${userId}/${documentType}`, {
+    limit: 1,
+    sortBy: { column: 'created_at', order: 'desc' },
+  });
+
+  const nestedFile = nestedFiles?.find((file) => file.name && file.id);
+  let storagePath = nestedFile ? `${userId}/${documentType}/${nestedFile.name}` : null;
+
+  if (!storagePath) {
+    const { data: flatFiles } = await bucket.list(userId, {
+      limit: 100,
+      sortBy: { column: 'created_at', order: 'desc' },
+    });
+
+    const flatFile = flatFiles?.find((file) => file.name?.startsWith(`${documentType}_`) && file.id);
+    storagePath = flatFile ? `${userId}/${flatFile.name}` : null;
+  }
+
+  if (!storagePath) return null;
+
+  const { data: signedData } = await bucket.createSignedUrl(storagePath, 60 * 60 * 24);
+  return signedData?.signedUrl ?? null;
+}
+
+async function hydrateEmployerDocumentUrls(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  employerApps: Record<string, unknown>[]
+) {
+  return Promise.all(
+    employerApps.map(async (app) => {
+      const userId = typeof app.user_id === 'string' ? app.user_id : null;
+      if (!userId) return app;
+
+      const recoveredEntries = await Promise.all(
+        EMPLOYER_DOCUMENT_FIELDS.map(async (field) => {
+          if (typeof app[field] === 'string' && app[field]) return [field, app[field]] as const;
+          return [field, await findLatestEmployerDocumentUrl(adminSupabase, userId, field)] as const;
+        })
+      );
+
+      return {
+        ...app,
+        ...Object.fromEntries(recoveredEntries.filter(([, url]) => typeof url === 'string' && url)),
+      };
+    })
+  );
 }
 
 export async function GET(req: NextRequest) {
@@ -64,6 +133,31 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to load KYC documents', code: 'QUERY_ERROR' }, { status: 500 });
     }
 
+    const documentUserIds = [...new Set((documents ?? []).map((d) => d.user_id).filter(Boolean))];
+    const documentNumberByUserId = new Map<string, string>();
+
+    if (documentUserIds.length > 0) {
+      const { data: onboardingRows } = await adminSupabase
+        .from('employee_onboarding')
+        .select('user_id,national_id')
+        .in('user_id', documentUserIds);
+
+      (onboardingRows ?? []).forEach((row) => {
+        if (row.user_id && row.national_id) {
+          documentNumberByUserId.set(row.user_id, row.national_id);
+        }
+      });
+    }
+
+    const normalizedDocuments = (documents ?? []).map((doc) => ({
+      ...doc,
+      document_number:
+        doc.document_number ||
+        (doc.document_type === 'national_id' || doc.document_type === 'passport'
+          ? documentNumberByUserId.get(doc.user_id) ?? null
+          : null),
+    }));
+
     let empOnboardingQuery = adminSupabase
       .from('employer_onboarding')
       .select('*')
@@ -72,6 +166,7 @@ export async function GET(req: NextRequest) {
     if (status) empOnboardingQuery = empOnboardingQuery.eq('status', status);
     
     const { data: employerApps } = await empOnboardingQuery;
+    const normalizedEmployerApps = await hydrateEmployerDocumentUrls(adminSupabase, employerApps ?? []);
 
     let employeeOnboardingQuery = adminSupabase
       .from('employee_onboarding')
@@ -93,7 +188,7 @@ export async function GET(req: NextRequest) {
       .is('company_code', null)
       .order('created_at', { ascending: false });
 
-    const userIds = [...new Set((documents ?? []).map((d) => d.user_id).filter(Boolean))];
+    const userIds = [...new Set(normalizedDocuments.map((d) => d.user_id).filter(Boolean))];
     const userMap: Record<string, { full_name: string; role: string }> = {};
 
     if (userIds.length > 0) {
@@ -114,8 +209,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        documents: documents ?? [],
-        employerApplications: employerApps ?? [],
+        documents: normalizedDocuments,
+        employerApplications: normalizedEmployerApps,
         employeeApplications: employeeApps ?? [],
         unlinkedEmployees: unlinkedProfiles ?? [],
         usersById: userMap,

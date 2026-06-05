@@ -21,6 +21,10 @@ interface APIHealthRow {
   updated_at?: string | null;
 }
 
+export async function HEAD() {
+  return new NextResponse(null, { status: 200 });
+}
+
 export async function GET() {
   const { data, error } = await supabase
     .from('api_health')

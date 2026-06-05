@@ -62,7 +62,6 @@ export const employees = pgTable('employees', {
   ),
 }));
 
-// Policies table (for reference with employees)
 export const policies = pgTable('policies', {
   id: uuid('id').primaryKey().defaultRandom(),
   organization_id: uuid('organization_id')
@@ -138,7 +137,6 @@ export const advances = pgTable('advances', {
   status_idx: index('advances_status_idx').on(table.status),
 }));
 
-// Dusupay Transactions Audit Table
 export const dusupayTransactions = pgTable('dusupay_transactions', {
   id: uuid('id').primaryKey().defaultRandom(),
   merchant_reference: text('merchant_reference').notNull().unique(),
@@ -163,13 +161,12 @@ export const employerWallets = pgTable('employer_wallets', {
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Wallet Transactions (Funding/Payouts)
 export const walletTransactions = pgTable('wallet_transactions', {
   id: uuid('id').primaryKey().defaultRandom(),
   wallet_id: uuid('wallet_id').notNull().references(() => employerWallets.id, { onDelete: 'cascade' }),
-  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(), // Positive for deposits, negative for payouts
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(), 
   type: text('type').$type<'deposit' | 'withdrawal' | 'payout' | 'refund' | 'arrears_payment'>().notNull(),
-  status: text('status').default('pending').notNull(), // pending, completed, failed
+  status: text('status').default('pending').notNull(),
   reference: text('reference').unique(),
   internal_reference: text('internal_reference'),
   description: text('description'),
@@ -180,7 +177,6 @@ export const walletTransactions = pgTable('wallet_transactions', {
   reference_idx: index('wallet_tx_reference_idx').on(table.reference),
 }));
 
-// Global Settings (Platform-wide configuration)
 export const globalSettings = pgTable('global_settings', {
   id: text('id').primaryKey().default('default'),
   platform_settings: jsonb('platform_settings').notNull().default({}),
@@ -189,23 +185,21 @@ export const globalSettings = pgTable('global_settings', {
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Blackout Periods
 export const blackoutPeriods = pgTable('blackout_periods', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   start_date: timestamp('start_date').notNull(),
   end_date: timestamp('end_date').notNull(),
-  applies_to: text('applies_to').default('all').notNull(), // 'all' or country code 'KE', 'UG', etc.
+  applies_to: text('applies_to').default('all').notNull(), 
   reason: text('reason'),
   is_active: numeric('is_active', { precision: 1, scale: 0 }).default('1').notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Legal Documents
 export const legalDocuments = pgTable('legal_documents', {
   id: uuid('id').primaryKey().defaultRandom(),
-  document_type: text('document_type').notNull(), // 'employee_terms', 'employer_partnership', 'privacy_policy'
+  document_type: text('document_type').notNull(), 
   title: text('title').notNull(),
   content: text('content').notNull(),
   version: text('version').notNull(),
@@ -217,7 +211,6 @@ export const legalDocuments = pgTable('legal_documents', {
   type_idx: index('legal_docs_type_idx').on(table.document_type),
 }));
 
-// System Audit Logs
 export const systemAuditLogs = pgTable('system_audit_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
   admin_id: uuid('admin_id').notNull(),
@@ -236,7 +229,6 @@ export const systemAuditLogs = pgTable('system_audit_logs', {
   action_idx: index('audit_action_idx').on(table.action),
 }));
 
-// Account Deletion Events
 export const accountDeletionEvents = pgTable('account_deletion_events', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id').notNull(),
@@ -255,7 +247,6 @@ export const accountDeletionEvents = pgTable('account_deletion_events', {
   reason_category_idx: index('account_deletion_events_reason_category_idx').on(table.deletion_reason_category),
 }));
 
-// Admin Reports
 export const adminReports = pgTable('admin_reports', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
@@ -285,7 +276,6 @@ export const adminReports = pgTable('admin_reports', {
   status_type_idx: index('admin_reports_status_type_idx').on(table.status, table.type),
 }));
 
-// Type exports
 export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
 export type Organization = typeof organizations.$inferSelect;

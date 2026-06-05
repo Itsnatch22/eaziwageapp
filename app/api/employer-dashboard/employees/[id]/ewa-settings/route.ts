@@ -23,12 +23,10 @@ export async function PUT(
   const employeeId = id;
 
   const { data: employer, error: employerError } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+    .from('employers')
+    .select('id, onboarding_id, status')
     .eq('user_id', user.id)
     .eq('status', 'approved')
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (employerError) {
@@ -46,7 +44,7 @@ export async function PUT(
     .from('employee_onboarding')
     .select('id, employer_id')
     .eq('id', employeeId)
-    .eq('employer_id', employer.id)
+    .eq('employer_id', employer.onboarding_id)
     .maybeSingle();
 
   if (empError) {
@@ -88,7 +86,7 @@ export async function PUT(
     .upsert(
       {
         employee_onboarding_id: employee.id,
-        employer_id: employer.id,
+        employer_id: employer.onboarding_id,
         ewa_enabled: data.ewa_enabled,
         max_advance_percentage: data.max_advance_percentage,
         min_advance_amount: data.min_advance_amount,

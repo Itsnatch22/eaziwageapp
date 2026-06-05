@@ -40,11 +40,9 @@ export async function GET() {
   }
 
   const { data: employer, error: employerError } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+    .from('employers')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (employerError) {
@@ -56,7 +54,7 @@ export async function GET() {
   }
 
   const { data: employeeRows, error: employeesError } = await supabase
-    .from('employee_onboarding')
+    .from('employees')
     .select('id, user_id, employee_code')
     .eq('employer_id', employer.id);
 

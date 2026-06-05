@@ -43,8 +43,8 @@ export async function POST(req: NextRequest) {
   const { employerId, type, message } = parsed.data;
 
   const { data: employer, error: empError } = await supabase
-    .from('employer_onboarding')
-    .select('id, company_name, risk_score, risk_rating, contact_email, contact_person')
+    .from('employers')
+    .select('id, onboarding_id, company_name, risk_score, risk_rating, contact_email, contact_person')
     .eq('id', employerId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   const { data: existing } = await supabase
     .from('risk_review_requests')
     .select('id')
-    .eq('employer_id', employerId)
+    .eq('employer_id', employer.onboarding_id)
     .eq('status', 'pending')
     .maybeSingle();
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   const { error: insertError } = await supabase
     .from('risk_review_requests')
     .insert({
-      employer_id: employerId,
+      employer_id: employer.onboarding_id,
       user_id:     user.id,
       type,
       message,

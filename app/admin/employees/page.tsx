@@ -6,7 +6,7 @@ import {
   Users, Search, Download, UserCheck, Clock,
   MoreHorizontal, Eye, CreditCard, 
   CheckCircle2, XCircle, X, Edit, Shield, Mail, Phone,
-  Ban, RefreshCw, FileText, User, Briefcase, MapPin,
+  Ban, RefreshCw, FileText, User, Briefcase, MapPin, Calendar, ExternalLink,
 } from 'lucide-react';
 import { Button }                  from '@/components/ui/button';
 import { Input }                   from '@/components/ui/input';
@@ -19,6 +19,7 @@ import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast }                   from 'sonner';
+import { DOCUMENT_TYPE_LABELS } from '@/lib/validations/kyc-validation';
 
 type EmployeeStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
 
@@ -30,6 +31,7 @@ type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'repaid' | 'defaulte
 
 interface Employee {
   id:               string;
+  user_id:          string | null;
   employer_id:      string;
   employee_code:    string;
   full_name:        string;
@@ -44,6 +46,8 @@ interface Employee {
   advance_limit:    number;
   earned_wages:     number;
   employment_type:  EmploymentType;
+  hire_date?:       string | null;
+  termination_date?: string | null;
   status:           EmployeeStatus;
   kyc_status:       KYCStatus;
   risk_score:       number | null;
@@ -65,9 +69,23 @@ interface Employee {
     total_fees_paid:    number;
   };
   advances?: Advance[];
+  kyc_documents?: KycDocument[];
+  pending_kyc_documents?: number;
 
   created_at: string;
   updated_at: string;
+}
+
+interface KycDocument {
+  id: string;
+  document_type: keyof typeof DOCUMENT_TYPE_LABELS | string;
+  document_url: string;
+  document_number?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewer_notes?: string | null;
+  reviewed_at?: string | null;
+  expiry_date?: string | null;
+  created_at: string;
 }
 
 interface Advance {
@@ -274,6 +292,9 @@ const FilterButton: React.FC<FilterButtonProps> = ({ active, onClick, children }
     {children}
   </button>
 );
+
+const getDocumentLabel = (documentType: string) =>
+  DOCUMENT_TYPE_LABELS[documentType as keyof typeof DOCUMENT_TYPE_LABELS] || documentType.replace(/_/g, ' ');
 
 interface EmployeeRowProps {
   employee:       Employee;
@@ -729,10 +750,20 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                     <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                       <User className="w-4 h-4" /> Personal Information
                     </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 text-sm">
-                        <Mail className="w-4 h-4 text-slate-400" />
-                        <span className="text-slate-600 dark:text-slate-400">{data.email || '-'}</span>
+	                    <div className="space-y-3">
+	                      <div className="flex items-center gap-3 text-sm">
+	                        <User className="w-4 h-4 text-slate-400" />
+	                        <span className="text-slate-600 dark:text-slate-400">{data.full_name || '-'}</span>
+	                      </div>
+	                      <div className="flex items-center gap-3 text-sm">
+	                        <FileText className="w-4 h-4 text-slate-400" />
+	                        <span className="text-slate-600 dark:text-slate-400">
+	                          Employee Code: {data.employee_code || '-'}
+	                        </span>
+	                      </div>
+	                      <div className="flex items-center gap-3 text-sm">
+	                        <Mail className="w-4 h-4 text-slate-400" />
+	                        <span className="text-slate-600 dark:text-slate-400">{data.email || '-'}</span>
                       </div>
                       <div className="flex items-center gap-3 text-sm">
                         <Phone className="w-4 h-4 text-slate-400" />
@@ -744,12 +775,24 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                           ID: {data.national_id || '-'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <MapPin className="w-4 h-4 text-slate-400" />
-                        <span className="text-slate-600 dark:text-slate-400">{data.country || '-'}</span>
-                      </div>
-                    </div>
-                  </div>
+	                      <div className="flex items-center gap-3 text-sm">
+	                        <MapPin className="w-4 h-4 text-slate-400" />
+	                        <span className="text-slate-600 dark:text-slate-400">{data.country || '-'}</span>
+	                      </div>
+	                      <div className="flex items-center gap-3 text-sm">
+	                        <Calendar className="w-4 h-4 text-slate-400" />
+	                        <span className="text-slate-600 dark:text-slate-400">
+	                          Hired: {data.hire_date ? formatDateTime(data.hire_date) : '-'}
+	                        </span>
+	                      </div>
+	                      <div className="flex items-center gap-3 text-sm">
+	                        <Clock className="w-4 h-4 text-slate-400" />
+	                        <span className="text-slate-600 dark:text-slate-400">
+	                          Joined: {data.created_at ? formatDateTime(data.created_at) : '-'}
+	                        </span>
+	                      </div>
+	                    </div>
+	                  </div>
 
                   <div className="space-y-4">
                     <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -909,30 +952,68 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                 <KYCBadge status={data.kyc_status} />
               </div>
               
-              <div className="grid sm:grid-cols-2 gap-4">
-                {[
-                  { key: 'id_document_front' as const, label: 'ID Front' },
-                  { key: 'id_document_back' as const, label: 'ID Back' },
-                  { key: 'selfie' as const, label: 'Selfie' },
-                  { key: 'address_proof' as const, label: 'Address Proof' },
-                  { key: 'payslip_1' as const, label: 'Payslip 1' },
-                  { key: 'payslip_2' as const, label: 'Payslip 2' },
-                  { key: 'bank_statement' as const, label: 'Bank Statement' },
-                  { key: 'employment_contract' as const, label: 'Employment Contract' },
-                ].map(doc => (
-                  <div
-                    key={doc.key}
-                    className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-center justify-between"
-                  >
-                    <span className="text-sm text-slate-600 dark:text-slate-400">{doc.label}</span>
-                    {data[doc.key] ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-slate-300" />
-                    )}
-                  </div>
-                ))}
-              </div>
+	              {data.kyc_documents && data.kyc_documents.length > 0 ? (
+	                <div className="grid sm:grid-cols-2 gap-4">
+	                  {data.kyc_documents.map((doc) => (
+	                    <div
+	                      key={doc.id}
+	                      className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/50 space-y-3"
+	                    >
+	                      <div className="flex items-start justify-between gap-3">
+	                        <div className="min-w-0">
+	                          <p className="text-sm font-semibold text-slate-900 dark:text-white capitalize">
+	                            {getDocumentLabel(doc.document_type)}
+	                          </p>
+	                          <p className="text-xs text-slate-500 mt-1">
+	                            Submitted {doc.created_at ? formatDateTime(doc.created_at) : '-'}
+	                          </p>
+	                        </div>
+	                        <KYCBadge status={doc.status} />
+	                      </div>
+	                      {doc.document_number && (
+	                        <p className="text-xs text-slate-500">Document No: {doc.document_number}</p>
+	                      )}
+	                      {doc.reviewer_notes && (
+	                        <p className="text-xs text-slate-500">Notes: {doc.reviewer_notes}</p>
+	                      )}
+	                      <Button
+	                        type="button"
+	                        variant="outline"
+	                        size="sm"
+	                        className="w-full"
+	                        onClick={() => window.open(doc.document_url, '_blank', 'noopener,noreferrer')}
+	                      >
+	                        <ExternalLink className="w-4 h-4 mr-2" /> View Document
+	                      </Button>
+	                    </div>
+	                  ))}
+	                </div>
+	              ) : (
+	                <div className="grid sm:grid-cols-2 gap-4">
+	                  {[
+	                    { key: 'id_document_front' as const, label: 'ID Front' },
+	                    { key: 'id_document_back' as const, label: 'ID Back' },
+	                    { key: 'selfie' as const, label: 'Selfie' },
+	                    { key: 'address_proof' as const, label: 'Address Proof' },
+	                    { key: 'payslip_1' as const, label: 'Payslip 1' },
+	                    { key: 'payslip_2' as const, label: 'Payslip 2' },
+	                    { key: 'bank_statement' as const, label: 'Bank Statement' },
+	                    { key: 'employment_contract' as const, label: 'Employment Contract' },
+	                  ].map(doc => (
+	                    <div
+	                      key={doc.key}
+	                      className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-center justify-between"
+	                    >
+	                      <span className="text-sm text-slate-600 dark:text-slate-400">{doc.label}</span>
+	                      {data[doc.key] ? (
+	                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+	                      ) : (
+	                        <XCircle className="w-5 h-5 text-slate-300" />
+	                      )}
+	                    </div>
+	                  ))}
+	                </div>
+	              )}
 
               <div className="flex gap-2 mt-6">
                 <Button
@@ -1145,6 +1226,7 @@ export default function AdminEmployees() {
   const { currency } = useCurrency();
   const { rates } = useExchangeRates();
   const [employees,         setEmployees]         = useState<Employee[]>([]);
+  const [serverStats,       setServerStats]       = useState<Stats | null>(null);
   const [loading,           setLoading]           = useState(true);
   const [searchTerm,        setSearchTerm]        = useState('');
   const [statusFilter,      setStatusFilter]      = useState<EmployeeStatus | ''>('');
@@ -1163,6 +1245,7 @@ export default function AdminEmployees() {
       
       if (res.ok) {
         setEmployees(payload.data || []);
+        setServerStats(payload.stats || null);
       } else {
         toast.error(payload.error || 'Failed to fetch employees.');
       }
@@ -1293,12 +1376,13 @@ export default function AdminEmployees() {
     }
     return true;
   });
-  const stats: Stats = {
+  const localStats: Stats = {
     total:       employees.length,
     active:      employees.filter(e => e.status === 'active' || e.status === 'approved').length,
-    pending_kyc: employees.filter(e => e.kyc_status === 'submitted' || e.kyc_status === 'pending').length,
+    pending_kyc: employees.reduce((total, e) => total + (e.pending_kyc_documents ?? 0), 0),
     suspended:   employees.filter(e => e.status === 'suspended').length,
   };
+  const stats: Stats = serverStats || localStats;
 
   return (
     <>

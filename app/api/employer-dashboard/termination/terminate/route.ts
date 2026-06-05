@@ -23,8 +23,8 @@ export async function POST() {
     }
 
     const { data: employer, error: employerError } = await adminSupabase
-      .from('employer_onboarding')
-      .select('id, company_name')
+      .from('employers')
+      .select('id, onboarding_id, company_name')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -37,14 +37,14 @@ export async function POST() {
     const { error: deleteEmployerError } = await adminSupabase
       .from('employer_onboarding')
       .update({ deleted_at: now })
-      .eq('id', employer.id);
+      .eq('id', employer.onboarding_id);
 
     if (deleteEmployerError) throw deleteEmployerError;
 
     const { error: deleteEmployeesError } = await adminSupabase
       .from('employee_onboarding')
       .update({ status: 'rejected' }) 
-      .eq('employer_id', employer.id);
+      .eq('employer_id', employer.onboarding_id);
     
     if (deleteEmployeesError) {
       console.error('[Termination] Failed to update employee_onboarding:', deleteEmployeesError);

@@ -67,6 +67,15 @@ type ReviewItem = KYCDocument | EmployerApplication;
 
 const isKycDocument = (item: ReviewItem): item is KYCDocument => 'document_type' in item;
 
+const getDocumentNumber = (doc: KYCDocument) => doc.document_number?.trim() || 'Not provided';
+
+const getDocumentPreviewKind = (doc: KYCDocument) => {
+  const source = (doc.storage_path || doc.document_url || '').split('?')[0].toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(source)) return 'image';
+  if (/\.pdf$/.test(source)) return 'pdf';
+  return 'embed';
+};
+
 const GradientIconBox = ({ icon: Icon, variant = 'purple' }: { icon: IconType; variant?: GradientVariant }) => {
   const variants = {
     purple: 'from-purple-600 to-indigo-600',
@@ -456,7 +465,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className={cn("p-6 text-white flex items-center justify-between", isEmployer ? "bg-blue-600" : "bg-purple-600")}>
           <div className="flex items-center gap-4">
@@ -522,23 +531,16 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
               </div>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid lg:grid-cols-3 gap-6">
               {/* Document Preview */}
-              <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center p-12 text-center">
-                <FileText className="w-16 h-16 text-slate-300 mb-4" />
-                <p className="text-slate-500 mb-6">Document preview is available via external link</p>
-                <Button variant="outline" onClick={() => window.open(selectedDoc.document_url, '_blank')} className="rounded-xl border-purple-200 text-purple-600 hover:bg-purple-50">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  View Document
-                </Button>
-              </div>
+              <DocumentPreview doc={selectedDoc} />
 
               <div className="space-y-6">
                 <section>
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Document Info</h4>
                   <div className="space-y-3">
                     <InfoRow icon={FileText} label="Type" value={DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type} />
-                    <InfoRow icon={Shield} label="Number" value={selectedDoc.document_number || 'N/A'} />
+                    <InfoRow icon={Shield} label="Number" value={getDocumentNumber(selectedDoc)} />
                     <InfoRow icon={Calendar} label="Submitted" value={formatDateTime(selectedDoc.created_at)} />
                   </div>
                 </section>
@@ -597,6 +599,51 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: IconType; label: string; 
     </div>
   </div>
 );
+
+const DocumentPreview = ({ doc }: { doc: KYCDocument }) => {
+  const previewKind = getDocumentPreviewKind(doc);
+
+  return (
+    <div className="lg:col-span-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+            {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+            {getDocumentNumber(doc)}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open(doc.document_url, '_blank', 'noopener,noreferrer')}
+          className="shrink-0 rounded-xl border-purple-200 text-purple-600 hover:bg-purple-50"
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Open
+        </Button>
+      </div>
+
+      <div className="h-[420px] lg:h-[560px] bg-slate-200/70 dark:bg-slate-950">
+        {previewKind === 'image' ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={doc.document_url}
+            alt={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <iframe
+            title={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}
+            src={doc.document_url}
+            className="h-full w-full border-0 bg-white"
+          />
+        )}
+      </div>
+    </div>
+  );
+};
 
 const DocLink = ({ label, url }: { label: string, url?: string }) => (
   <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">

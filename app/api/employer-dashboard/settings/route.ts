@@ -17,29 +17,39 @@ export async function GET() {
   }
 
   const { data: employer, error } = await supabase
-    .from('employer_onboarding')
+    .from('employers')
     .select(`
       id,
       company_name,
       contact_person,
       contact_email,
       contact_phone,
+      phone,
       payroll_cycle,
-      physical_address,
-      city,
-      postal_code,
-      county_region,
       country,
       registration_number,
       tax_id,
       industry,
-      sector,
-      bank_name,
-      bank_account_number
+      onboarding_id,
+      employer_onboarding!onboarding_id (
+        physical_address,
+        city,
+        postal_code,
+        county_region,
+        sector,
+        bank_name,
+        bank_account_number,
+        email_notifications,
+        advance_alerts,
+        payroll_reminders,
+        weekly_reports,
+        max_advance_percentage,
+        min_advance_amount,
+        advance_access_days,
+        cooldown_period
+      )
     `)
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (error) {
@@ -51,21 +61,38 @@ export async function GET() {
     return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
   }
 
-  const countryLimit = getAdvanceLimit(employer.country);
+  const onboarding = Array.isArray(employer.employer_onboarding)
+    ? employer.employer_onboarding[0]
+    : employer.employer_onboarding;
+  const liveEmployer = {
+    id: employer.id,
+    company_name: employer.company_name,
+    contact_person: employer.contact_person,
+    contact_email: employer.contact_email,
+    contact_phone: employer.contact_phone,
+    payroll_cycle: employer.payroll_cycle,
+    country: employer.country,
+    registration_number: employer.registration_number,
+    tax_id: employer.tax_id,
+    industry: employer.industry,
+    onboarding_id: employer.onboarding_id,
+  };
+  const countryLimit = getAdvanceLimit(liveEmployer.country);
   
   return NextResponse.json({
     employer: {
-      ...employer,
-      email_notifications: true,
-      advance_alerts: true,
-      payroll_reminders: true,
-      weekly_reports: false,
-      // Default EWA settings (since these columns don't exist in DB)
-      max_advance_percentage: Math.min(50, countryLimit),
-      min_advance_amount: 500,
+      ...liveEmployer,
+      ...onboarding,
+      contact_phone: liveEmployer.contact_phone ?? employer.phone,
+      email_notifications: onboarding?.email_notifications ?? true,
+      advance_alerts: onboarding?.advance_alerts ?? true,
+      payroll_reminders: onboarding?.payroll_reminders ?? true,
+      weekly_reports: onboarding?.weekly_reports ?? false,
+      max_advance_percentage: Math.min(onboarding?.max_advance_percentage ?? 50, countryLimit),
+      min_advance_amount: onboarding?.min_advance_amount ?? 500,
       max_advance_amount: 50000,
-      advance_access_days: [1, 25],
-      cooldown_period: 7,
+      advance_access_days: onboarding?.advance_access_days ?? [1, 25],
+      cooldown_period: onboarding?.cooldown_period ?? 7,
     },
   });
 }
@@ -88,11 +115,9 @@ export async function PUT(req: NextRequest) {
   }
 
   const { data: existing, error: existingError } = await supabase
-    .from('employer_onboarding')
-    .select('id')
+    .from('employers')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (existingError) {
@@ -110,16 +135,36 @@ export async function PUT(req: NextRequest) {
     contact_email: input.contactEmail ?? null,
     contact_phone: input.contactPhone ?? null,
     payroll_cycle: input.payrollCycle ?? null,
-    physical_address: input.physicalAddress ?? null,
-    city: input.city ?? null,
-    postal_code: input.postalCode ?? null,
-    county_region: input.countyRegion ?? null,
     country: input.country ?? null,
     updated_at: new Date().toISOString(),
   };
 
-  const { data: updated, error: updateError } = await supabase
+  const { error: onboardingUpdateError } = await supabase
     .from('employer_onboarding')
+    .update({
+      physical_address: input.physicalAddress ?? null,
+      city: input.city ?? null,
+      postal_code: input.postalCode ?? null,
+      county_region: input.countyRegion ?? null,
+      email_notifications: input.emailNotifications ?? true,
+      advance_alerts: input.advanceAlerts ?? true,
+      payroll_reminders: input.payrollReminders ?? true,
+      weekly_reports: input.weeklyReports ?? false,
+      max_advance_percentage: input.maxAdvancePercentage ?? 50,
+      min_advance_amount: input.minAdvanceAmount ?? 500,
+      advance_access_days: input.advanceAccessDays ?? [1, 25],
+      cooldown_period: input.cooldownPeriod ?? 7,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', existing.onboarding_id);
+
+  if (onboardingUpdateError) {
+    console.error('[employer-settings/PUT] Onboarding update error:', onboardingUpdateError);
+    return NextResponse.json({ error: onboardingUpdateError.message }, { status: 500 });
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from('employers')
     .update(updates)
     .eq('id', existing.id)
     .select(`
@@ -128,18 +173,22 @@ export async function PUT(req: NextRequest) {
       contact_person,
       contact_email,
       contact_phone,
+      phone,
       payroll_cycle,
-      physical_address,
-      city,
-      postal_code,
-      county_region,
       country,
       registration_number,
       tax_id,
       industry,
-      sector,
-      bank_name,
-      bank_account_number
+      onboarding_id,
+      employer_onboarding!onboarding_id (
+        physical_address,
+        city,
+        postal_code,
+        county_region,
+        sector,
+        bank_name,
+        bank_account_number
+      )
     `)
     .single();
 
@@ -150,11 +199,29 @@ export async function PUT(req: NextRequest) {
 
   // Return with default values for fields that weren't saved
   const finalCountryLimit = getAdvanceLimit(updated.country);
+  const updatedOnboarding = Array.isArray(updated.employer_onboarding)
+    ? updated.employer_onboarding[0]
+    : updated.employer_onboarding;
+  const updatedEmployer = {
+    id: updated.id,
+    company_name: updated.company_name,
+    contact_person: updated.contact_person,
+    contact_email: updated.contact_email,
+    contact_phone: updated.contact_phone,
+    payroll_cycle: updated.payroll_cycle,
+    country: updated.country,
+    registration_number: updated.registration_number,
+    tax_id: updated.tax_id,
+    industry: updated.industry,
+    onboarding_id: updated.onboarding_id,
+  };
 
   return NextResponse.json({
     message: 'Settings updated successfully.',
     employer: {
-      ...updated,
+      ...updatedEmployer,
+      ...updatedOnboarding,
+      contact_phone: updatedEmployer.contact_phone ?? updated.phone,
       email_notifications: input.emailNotifications ?? true,
       advance_alerts: input.advanceAlerts ?? true,
       payroll_reminders: input.payrollReminders ?? true,
