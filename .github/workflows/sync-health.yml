@@ -25,4 +25,8 @@ jobs:
           if [ "$HTTP_CODE" != "200" ]; then
             echo "Health check failed with status $HTTP_CODE"
             exit 1
+<<<<<<< HEAD
           fi
+=======
+          fi
+>>>>>>> 3750dffb694b36f229b64992a521a58b348c5ced
