@@ -19,7 +19,7 @@ export async function GET() {
     token: env.UPSTASH_REDIS_REST_TOKEN,
   });
 
-  const CACHE_TTL = 60; // 1 minute cache
+  const CACHE_TTL = 60; 
   const cacheKey = `employee:overview:${user.id}`;
 
   try {

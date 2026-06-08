@@ -48,8 +48,6 @@ import {
   countries,
 } from "@/components/employer/SharedComponents";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface EWASettings {
   ewa_enabled: boolean;
   max_advance_percentage: number;
@@ -115,8 +113,6 @@ interface ExtendedStats {
   department_breakdown?: Record<string, number>;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const DEFAULT_EWA: EWASettings = {
   ewa_enabled: true,
   max_advance_percentage: 50,
@@ -137,8 +133,6 @@ const CHART_COLORS = [
   "#a855f7",
   "#ec4899",
 ];
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 const BulkOnboardModal: React.FC<{
   isOpen: boolean;
@@ -726,7 +720,7 @@ const EWASettingsModal: React.FC<{
     if (!employee?.id) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/employees/${employee.id}/ewa-settings`, {
+      const res = await fetch(`/api/employer-dashboard/employees/${employee.id}/ewa-settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),

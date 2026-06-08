@@ -18,9 +18,6 @@ const mapPayoutStatusToAdvanceStatus = (status?: PayoutStatus) => {
 };
 
 export class PayoutService {
-  /**
-   * Admin funds an employer's wallet from the platform's Stanbic source.
-   */
   async fundEmployerWallet(
     employerId: string,
     amount: number,
@@ -56,9 +53,6 @@ export class PayoutService {
     return data;
   }
 
-  /**
-   * Reserve funds in the employer's wallet for an upcoming disbursement.
-   */
   async reserveFunds(employerId: string, amount: number, advanceId: string) {
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from('employer_wallets')

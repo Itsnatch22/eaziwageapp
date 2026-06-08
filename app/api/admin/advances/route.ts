@@ -18,6 +18,9 @@ interface AdvanceRow {
   requested_at: string | null;
   approved_at: string | null;
   employer_id: string;
+  employee_onboarding?: {
+    currency?: string | null;
+  };
 }
 
 interface EmployeeRow {
@@ -47,8 +50,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check admin access
-  const adminSupabase = createRouteHandlerClient();
+  const adminSupabase = await createRouteHandlerClient();
   const adminResult = await checkAdminAccess({
     user,
     adminSupabase,
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
     const { data: advances, error: advancesError } = await supabase
       .from('advances')
       .select(
-        'id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount, disbursement_method, status, created_at, requested_at, approved_at, employer_id',
+        'id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount, disbursement_method, status, created_at, requested_at, approved_at, employer_id, employee_onboarding(currency)',
       )
       .order('created_at', { ascending: false });
 
@@ -111,9 +113,11 @@ export async function GET(request: Request) {
       const employee = employeeById.get(a.employee_id);
       const employer = employerById.get(a.employer_id);
       const profile = employee?.user_id ? profilesByUserId.get(employee.user_id) : null;
+      const sourceCurrency = a.employee_onboarding?.currency || 'KES';
 
       return {
         ...a,
+        currency: sourceCurrency,
         employee_name: profile?.full_name || employee?.employee_code || 'Employee',
         employee_code: employee?.employee_code || null,
         employer_name: employer?.company_name || 'Unknown',

@@ -222,10 +222,6 @@ export const DocumentSubmittedEmail = ({
   );
 };
 
-// ============================================================================
-// STYLES
-// ============================================================================
-
 const styles: Record<string, React.CSSProperties> = {
   detailText: {
     fontSize: '14px',

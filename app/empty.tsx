@@ -91,7 +91,6 @@ export function EmptyState({
   );
 }
 
-// Shortcut variants for convenience
 export const NoResults = (props: Partial<EmptyStateProps>) => (
   <EmptyState 
     variant="search" 

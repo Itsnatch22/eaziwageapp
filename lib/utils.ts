@@ -23,6 +23,14 @@ const currencySymbolMap: Record<string, string> = {
   USD: '$',
 };
 
+const currencyFractionDigits: Record<string, number> = {
+  KES: 0,
+  RWF: 0,
+  TZS: 0,
+  UGX: 0,
+  USD: 2,
+};
+
 export const DEFAULT_ADMIN_CURRENCY = 'USD';
 
 const countryCurrencyMap: Record<string, string> = {
@@ -64,13 +72,14 @@ export function formatCurrency(
 
   const normalizedCurrency = (currency || 'KES').toUpperCase();
   const locale = currencyLocaleMap[normalizedCurrency] || 'en-KE';
+  const fractionDigits = currencyFractionDigits[normalizedCurrency] ?? 0;
 
   try {
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: normalizedCurrency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
     }).format(numericAmount);
   } catch {
     return new Intl.NumberFormat('en-KE', {
@@ -123,7 +132,7 @@ export const COUNTRIES = [
 export function getAdvanceLimit(country: string | null | undefined): number {
   const code = normalizeCountryCode(country);
   const countryData = COUNTRIES.find(c => c.code === code);
-  return countryData?.advanceLimit ?? 50; // Default to 50%
+  return countryData?.advanceLimit ?? 50; 
 }
 
 export const EMPLOYMENT_TYPES = [

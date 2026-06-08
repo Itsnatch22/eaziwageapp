@@ -82,10 +82,9 @@ export async function PUT(req: NextRequest) {
 
     if (error) throw error;
 
-    // Record Audit Log
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id,
-      admin_name: user.email, // Best effort if full_name not available
+      admin_name: user.email, 
       target_id: 'platform',
       target_type: 'platform_settings',
       action: 'update_platform_settings',
@@ -94,7 +93,6 @@ export async function PUT(req: NextRequest) {
       created_at: new Date().toISOString()
     });
 
-    // Trigger Real-time Sync
     await pusherServer.trigger('global-settings', 'platform-updated', validated);
 
     return NextResponse.json({ success: true, settings: validated });

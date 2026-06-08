@@ -48,7 +48,6 @@ This is the **authenticated product application** for EaziWage, a fintech earned
 - If a flow isn't wired up yet, return `501 Not Implemented` — never fake a success response.
 
 ```ts
-// Acceptable placeholder
 return NextResponse.json({ error: 'Not implemented' }, { status: 501 });
 ```
 
@@ -89,14 +88,12 @@ All secrets live in `.env.local` (local) and Vercel environment settings (produc
 - Never expose the service role key to the browser under any circumstances.
 
 ```ts
-// Server-side (API routes, server actions)
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Client-side (with auth session)
 import { createBrowserClient } from '@supabase/ssr';
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

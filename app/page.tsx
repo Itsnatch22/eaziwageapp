@@ -147,6 +147,7 @@ interface LoginPayload {
   email:           string;
   password:        string;
   recaptcha_token: string;
+  fingerprint_visitor_id?: string;
 }
 
 declare global {
@@ -161,6 +162,7 @@ declare global {
 }
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
+const FINGERPRINT_API_KEY = process.env.NEXT_PUBLIC_FINGERPRINT_API_KEY ?? '';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -215,6 +217,20 @@ export default function LoginPage() {
     });
   }, [recaptchaReady]);
 
+  const getFingerprintVisitorId = useCallback(async (): Promise<string | undefined> => {
+    if (!FINGERPRINT_API_KEY) return undefined;
+
+    try {
+      const { Fingerprint } = await import('@fingerprint/react');
+      const agent = await Fingerprint.start({ apiKey: FINGERPRINT_API_KEY });
+      const result = await agent.get();
+      return result.visitor_id;
+    } catch (err) {
+      console.warn('[login] FingerprintJS visitor lookup failed:', err);
+      return undefined;
+    }
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     setError('');
 
@@ -226,11 +242,13 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const recaptchaToken = await getReCaptchaToken('login');
+      const fingerprintVisitorId = await getFingerprintVisitorId();
 
       const payload: LoginPayload = {
         email:           email.trim().toLowerCase(),
         password,
         recaptcha_token: recaptchaToken,
+        ...(fingerprintVisitorId ? { fingerprint_visitor_id: fingerprintVisitorId } : {}),
       };
 
       const res = await fetch('/api/auth/login', {
@@ -264,7 +282,7 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, getReCaptchaToken, router, safeNext]);
+  }, [email, password, getReCaptchaToken, getFingerprintVisitorId, router, safeNext]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit(); };
 

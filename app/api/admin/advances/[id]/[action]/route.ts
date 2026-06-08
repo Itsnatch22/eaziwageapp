@@ -18,7 +18,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check admin access
   const adminResult = await checkAdminAccess({
     user,
     adminSupabase: supabase,
@@ -30,13 +29,11 @@ export async function PATCH(
 
   const { id, action } = params;
 
-  // Validate action
   if (!['approve', 'disburse', 'reject'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   }
 
   try {
-    // Get advance details
     const { data: advance, error: getError } = await supabase
       .from('advances')
       .select('*')
@@ -47,7 +44,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Advance not found' }, { status: 404 });
     }
 
-    // Update status based on action
     let newStatus: string;
     if (action === 'approve') {
       newStatus = 'approved';

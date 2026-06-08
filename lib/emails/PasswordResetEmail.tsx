@@ -9,15 +9,11 @@ import {
 import * as React from 'react';
 import EmailLayout, { styles as layoutStyles } from './EmailLayout';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface PasswordResetEmailProps {
   fullName:  string;
   email:     string;
   resetUrl:  string;
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PasswordResetEmail({ fullName, email, resetUrl }: PasswordResetEmailProps) {
   const firstName = fullName.split(' ')[0];

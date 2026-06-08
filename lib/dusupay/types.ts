@@ -27,7 +27,7 @@ export interface PayoutRequest {
   currency: Currency;
   amount: number;
   provider_code: string;
-  account_number: string; // msisdn for MM, account_number for Bank
+  account_number: string; 
   customer_name: string;
   description: string;
   bank_code?: string;

@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient }             from '@supabase/supabase-js';
 import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { convertToUSD }             from '@/lib/utils';
 import { Redis }                   from '@upstash/redis';
 
 type AdvanceAmountRow = {
   amount: number | string | null;
   fee_amount: number | string | null;
+  employee_onboarding?: {
+    currency?: string | null;
+  };
 };
 
 type EmployerRiskRow = {
@@ -19,13 +23,6 @@ type ApiHealthRow = {
   latency_ms: number | null;
   uptime_percent: number | null;
 };
-
-function sumNumericField<T extends Record<string, number | string | null | undefined>>(
-  rows: T[],
-  field: keyof T,
-) {
-  return rows.reduce((sum, row) => sum + Number(row[field] || 0), 0);
-}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip         = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -130,6 +127,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
+    const { data: exchangeRates } = await supabase
+      .from('exchange_rates')
+      .select('currency_code, rate_to_usd');
+
+    const rates = (exchangeRates || []).reduce((acc: Record<string, number>, rate) => {
+      if (rate.currency_code) acc[rate.currency_code.toUpperCase()] = Number(rate.rate_to_usd ?? 0);
+      return acc;
+    }, {} as Record<string, number>);
+
     const [
       { count: employerThisMonth },
       { count: employeeThisMonth },
@@ -158,7 +164,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .eq('status', 'pending'),
       supabase
         .from('advances')
-        .select('amount, fee_amount')
+        .select('amount, fee_amount, employee_onboarding(currency)')
         .eq('status', 'disbursed'),
       supabase
         .from('advances')
@@ -166,7 +172,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .eq('status', 'disbursed'),
       supabase
         .from('advances')
-        .select('amount, fee_amount')
+        .select('amount, fee_amount, employee_onboarding(currency)')
         .gte('created_at', startOfMonth)
         .eq('status', 'disbursed'),
       supabase
@@ -186,10 +192,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const disbursedAdvances = (advanceAmounts || []) as AdvanceAmountRow[];
     const monthDisbursedAdvances = (monthlyAdvances || []) as AdvanceAmountRow[];
-    const totalDisbursed = sumNumericField(disbursedAdvances, 'amount');
-    const totalFees = sumNumericField(disbursedAdvances, 'fee_amount');
-    const monthlyDisbursed = sumNumericField(monthDisbursedAdvances, 'amount');
-    const monthlyFees = sumNumericField(monthDisbursedAdvances, 'fee_amount');
+    const totalDisbursed = disbursedAdvances.reduce((sum, row) => sum + convertToUSD(
+      Number(row.amount || 0),
+      row.employee_onboarding?.currency || 'KES',
+      rates,
+    ), 0);
+    const totalFees = disbursedAdvances.reduce((sum, row) => sum + convertToUSD(
+      Number(row.fee_amount || 0),
+      row.employee_onboarding?.currency || 'KES',
+      rates,
+    ), 0);
+    const monthlyDisbursed = monthDisbursedAdvances.reduce((sum, row) => sum + convertToUSD(
+      Number(row.amount || 0),
+      row.employee_onboarding?.currency || 'KES',
+      rates,
+    ), 0);
+    const monthlyFees = monthDisbursedAdvances.reduce((sum, row) => sum + convertToUSD(
+      Number(row.fee_amount || 0),
+      row.employee_onboarding?.currency || 'KES',
+      rates,
+    ), 0);
 
     const avgEmployerScore = employerRisks && employerRisks.length > 0
       ? ((employerRisks as EmployerRiskRow[]).reduce((sum, employer) => sum + Number(employer.risk_score || 0), 0) / employerRisks.length)

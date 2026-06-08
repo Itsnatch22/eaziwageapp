@@ -64,19 +64,36 @@ async function hydrateEmployerDocumentUrls(
 ) {
   return Promise.all(
     employerApps.map(async (app) => {
+      const onboardingId = typeof app.id === 'string' ? app.id : null;
       const userId = typeof app.user_id === 'string' ? app.user_id : null;
-      if (!userId) return app;
+      if (!onboardingId && !userId) return app;
 
       const recoveredEntries = await Promise.all(
         EMPLOYER_DOCUMENT_FIELDS.map(async (field) => {
-          if (typeof app[field] === 'string' && app[field]) return [field, app[field]] as const;
-          return [field, await findLatestEmployerDocumentUrl(adminSupabase, userId, field)] as const;
+          const storedValue = typeof app[field] === 'string' && app[field] ? app[field] as string : null;
+
+          if (storedValue && !storedValue.startsWith('http')) {
+            const { data: signedData } = await adminSupabase.storage
+              .from('employer-documents')
+              .createSignedUrl(storedValue, 60 * 60 * 24);
+            return [field, signedData?.signedUrl ?? null] as const;
+          }
+
+          if (storedValue) return [field, storedValue] as const;
+
+          const url = await findLatestEmployerDocumentUrl(
+            adminSupabase,
+            onboardingId ?? userId!,
+            field
+          ) ?? (userId ? await findLatestEmployerDocumentUrl(adminSupabase, userId, field) : null);
+
+          return [field, url] as const;
         })
       );
 
       return {
         ...app,
-        ...Object.fromEntries(recoveredEntries.filter(([, url]) => typeof url === 'string' && url)),
+        ...Object.fromEntries(recoveredEntries.filter(([, url]) => url !== null)),
       };
     })
   );

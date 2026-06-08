@@ -40,6 +40,13 @@ const LoginSchema = z.object({
   recaptcha_token: z
     .string()
     .min(1, 'reCAPTCHA token is required'),
+
+  fingerprint_visitor_id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(256)
+    .optional(),
 });
 
 type LoginInput = z.infer<typeof LoginSchema>;
@@ -306,7 +313,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       message: authError?.message
     });
     
-    const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
+    const loginCtx: LoginContext = {
+      ip,
+      userAgent,
+      timestamp: new Date(),
+      fingerprintVisitorId: input.fingerprint_visitor_id,
+    };
     const recordId   = isEnvAdmin ? adminRecord?.id   : profileRecord?.id;
     const recordName = isEnvAdmin ? (adminRecord?.full_name ?? input.email) : (profileRecord?.full_name ?? input.email);
 
@@ -383,12 +395,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     await clearFailedAttempts(successId, isEnvAdmin);
   }
 
-  // Enhanced Security: Check for new devices, log history, and send alerts
   const successName = isEnvAdmin ? (adminRecord?.full_name ?? 'System Admin') : (profileRecord?.full_name ?? input.email);
   if (successId) {
-    const loginCtx: LoginContext = { ip, userAgent, timestamp: new Date() };
+    const loginCtx: LoginContext = {
+      ip,
+      userAgent,
+      timestamp: new Date(),
+      fingerprintVisitorId: input.fingerprint_visitor_id,
+    };
     
-    // Run security checks in background to not delay response
     handleLoginSecurity(successId, input.email, successName, loginCtx).catch(
       (err) => console.error('[security] handleLoginSecurity failed:', err)
     );

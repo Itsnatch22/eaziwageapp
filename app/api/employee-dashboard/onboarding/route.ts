@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
     mobile_money_provider,
     mobile_money_number,
     currency: employeeCurrency,
-    // Documents
+
     face_id: face_id || null,
     id_front: id_front || null,
     id_back: id_back || null,
@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
     payslip_2: payslip_2 || null,
     bank_statement: bank_statement || null,
     employment_contract: employment_contract || null,
-    // Workflow
+
     status: 'pending' as const,
     terms_accepted_at: new Date().toISOString(),
     submitted_at: new Date().toISOString(),
@@ -224,11 +224,11 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         employer_id,
         employee_code: generatedEmployeeCode,
-        name: employeeName, // Use name field as per schema
-        full_name: employeeName, // Keep both for compatibility
+        name: employeeName, 
+        full_name: employeeName, 
         email: user.email,
         phone: user.user_metadata?.phone || null,
-        employee_number: generatedEmployeeCode, // Use employee_code as employee_number
+        employee_number: generatedEmployeeCode,
         job_title,
         department: department || null,
         monthly_salary,
@@ -323,7 +323,7 @@ export async function POST(req: NextRequest) {
         companyName: employer.company_name,
       }),
     })
-    .catch((e) => console.error('[resend]', e)); // non-fatal
+    .catch((e) => console.error('[resend]', e));
 
   return NextResponse.json(
     { 

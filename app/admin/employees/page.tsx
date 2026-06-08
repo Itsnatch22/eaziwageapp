@@ -820,19 +820,19 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Monthly Salary</span>
                         <span className="font-medium text-slate-900 dark:text-white">
-                          {formatCurrency(convertToUSD(data.monthly_salary, currency, rates), 'USD')}
+                          {formatCurrency(convertToUSD(data.monthly_salary, data.currency || 'KES', rates), 'USD')}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Advance Limit</span>
                         <span className="font-medium text-green-600">
-                          {formatCurrency(convertToUSD(data.advance_limit, currency, rates), 'USD')}
+                          {formatCurrency(convertToUSD(data.advance_limit, data.currency || 'KES', rates), 'USD')}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Earned Wages</span>
                         <span className="font-medium text-green-600">
-                          {formatCurrency(convertToUSD(data.earned_wages, currency, rates), 'USD')}
+                          {formatCurrency(convertToUSD(data.earned_wages, data.currency || 'KES', rates), 'USD')}
                         </span>
                       </div>
                     </div>
@@ -919,7 +919,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold text-slate-900 dark:text-white">
-                          {formatCurrency(convertToUSD(adv.amount, currency, rates), 'USD')}
+                          {formatCurrency(convertToUSD(adv.amount, data.currency || 'KES', rates), 'USD')}
                         </p>
                         <p className="text-xs text-slate-500">{formatDateTime(adv.created_at)}</p>
                       </div>
@@ -937,7 +937,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                           {adv.status.charAt(0).toUpperCase() + adv.status.slice(1)}
                         </span>
                         <p className="text-xs text-slate-500 mt-1">
-                          Fee: {formatCurrency(convertToUSD(adv.fee_amount, currency, rates), 'USD')}
+                          Fee: {formatCurrency(convertToUSD(adv.fee_amount, data.currency || 'KES', rates), 'USD')}
                         </p>
                       </div>
                     </div>

@@ -12,8 +12,7 @@ import { Input }                   from '@/components/ui/input';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
-import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency, formatDateTime, cn, convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast }                   from 'sonner';
 
@@ -249,8 +248,6 @@ const FilterButton: React.FC<FilterButtonProps> = ({ active, onClick, children }
 
 interface EmployerRowProps {
   employer:       Employer;
-  currency:       string;
-  rates:          Record<string, number>;
   isSelected:     boolean;
   onToggleSelect: (id: string) => void;
   onViewDetails:  (employer: Employer) => void;
@@ -259,8 +256,6 @@ interface EmployerRowProps {
 
 const EmployerRow: React.FC<EmployerRowProps> = ({ 
   employer, 
-  currency,
-  rates,
   isSelected, 
   onToggleSelect, 
   onViewDetails, 
@@ -307,7 +302,7 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
     
     {/* Monthly Advances */}
     <div className="text-right hidden md:block w-28 shrink-0">
-      <p className="font-bold text-green-600">{formatCurrency(convertToUSD(employer.total_advances, currency, rates), 'USD')}</p>
+      <p className="font-bold text-green-600">{formatCurrency(employer.total_advances, 'USD')}</p>
       <p className="text-xs text-slate-500">Advances</p>
     </div>
     
@@ -348,7 +343,6 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
 
 interface EmployerDetailModalProps {
   employer:  Employer | null;
-  currency:  string;
   rates:     Record<string, number>;
   isOpen:    boolean;
   onClose:   () => void;
@@ -357,7 +351,6 @@ interface EmployerDetailModalProps {
 
 const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({ 
   employer, 
-  currency,
   rates,
   isOpen, 
   onClose, 
@@ -424,6 +417,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
 
   const data = employerDetail || employer;
   if (!data) return null;
+  const companyCurrency = getCurrencyFromCountry(data.country, 'KES');
 
   return (
     <div
@@ -495,13 +489,13 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 </div>
                 <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl text-center">
                   <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(convertToUSD(data.total_advances, currency, rates), 'USD')}
+                    {formatCurrency(data.total_advances, 'USD')}
                   </p>
                   <p className="text-xs text-slate-500">Total Advances</p>
                 </div>
                 <div className="p-4 bg-slate-50/50 dark:bg-slate-900/20 rounded-xl text-center">
                   <p className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-                    {formatCurrency(convertToUSD(data.monthly_payroll, currency, rates), 'USD')}
+                    {formatCurrency(data.monthly_payroll, 'USD')}
                   </p>
                   <p className="text-xs text-slate-500">Monthly Payroll</p>
                 </div>
@@ -616,7 +610,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                           {emp.full_name || emp.employee_code}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {emp.job_title} • {formatCurrency(convertToUSD(emp.monthly_salary, currency, rates), 'USD')}
+                          {emp.job_title} • {formatCurrency(convertToUSD(emp.monthly_salary, companyCurrency, rates), 'USD')}
                         </p>
                       </div>
                       <StatusBadge status={emp.status} />
@@ -798,7 +792,6 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
 };
 
 export default function AdminEmployers() {
-  const { currency } = useCurrency();
   const { rates } = useExchangeRates();
   const [employers,         setEmployers]         = useState<Employer[]>([]);
   const [stats,             setStats]             = useState<Stats>({
@@ -1111,8 +1104,6 @@ export default function AdminEmployers() {
                 <EmployerRow 
                   key={employer.id} 
                   employer={employer}
-                  currency={currency}
-                  rates={rates}
                   isSelected={selectedIds.has(employer.id)}
                   onToggleSelect={toggleSelectOne}
                   onViewDetails={e => {
@@ -1140,7 +1131,6 @@ export default function AdminEmployers() {
       {/* Modals */}
       <EmployerDetailModal 
         employer={selectedEmployer}
-        currency={currency}
         rates={rates}
         isOpen={showDetailModal}
         onClose={() => {

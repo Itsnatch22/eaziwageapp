@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { toast } from 'sonner';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
     
-    // Get the current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse request body
     const body = await request.json();
     const { reason, category, additionalFeedback } = body;
 
@@ -26,7 +25,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user profile information
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('full_name, email, role')
@@ -40,13 +38,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get client IP and User-Agent
     const ip = request.headers.get('x-forwarded-for') || 
                request.headers.get('x-real-ip') || 
                'unknown';
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    // Record the deletion event
     const { error: deletionEventError } = await supabase
       .from('account_deletion_events')
       .insert({
@@ -63,10 +59,9 @@ export async function POST(request: NextRequest) {
 
     if (deletionEventError) {
       console.error('Error recording deletion event:', deletionEventError);
-      // Continue with deletion even if event recording fails
+      toast.error('Failed to record account deletion reason. Please try again.');
     }
 
-    // Soft delete the profile (set is_active to false)
     const { error: profileUpdateError } = await supabase
       .from('profiles')
       .update({ 
@@ -83,7 +78,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Soft delete employee record if it exists
     const { error: employeeUpdateError } = await supabase
       .from('employees')
       .update({ 
@@ -94,10 +88,9 @@ export async function POST(request: NextRequest) {
 
     if (employeeUpdateError) {
       console.error('Error soft deleting employee record:', employeeUpdateError);
-      // Continue even if employee record update fails
+      toast.error('Failed to fully delete account. Please contact support if you have issues.');
     }
 
-    // Sign out the user
     await supabase.auth.signOut();
 
     return NextResponse.json(

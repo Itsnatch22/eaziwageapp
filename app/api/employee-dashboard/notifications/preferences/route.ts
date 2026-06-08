@@ -16,7 +16,6 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's notification preferences from profiles table or a dedicated preferences table
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('notification_preferences')
@@ -24,7 +23,6 @@ export async function GET() {
       .single();
 
     if (profileError) {
-      // Return default preferences if none exist
       return NextResponse.json({
         emailAlerts: true,
         pushNotifications: true
@@ -63,7 +61,6 @@ export async function PUT(req: NextRequest) {
 
     const { emailAlerts, pushNotifications } = await req.json();
 
-    // Validate input
     if (typeof emailAlerts !== 'boolean' || typeof pushNotifications !== 'boolean') {
       return NextResponse.json({ error: "Invalid preferences format" }, { status: 400 });
     }
@@ -72,8 +69,7 @@ export async function PUT(req: NextRequest) {
       emailAlerts,
       pushNotifications
     };
-
-    // Update user's notification preferences
+    
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ 

@@ -53,7 +53,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
     }
 
-    // Merge profile data with onboarding data
     const employmentData = {
       ...onboarding,
       full_name: profile?.full_name || 'Not specified',

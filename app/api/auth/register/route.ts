@@ -11,6 +11,7 @@ import { validateEmail }             from '@/lib/email-validation';
 import { createToken }               from '@/lib/token';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
 import pusherServer from '@/lib/pusher-server';
+import { toast } from 'sonner';
 
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
@@ -84,7 +85,6 @@ async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean
     let res  = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
     let data = await res.json() as { success: boolean; score?: number; 'error-codes'?: string[] };
 
-    // Some proxy/edge IP values can fail verification. Retry once without remoteip.
     if (!data.success && params.has('remoteip')) {
       params.delete('remoteip');
       res = await fetch(RECAPTCHA_URL, { method: 'POST', body: params });
@@ -295,8 +295,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         employerUserId = employer.user_id;
     }
   } else if (input.role === 'employee' && !input.company_code && !input.employer_referral) {
-    // If no code and no referral, we still allow it but they'll be unlinked
-    // (Optionally you could require a referral here if that's your business logic)
+    toast.error('If you do not have a company code, please provide your employer details in the referral section or contact support.');
   }
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({

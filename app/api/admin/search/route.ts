@@ -43,7 +43,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .ilike('company_name', `%${query}%`)
       .limit(5);
 
-    // Search both live employees and onboarding employees
     const [employeesRes, onboardingRes] = await Promise.all([
       supabase
         .from('employees')
@@ -66,7 +65,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .ilike('reference', `%${query}%`)
       .limit(5);
 
-    // Combine employees, avoiding duplicates by user_id
     const combinedEmployees = [...employees, ...onboarding];
     const uniqueEmployees = combinedEmployees.filter((emp, index, self) =>
       index === self.findIndex((e) => e.user_id === emp.user_id)

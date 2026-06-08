@@ -9,8 +9,6 @@ import {
 import * as React from 'react';
 import EmailLayout, { styles as layoutStyles } from './EmailLayout';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface WelcomeEmailProps {
   fullName: string;
   email: string;
@@ -18,8 +16,6 @@ interface WelcomeEmailProps {
   verificationUrl: string;
   companyName?: string;
 }
-
-// ─── Email Component ──────────────────────────────────────────────────────────
 
 export default function WelcomeEmail({
   fullName,
@@ -130,8 +126,6 @@ export default function WelcomeEmail({
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles: Record<string, React.CSSProperties> = {
   summaryRow: {
     display: 'flex',
@@ -152,8 +146,6 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'right' as const,
   },
 };
-
-// ─── Preview props (for @react-email/preview) ─────────────────────────────────
 
 WelcomeEmail.PreviewProps = {
   fullName:        'Jane Wanjiku',

@@ -24,9 +24,7 @@ export async function GET(req: NextRequest) {
   if (employerError) {
     return NextResponse.json({ error: employerError.message }, { status: 500 });
   }
-
-  // Collect all possible employer IDs — employees may have registered under
-  // employer_onboarding.id OR employers.id depending on which table existed at signup time.
+  
   const employerIds: string[] = [];
   if (employer?.onboarding_id) employerIds.push(employer.onboarding_id);
   if (employer?.id && !employerIds.includes(employer.id)) {

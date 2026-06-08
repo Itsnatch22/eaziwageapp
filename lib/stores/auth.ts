@@ -36,7 +36,6 @@ export function useAuthStore<T>(selector: (state: AuthState) => T): T {
   return value;
 }
 
-// Function to update user avatar in the store (used after avatar upload)
 export function updateUserAvatar(avatarUrl: string) {
   if (state.user) {
     setState({ 
@@ -48,24 +47,20 @@ export function updateUserAvatar(avatarUrl: string) {
   }
 }
 
-// Helper to fetch user role
 async function fetchUserRole(supabase: any, userId: string): Promise<'super_admin' | 'employer_admin' | 'employee' | undefined> {
-  // Check admin
+
   const { data: admin } = await supabase.from('system_admins').select('id').eq('id', userId).single();
   if (admin) return 'super_admin';
 
-  // Check employer
   const { data: employer } = await supabase.from('employer_onboarding').select('id').eq('user_id', userId).single();
   if (employer) return 'employer_admin';
 
-  // Check employee
   const { data: employee } = await supabase.from('employee_onboarding').select('id').eq('user_id', userId).single();
   if (employee) return 'employee';
 
   return undefined;
 }
 
-// Client-side initialization
 if (typeof window !== 'undefined') {
   const initializeAuth = async () => {
     const supabase = createClient();
@@ -79,7 +74,6 @@ if (typeof window !== 'undefined') {
           return;
         }
 
-        // Fetch profile and role
         const [profileResult, role] = await Promise.all([
           supabase.from('profiles').select('avatar_url').eq('id', user.id).single(),
           fetchUserRole(supabase, user.id)
@@ -98,10 +92,8 @@ if (typeof window !== 'undefined') {
       }
     };
 
-    // Run initial sync
     await syncUser();
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state change:', event);
       

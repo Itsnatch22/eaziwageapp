@@ -172,7 +172,6 @@ export async function PATCH(
   }
 
   if (updateResult) {
-    // Notify admin channel that a request has been updated
     await pusherServer.trigger('admin-reviews', 'request-updated', { 
       id: requestId, 
       status, 

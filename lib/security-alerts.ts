@@ -18,6 +18,7 @@ export interface LoginContext {
   userAgent: string;
   timestamp: Date;
   location?: string;
+  fingerprintVisitorId?: string;
 }
 
 /**

@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient }             from '@supabase/supabase-js';
 import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { convertToUSD }             from '@/lib/utils';
+
+const COUNTRY_TO_CURRENCY: Record<string, string> = {
+  KE: 'KES',
+  UG: 'UGX',
+  TZ: 'TZS',
+  RW: 'RWF',
+};
 
 type BillingAdvanceRow = {
   amount?: number | string | null;
@@ -9,11 +17,18 @@ type BillingAdvanceRow = {
   created_at?: string | null;
   status?: string | null;
   employer_id?: string | null;
+  employees?: {
+    country?: string | null;
+  } | null;
 };
 
 type EmployerMetadata = {
   credit_limit?: number;
 };
+
+function resolveCurrency(country?: string | null): string {
+  return COUNTRY_TO_CURRENCY[(country ?? '').toUpperCase()] ?? 'KES';
+}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip         = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -38,9 +53,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     sixMonthsAgo.setDate(1);
 
+    // ── 1. Exchange rates ───────────────────────────────────────────────────
+    const { data: exchangeRates } = await supabase
+      .from('exchange_rates')
+      .select('currency_code, rate_to_usd');
+
+    const rates = (exchangeRates || []).reduce((acc: Record<string, number>, rate) => {
+      if (rate.currency_code) acc[rate.currency_code.toUpperCase()] = Number(rate.rate_to_usd ?? 0);
+      return acc;
+    }, {} as Record<string, number>);
+
+    // ── 2. Monthly trend advances (last 6 months) ───────────────────────────
+    //    Fix: employees!advances_employee_id_fkey replaces broken
+    //    employee_onboarding(currency) — currency derived from employees.country
     const { data: advancesData, error: advancesError } = await supabase
       .from('advances')
-      .select('amount, fee_amount, created_at, status, employer_id')
+      .select(`
+        amount,
+        fee_amount,
+        created_at,
+        status,
+        employer_id,
+        employees!advances_employee_id_fkey (
+          country
+        )
+      `)
       .gte('created_at', sixMonthsAgo.toISOString());
 
     if (advancesError) throw advancesError;
@@ -55,40 +92,50 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       trendMap.set(label, { label, revenue: 0, disbursed: 0, count: 0 });
     }
 
-    (advancesData || []).forEach(adv => {
-      const d = new Date(adv.created_at);
+    (advancesData as BillingAdvanceRow[] || []).forEach(adv => {
+      const d = new Date(adv.created_at!);
       const label = `${months[d.getMonth()]} ${d.getFullYear()}`;
       if (trendMap.has(label)) {
         const stats = trendMap.get(label);
         if (adv.status === 'disbursed') {
-          stats.revenue += Number(adv.fee_amount || 0);
-          stats.disbursed += Number(adv.amount || 0);
-          stats.count += 1;
+          const currency = resolveCurrency(adv.employees?.country);
+          stats.revenue  += convertToUSD(Number(adv.fee_amount || 0), currency, rates);
+          stats.disbursed += convertToUSD(Number(adv.amount    || 0), currency, rates);
+          stats.count    += 1;
         }
       }
     });
 
     const monthlyTrends = Array.from(trendMap.values()).reverse();
 
+    // ── 3. Cumulative totals (all-time disbursed) ───────────────────────────
     const { data: totalStats, error: totalError } = await supabase
       .from('advances')
-      .select('amount, fee_amount')
+      .select(`
+        amount,
+        fee_amount,
+        employees!advances_employee_id_fkey (
+          country
+        )
+      `)
       .eq('status', 'disbursed');
 
     if (totalError) throw totalError;
 
-    const cumulativeRevenue = (totalStats || []).reduce((sum, a) => sum + Number(a.fee_amount || 0), 0);
-    const cumulativeDisbursed = (totalStats || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const cumulativeRevenue = (totalStats as BillingAdvanceRow[] || []).reduce((sum, a) => {
+      const currency = resolveCurrency(a.employees?.country);
+      return sum + convertToUSD(Number(a.fee_amount || 0), currency, rates);
+    }, 0);
 
+    const cumulativeDisbursed = (totalStats as BillingAdvanceRow[] || []).reduce((sum, a) => {
+      const currency = resolveCurrency(a.employees?.country);
+      return sum + convertToUSD(Number(a.amount || 0), currency, rates);
+    }, 0);
+
+    // ── 4. Wallet health ────────────────────────────────────────────────────
     const { data: wallets, error: walletError } = await supabase
       .from('employer_wallets')
-      .select(`
-        id,
-        balance,
-        arrears_balance,
-        currency,
-        employer_id
-      `);
+      .select('id, balance, arrears_balance, currency, employer_id');
 
     if (walletError) throw walletError;
 
@@ -101,27 +148,32 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (empError) throw empError;
 
     const walletHealth = (wallets || []).map(w => {
-      const employer = (employers || []).find(e => e.id === w.employer_id);
-      const metadata = employer?.metadata as EmployerMetadata | undefined;
+      const employer    = (employers || []).find(e => e.id === w.employer_id);
+      const metadata    = employer?.metadata as EmployerMetadata | undefined;
       const creditLimit = Number(metadata?.credit_limit ?? 1000000);
       const utilization = creditLimit > 0 ? Math.round((Number(w.balance) / creditLimit) * 100) : 0;
+      const currency    = w.currency || 'KES';
 
       return {
         ...w,
-        company_name: employer?.company_name || 'Unknown Employer',
+        company_name:        employer?.company_name || 'Unknown Employer',
         utilization,
+        balance_usd:         convertToUSD(Number(w.balance         || 0), currency, rates),
+        arrears_balance_usd: convertToUSD(Number(w.arrears_balance || 0), currency, rates),
       };
     });
 
-    const totalWalletBalance = walletHealth.reduce((sum, w) => sum + Number(w.balance || 0), 0);
-    const totalArrears = walletHealth.reduce((sum, w) => sum + Number(w.arrears_balance || 0), 0);
+    const totalWalletBalance = walletHealth.reduce((sum, w) => sum + Number(w.balance_usd         || 0), 0);
+    const totalArrears       = walletHealth.reduce((sum, w) => sum + Number(w.arrears_balance_usd || 0), 0);
 
+    // ── 5. Top revenue generators ───────────────────────────────────────────
     const employerRevenueMap = new Map<string, number>();
-    (advancesData || []).forEach((adv: BillingAdvanceRow) => {
+    (advancesData as BillingAdvanceRow[] || []).forEach(adv => {
       const employerId = adv.employer_id;
       if (employerId && adv.status === 'disbursed') {
-        const current = employerRevenueMap.get(employerId) || 0;
-        employerRevenueMap.set(employerId, current + Number(adv.fee_amount || 0));
+        const currency = resolveCurrency(adv.employees?.country);
+        const current  = employerRevenueMap.get(employerId) || 0;
+        employerRevenueMap.set(employerId, current + convertToUSD(Number(adv.fee_amount || 0), currency, rates));
       }
     });
 
@@ -134,13 +186,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
+    // ── 6. Response ─────────────────────────────────────────────────────────
     return NextResponse.json({
       summary: {
-        total_revenue: cumulativeRevenue,
-        total_disbursed: cumulativeDisbursed,
-        total_wallet_balance: totalWalletBalance,
-        total_arrears: totalArrears,
-        top_revenue_generators: topRevenueGenerators,
+        total_revenue:           cumulativeRevenue,
+        total_disbursed:         cumulativeDisbursed,
+        total_wallet_balance:    totalWalletBalance,
+        total_arrears:           totalArrears,
+        top_revenue_generators:  topRevenueGenerators,
       },
       monthlyTrends,
       walletHealth,

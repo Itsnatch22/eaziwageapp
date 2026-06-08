@@ -1537,17 +1537,6 @@ const NotificationSettingsTab: React.FC<NotificationSettingsTabProps> = ({
   );
 };
 
-// Due to length limits, I'll continue in the next file with:
-// - BlackoutPeriodsTab
-// - LegalDocumentsTab
-// - AuditTrailTab
-// - Main Component
-
-// ─── Note: File is too long, continuing in part 2 ─────────────────────────────
-// ─── Continuing from Part 1 ──────────────────────────────────────────────────
-
-// ─── Blackout Periods Tab ─────────────────────────────────────────────────────
-
 interface BlackoutPeriodsTabProps {
   token: string | null;
 }

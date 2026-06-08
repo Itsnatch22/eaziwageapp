@@ -63,7 +63,6 @@ export async function cleanupExpiredTokens(
  * @returns true if token format is valid
  */
 export function isValidTokenFormat(token: string): boolean {
-  // Tokens should be 64 hex characters (32 bytes * 2)
   return /^[a-f0-9]{64}$/i.test(token);
 }
 

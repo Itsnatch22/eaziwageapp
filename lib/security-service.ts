@@ -5,12 +5,27 @@ import crypto from "crypto";
 
 const env = getEnv();
 
-// Use service role for security operations to bypass RLS if necessary
 const supabaseAdmin = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
   env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
+
+function buildDeviceFingerprint(ctx: LoginContext): string {
+  const visitorId = ctx.fingerprintVisitorId?.trim();
+
+  if (visitorId) {
+    return `fpjs:${crypto
+      .createHash("sha256")
+      .update(visitorId)
+      .digest("hex")}`;
+  }
+
+  return `ua:${crypto
+    .createHash("sha256")
+    .update(ctx.userAgent)
+    .digest("hex")}`;
+}
 
 /**
  * Handles security checks and logging after a successful login
@@ -24,8 +39,6 @@ export async function handleLoginSecurity(
   const { ip, userAgent } = ctx;
 
   try {
-    // 1. Record in login_history (as requested by user)
-    // This table tracks EVERY successful login
     await supabaseAdmin.from("login_history").insert({
       user_id: userId,
       email: email.toLowerCase(),
@@ -35,13 +48,7 @@ export async function handleLoginSecurity(
       logged_in_at: new Date().toISOString(),
     });
 
-    // 2. Generate a device fingerprint
-    // In a production environment, this should ideally be sent from the client
-    // using a library like FingerprintJS. For now, we hash the User-Agent.
-    const deviceFingerprint = crypto
-      .createHash("sha256")
-      .update(userAgent)
-      .digest("hex");
+    const deviceFingerprint = buildDeviceFingerprint(ctx);
 
     // 3. Check if this device is already trusted
     const { data: trustedDevice, error: fetchError } = await supabaseAdmin

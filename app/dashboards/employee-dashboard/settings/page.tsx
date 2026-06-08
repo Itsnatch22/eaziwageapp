@@ -60,8 +60,6 @@ type Profile = {
   kycDocuments?: KycDocument[];
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
 const TabButton = ({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: LucideIcon; label: string; }) => (
   <button
     onClick={onClick}
@@ -130,8 +128,6 @@ const FAQItem = ({ question, answer }: { question: string; answer: string; }) =>
     </div>
   );
 };
-
-// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function EmployeeSettings() {
   const router = useRouter();
@@ -723,9 +719,10 @@ export default function EmployeeSettings() {
                           Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
                         </p>
                         {mfaStatus.qrCode && (
-                          <div className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-slate-200">
-                            <Image src={`data:image/png;base64,${mfaStatus.qrCode}`} alt="QR Code" width={176} height={176} unoptimized className="w-full h-full" />
-                          </div>
+                          <div 
+                            className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-slate-200"
+                            dangerouslySetInnerHTML={{ __html: mfaStatus.qrCode }}
+                          />
                         )}
                       </div>
                       <div className="space-y-2">

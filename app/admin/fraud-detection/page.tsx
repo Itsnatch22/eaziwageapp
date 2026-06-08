@@ -1106,6 +1106,7 @@ export default function FraudDetection(): React.ReactElement {
   });
   const [alerts, setAlerts] = useState<FraudAlert[]>([]);
   const [rules, setRules] = useState<FraudRule[]>([]);
+  const [reviewAlert, setReviewAlert] = useState<FraudAlert | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1204,8 +1205,7 @@ export default function FraudDetection(): React.ReactElement {
   }
 
   function handleReviewAlert(alert: FraudAlert): void {
-    toast.info(`Reviewing alert "${alert.title}"`);
-    // TODO: replace with real review navigation or modal flow
+    setReviewAlert(alert);
   }
 
   return (
@@ -1287,6 +1287,70 @@ export default function FraudDetection(): React.ReactElement {
         {activeSection === 'analytics' && <BehavioralAnalyticsSection />}
         {activeSection === 'process' && <SuspensionProcessSection />}
         {activeSection === 'kpis' && <KPIsSection />}
+
+        {reviewAlert && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-800">
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <AlertTriangle className={`h-5 w-5 ${
+                      reviewAlert.severity === 'high' ? 'text-red-500' :
+                      reviewAlert.severity === 'medium' ? 'text-amber-500' :
+                      'text-blue-500'
+                    }`} />
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      reviewAlert.severity === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' :
+                      reviewAlert.severity === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
+                      'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+                    }`}>
+                      {reviewAlert.severity.charAt(0).toUpperCase() + reviewAlert.severity.slice(1)} severity
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">{reviewAlert.title}</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Alert #{reviewAlert.id}</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setReviewAlert(null)} data-testid="close-alert-review">
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Description</Label>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{reviewAlert.description}</p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Entity</Label>
+                    <p className="mt-1 font-medium text-slate-900 dark:text-white">{reviewAlert.entity}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Detected</Label>
+                    <p className="mt-1 font-medium text-slate-900 dark:text-white">{reviewAlert.timestamp}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button variant="outline" className="rounded-xl" onClick={() => setReviewAlert(null)}>
+                  Close
+                </Button>
+                <Button
+                  className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
+                  onClick={() => {
+                    toast.success(`Alert "${reviewAlert.title}" moved to manual review`);
+                    setReviewAlert(null);
+                  }}
+                  data-testid="confirm-alert-review"
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Start Manual Review
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
   );
 }

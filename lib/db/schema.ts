@@ -1,41 +1,34 @@
 import { pgTable, uuid, text, numeric, timestamp, jsonb, pgEnum, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-// Enums
 export const employeeStatusEnum = pgEnum('employee_status', ['Active', 'Inactive']);
 
-// Organizations table (referenced by employees)
 export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
-  country: text('country').notNull(), // 'Kenya' | 'Uganda' | 'Tanzania' | 'Rwanda'
+  country: text('country').notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Employees table
 export const employees = pgTable('employees', {
   id: uuid('id').primaryKey().defaultRandom(),
   organization_id: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
   
-  // Employee details
   name: text('name').notNull(),
   email: text('email'),
-  employee_number: text('employee_number'), // e.g., "EW-1000"
+  employee_number: text('employee_number'),
   department: text('department').notNull(),
   
-  // Financial
   salary: numeric('salary', { precision: 12, scale: 2 }).notNull(),
   withdrawn_this_month: numeric('withdrawn_this_month', { precision: 12, scale: 2 })
     .default('0')
     .notNull(),
   
-  // Status
   status: employeeStatusEnum('status').default('Active').notNull(),
   
-  // Metadata (for extensibility)
   metadata: jsonb('metadata').$type<{
     hire_date?: string;
     phone?: string;
@@ -43,18 +36,15 @@ export const employees = pgTable('employees', {
     custom_fields?: Record<string, unknown>;
   }>(),
   
-  // Timestamps
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
-  deleted_at: timestamp('deleted_at'), // Soft delete support
+  deleted_at: timestamp('deleted_at'),
 }, (table) => ({
-  // Indexes for performance
   organization_idx: index('employees_organization_idx').on(table.organization_id),
   name_idx: index('employees_name_idx').on(table.name),
   status_idx: index('employees_status_idx').on(table.status),
   deleted_at_idx: index('employees_deleted_at_idx').on(table.deleted_at),
   
-  // Composite index for common queries
   org_status_idx: index('employees_org_status_idx').on(
     table.organization_id,
     table.status,
@@ -106,10 +96,9 @@ export const payrollIntegrations = pgTable('payroll_integrations', {
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Advances table (Wage requests)
 export const advances = pgTable('advances', {
   id: uuid('id').primaryKey().defaultRandom(),
-  employee_id: uuid('employee_id').notNull(), // References profiles/employees
+  employee_id: uuid('employee_id').notNull(), 
   employer_id: uuid('employer_id'),
   organization_id: uuid('organization_id')
     .notNull()
@@ -151,10 +140,9 @@ export const dusupayTransactions = pgTable('dusupay_transactions', {
   merchant_ref_idx: index('dusupay_tx_merchant_ref_idx').on(table.merchant_reference),
 }));
 
-// Employer Wallets
 export const employerWallets = pgTable('employer_wallets', {
   id: uuid('id').primaryKey().defaultRandom(),
-  employer_id: uuid('employer_id').notNull().unique(), // References employer_onboarding
+  employer_id: uuid('employer_id').notNull().unique(), 
   balance: numeric('balance', { precision: 12, scale: 2 }).default('0').notNull(),
   arrears_balance: numeric('arrears_balance', { precision: 12, scale: 2 }).default('0').notNull(),
   currency: text('currency').default('KES').notNull(),

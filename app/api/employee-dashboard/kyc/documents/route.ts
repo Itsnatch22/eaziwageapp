@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
 
     const { data: signedData } = await adminSupabase.storage
       .from(BUCKET)
-      .createSignedUrl(storagePath, 60 * 60 * 24); // 24-hour temporary access
+      .createSignedUrl(storagePath, 60 * 60 * 24); 
 
     if (!signedData) {
       return NextResponse.json({ error: 'Could not generate URL', code: 'SIGNED_URL_ERROR' }, { status: 500 });

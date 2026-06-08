@@ -16,7 +16,6 @@ async function main() {
   const target = process.argv[2] || '7e44b730-e7e1-4971-88c0-da37cd35930f';
   console.log('Testing upsert for onboarding/user id:', target);
 
-  // Find onboarding by id or user_id
   const { data: onboarding } = await admin
     .from('employee_onboarding')
     .select('*')
@@ -29,7 +28,6 @@ async function main() {
     console.warn('No onboarding record found; will try updating existing employee only');
   }
 
-  // Resolve employer id
   let resolvedEmployerId = null;
   if (onboarding?.employer_id) {
     const { data: byId } = await admin.from('employers').select('id').eq('id', onboarding.employer_id).maybeSingle();
@@ -62,7 +60,6 @@ async function main() {
     payload.department = onboarding.department || null;
     payload.monthly_salary = onboarding.monthly_salary || null;
   } else {
-    // If no onboarding, ensure there is an existing employee
     const { data: existing } = await admin.from('employees').select('id').eq('user_id', userId).maybeSingle();
     if (!existing) {
       console.error('No onboarding and no existing employee for user:', userId);

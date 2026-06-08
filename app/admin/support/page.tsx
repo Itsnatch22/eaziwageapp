@@ -22,6 +22,7 @@ export default function AdminSupportPage() {
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   const fetchTickets = async () => {
     try {
@@ -52,36 +53,27 @@ export default function AdminSupportPage() {
 
   const sendReply = async () => {
     if (!selected) return;
-    if (!replyText.trim()) return toast.error("Message required");
-    // Optimistic UI: append temporary reply immediately
-    const tempId = `temp-${Date.now()}`;
-    const optimistic: Reply = {
-      id: tempId,
-      sender_role: "admin",
-      message: replyText,
-      created_at: new Date().toISOString(),
-      sender_id: "me",
-    };
-    setReplies((r) => [...r, optimistic]);
-    const prevText = replyText;
-    setReplyText("");
+    const message = replyText.trim();
+    if (!message) return toast.error("Message required");
+    if (sendingReply) return;
 
     try {
+      setSendingReply(true);
       const res = await fetch(`/api/support/tickets/${selected.id}/replies`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: prevText }),
+        body: JSON.stringify({ message }),
       });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
-      // Replace optimistic reply with real one
-      setReplies((r) => r.map((rep) => (rep.id === tempId ? data.reply : rep)));
+      if (!data.reply) throw new Error("Missing reply");
+      setReplies((r) => [...r, data.reply]);
+      setReplyText("");
       toast.success("Reply sent");
     } catch {
-      // Rollback optimistic reply
-      setReplies((r) => r.filter((rep) => rep.id !== tempId));
-      setReplyText(prevText);
       toast.error("Failed to send reply");
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -163,9 +155,10 @@ export default function AdminSupportPage() {
                 />
                 <button
                   onClick={sendReply}
-                  className="px-4 py-2 bg-blue-600 text-white rounded"
+                  disabled={sendingReply}
+                  className="px-4 py-2 bg-blue-600 text-white rounded disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Send
+                  {sendingReply ? "Sending..." : "Send"}
                 </button>
               </div>
 

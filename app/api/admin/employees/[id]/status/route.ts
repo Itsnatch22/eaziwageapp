@@ -120,8 +120,6 @@ export async function PATCH(
 
     if (!onboardingRecord) {
       console.warn('[PATCH status] No onboarding record found for ID:', id);
-      // Even if no onboarding record exists, we might still have a record in 'employees' table.
-      // We'll proceed to check the employees table below.
     }
 
     const userId = onboardingRecord?.user_id || initialEmployeeRecord?.user_id;

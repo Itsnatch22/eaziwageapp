@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
+import { getCurrencyFromCountry } from '@/lib/utils';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
 function createAdminClient() {
@@ -25,7 +26,7 @@ export async function GET() {
     // 1. Get Employer Record (must be approved and not deleted)
     const { data: employer, error: employerError } = await adminSupabase
       .from('employers')
-      .select('id, status, onboarding_id, employer_onboarding!onboarding_id(deleted_at)')
+      .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
       .eq('user_id', user.id)
       .eq('status', 'approved')
       .maybeSingle();
@@ -39,7 +40,7 @@ export async function GET() {
       // Check if employer exists but is not approved or was deleted
       const { data: anyEmployer } = await adminSupabase
         .from('employers')
-        .select('id, status, onboarding_id, employer_onboarding!onboarding_id(deleted_at)')
+        .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
         .eq('user_id', user.id)
         .maybeSingle();
       
@@ -77,13 +78,15 @@ export async function GET() {
     // 3. If no wallet exists, create one (lazy creation)
     let currentWallet = wallet;
     if (!wallet) {
+      const walletCurrency = onboarding?.currency || getCurrencyFromCountry(onboarding?.country, 'KES');
+
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
         .insert({
           employer_id: employer.onboarding_id,
           balance: 0,
           arrears_balance: 0,
-          currency: 'KES'
+          currency: walletCurrency
         })
         .select()
         .single();

@@ -625,7 +625,7 @@ const DocumentPreview = ({ doc }: { doc: KYCDocument }) => {
         </Button>
       </div>
 
-      <div className="h-[420px] lg:h-[560px] bg-slate-200/70 dark:bg-slate-950">
+      <div className="h-105 lg:h-140 bg-slate-200/70 dark:bg-slate-950">
         {previewKind === 'image' ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

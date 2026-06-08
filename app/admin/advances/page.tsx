@@ -102,6 +102,7 @@ interface Advance {
   amount: number;
   fee_amount: number;
   net_amount: number;
+  currency?: string;
   status: AdvanceStatus;
   disbursement_method?: string | null;
   disbursement_details?: {
@@ -159,15 +160,15 @@ export function AdvanceRow({
       </div>
 
       <div className="text-right w-28">
-        <p className="font-bold">{formatCurrency(convertToUSD(advance.amount, currency, rates), 'USD')}</p>
+        <p className="font-bold">{formatCurrency(convertToUSD(advance.amount, advance.currency || 'KES', rates), 'USD')}</p>
         <p className="text-xs text-slate-500">
-          Fee: {formatCurrency(convertToUSD(advance.fee_amount, currency, rates), 'USD')}
+          Fee: {formatCurrency(convertToUSD(advance.fee_amount, advance.currency || 'KES', rates), 'USD')}
         </p>
       </div>
 
       <div className="text-right w-28 hidden md:block">
         <p className="font-bold text-purple-600">
-          {formatCurrency(convertToUSD(advance.net_amount, currency, rates), 'USD')}
+          {formatCurrency(convertToUSD(advance.net_amount, advance.currency || 'KES', rates), 'USD')}
         </p>
         <p className="text-xs text-slate-500">Net</p>
       </div>
@@ -378,15 +379,15 @@ export function AdvanceDetailModal({
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-2">
             <div className="flex justify-between">
               <span className="text-slate-600 dark:text-slate-400">Amount Requested</span>
-              <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(convertToUSD(advance.amount, currency, rates), 'USD')}</span>
+              <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(convertToUSD(advance.amount, advance.currency || 'KES', rates), 'USD')}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-600 dark:text-slate-400">Service Fee ({advance.fee_percentage?.toFixed(1)}%)</span>
-              <span className="font-medium text-red-600">-{formatCurrency(convertToUSD(advance.fee_amount, currency, rates), 'USD')}</span>
+              <span className="font-medium text-red-600">-{formatCurrency(convertToUSD(advance.fee_amount, advance.currency || 'KES', rates), 'USD')}</span>
             </div>
             <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2">
               <span className="font-semibold text-slate-900 dark:text-white">Net Amount</span>
-              <span className="font-bold text-purple-600">{formatCurrency(convertToUSD(advance.net_amount, currency, rates), 'USD')}</span>
+              <span className="font-bold text-purple-600">{formatCurrency(convertToUSD(advance.net_amount, advance.currency || 'KES', rates), 'USD')}</span>
             </div>
           </div>
           
@@ -581,8 +582,8 @@ export default function AdminAdvances(){
     pending: advances.filter(a => a.status === 'pending').length,
     approved: advances.filter(a => a.status === 'approved').length,
     disbursed: advances.filter(a => a.status === 'disbursed').length,
-    total_amount: advances.reduce((sum, a) => sum + (a.amount || 0), 0),
-    total_fees: advances.reduce((sum, a) => sum + (a.fee_amount || 0), 0),
+    total_amount: advances.reduce((sum, a) => sum + convertToUSD(a.amount || 0, a.currency || 'KES', rates), 0),
+    total_fees: advances.reduce((sum, a) => sum + convertToUSD(a.fee_amount || 0, a.currency || 'KES', rates), 0),
   };
     
   return (
@@ -622,8 +623,8 @@ export default function AdminAdvances(){
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={CreditCard} label="Total Advances" value={stats.total} variant="purple" />
           <MetricCard icon={Clock} label="Pending" value={stats.pending} subtext="Awaiting approval" variant="amber" />
-          <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(convertToUSD(stats.total_amount, currency, rates), 'USD')} variant="green" />
-          <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(convertToUSD(stats.total_fees, currency, rates), 'USD')} variant="blue" />
+          <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats.total_amount, 'USD')} variant="green" />
+          <MetricCard icon={Wallet} label="Total Fees" value={formatCurrency(stats.total_fees, 'USD')} variant="blue" />
         </div>
 
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">

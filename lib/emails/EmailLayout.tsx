@@ -12,8 +12,6 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com';
 
 export const COLORS = {
@@ -29,16 +27,12 @@ export const COLORS = {
   black:        '#000000',
 } as const;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface EmailLayoutProps {
   previewText: string;
   children: React.ReactNode;
   footerContent?: React.ReactNode;
   recipientEmail?: string;
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EmailLayout({
   previewText,
@@ -109,8 +103,6 @@ export default function EmailLayout({
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 export const styles: Record<string, React.CSSProperties> = {
   body: {
     backgroundColor: COLORS.slate100,
@@ -163,7 +155,6 @@ export const styles: Record<string, React.CSSProperties> = {
     margin: '0 0 12px',
   },
 
-  // Common shared styles for components using the layout
   heading: {
     color: COLORS.slate900,
     fontSize: '28px',

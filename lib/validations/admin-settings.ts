@@ -57,6 +57,7 @@ export const EmployerSettingsSchema = z.object({
   cooldown_days: z.number().min(0).optional(),
   processing_fee: z.number().optional(),
   max_monthly_advances: z.number().optional(),
+  min_advance_amount: z.number().min(500).optional(),
   employee_advance_limit_min: z.number().optional(),
   employee_advance_limit_max: z.number().optional(),
   employee_cooldown_min: z.number().optional(),

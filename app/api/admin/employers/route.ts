@@ -5,6 +5,7 @@ import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
 import pusherServer from '@/lib/pusher-server';
 
 
@@ -263,6 +264,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
   const liveEmployerIds = (liveEmployers ?? []).map((employer) => employer.id);
 
+  const { data: exchangeRates } = await adminSupabase
+    .from('exchange_rates')
+    .select('currency_code, rate_to_usd');
+
+  const rates = (exchangeRates || []).reduce((acc: Record<string, number>, rate) => {
+    if (rate.currency_code) acc[rate.currency_code.toUpperCase()] = Number(rate.rate_to_usd ?? 0);
+    return acc;
+  }, {} as Record<string, number>);
+
   const [employeesResult, advancesResult] = await Promise.all([
     liveEmployerIds.length
       ? adminSupabase
@@ -317,13 +327,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const applicationFee = calculateApplicationFee(riskScore);
 
+    const country = row.country ?? '';
+    const companyCurrency = getCurrencyFromCountry(country, 'KES');
+
     return {
       id: row.id,
       company_name: row.company_name ?? 'Unknown company',
       employer_code: codesByUserId.get(row.user_id) || `EW-${row.id.slice(0, 8).toUpperCase()}`,
       industry: row.industry ?? '',
       sector: row.sector ?? '',
-      country: row.country ?? '',
+      country: country,
       registration_number: row.registration_number ?? null,
       tax_id: row.tax_id ?? null,
       address: row.physical_address ?? null,
@@ -342,8 +355,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       created_at: row.created_at,
       updated_at: row.updated_at ?? row.created_at,
       employee_count: employeeMeta.count,
-      total_advances: advancesByEmployer.get(row.id) ?? 0,
-      monthly_payroll: employeeMeta.payroll,
+      total_advances: convertToUSD(advancesByEmployer.get(row.id) ?? 0, companyCurrency, rates),
+      monthly_payroll: convertToUSD(employeeMeta.payroll, companyCurrency, rates),
     };
   });
   

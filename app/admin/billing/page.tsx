@@ -175,28 +175,28 @@ export default function BillingPage() {
         <MetricCard 
           icon={DollarSign} 
           label="Total Revenue" 
-          value={formatCurrency(convertToUSD(data.summary.total_revenue, currency, rates), 'USD')} 
+          value={formatCurrency(data.summary.total_revenue, 'USD')} 
           variant="purple"
           subtext="Cumulative platform fees earned"
         />
         <MetricCard 
           icon={CreditCard} 
           label="Total Disbursed" 
-          value={formatCurrency(convertToUSD(data.summary.total_disbursed, currency, rates), 'USD')} 
+          value={formatCurrency(data.summary.total_disbursed, 'USD')} 
           variant="blue"
           subtext="All-time advances processed"
         />
         <MetricCard 
           icon={Wallet} 
           label="Wallet Balances" 
-          value={formatCurrency(convertToUSD(data.summary.total_wallet_balance, currency, rates), 'USD')} 
+          value={formatCurrency(data.summary.total_wallet_balance, 'USD')} 
           variant="green"
           subtext="Total employer funds on platform"
         />
         <MetricCard 
           icon={BarChart3} 
           label="Arrears" 
-          value={formatCurrency(convertToUSD(data.summary.total_arrears, currency, rates), 'USD')} 
+          value={formatCurrency(data.summary.total_arrears, 'USD')} 
           variant="amber"
           subtext="Outstanding repayments due"
         />
@@ -278,14 +278,14 @@ export default function BillingPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                    {formatCurrency(convertToUSD(employer.monthly_payroll, currency, rates), 'USD')}
+                    {formatCurrency(employer.monthly_payroll, 'USD')}
                   </td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       "px-2.5 py-1 rounded-lg text-xs font-medium",
                       "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
                     )}>
-                      {formatCurrency(convertToUSD(0, currency, rates), 'USD')}
+                      {formatCurrency(0, 'USD')}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -370,7 +370,7 @@ export default function BillingPage() {
                     <span className="font-semibold text-slate-900 dark:text-white">{gen.company_name}</span>
                   </td>
                   <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
-                    {formatCurrency(convertToUSD(gen.revenue, currency, rates), 'USD')}
+                    {formatCurrency(gen.revenue, 'USD')}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-xs font-bold text-purple-600">

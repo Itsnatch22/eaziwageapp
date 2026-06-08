@@ -265,34 +265,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // In a real implementation, this would trigger a background job to generate the report
-    // For now, we'll simulate it with a timeout
-    setTimeout(async () => {
-      try {
-        const metrics = {
-          totalRecords: Math.floor(Math.random() * 10000) + 1000,
-          processingTime: Math.random() * 20 + 5,
-          accuracy: 99 + Math.random() * 0.9,
-        };
+    const { data: readyReport, error: readyError } = await supabase
+      .from('admin_reports')
+      .update({
+        status: 'ready',
+        generated_at: new Date().toISOString(),
+        download_url: `/api/admin/reports/${report.id}/download`,
+      })
+      .eq('id', report.id)
+      .select()
+      .single();
 
-        await supabase
-          .from('admin_reports')
-          .update({
-            status: 'ready',
-            generated_at: new Date().toISOString(),
-            file_size: '1.2 MB',
-            download_url: `/api/admin/reports/${report.id}/download`,
-            metrics,
-          })
-          .eq('id', report.id);
-      } catch (error) {
-        console.error('[Admin Reports] Generation error:', error);
-        await supabase
-          .from('admin_reports')
-          .update({ status: 'failed' })
-          .eq('id', report.id);
-      }
-    }, 2000);
+    if (readyError) {
+      console.error('[Admin Reports] Ready update error:', readyError);
+      await supabase
+        .from('admin_reports')
+        .update({ status: 'failed' })
+        .eq('id', report.id);
+
+      return NextResponse.json(
+        { error: 'Failed to prepare report', detail: readyError.message },
+        { status: 500 }
+      );
+    }
 
     const redis = new Redis({
       url: env.UPSTASH_REDIS_REST_URL,
@@ -309,7 +304,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.warn('[Admin Reports] Failed to clear cache:', cacheError);
     }
 
-    return NextResponse.json(report, { 
+    return NextResponse.json(readyReport, { 
       status: 201, 
       headers: rateResult.headers 
     });

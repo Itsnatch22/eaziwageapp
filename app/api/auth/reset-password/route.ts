@@ -41,7 +41,6 @@ async function verifyRecaptcha(token: string, secretKey: string): Promise<boolea
       action?: string;
     };
 
-    // Require score ≥ 0.5 for password reset (higher-sensitivity action)
     return data.success && (data.score ?? 0) >= 0.5;
   } catch {
     return false;

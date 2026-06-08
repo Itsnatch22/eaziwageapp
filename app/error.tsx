@@ -13,7 +13,6 @@ interface ErrorProps {
 function getFriendlyMessage(error: Error): string {
   const msg = error.message?.toLowerCase() ?? "";
   
-  // Handle common status codes or messages that might be embedded
   if (msg.includes("401") || msg.includes("unauthorized") || msg.includes("login"))
     return "Your session has expired or you are not logged in. Please sign in to continue.";
     
@@ -35,7 +34,6 @@ function getFriendlyMessage(error: Error): string {
   if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("deadline"))
     return "The request took longer than expected to complete. The server might be under heavy load.";
 
-  // Generic fallback that sounds professional but doesn't expose internals
   return "An unexpected error occurred while processing your request. We've logged the details and are looking into it.";
 }
 

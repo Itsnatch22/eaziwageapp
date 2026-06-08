@@ -109,7 +109,6 @@ async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminU
     return { user: null, isAdmin: false };
   }
 
-  // Check environment admin emails first (most reliable)
   const env = getEnv();
   const adminEmails = (env.ADMIN_EMAILS || '')
     .replace(/^"|"$/g, '')
@@ -121,7 +120,6 @@ async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminU
     return { user, isAdmin: true };
   }
 
-  // Check user metadata roles
   const roleCandidates = [user.app_metadata?.role, user.user_metadata?.role]
     .filter((r): r is string => typeof r === 'string' && r.length > 0)
     .map((r) => r.toLowerCase());
@@ -166,7 +164,6 @@ function getDateRangeForPeriod(period: string, reportDate?: string): DateRange {
     
     case 'custom':
     default:
-      // For custom, return last 30 days as default
       const customStart = new Date(startOfDay);
       customStart.setDate(startOfDay.getDate() - 30);
       return { from: customStart, to: endOfDay };
@@ -175,7 +172,6 @@ function getDateRangeForPeriod(period: string, reportDate?: string): DateRange {
 
 async function generateFinancialReport(supabase: SupabaseClient, dateRange: DateRange, report: AdminReport): Promise<string> {
   try {
-    // Get advances data for financial metrics
     const { data: advances, error: advancesError } = await supabase
       .from('advances')
       .select('*')
@@ -185,7 +181,6 @@ async function generateFinancialReport(supabase: SupabaseClient, dateRange: Date
 
     if (advancesError) throw advancesError;
 
-    // Get wallet transactions
     const { data: transactions, error: transactionsError } = await supabase
       .from('wallet_transactions')
       .select('*')
@@ -194,7 +189,6 @@ async function generateFinancialReport(supabase: SupabaseClient, dateRange: Date
 
     if (transactionsError) throw transactionsError;
 
-    // Calculate financial metrics
     const totalAdvances = advances?.reduce((sum: number, advance: AdvanceRow) => sum + Number(advance.amount || 0), 0) || 0;
     const totalFees = advances?.reduce((sum: number, advance: AdvanceRow) => sum + Number(advance.fee_amount || 0), 0) || 0;
     const totalDeposits = transactions?.filter((t: TransactionRow) => t.type === 'deposit')
@@ -216,12 +210,10 @@ Net Revenue,${totalFees}
 Transaction Details:
 ID,Amount,Fee,Status,Type,Created At,Employee ID,Employer ID`;
 
-    // Add advance details
     advances?.forEach((advance: AdvanceRow) => {
       csv += `\n${advance.id},${advance.amount},${advance.fee_amount},${advance.status},advance,${advance.created_at},${advance.employee_id},${advance.organization_id}`;
     });
 
-    // Add transaction details
     transactions?.forEach((tx: TransactionRow) => {
       csv += `\n${tx.id},${tx.amount},,${tx.status},${tx.type},${tx.created_at},,${tx.wallet_id}`;
     });
@@ -244,7 +236,6 @@ async function generateOperationalReport(supabase: SupabaseClient, dateRange: Da
 
     if (employeesError) throw employeesError;
 
-    // Get employer data
     const { data: employers, error: employersError } = await supabase
       .from('employers')
       .select('*')
@@ -253,7 +244,6 @@ async function generateOperationalReport(supabase: SupabaseClient, dateRange: Da
 
     if (employersError) throw employersError;
 
-    // Get advances data
     const { data: advances, error: advancesError } = await supabase
       .from('advances')
       .select('*')
@@ -262,7 +252,6 @@ async function generateOperationalReport(supabase: SupabaseClient, dateRange: Da
 
     if (advancesError) throw advancesError;
 
-    // Calculate operational metrics
     const totalEmployees = employees?.length || 0;
     const totalEmployers = employers?.length || 0;
     const totalAdvances = advances?.length || 0;
@@ -304,7 +293,6 @@ ID,Company Name,Email,Status,Created At,Country,Risk Score`;
 
 async function generateComplianceReport(supabase: SupabaseClient, dateRange: DateRange, report: AdminReport): Promise<string> {
   try {
-    // Get KYC documents
     const { data: kycDocs, error: kycError } = await supabase
       .from('employee_kyc_documents')
       .select('*')
@@ -313,7 +301,6 @@ async function generateComplianceReport(supabase: SupabaseClient, dateRange: Dat
 
     if (kycError) throw kycError;
 
-    // Get fraud alerts
     const { data: fraudAlerts, error: fraudError } = await supabase
       .from('fraud_alerts')
       .select('*')
@@ -322,7 +309,6 @@ async function generateComplianceReport(supabase: SupabaseClient, dateRange: Dat
 
     if (fraudError) throw fraudError;
 
-    // Get review requests
     const { data: reviewRequests, error: reviewError } = await supabase
       .from('review_requests')
       .select('*')
@@ -331,7 +317,6 @@ async function generateComplianceReport(supabase: SupabaseClient, dateRange: Dat
 
     if (reviewError) throw reviewError;
 
-    // Calculate compliance metrics
     const pendingKYC = kycDocs?.filter((doc: KycDocRow) => doc.status === 'pending').length || 0;
     const approvedKYC = kycDocs?.filter((doc: KycDocRow) => doc.status === 'approved').length || 0;
     const rejectedKYC = kycDocs?.filter((doc: KycDocRow) => doc.status === 'rejected').length || 0;
@@ -372,7 +357,6 @@ ID,Alert Type,Severity,Status,Created At,Description`;
 
 async function generatePerformanceReport(supabase: SupabaseClient, dateRange: DateRange, report: AdminReport): Promise<string> {
   try {
-    // Get API health data
     const { data: apiHealth, error: apiError } = await supabase
       .from('api_health')
       .select('*')
@@ -381,7 +365,6 @@ async function generatePerformanceReport(supabase: SupabaseClient, dateRange: Da
 
     if (apiError) throw apiError;
 
-    // Get system audit logs
     const { data: auditLogs, error: auditError } = await supabase
       .from('system_audit_logs')
       .select('*')
@@ -390,7 +373,6 @@ async function generatePerformanceReport(supabase: SupabaseClient, dateRange: Da
 
     if (auditError) throw auditError;
 
-    // Calculate performance metrics
     const avgLatency = apiHealth?.reduce((sum: number, health: ApiHealthRow) => sum + Number(health.latency_ms || 0), 0) / (apiHealth?.length || 1);
     const avgUptime = apiHealth?.reduce((sum: number, health: ApiHealthRow) => sum + Number(health.uptime_percent || 0), 0) / (apiHealth?.length || 1);
     const totalAudits = auditLogs?.length || 0;
@@ -446,14 +428,12 @@ export async function GET(
 const supabase = await createRouteHandlerClient();
 
   try {
-    // Verify the user is an admin using the same logic as admin me route
     const { user, isAdmin } = await verifyAdminUser(supabase);
 
     if (!user || !isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch the report
     const { data: report, error: fetchError } = await supabase
       .from('admin_reports')
       .select('*')
@@ -471,7 +451,6 @@ const supabase = await createRouteHandlerClient();
       );
     }
 
-    // Generate real CSV data based on report type and period
     let csvContent = '';
     const dateRange = getDateRangeForPeriod(report.period, report.generated_at);
     
@@ -494,7 +473,6 @@ const supabase = await createRouteHandlerClient();
       }
     } catch (error) {
       console.error('Error generating report data:', error);
-      // Fallback to basic report info if data generation fails
       csvContent = `Report: ${report.name}
 Description: ${report.description}
 Generated: ${report.generated_at}

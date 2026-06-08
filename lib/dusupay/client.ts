@@ -55,32 +55,19 @@ export class DusupayClient {
     return data as T;
   }
 
-  /**
-   * Check available wallet balances
-   */
   async getWalletBalances(): Promise<BalanceResponse> {
     return this.request<BalanceResponse>('/data/wallet-balances');
   }
 
-  /**
-   * Get available payment providers (mobile money, etc)
-   */
   async getPaymentProviders(): Promise<ProviderResponse> {
     return this.request<ProviderResponse>('/data/payment-providers');
   }
 
-  /**
-   * Get bank codes for bank transfers
-   */
   async getBankCodes(providerCode: string): Promise<BankCodesResponse> {
     return this.request<BankCodesResponse>(`/data/payout-bank-codes?provider_code=${providerCode}`);
   }
 
-  /**
-   * Initiate a payout
-   */
   async sendFunds(payout: PayoutRequest): Promise<PayoutResponse> {
-    // Format payload as per DusuPay requirements
     const payload: SendFundsPayload = {
       merchant_reference: payout.merchant_reference,
       transaction_method: payout.transaction_method,

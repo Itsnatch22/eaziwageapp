@@ -189,7 +189,7 @@ export async function POST(req: NextRequest) {
     if (fraudResult.alerts.length > 0) {
       await notifyAdmins({
         type: 'flagged_advance',
-        title: '⚠️ Fraud Alert: Flagged Advance',
+        title: 'Fraud Alert: Flagged Advance',
         message: `A new advance request (ID: ${inserted.id}) has been flagged with ${fraudResult.alerts.length} alerts.`,
         metadata: { advance_id: inserted.id, alerts: fraudResult.alerts }
       });

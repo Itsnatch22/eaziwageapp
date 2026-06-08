@@ -16,7 +16,6 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user has MFA enabled by querying their factors
     const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
 
     if (factorsError) {
@@ -54,10 +53,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { action } = await req.json();
+    const body = await req.json();
+    const { action } = body;
 
     if (action === 'enable') {
-      // Generate a new TOTP factor
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
         friendlyName: 'EaziWage Authenticator'
@@ -66,19 +65,15 @@ export async function POST(req: NextRequest) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
-
-      const totpData = data as { id?: string; totp?: { qr_code?: string; secret?: string } };
       
       return NextResponse.json({ 
-        success: true, 
-        message: "MFA enrollment initiated",
-        qrCode: totpData.totp?.qr_code || '',
-        secret: totpData.totp?.secret || '',
-        factorId: totpData.id || ''
+        success: true,
+        qrCode: data.totp?.qr_code || '',
+        secret: data.totp?.secret || '',
+        factorId: data.id || ''
       });
 
     } else if (action === 'disable') {
-      // List current factors
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
 
       if (factorsError) {
@@ -91,7 +86,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "No MFA factors found" }, { status: 400 });
       }
 
-      // Unregister the first TOTP factor
       const { error: unregisterError } = await supabase.auth.mfa.unenroll({
         factorId: totpFactors[0].id
       });
@@ -106,13 +100,12 @@ export async function POST(req: NextRequest) {
       });
 
     } else if (action === 'verify') {
-      const { factorId, code } = await req.json();
+      const { factorId, code } = body;
 
       if (!factorId || !code) {
         return NextResponse.json({ error: "Factor ID and verification code are required" }, { status: 400 });
       }
 
-      // Challenge and verify the factor
       const { error } = await supabase.auth.mfa.challengeAndVerify({
         factorId,
         code

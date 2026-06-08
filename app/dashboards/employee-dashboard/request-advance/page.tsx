@@ -30,8 +30,6 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { EmployeePortalLayout } from "@/components/employee/EmployeeLayout";
 import { Label } from "@/components/ui/label";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface EmployeeProfile {
   id?: string;
   status?: string;
@@ -49,8 +47,6 @@ interface EmployeeProfile {
 
 type DisbursementMethod = "mobile_money" | "bank_transfer";
 
-// ─── X Icon ──────────────────────────────────────────────────────────────────
-
 const XIcon = ({ className }: { className?: string }) => (
   <svg
     className={className}
@@ -65,8 +61,6 @@ const XIcon = ({ className }: { className?: string }) => (
     <path d="m6 6 12 12" />
   </svg>
 );
-
-// ─── Metric Card ─────────────────────────────────────────────────────────────
 
 const MetricCard = ({
   icon: Icon,
@@ -107,8 +101,6 @@ const MetricCard = ({
     </div>
   </div>
 );
-
-// ─── Circular Selector ───────────────────────────────────────────────────────
 
 const CircularAmountSelector = ({
   value,
@@ -179,8 +171,6 @@ const CircularAmountSelector = ({
     </div>
   );
 };
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function RequestAdvance() {
   const { currency } = useCurrency();

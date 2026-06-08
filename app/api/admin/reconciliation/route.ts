@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { convertToUSD } from '@/lib/utils';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -69,6 +70,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       };
     });
 
+    const { data: exchangeRates } = await supabase
+      .from('exchange_rates')
+      .select('currency_code, rate_to_usd');
+
+    const rates = (exchangeRates || []).reduce((acc: Record<string, number>, rate) => {
+      if (rate.currency_code) acc[rate.currency_code.toUpperCase()] = Number(rate.rate_to_usd ?? 0);
+      return acc;
+    }, {} as Record<string, number>);
+
     const { data: advances, error: advError } = await supabase
       .from('advances')
       .select(`
@@ -79,7 +89,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         reference,
         created_at,
         employer_id,
-        employee_id
+        employee_id,
+        employee_onboarding(currency)
       `)
       .in('status', ['disbursed', 'repaid']);
 
@@ -99,6 +110,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       created_at?: string | null;
       employer_id?: string | null;
       employee_id?: string | null;
+      employee_onboarding?: {
+        currency?: string | null;
+      };
     };
     type ProfileRow = { id: string; full_name?: string | null } | null;
 
@@ -134,8 +148,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         };
       }
 
-      const amount = Number(advRow.amount || 0);
-      const fee = Number(advRow.fee_amount || 0);
+      const currency = advRow.employee_onboarding?.currency || 'KES';
+      const amount = convertToUSD(Number(advRow.amount || 0), currency, rates);
+      const fee = convertToUSD(Number(advRow.fee_amount || 0), currency, rates);
       const total = amount + fee;
 
       byEmployer[employerId].total_advances += 1;

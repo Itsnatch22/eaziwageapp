@@ -8,8 +8,6 @@ import {
 import * as React from 'react';
 import EmailLayout, { styles as layoutStyles } from './EmailLayout';
 
-// ─── Props ────────────────────────────────────────────────────────────────────
-
 interface ResetPasswordEmailProps {
   fullName:  string;
   email?:    string;
@@ -17,8 +15,6 @@ interface ResetPasswordEmailProps {
   userAgent: string;
   resetUrl:  string; // Link to request another reset if this wasn't them
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function ResetPasswordEmail({
   fullName  = 'there',
