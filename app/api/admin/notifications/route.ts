@@ -5,7 +5,6 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv }                      from '@/env';
 import { apiLimiter, checkRateLimit }  from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import pusherServer from '@/lib/pusher-server';
 
 const env = getEnv();
 
@@ -201,8 +200,6 @@ export async function DELETE(req: NextRequest) {
 
         const { error } = await adminSupabase.from('admin_notifications').delete().eq('id', id);
         if (error) throw error;
-
-        await pusherServer.trigger('admin-notifications', 'notification-deleted', { id });
 
         return NextResponse.json({ success: true });
     } catch {

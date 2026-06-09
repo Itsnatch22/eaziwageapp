@@ -27,9 +27,6 @@ interface NotificationPayload {
   metadata?: NotificationMetadata;
 }
 
-/**
- * Send a notification to all admins
- */
 export async function notifyAdmins(params: {
   type: AdminNotificationType;
   title: string;
@@ -51,9 +48,6 @@ export async function notifyAdmins(params: {
       .single();
 
     if (error) throw error;
-
-    // Trigger real-time event
-    await pusherServer.trigger('admin-notifications', 'new-notification', data);
 
     // ── Email Notification for Admins ──
     const { data: adminEmails } = await supabaseAdmin

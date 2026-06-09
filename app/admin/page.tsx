@@ -8,7 +8,7 @@ import {
   DollarSign, BarChart3, RefreshCw, Bell
 } from 'lucide-react';
 import { formatCurrency, cn, formatDateTime } from '@/lib/utils';
-import pusherClient from '@/lib/pusher-client';
+import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 
 type VariantColor = 'green' | 'slate' | 'black';
 type IconSize = 'sm' | 'md' | 'lg';
@@ -292,35 +292,20 @@ export default function AdminDashboard() {
     })();
   }, [fetchReconciliationStats, fetchRiskScoringStats]);
 
-  useEffect(() => {
-    if (!pusherClient) return;
-
-    const channel = pusherClient.subscribe('admin-notifications');
-    
-    const handleRealtimeUpdate = () => {
-      handleUpdate();
-    };
-
-    channel.bind('new-notification', (data: Notification) => {
-      setNotifications((prev) => [data, ...prev]);
-      handleRealtimeUpdate();
-    });
-
-    channel.bind('reconciliation-update', handleRealtimeUpdate);
-    channel.bind('risk-update', handleRealtimeUpdate);
-
-    channel.bind('notification-deleted', (data: { id: string }) => {
-      setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
-    });
-
-    return () => {
-      channel.unbind('new-notification');
-      channel.unbind('reconciliation-update');
-      channel.unbind('risk-update');
-      channel.unbind('notification-deleted');
-      pusherClient!.unsubscribe('admin-notifications');
-    };
-  }, [handleUpdate]);
+  useAdminNotifications({
+  onInsert: (data) => {
+    setNotifications((prev) => [data, ...prev]);
+    handleUpdate();
+  },
+  onDelete: (id) => {
+    setNotifications(prev => 
+      prev.filter(n => String(n.id) !== String(id))
+    );
+  },
+  onUpdate: () => {
+    handleUpdate();
+  },
+});
 
   if (loading) {
     return (

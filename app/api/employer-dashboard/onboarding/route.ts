@@ -90,11 +90,13 @@ export async function POST(req: NextRequest) {
     const onboardingId = await getOrCreateDraft(supabase, user.id);
 
     const employerCurrency = getCurrencyFromCountry(fields.country);
+    type OnboardingDraft = Record<(typeof EMPLOYER_DOCUMENT_FIELDS)[number], string | null>;
+
     const { data: existingDraft } = await supabase
       .from('employer_onboarding')
       .select(EMPLOYER_DOCUMENT_FIELDS.join(','))
       .eq('id', onboardingId)
-      .maybeSingle() as { data: any; error: any };
+      .maybeSingle() as { data: OnboardingDraft | null; error: unknown };
 
     const documentUrls = {
       certificate_of_incorporation: certificate_of_incorporation || existingDraft?.certificate_of_incorporation || null,

@@ -11,7 +11,7 @@ import { Input }                   from '@/components/ui/input';
 import { formatDateTime, cn }      from '@/lib/utils';
 import { toast }                   from 'sonner';
 import Link from 'next/link';
-import pusherClient from '@/lib/pusher-client';
+import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 
 
 interface Notification {
@@ -48,7 +48,21 @@ export default function AdminNotificationsPage() {
   const [searchTerm,    setSearchTerm]    = useState('');
   const [filter,        setFilter]        = useState<'all' | 'unread'>('all');
 
+  useAdminNotifications({
+  onInsert: (data) => {
+    setNotifications((prev) => [data, ...prev]);
+    toast.success('New notification received!');
+  },
+  onDelete: (id) => {
+    setNotifications(prev => 
+      prev.filter(n => String(n.id) !== String(id))
+    );
+  },
+});
+
   const fetchNotifications = useCallback(async () => {
+    // Defer to avoid synchronous setState in effect
+    await Promise.resolve();
     setLoading(true);
     try {
       const res = await fetch('/api/admin/notifications');
@@ -67,27 +81,7 @@ export default function AdminNotificationsPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchNotifications();
-    }, 0);
-
-    if (!pusherClient) return () => clearTimeout(timer);
-
-    const channel = pusherClient!.subscribe('admin-notifications');
-
-    channel.bind('new-notification', (data: Notification) => {
-      setNotifications((prev) => [data, ...prev]);
-      toast.success('New notification received!');
-    });
-
-    channel.bind('notification-deleted', (data: { id: string }) => {
-        setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
-    });
-
-    return () => {
-      clearTimeout(timer);
-      pusherClient!.unsubscribe('admin-notifications');
-    };
+    Promise.resolve().then(() => fetchNotifications());
   }, [fetchNotifications]);
 
   const markAsRead = async (ids: string[]) => {
