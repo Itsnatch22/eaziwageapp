@@ -234,6 +234,7 @@ export default function EmployerReports() {
   const [exportFormat, setExportFormat] = useState<'csv' | 'pdf'>('csv');
 
   const fetchReports = useCallback(async (period: string, month: string) => {
+    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
@@ -255,9 +256,8 @@ export default function EmployerReports() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchReports(selectedPeriod, selectedMonth);
-  }, [selectedPeriod, selectedMonth, fetchReports]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchReports(selectedPeriod, selectedMonth); }, [selectedPeriod, selectedMonth, fetchReports]);
 
   // ── Download handlers ─────────────────────────────────────────────────────
 

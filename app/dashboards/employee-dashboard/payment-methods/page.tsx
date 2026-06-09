@@ -51,7 +51,12 @@ const PaymentMethods = () => {
     }
   };
 
-  useEffect(() => { fetchMethods(); }, []);
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void fetchMethods();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();

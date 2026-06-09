@@ -103,6 +103,12 @@ interface Employer {
   full_name?: string;
 }
 
+interface DashboardAdvance {
+  id: string;
+  employee_id: string;
+  status: string;
+}
+
 interface ExtendedStats {
   total_employees: number;
   active_employees: number;
@@ -698,23 +704,20 @@ const EWASettingsModal: React.FC<{
   onClose: () => void;
   onSave: (employeeId: string, settings: EWASettings) => void;
 }> = ({ employee, isOpen, onClose, onSave }) => {
-  const [settings, setSettings] = useState<EWASettings>(DEFAULT_EWA);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
+  const [settings, setSettings] = useState<EWASettings>(() => {
     if (employee?.ewa_settings) {
-      setSettings({
+      return {
         ewa_enabled: employee.ewa_settings.ewa_enabled ?? true,
         max_advance_percentage:
           employee.ewa_settings.max_advance_percentage ?? 50,
         min_advance_amount: employee.ewa_settings.min_advance_amount ?? 500,
         max_advance_amount: employee.ewa_settings.max_advance_amount ?? 50000,
         cooldown_period: employee.ewa_settings.cooldown_period ?? 7,
-      });
-    } else {
-      setSettings(DEFAULT_EWA);
+      };
     }
-  }, [employee]);
+    return DEFAULT_EWA;
+  });
+  const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     if (!employee?.id) return;
@@ -1071,6 +1074,8 @@ const EmployerEmployees: React.FC = () => {
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
+    // defer state updates to avoid synchronous setState inside useEffect
+    await Promise.resolve();
     setLoading(true);
     setFetchError("");
     try {
@@ -1114,7 +1119,7 @@ const EmployerEmployees: React.FC = () => {
       // Calculate pending advances by employee
       const pendingByEmployee: Record<string, number> = {};
       (Array.isArray(advancesData) ? advancesData : []).forEach(
-        (advance: any) => {
+        (advance: DashboardAdvance) => {
           if (advance.status === "pending") {
             const empId = advance.employee_id;
             pendingByEmployee[empId] = (pendingByEmployee[empId] || 0) + 1;
@@ -1132,6 +1137,7 @@ const EmployerEmployees: React.FC = () => {
   }, [dateRange]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 
@@ -1574,15 +1580,18 @@ const EmployerEmployees: React.FC = () => {
       </div>
 
       {/* Modals */}
-      <EWASettingsModal
-        employee={selectedEmployee}
-        isOpen={showEWAModal}
-        onClose={() => {
-          setShowEWAModal(false);
-          setSelectedEmployee(null);
-        }}
-        onSave={handleEWASave}
-      />
+      {showEWAModal && selectedEmployee && (
+        <EWASettingsModal
+          key={selectedEmployee.id}
+          employee={selectedEmployee}
+          isOpen={showEWAModal}
+          onClose={() => {
+            setShowEWAModal(false);
+            setSelectedEmployee(null);
+          }}
+          onSave={handleEWASave}
+        />
+      )}
       <EmployeeViewModal
         employee={selectedEmployee}
         isOpen={showViewModal}

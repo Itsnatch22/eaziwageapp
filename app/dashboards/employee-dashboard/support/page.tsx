@@ -47,21 +47,29 @@ const SupportPage = () => {
 
   const [newTicket, setNewTicket] = useState({ subject: '', message: '', category: 'General' });
 
-  const fetchTickets = async () => {
-    try {
-      const res = await fetch('/api/employee-dashboard/support');
-      if (res.ok) {
-        const data = await res.json();
-        setTickets(data.tickets || []);
-      }
-    } catch {
-      toast.error('Failed to load support history');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
 
-  useEffect(() => { fetchTickets(); }, []);
+    async function fetchTickets() {
+      try {
+        const res = await fetch('/api/employee-dashboard/support');
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setTickets(data.tickets || []);
+        }
+      } catch {
+        if (!cancelled) toast.error('Failed to load support history');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchTickets();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +84,12 @@ const SupportPage = () => {
         toast.success('Support ticket opened!');
         setShowAddModal(false);
         setNewTicket({ subject: '', message: '', category: 'General' });
-        fetchTickets();
+        // Refresh tickets after creating a new one
+        const refreshRes = await fetch('/api/employee-dashboard/support');
+        if (refreshRes.ok) {
+          const data = await refreshRes.json();
+          setTickets(data.tickets || []);
+        }
       }
     } catch {
       toast.error('Failed to send ticket');
@@ -205,7 +218,7 @@ const SupportPage = () => {
                       placeholder="Details of your request..."
                       value={newTicket.message}
                       onChange={e => setNewTicket({ ...newTicket, message: e.target.value })}
-                      className="rounded-2xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 font-medium min-h-[120px] resize-none"
+                      className="rounded-2xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 font-medium min-h-30 resize-none"
                       required
                     />
                   </div>

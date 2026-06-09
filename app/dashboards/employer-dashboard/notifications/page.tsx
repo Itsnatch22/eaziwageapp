@@ -24,6 +24,8 @@ export default function NotificationsPage() {
     const user = useAuthStore((state) => state.user);
 
     const fetchNotifications = useCallback(async () => {
+        // defer state updates to avoid synchronous setState inside useEffect
+        await Promise.resolve();
         try {
             const res = await fetch('/api/employer-dashboard/notifications');
             if (res.ok) {
@@ -38,6 +40,7 @@ export default function NotificationsPage() {
     }, []);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchNotifications();
 
         if (user?.id && pusherClient) {

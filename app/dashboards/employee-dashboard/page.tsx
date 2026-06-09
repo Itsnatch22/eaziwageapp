@@ -197,9 +197,14 @@ export default function EmployeeDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [triggerConfetti, user?.id]);
+  }, [triggerConfetti, user]);
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void fetchStats();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchStats]);
 
   useEffect(() => {
     if (!user?.id || !pusherClient) return;

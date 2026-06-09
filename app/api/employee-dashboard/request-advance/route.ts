@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
     .eq('id', user.id)
     .maybeSingle();
 
+  if (profileError) {
+    return NextResponse.json({ message: profileError.message }, { status: 500 });
+  }
+
   const raw = await req.json().catch(() => null);
   const parsed = requestSchema.safeParse(raw);
   if (!parsed.success) {

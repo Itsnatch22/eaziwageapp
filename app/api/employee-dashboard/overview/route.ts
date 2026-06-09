@@ -112,8 +112,12 @@ export async function GET() {
   
   const advanceLimit = Math.max(0, (earnedWages * maxAccessPct) - totalAdvances);
 
+  const employerData = Array.isArray(employee.employer) 
+    ? employee.employer[0] 
+    : employee.employer;
+
   const currency = getCurrencyFromCountry(
-    employee.employer?.country
+    employerData?.country
       ?? employee.country
       ?? profile?.phone_country_code
       ?? (user.user_metadata?.phone_country_code as string | undefined),
@@ -124,7 +128,7 @@ export async function GET() {
     employee: {
       id: employee.id,
       full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-      employer_name: employee.employer?.company_name || 'N/A',
+      employer_name: employerData?.company_name || 'N/A',
       job_title: employee.job_title || 'Employee',
       status: employee.status,
       kyc_status: employee.status,

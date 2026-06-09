@@ -39,7 +39,7 @@ interface ProfileRow {
   full_name: string | null;
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   const supabase = await createRouteHandlerClient();
   const {
     data: { user },

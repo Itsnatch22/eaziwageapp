@@ -538,6 +538,7 @@ export default function EmployerSettings() {
   // ─── Data fetching ───────────────────────────────────────────────────────
 
   const fetchData = async () => {
+    await Promise.resolve();
     setLoading(true);
     try {
       const [profileRes, settingsRes] = await Promise.all([
@@ -596,6 +597,7 @@ export default function EmployerSettings() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void fetchData(); }, []);
 
   // Pusher subscription
@@ -613,12 +615,19 @@ export default function EmployerSettings() {
   // Activity logs
   useEffect(() => {
     if (activeTab !== 'security') return;
-    setLogsLoading(true);
-    fetch('/api/auth/activity-logs')
-      .then((res) => res.ok ? res.json() : { logs: [] })
-      .then((data) => setActivityLogs(data.logs || []))
-      .catch(() => setActivityLogs([]))
-      .finally(() => setLogsLoading(false));
+    void (async () => {
+      await Promise.resolve();
+      setLogsLoading(true);
+      try {
+        const res = await fetch('/api/auth/activity-logs');
+        const data = res.ok ? await res.json() : { logs: [] };
+        setActivityLogs(data.logs || []);
+      } catch {
+        setActivityLogs([]);
+      } finally {
+        setLogsLoading(false);
+      }
+    })();
   }, [activeTab]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────

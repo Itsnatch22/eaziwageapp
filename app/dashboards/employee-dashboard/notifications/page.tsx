@@ -50,27 +50,32 @@ export default function EmployeeNotificationsPage() {
     }, []);
 
     useEffect(() => {
-        fetchNotifications();
+        const timeoutId = window.setTimeout(() => {
+            void fetchNotifications();
+        }, 0);
 
-        if (user?.id && pusherClient) {
-            const channel = pusherClient.subscribe(`user-${user.id}`);
-            
-            channel.bind('new-notification', (data: Notification) => {
-                setNotifications(prev => [data, ...prev].slice(0, 50));
-                toast(data.title, {
-                    description: data.message,
-                    icon: <Bell className="w-5 h-5 text-primary" />
-                });
-            });
-
-            channel.bind('notification-deleted', (data: { id: string }) => {
-                setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
-            });
-
-            return () => {
-                pusherClient!.unsubscribe(`user-${user.id}`);
-            };
+        if (!user?.id || !pusherClient) {
+            return () => window.clearTimeout(timeoutId);
         }
+
+        const channel = pusherClient.subscribe(`user-${user.id}`);
+        
+        channel.bind('new-notification', (data: Notification) => {
+            setNotifications(prev => [data, ...prev].slice(0, 50));
+            toast(data.title, {
+                description: data.message,
+                icon: <Bell className="w-5 h-5 text-primary" />
+            });
+        });
+
+        channel.bind('notification-deleted', (data: { id: string }) => {
+            setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
+        });
+
+        return () => {
+            window.clearTimeout(timeoutId);
+            pusherClient!.unsubscribe(`user-${user.id}`);
+        };
     }, [user?.id, fetchNotifications]);
 
     const markAsRead = async (id?: string) => {

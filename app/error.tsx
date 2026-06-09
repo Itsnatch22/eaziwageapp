@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { AlertCircle, RefreshCcw, Home, ChevronLeft } from "lucide-react";
+import { AlertCircle, RefreshCcw, Home } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 

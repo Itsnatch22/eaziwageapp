@@ -7,14 +7,12 @@ import {
   History, Smartphone, Calendar,
   Loader2, Landmark, Search, ChevronRight, CheckCircle2, Clock
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { ExportButton } from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useCurrency } from '@/hooks/useCurrency';
 import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
-import Link from 'next/link';
 import { toast } from 'sonner';
 
 type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'completed' | 'rejected' | string;

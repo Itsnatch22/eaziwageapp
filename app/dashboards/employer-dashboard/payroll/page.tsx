@@ -442,6 +442,7 @@ export default function EmployerPayroll() {
 
   // ── Fetch all data ─────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
+    await Promise.resolve();
     try {
       const [profileRes, employeesRes, historyRes, connectRes] = await Promise.all([
         fetch('/api/employer-dashboard/profile').then(r => r.ok ? r.json() : null).catch(() => null),
@@ -474,6 +475,7 @@ export default function EmployerPayroll() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const downloadTemplate = () => {

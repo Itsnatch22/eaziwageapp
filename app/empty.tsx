@@ -4,7 +4,6 @@ import React from "react";
 import { 
   Inbox, 
   Search, 
-  FileQuestion, 
   Plus, 
   ArrowRight,
   LucideIcon 

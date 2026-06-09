@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       .from('employer_onboarding')
       .select(EMPLOYER_DOCUMENT_FIELDS.join(','))
       .eq('id', onboardingId)
-      .maybeSingle();
+      .maybeSingle() as { data: any; error: any };
 
     const documentUrls = {
       certificate_of_incorporation: certificate_of_incorporation || existingDraft?.certificate_of_incorporation || null,

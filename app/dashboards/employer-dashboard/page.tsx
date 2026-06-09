@@ -327,6 +327,8 @@ export default function EmployerDashboard() {
   );
 
   const load = useCallback(async () => {
+    // defer state updates to avoid synchronous setState inside useEffect
+    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
@@ -383,6 +385,7 @@ export default function EmployerDashboard() {
     }
   }, [router, triggerConfetti]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {

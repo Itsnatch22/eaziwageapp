@@ -35,6 +35,8 @@ const MessagesPage = () => {
   const [message, setMessage] = useState('');
 
   const fetchData = useCallback(async () => {
+    // defer state updates to avoid synchronous setState inside useEffect
+    await Promise.resolve();
     setLoading(true);
     try {
       const [annRes, profileRes] = await Promise.all([
@@ -59,6 +61,7 @@ const MessagesPage = () => {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 

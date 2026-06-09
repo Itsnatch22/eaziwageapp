@@ -67,9 +67,11 @@ export function CommandPalette() {
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
+      /* eslint-disable react-hooks/set-state-in-effect */
       setQuery('');
       setApiResults([]);
       setSelectedIndex(0);
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [isOpen]);
 

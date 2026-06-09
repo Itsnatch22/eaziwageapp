@@ -17,7 +17,6 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { DeleteAccountModal } from '@/components/employee/DeleteAccountModal';
@@ -879,4 +878,3 @@ export default function EmployeeSettings() {
     </EmployeePageLayout>
   );
 }
-

@@ -43,6 +43,8 @@ const WalletPage = () => {
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
 
   const fetchData = useCallback(async () => {
+    // Defer the initial loading state to avoid synchronous setState in useEffect
+    await Promise.resolve();
     setLoading(true);
     try {
       const [walletRes, profileRes] = await Promise.all([
@@ -69,7 +71,7 @@ const WalletPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    Promise.resolve().then(() => fetchData());
   }, [fetchData]);
 
   const getTransactionIcon = (type: string) => {

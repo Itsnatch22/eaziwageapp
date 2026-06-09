@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Info,
@@ -183,31 +183,42 @@ export default function RequestAdvance() {
   const [disbursementMethod, setDisbursementMethod] =
     useState<DisbursementMethod>("mobile_money");
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/employee-dashboard/overview");
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error("Failed to load portal data");
-        return;
-      }
-      const profile = { ...(data?.employee || {}), ...(data?.stats || {}) };
-      setEmployee(profile);
-      const available = Math.min(
-        profile.advance_limit || 0,
-        profile.earned_wages || 0,
-      );
-      if (available > 0) setAmount(Math.min(500, available));
-    } catch {
-      toast.error("Connection error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
+    let cancelled = false;
+
+    async function fetchData() {
+      try {
+        const res = await fetch("/api/employee-dashboard/overview");
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error("Failed to load portal data");
+          return;
+        }
+        if (cancelled) return;
+
+        const profile = { ...(data?.employee || {}), ...(data?.stats || {}) };
+        setEmployee(profile);
+
+        const available = Math.min(
+          profile.advance_limit || 0,
+          profile.earned_wages || 0,
+        );
+        if (available > 0) {
+          setAmount(Math.min(500, available));
+        }
+      } catch {
+        if (!cancelled) toast.error("Connection error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
     fetchData();
-  }, [fetchData]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const maxAmount = Math.min(
     employee?.advance_limit || 0,

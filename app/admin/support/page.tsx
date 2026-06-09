@@ -30,13 +30,16 @@ export default function AdminSupportPage() {
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setTickets(data.tickets || []);
-    } catch (err) {
+    } catch {
       toast.error("Unable to load tickets");
     }
   };
 
   useEffect(() => {
-    fetchTickets();
+    const timeoutId = window.setTimeout(() => {
+      void fetchTickets();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   const openThread = async (t: Ticket) => {
@@ -86,7 +89,7 @@ export default function AdminSupportPage() {
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
+      await res.json();
       toast.success("Status updated");
       fetchTickets();
       setSelected((s) => (s ? { ...s, status } : s));

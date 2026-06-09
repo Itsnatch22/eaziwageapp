@@ -132,25 +132,36 @@ async function handleCollectionEvent(event: string, payload: DusupayWebhookPaylo
   console.log(`[Dusupay Webhook] Wallet funding ${status} for Employer: ${employerId}`);
 }
 
+interface AdvancePayoutRow {
+  id: string;
+  status: string;
+  employer_id: string;
+  amount: number;
+  employee_id: string;
+  employee_onboarding?: { user_id?: string | null } | Array<{ user_id?: string | null }> | null;
+}
+
+function getOnboardingUserId(
+  onboarding: AdvancePayoutRow['employee_onboarding']
+): string | undefined {
+  if (!onboarding) return undefined;
+  if (Array.isArray(onboarding)) return onboarding[0]?.user_id ?? undefined;
+  return onboarding.user_id ?? undefined;
+}
+
 async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, merchantRef: string, internalRef: string) {
   const isCompleted = event === 'transaction.completed' || (payload.status as string) === PayoutStatus.COMPLETED;
   const isFailed = ['transaction.failed', 'request.failed'].includes(event) || 
                    [PayoutStatus.FAILED, PayoutStatus.CANCELLED].map(s => s as string).includes(payload.status || '');
   const newStatus = isCompleted ? 'completed' : isFailed ? 'failed' : 'processing';
-  
-interface AdvancePayoutRow {
-        id: string;
-        status: string;
-        employer_id: string;
-        amount: number;
-        employee_id: string;
-        employee_onboarding?: { user_id?: string | null } | null;
-      }
-  const { data: advance } = await supabaseAdmin
+
+  const { data: advanceData } = await supabaseAdmin
     .from('advances')
     .select('id, status, employer_id, amount, employee_id, employee_onboarding(user_id)')
     .eq('reference', merchantRef)
     .single();
+
+  const advance = advanceData as AdvancePayoutRow | null;
 
   if (advance && !['completed', 'failed', 'repaid'].includes(advance.status)) {
     await supabaseAdmin.from('advances').update({
@@ -160,10 +171,7 @@ interface AdvancePayoutRow {
     }).eq('id', advance.id);
 
     try {
-      const onboarding = advance.employee_onboarding;
-      const employeeUserId = Array.isArray(onboarding)
-        ? onboarding[0]?.user_id
-        : (onboarding as any)?.user_id;
+      const employeeUserId = getOnboardingUserId(advance.employee_onboarding);
 
       if (employeeUserId) {
         await notifyEmployee({

@@ -378,9 +378,12 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   useEffect(() => {
     if (globalUser && userProfile && globalUser.id === userProfile.id) {
       if (globalUser.avatar_url !== userProfile.avatar_url) {
-        setUserProfile((prev) =>
-          prev ? { ...prev, avatar_url: globalUser.avatar_url } : null,
-        );
+        // Defer update to avoid synchronous setState in effect
+        Promise.resolve().then(() => {
+          setUserProfile((prev) =>
+            prev ? { ...prev, avatar_url: globalUser.avatar_url } : null,
+          );
+        });
       }
     }
   }, [globalUser, userProfile]);
@@ -407,7 +410,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   }, [userProfile?.id]);
 
   useEffect(() => {
-    setIsHydrated(true);
+    Promise.resolve().then(() => setIsHydrated(true));
   }, []);
 
   useEffect(() => {

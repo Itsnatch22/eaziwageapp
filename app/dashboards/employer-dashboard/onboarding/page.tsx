@@ -21,7 +21,6 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/lib/stores/auth";
 import { DOCUMENT_ACCEPT, isDocumentFile } from "@/lib/upload-file-types";
 import { DocTooltip } from "@/components/shared/DocTooltip";
-import { OnboardingSubmitPayload } from "@/lib/validations/employer-onboarding";
 
 const COUNTRIES = [
   { code: "KE", name: "Kenya" },

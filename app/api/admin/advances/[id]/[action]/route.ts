@@ -1,14 +1,16 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 
 export const runtime = 'nodejs';
 
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string; action: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string; action: string }> }
 ) {
+  const { id, action } = await context.params;
   const supabase = await createRouteHandlerClient();
+  
   const {
     data: { user },
     error: authError,
@@ -26,8 +28,6 @@ export async function PATCH(
   if (!adminResult.isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-
-  const { id, action } = params;
 
   if (!['approve', 'disburse', 'reject'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

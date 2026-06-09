@@ -96,7 +96,10 @@ export default function EmployeeKYC() {
     }, [triggerConfetti]);
 
     useEffect(() => {
-        fetchDocuments();
+        const timeoutId = window.setTimeout(() => {
+            void fetchDocuments();
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
     }, [fetchDocuments]);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
