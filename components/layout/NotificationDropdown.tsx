@@ -43,7 +43,8 @@ export const NotificationDropdown = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMounted(true);
+    const mountTimer = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(mountTimer);
   }, []);
 
 
@@ -65,7 +66,9 @@ export const NotificationDropdown = ({
   }, [apiPath]);
 
   useEffect(() => {
-    fetchNotifications();
+    const timeoutId = window.setTimeout(() => {
+      fetchNotifications();
+    }, 0);
 
     if (pusherClient && pusherChannel) {
       const channel = pusherClient.subscribe(pusherChannel);
@@ -83,9 +86,12 @@ export const NotificationDropdown = ({
       });
 
       return () => {
+        window.clearTimeout(timeoutId);
         pusherClient!.unsubscribe(pusherChannel);
       };
     }
+
+    return () => window.clearTimeout(timeoutId);
   }, [pusherChannel, fetchNotifications, primaryColor]);
 
   useEffect(() => {

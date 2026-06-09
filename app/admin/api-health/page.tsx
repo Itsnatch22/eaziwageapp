@@ -412,7 +412,10 @@ export default function AdminAPIHealth() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timeoutId = window.setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchData]);
 
   useEffect(() => {

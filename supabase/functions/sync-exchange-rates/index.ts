@@ -4,7 +4,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-Deno.serve(async (req) => {
+Deno.serve(async () => {
   try {
     const response = await fetch('https://open.er-api.com/v6/latest/USD')
     const data = await response.json()

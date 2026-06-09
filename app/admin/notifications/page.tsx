@@ -67,9 +67,11 @@ export default function AdminNotificationsPage() {
   }, []);
 
   useEffect(() => {
-    fetchNotifications();
+    const timer = setTimeout(() => {
+      fetchNotifications();
+    }, 0);
 
-    if (!pusherClient) return;
+    if (!pusherClient) return () => clearTimeout(timer);
 
     const channel = pusherClient!.subscribe('admin-notifications');
 
@@ -83,6 +85,7 @@ export default function AdminNotificationsPage() {
     });
 
     return () => {
+      clearTimeout(timer);
       pusherClient!.unsubscribe('admin-notifications');
     };
   }, [fetchNotifications]);

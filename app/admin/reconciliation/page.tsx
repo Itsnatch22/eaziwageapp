@@ -8,9 +8,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { convertToUSD, formatCurrency, cn } from '@/lib/utils';
-import { useCurrency } from '@/hooks/useCurrency';
-import { useExchangeRates } from '@/hooks/useExchangeRates';
+import { formatCurrency, cn } from '@/lib/utils';
 
 type IconSize = 'sm' | 'md';
 type IconComponent = React.ComponentType<{ className?: string }>;
@@ -33,7 +31,6 @@ interface EmployerReconRowProps {
       status: string;
     }[];
   };
-  currency: string;
   onExpand: () => void;
   expanded: boolean;
 }
@@ -93,30 +90,7 @@ const SummaryCard = ({ icon, label, value, subvalue, variant }: SummaryCardProps
   </div>
 );
 
-interface EmployerReconRowProps {
-  employer: {
-    employer_id: string;
-    employer_name: string;
-    total_advances: number;
-    total_amount: number;
-    total_fees: number;
-    pending_recoupment: number;
-    recouped: number;
-    recoupmentRate?: number;
-    advances?: {
-      id: string;
-      reference: string;
-      employee_name: string;
-      amount: number;
-      status: string;
-    }[];
-  };
-  currency: string;
-  rates: any;
-  onExpand: () => void;
-  expanded: boolean;
-}
-const EmployerReconRow = ({ employer, currency, rates, onExpand, expanded }: EmployerReconRowProps) => {
+const EmployerReconRow = ({ employer, onExpand, expanded }: EmployerReconRowProps) => {
   const recoupmentRate = employer.total_amount > 0 
     ? (employer.recouped / (employer.total_amount + employer.total_fees)) * 100
     : 0;
@@ -226,8 +200,6 @@ interface ReconciliationData {
   }[];
 }
 export default function AdminReconciliation() {
-  const { currency } = useCurrency();
-  const { rates } = useExchangeRates();
   const [data, setData] = useState<ReconciliationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -349,8 +321,6 @@ export default function AdminReconciliation() {
             <EmployerReconRow 
               key={employer.employer_id}
               employer={employer}
-              currency={currency}
-              rates={rates}
               expanded={expandedEmployer === employer.employer_id}
               onExpand={() => setExpandedEmployer(
                 expandedEmployer === employer.employer_id ? null : employer.employer_id

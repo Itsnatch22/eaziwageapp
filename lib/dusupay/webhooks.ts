@@ -25,7 +25,7 @@ export class DusupayWebhookHandler {
    * Verifies the HMAC signature provided in the webhook header
    * Format: t=timestamp,s=hash
    */
-  verifyHmac(payload: string, header: string): boolean {
+  verifyHmac(rawBody: string, header: string): boolean {
     if (!header || !this.signingKey) return false;
 
     const parts = header.split(',');
@@ -34,11 +34,22 @@ export class DusupayWebhookHandler {
 
     if (!timestamp || !signature) return false;
 
-    const expected = createHmac('sha256', this.signingKey)
-      .update(`${timestamp}.${payload}`)
-      .digest('hex');
-
     try {
+      const body = JSON.parse(rawBody);
+      const event = body.event;
+      const {
+        merchant_reference,
+        internal_reference,
+        transaction_type,
+        transaction_status
+      } = body.payload;
+
+      const payloadString = `${event}:${merchant_reference}:${internal_reference}:${transaction_type}:${transaction_status}`;
+
+      const expected = createHmac('sha256', this.signingKey)
+        .update(payloadString)
+        .digest('hex');
+
       return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
     } catch {
       return false;

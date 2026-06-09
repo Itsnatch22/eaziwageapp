@@ -571,15 +571,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
   const [loading, setLoading] = useState<boolean>(true);
   const [, setSaving] = useState<boolean>(false);
 
-  useEffect(() => {
-    fetchEmployers();
-  }, []);
-
-  useEffect(() => {
-    onSaveAvailabilityChange(Boolean(selectedEmployer && employerSettings));
-  }, [employerSettings, onSaveAvailabilityChange, selectedEmployer]);
-
-  const fetchEmployers = async () => {
+  const fetchEmployers = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/settings/employers`, {
         headers: { 'Content-Type': 'application/json' }
@@ -593,7 +585,18 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      fetchEmployers();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchEmployers]);
+
+  useEffect(() => {
+    onSaveAvailabilityChange(Boolean(selectedEmployer && employerSettings));
+  }, [employerSettings, onSaveAvailabilityChange, selectedEmployer]);
 
   const selectEmployer = async (employer: Employer) => {
     setSelectedEmployer(employer);
@@ -962,7 +965,10 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
   }, [token]);
 
   useEffect(() => {
-    fetchEmployees();
+    const timeoutId = window.setTimeout(() => {
+      fetchEmployees();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchEmployees]);
 
   useEffect(() => {
@@ -1572,7 +1578,10 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
   }, [token]);
 
   useEffect(() => {
-    fetchBlackouts();
+    const timeoutId = window.setTimeout(() => {
+      fetchBlackouts();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchBlackouts]);
 
   const saveBlackout = async () => {
@@ -1838,7 +1847,10 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
   }, [token]);
 
   useEffect(() => {
-    fetchDocuments();
+    const timeoutId = window.setTimeout(() => {
+      fetchDocuments();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchDocuments]);
 
   const selectDocument = async (docType: LegalDocument['document_type']) => {
@@ -2110,12 +2122,18 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
   }, [filters, pagination.limit, pagination.skip, token]);
 
   useEffect(() => {
-    fetchAuditData();
-    fetchAdmins();
+    const timeoutId = window.setTimeout(() => {
+      fetchAuditData();
+      fetchAdmins();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchAuditData, fetchAdmins]);
 
   useEffect(() => {
-    fetchAuditLogs();
+    const timeoutId = window.setTimeout(() => {
+      fetchAuditLogs();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchAuditLogs]);
 
   return (
@@ -2300,11 +2318,17 @@ const AdminProfileTab: React.FC = () => {
 };
 
 const AdminSettings: React.FC = () => {
-  const [loading, setLoading] = useState<boolean>(true);
+  const [token] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('eaziwage_token');
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return Boolean(localStorage.getItem('eaziwage_token'));
+  });
   const [saving, setSaving] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<TabId | 'account'>('account');
   const [hasChanges, setHasChanges] = useState<boolean>(false);
-  const [token, setToken] = useState<string | null>(null);
   const employerConfigRef = useRef<SettingsSaveHandle>(null);
   const employeeConfigRef = useRef<SettingsSaveHandle>(null);
   const [employerSaveAvailable, setEmployerSaveAvailable] = useState(false);
@@ -2336,17 +2360,7 @@ const AdminSettings: React.FC = () => {
     fetchSecurityLogs();
   }, [activeTab]);
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem('eaziwage_token');
-    setToken(storedToken);
-    if (storedToken) {
-      fetchAllSettings(storedToken);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchAllSettings = async (authToken: string) => {
+  const fetchAllSettings = useCallback(async (authToken: string) => {
     setLoading(true);
     try {
       const [globalRes, riskRes, notifRes] = await Promise.all([
@@ -2364,7 +2378,16 @@ const AdminSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const timeoutId = window.setTimeout(() => {
+      fetchAllSettings(token);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [token, fetchAllSettings]);
 
   const handleSaveAll = async () => {
     setSaving(true);

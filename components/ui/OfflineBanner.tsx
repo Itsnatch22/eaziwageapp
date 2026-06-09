@@ -9,14 +9,23 @@ export function OfflineBanner() {
   const [showOnline, setShowOnline] = useState(false);
 
   useEffect(() => {
-    if (isOnline && !isChecking) {
-      setShowOnline(true);
-      const t = setTimeout(() => setShowOnline(false), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [isOnline, isChecking]);
+    if (!isOnline || isChecking) return
 
-  if (isOnline && !isChecking && !showOnline) return null;
+    const showTimer = window.setTimeout(() => {
+      setShowOnline(true)
+    }, 0)
+
+    const hideTimer = window.setTimeout(() => {
+      setShowOnline(false)
+    }, 4000)
+
+    return () => {
+      window.clearTimeout(showTimer)
+      window.clearTimeout(hideTimer)
+    }
+  }, [isOnline, isChecking])
+
+  if (isOnline && !isChecking && !showOnline) return null
 
   return (
     <div

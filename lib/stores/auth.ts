@@ -1,7 +1,6 @@
 import { createClient } from "../supabase/client";
 import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
-import { toast } from "react-hot-toast";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 interface AuthState {
   user: (User & { full_name?: string; avatar_url?: string; role?: 'super_admin' | 'employer_admin' | 'employee' }) | null;
@@ -47,7 +46,7 @@ export function updateUserAvatar(avatarUrl: string) {
   }
 }
 
-async function fetchUserRole(supabase: any, userId: string): Promise<'super_admin' | 'employer_admin' | 'employee' | undefined> {
+async function fetchUserRole(supabase: SupabaseClient, userId: string): Promise<'super_admin' | 'employer_admin' | 'employee' | undefined> {
 
   const { data: admin } = await supabase.from('system_admins').select('id').eq('id', userId).single();
   if (admin) return 'super_admin';

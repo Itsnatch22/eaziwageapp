@@ -16,7 +16,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
-import { useCurrency } from '@/hooks/useCurrency';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast }                   from 'sonner';
 import { DOCUMENT_TYPE_LABELS } from '@/lib/validations/kyc-validation';
@@ -298,7 +297,6 @@ const getDocumentLabel = (documentType: string) =>
 
 interface EmployeeRowProps {
   employee:       Employee;
-  currency:       string;
   rates:          Record<string, number>;
   isSelected:     boolean;
   onToggleSelect: (id: string) => void;
@@ -308,7 +306,6 @@ interface EmployeeRowProps {
 
 const EmployeeRow: React.FC<EmployeeRowProps> = ({ 
   employee, 
-  currency,
   rates,
   isSelected, 
   onToggleSelect, 
@@ -408,7 +405,6 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
 
 interface EmployeeDetailModalProps {
   employee:  Employee | null;
-  currency:  string;
   rates:     Record<string, number>;
   isOpen:    boolean;
   onClose:   () => void;
@@ -417,7 +413,6 @@ interface EmployeeDetailModalProps {
 
 const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ 
   employee, 
-  currency,
   rates,
   isOpen, 
   onClose, 
@@ -463,9 +458,12 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
 
   useEffect(() => {
     if (isOpen && employee?.id) {
-      fetchEmployeeDetail();
+      const timer = setTimeout(() => {
+        fetchEmployeeDetail();
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [isOpen, employee?.id, fetchEmployeeDetail]);;
+  }, [isOpen, employee?.id, fetchEmployeeDetail]);
 
   const handleStatusChange = async (newStatus: EmployeeStatus) => {
     if (!employee) return;
@@ -1223,7 +1221,6 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
 };
 
 export default function AdminEmployees() {
-  const { currency } = useCurrency();
   const { rates } = useExchangeRates();
   const [employees,         setEmployees]         = useState<Employee[]>([]);
   const [serverStats,       setServerStats]       = useState<Stats | null>(null);
@@ -1258,7 +1255,10 @@ export default function AdminEmployees() {
   }, []);
 
   useEffect(() => {
-    fetchEmployees();
+    const timer = setTimeout(() => {
+      fetchEmployees();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchEmployees]);
 
   const handleQuickAction = async (action: EmployeeStatus | 'kyc_approve') => {
@@ -1591,7 +1591,6 @@ export default function AdminEmployees() {
                 <EmployeeRow 
                   key={employee.id} 
                   employee={employee}
-                  currency={currency}
                   rates={rates}
                   isSelected={selectedIds.has(employee.id)}
                   onToggleSelect={toggleSelectOne}
@@ -1620,7 +1619,6 @@ export default function AdminEmployees() {
       {/* Detail Modal */}
       <EmployeeDetailModal 
         employee={selectedEmployee}
-        currency={currency}
         rates={rates}
         isOpen={showDetailModal}
         onClose={() => {

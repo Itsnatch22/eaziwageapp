@@ -7,9 +7,7 @@ import {
   TrendingUp, ArrowRight, FileText, Activity, AlertTriangle, 
   DollarSign, BarChart3, RefreshCw, Bell
 } from 'lucide-react';
-import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY, formatDateTime, convertToUSD } from '@/lib/utils';
-import { useCurrency } from '@/hooks/useCurrency';
-import { useExchangeRates } from '@/hooks/useExchangeRates';
+import { formatCurrency, cn, formatDateTime } from '@/lib/utils';
 import pusherClient from '@/lib/pusher-client';
 
 type VariantColor = 'green' | 'slate' | 'black';
@@ -190,8 +188,6 @@ const NotificationCenter = ({ notifications }: { notifications: Notification[] }
 };
 
 export default function AdminDashboard() {
-  const { currency } = useCurrency();
-  const { rates } = useExchangeRates();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);

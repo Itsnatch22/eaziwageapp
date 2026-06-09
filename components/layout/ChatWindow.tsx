@@ -48,9 +48,13 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
   }, [otherUserId]);
 
   useEffect(() => {
-    fetchMessages();
+    const timeoutId = window.setTimeout(() => {
+      fetchMessages();
+    }, 0);
 
-    if (!pusherClient) return;
+    if (!pusherClient) {
+      return () => window.clearTimeout(timeoutId);
+    }
     
     const channel = pusherClient.subscribe(`user-${currentUserId}-messages`);
     channel.bind('new-message', (data: Message) => {
@@ -60,6 +64,7 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
     });
 
     return () => {
+      window.clearTimeout(timeoutId);
       pusherClient!.unsubscribe(`user-${currentUserId}-messages`);
     };
   }, [currentUserId, otherUserId, fetchMessages]);

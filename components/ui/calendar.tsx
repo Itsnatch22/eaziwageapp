@@ -21,6 +21,7 @@ function Calendar({
   locale,
   formatters,
   components,
+  showWeekNumber = false,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
@@ -98,7 +99,7 @@ function Calendar({
         ),
         day: cn(
           "group/day relative aspect-square h-full w-full rounded-(--cell-radius) p-0 text-center select-none [&:last-child[data-selected=true]_button]:rounded-r-(--cell-radius)",
-          (props as any).showWeekNumber
+          showWeekNumber
             ? "[&:nth-child(2)[data-selected=true]_button]:rounded-l-(--cell-radius)"
             : "[&:first-child[data-selected=true]_button]:rounded-l-(--cell-radius)",
           defaultClassNames.day

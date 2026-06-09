@@ -9,6 +9,7 @@ interface DusupayWebhookPayload {
   transaction_amount?: number | string;
   transaction_currency?: string;
   status_message?: string;
+  transaction_type?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
   const event = body.event;
   const payload = body.payload as DusupayWebhookPayload;
 
-  const hmacHeader = req.headers.get('x-dusupay-signature');
+  const hmacHeader = req.headers.get('hmac-signature') || req.headers.get('x-dusupay-signature');
   if (hmacHeader && !dusupayWebhook.verifyHmac(rawBody, hmacHeader)) {
     console.error('[DusuPay Webhook] Invalid HMAC signature');
     return new NextResponse('Invalid signature', { status: 401 });

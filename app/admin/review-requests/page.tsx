@@ -395,9 +395,13 @@ export default function ReviewRequests() {
   };
 
   useEffect(() => {
-    fetchRequests();
+    const timeoutId = window.setTimeout(() => {
+      fetchRequests();
+    }, 0);
 
-    if (!pusherClient) return;
+    if (!pusherClient) {
+      return () => window.clearTimeout(timeoutId);
+    }
 
     const channel = pusherClient.subscribe('admin-reviews');
     
@@ -414,6 +418,7 @@ export default function ReviewRequests() {
     });
 
     return () => {
+      window.clearTimeout(timeoutId);
       channel.unbind('new-request');
       channel.unbind('request-updated');
       pusherClient!.unsubscribe('admin-reviews');

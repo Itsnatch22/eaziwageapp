@@ -189,7 +189,10 @@ export default function AdminReports() {
   }, [selectedType, selectedPeriod, searchQuery]);
 
   useEffect(() => {
-    fetchReports();
+    const timeoutId = window.setTimeout(() => {
+      fetchReports();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchReports]);
 
 

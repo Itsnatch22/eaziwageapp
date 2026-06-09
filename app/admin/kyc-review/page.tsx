@@ -242,7 +242,10 @@ export default function KYCReviewPage() {
   }, [filter]);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const handleReviewEmployee = async (docId: string, status: 'approved' | 'rejected', notes: string) => {

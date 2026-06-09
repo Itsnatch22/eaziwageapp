@@ -12,10 +12,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
-import { formatCurrency, cn, DEFAULT_ADMIN_CURRENCY, convertToUSD } from '@/lib/utils';
-import { useCurrency } from '@/hooks/useCurrency';
-import { useExchangeRates } from '@/hooks/useExchangeRates';
+import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+
 
 interface BillingData {
   summary: {
@@ -95,8 +94,6 @@ const MetricCard = ({ icon: Icon, label, value, subtext, variant = 'purple' }: M
 };
 
 export default function BillingPage() {
-  const { currency } = useCurrency();
-  const { rates } = useExchangeRates();
   const [data, setData] = useState<BillingData | null>(null);
   const [employers, setEmployers] = useState<Employer[]>([]);
   const [loading, setLoading] = useState(true);

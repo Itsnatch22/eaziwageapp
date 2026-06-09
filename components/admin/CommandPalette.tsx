@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Search, Users, Building2, CreditCard, 
@@ -42,7 +42,7 @@ export function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [debouncedQuery] = useDebounce(query, 300);
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [apiResults, setApiResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,52 +68,61 @@ export function CommandPalette() {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
       setQuery('');
-      setResults([]);
+      setApiResults([]);
+      setSelectedIndex(0);
     }
   }, [isOpen]);
 
-  // Fetch results - includes both API search and navigation items
-  useEffect(() => {
-    const query = debouncedQuery.toLowerCase();
-    
-    // Always include navigation items that match the query
-    const matchedNavItems: SearchResult[] = adminNavItems
-      .filter(item => item.title.toLowerCase().includes(query))
+  const matchedNavItems = useMemo<SearchResult[]>(() => {
+    const normalizedQuery = debouncedQuery.toLowerCase();
+    return adminNavItems
+      .filter(item => item.title.toLowerCase().includes(normalizedQuery))
       .map(item => ({
         type: 'navigation' as const,
         id: item.id,
         title: item.title,
         href: item.href,
       }));
+  }, [debouncedQuery]);
 
+  const results = useMemo(() => {
     if (!debouncedQuery || debouncedQuery.length < 2) {
-      // When query is empty or too short, show navigation items only
-      setResults(matchedNavItems);
-      return;
+      return matchedNavItems;
     }
+    return [...matchedNavItems, ...apiResults];
+  }, [debouncedQuery, matchedNavItems, apiResults]);
 
-    async function fetchResults() {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/admin/search?q=${encodeURIComponent(debouncedQuery)}`);
-        let apiResults: SearchResult[] = [];
-        if (res.ok) {
-          const data = await res.json();
-          apiResults = data.results || [];
+  useEffect(() => {
+    if (!debouncedQuery || debouncedQuery.length < 2) return;
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        setLoading(true);
+        try {
+          const res = await fetch(`/api/admin/search?q=${encodeURIComponent(debouncedQuery)}`);
+          if (cancelled) return;
+
+          if (res.ok) {
+            const data = await res.json();
+            setApiResults(data.results || []);
+          } else {
+            setApiResults([]);
+          }
+          setSelectedIndex(0);
+        } catch (err) {
+          console.error('Search error:', err);
+          if (!cancelled) setApiResults([]);
+        } finally {
+          if (!cancelled) setLoading(false);
         }
-        // Combine navigation items with API results
-        setResults([...matchedNavItems, ...apiResults]);
-        setSelectedIndex(0);
-      } catch (err) {
-        console.error('Search error:', err);
-        // Still show navigation items on error
-        setResults(matchedNavItems);
-      } finally {
-        setLoading(false);
-      }
-    }
+      })();
+    }, 0);
 
-    fetchResults();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [debouncedQuery]);
 
   const handleSelect = useCallback((result: SearchResult) => {

@@ -1,6 +1,5 @@
-const { createClient } = require('@supabase/supabase-js');
-
 async function main() {
+  const { createClient } = await import('@supabase/supabase-js');
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

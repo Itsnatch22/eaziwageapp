@@ -3,7 +3,6 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Loader2, User } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { updateUserAvatar } from '@/lib/stores/auth';
 import { toast } from 'sonner';
@@ -54,7 +53,7 @@ export function AvatarUpload({
       const filePath = `${userId}.${fileExt}`;
 
       // Use upsert: true to overwrite if it exists
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file, { 
           upsert: true,
@@ -97,8 +96,10 @@ export function AvatarUpload({
       }
 
       toast.success('Profile picture updated');
-    } catch (error: any) {
-      toast.error(error.message || 'Something went wrong');
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Something went wrong';
+      toast.error(message);
       console.error(error);
     } finally {
       setUploading(false);

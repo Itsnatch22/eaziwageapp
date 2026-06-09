@@ -231,11 +231,10 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
   });
   const [overrideReason, setOverrideReason] = useState('');
 
-  useEffect(() => {
-    if (!isOpen) {
-      setOverrideReason('');
-    }
-  }, [isOpen, employer?.id]);
+  const handleClose = () => {
+    setOverrideReason('');
+    onClose();
+  };
 
   const categories = [
     {
@@ -324,7 +323,7 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
       
       toast.success('Risk assessment saved successfully');
       onSuccess();
-      onClose();
+      handleClose();
     } catch {
       toast.error('Failed to save assessment');
     } finally {
@@ -343,7 +342,7 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
               <h2 className="text-xl font-bold">Risk Assessment</h2>
               <p className="text-purple-100 text-sm mt-1">{employer.company_name} ({employer.employer_code})</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} className="text-white hover:bg-white/10">
+            <Button variant="ghost" size="sm" onClick={handleClose} className="text-white hover:bg-white/10">
               <XCircle className="w-5 h-5" />
             </Button>
           </div>
@@ -425,7 +424,7 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
                 >
                   {loading ? 'Saving...' : 'Complete Assessment'}
                 </Button>
-                <Button variant="ghost" className="w-full" onClick={onClose}>Cancel</Button>
+                <Button variant="ghost" className="w-full" onClick={handleClose}>Cancel</Button>
               </div>
             </div>
           </div>
@@ -482,17 +481,15 @@ export default function AdminEmployersPage() {
   }, [searchTerm, statusFilter, countryFilter, riskRatingFilter]);
 
   useEffect(() => {
-    fetchEmployers();
-  }, [fetchEmployers, statusFilter, countryFilter, riskRatingFilter]);
+    if (searchTerm.length === 1) return;
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchTerm.length === 0 || searchTerm.length >= 2) {
-        fetchEmployers();
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchTerm, fetchEmployers]);
+    const delay = searchTerm.length >= 2 ? 500 : 0;
+    const timeoutId = window.setTimeout(() => {
+      fetchEmployers();
+    }, delay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm, statusFilter, countryFilter, riskRatingFilter, fetchEmployers]);
 
   const handleSort = (field: keyof Employer) => {
     if (sortField === field) {
@@ -877,6 +874,7 @@ export default function AdminEmployersPage() {
       )}
 
       <RiskAssessmentModal 
+        key={selectedEmployer?.id ?? 'closed'}
         employer={selectedEmployer}
         isOpen={showAssessment}
         onClose={() => {

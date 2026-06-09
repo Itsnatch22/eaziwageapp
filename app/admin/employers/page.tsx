@@ -387,7 +387,10 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
 
   useEffect(() => {
     if (isOpen && employer?.id) {
-      fetchEmployerDetail();
+      const timer = setTimeout(() => {
+        fetchEmployerDetail();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, employer?.id, fetchEmployerDetail]);
 
@@ -860,11 +863,17 @@ export default function AdminEmployers() {
   }, [countryFilter, debouncedSearch, statusFilter]);
 
   useEffect(() => {
-    fetchEmployers();
+    const timer = setTimeout(() => {
+      fetchEmployers();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchEmployers]);
 
   useEffect(() => {
-    setSelectedIds(new Set());
+    const timer = setTimeout(() => {
+      setSelectedIds(new Set());
+    }, 0);
+    return () => clearTimeout(timer);
   }, [debouncedSearch, statusFilter, countryFilter]);
 
   const handleQuickAction = async (newStatus: EmployerStatus) => {

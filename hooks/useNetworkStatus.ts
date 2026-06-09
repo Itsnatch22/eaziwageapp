@@ -26,20 +26,26 @@ export function useNetworkStatus(): NetworkStatus {
     }
   }, []);
 
-  useEffect(() => {
+  const handleOnline = useCallback(() => {
     verifyConnectivity();
+  }, [verifyConnectivity]);
 
-    const handleOnline = () => verifyConnectivity();
-    const handleOffline = () => setIsOnline(false);
+  const handleOffline = useCallback(() => {
+    setIsOnline(false);
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(verifyConnectivity, 0);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
     return () => {
+      window.clearTimeout(timeoutId);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [verifyConnectivity]);
+  }, [verifyConnectivity, handleOnline, handleOffline]);
 
   return { isOnline, isChecking };
 }

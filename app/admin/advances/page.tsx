@@ -11,8 +11,7 @@ import { ExportButton } from '@/components/ui/ExportButton';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { formatCurrency, formatDateTime, cn, DEFAULT_ADMIN_CURRENCY, convertToUSD } from '@/lib/utils';
-import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast } from 'sonner';
 
@@ -60,7 +59,6 @@ const statusStyles: Record<
 
 interface AdvanceDetailModalProps {
   advance: Advance | null;
-  currency: string;
   rates: Record<string, number>;
   onClose: () => void;
   isOpen: boolean;
@@ -121,7 +119,6 @@ interface Advance {
 
 interface AdvanceRowProps {
   advance: Advance;
-  currency: string;
   rates: Record<string, number>;
   onViewDetails: (advance: Advance) => void;
   onApprove: (id: string) => void;
@@ -131,7 +128,6 @@ interface AdvanceRowProps {
 
 export function AdvanceRow({
   advance,
-  currency,
   rates,
   onViewDetails,
   onApprove,
@@ -338,7 +334,6 @@ export function FilterButton({ onClick, count = 0, active, children }: FilterBut
 
 export function AdvanceDetailModal({
   advance,
-  currency,
   rates,
   onClose,
   onApprove,
@@ -467,7 +462,6 @@ export function AdvanceDetailModal({
 }
 
 export default function AdminAdvances(){
-  const { currency } = useCurrency();
   const { rates } = useExchangeRates();
   const [advances, setAdvances] = useState<Advance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -495,7 +489,10 @@ export default function AdminAdvances(){
   }, []);
 
   useEffect(() => {
-    fetchAdvances();
+    const timeoutId = window.setTimeout(() => {
+      fetchAdvances();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchAdvances]);
 
   const handleApprove = async(id: string) => {
@@ -689,7 +686,6 @@ export default function AdminAdvances(){
                 <AdvanceRow 
                   key={advance.id} 
                   advance={advance}
-                  currency={currency}
                   rates={rates}
                   onViewDetails={(a) => {
                     setSelectedAdvance(a);
@@ -713,7 +709,6 @@ export default function AdminAdvances(){
 
       <AdvanceDetailModal
         advance={selectedAdvance}
-        currency={currency}
         rates={rates}
         isOpen={showDetailModal}
         onClose={() => {

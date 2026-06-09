@@ -1145,7 +1145,10 @@ export default function FraudDetection(): React.ReactElement {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const handleToggleRule = async (ruleId: number): Promise<void> => {
