@@ -11,7 +11,7 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 
 const WellnessPage = () => {
-  const { currency } = useCurrency();
+  const { currency, symbol } = useCurrency();
   // Budgeting state
   const [income, setIncome] = useState<number>(0);
   const [rent, setRent] = useState<number>(0);
@@ -58,7 +58,7 @@ const WellnessPage = () => {
                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Expected Monthly Income</label>
                        <Input 
                          type="number" 
-                         placeholder="KES 0" 
+                         placeholder={`${symbol} 0`} 
                          className="h-12 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 font-bold"
                          onChange={e => setIncome(Number(e.target.value))}
                        />
@@ -67,7 +67,7 @@ const WellnessPage = () => {
                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Rent & Utilities</label>
                        <Input 
                          type="number" 
-                         placeholder="KES 0" 
+                         placeholder={`${symbol} 0`} 
                          className="h-12 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10"
                          onChange={e => setRent(Number(e.target.value))}
                        />
@@ -76,7 +76,7 @@ const WellnessPage = () => {
                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Food & Groceries</label>
                        <Input 
                          type="number" 
-                         placeholder="KES 0" 
+                         placeholder={`${symbol} 0`} 
                          className="h-12 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10"
                          onChange={e => setFood(Number(e.target.value))}
                        />
@@ -85,7 +85,7 @@ const WellnessPage = () => {
                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Other Expenses</label>
                        <Input 
                          type="number" 
-                         placeholder="KES 0" 
+                         placeholder={`${symbol} 0`} 
                          className="h-12 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10"
                          onChange={e => setOthers(Number(e.target.value))}
                        />
