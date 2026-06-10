@@ -1,7 +1,6 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
-import pusherServer from '@/lib/pusher-server';
 
 export const runtime = 'nodejs';
 
@@ -121,14 +120,7 @@ export async function POST(req: Request) {
 
     if (onboardingError) throw onboardingError;
 
-    try {
-      await pusherServer.trigger(`user-${user.id}`, 'kyc-update', {
-        message: 'Profile updated successfully',
-        type: 'profile_update'
-      });
-    } catch (pErr) {
-      console.error('[Pusher] Trigger error:', pErr);
-    }
+    // Pusher trigger removed; Supabase Realtime will broadcast DB changes to clients.
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

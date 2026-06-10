@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 import { onboardingSubmitSchema, stepUpdateSchema } from '@/lib/validations/employer-onboarding';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployerOnboardingConfirmation from '@/lib/emails/EmployerOnboardingConfirmation';
-import pusherServer from '@/lib/pusher-server';
+import { notifyAdmins } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -155,25 +155,16 @@ export async function POST(req: NextRequest) {
       }),
     });
 
-    const { data: adminNotif, error: adminNotifError } = await supabase
-      .from('admin_notifications')
-      .insert({
-        type: 'employer_kyc',
-        title: 'Employer Onboarding Submitted',
-        message: `${fields.company_name} has submitted their onboarding application for review.`,
-        read: false,
-        metadata: {
-          user_id: user.id,
-          onboarding_id: onboardingId,
-          company_name: fields.company_name,
-        },
-      })
-      .select()
-      .single();
-
-    if (!adminNotifError && adminNotif) {
-      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
-    }
+    await notifyAdmins({
+      type: 'employer_kyc',
+      title: 'Employer Onboarding Submitted',
+      message: `${fields.company_name} has submitted their onboarding application for review.`,
+      metadata: {
+        user_id: user.id,
+        onboarding_id: onboardingId,
+        company_name: fields.company_name,
+      },
+    });
 
     return NextResponse.json(
       { message: 'Application submitted successfully.', onboarding_id: onboardingId },

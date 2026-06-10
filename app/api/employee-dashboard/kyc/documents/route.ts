@@ -8,9 +8,9 @@ import {
   KYCDocumentSchema,
   MAX_FILE_SIZE,
 } from '@/lib/validations/kyc-validation';
-import { sendKYCNotification, logEmail } from '@/lib/email-service';
-import pusherServer from '@/lib/pusher-server';
+import { notifyAdmins, notifyEmployer } from '@/lib/notifications';
 import { getSafeFileExtension, isDocumentFile, isImageFile } from '@/lib/upload-file-types';
+import { sendKYCNotification, logEmail } from '@/lib/email-service';
 
 export const runtime = 'nodejs';
 
@@ -272,41 +272,23 @@ export async function POST(req: NextRequest) {
           .maybeSingle();
 
         if (employer?.user_id) {
-          const { data: empNotif, error: empNotifError } = await adminSupabase
-            .from('notifications')
-            .insert({
-              user_id: employer.user_id,
-              type: 'employee',
-              title: 'KYC Document Uploaded',
-              message: `${profile?.full_name || 'An employee'} has uploaded a new ${documentType}.`,
-              read: false,
-            })
-            .select()
-            .single();
+          await notifyEmployer({
+            userId: employer.user_id,
+            type: 'employee',
+            title: 'KYC Document Uploaded',
+            message: `${profile?.full_name || 'An employee'} has uploaded a new ${documentType}.`,
+          });
 
-          if (!empNotifError && empNotif) {
-            await pusherServer.trigger(`employer-${employer.user_id}`, 'new-notification', empNotif);
-          }
-
-          const { data: adminNotif, error: adminNotifError } = await adminSupabase
-            .from('admin_notifications')
-            .insert({
-              type: 'review_request',
-              title: 'New KYC Document',
-              message: `${profile?.full_name || 'An employee'} from ${employer.company_name} uploaded a ${documentType}.`,
-              read: false,
-              metadata: {
-                user_id: user.id,
-                employer_id: empOnboarding.employer_id,
-                document_type: documentType,
-              },
-            })
-            .select()
-            .single();
-
-          if (!adminNotifError && adminNotif) {
-            await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
-          }
+          await notifyAdmins({
+            type: 'review_request',
+            title: 'New KYC Document',
+            message: `${profile?.full_name || 'An employee'} from ${employer.company_name} uploaded a ${documentType}.`,
+            metadata: {
+              user_id: user.id,
+              employer_id: empOnboarding.employer_id,
+              document_type: documentType,
+            },
+          });
         }
       }
     } catch (notifErr) {

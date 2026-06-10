@@ -55,6 +55,48 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
+    // Enforce EWA settings for admin approvals/disburse actions
+    const { data: employeeEwa } = await supabase
+      .from('employee_ewa_settings')
+      .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount')
+      .eq('employee_onboarding_id', advance.employee_id)
+      .maybeSingle();
+
+    let effective = {
+      ewa_enabled: true,
+      max_advance_percentage: 50,
+      min_advance_amount: 500,
+      max_advance_amount: 50000,
+    };
+
+    if (employeeEwa) {
+      effective = {
+        ewa_enabled: employeeEwa.ewa_enabled ?? effective.ewa_enabled,
+        max_advance_percentage: employeeEwa.max_advance_percentage ?? effective.max_advance_percentage,
+        min_advance_amount: Number(employeeEwa.min_advance_amount ?? effective.min_advance_amount),
+        max_advance_amount: Number(employeeEwa.max_advance_amount ?? effective.max_advance_amount),
+      };
+    } else {
+      const { data: employerOnboarding } = await supabase
+        .from('employer_onboarding')
+        .select('max_advance_percentage, min_advance_amount, max_advance_amount')
+        .eq('id', advance.employer_id)
+        .maybeSingle();
+      if (employerOnboarding) {
+        effective.max_advance_percentage = employerOnboarding.max_advance_percentage ?? effective.max_advance_percentage;
+        effective.min_advance_amount = Number(employerOnboarding.min_advance_amount ?? effective.min_advance_amount);
+        effective.max_advance_amount = Number(employerOnboarding.max_advance_amount ?? effective.max_advance_amount);
+      }
+    }
+
+    if (effective.ewa_enabled === false) {
+      return NextResponse.json({ error: 'EWA access is disabled for this employee.' }, { status: 403 });
+    }
+
+    if (Number(advance.amount) < effective.min_advance_amount || Number(advance.amount) > effective.max_advance_amount) {
+      return NextResponse.json({ error: 'Advance amount falls outside configured EWA limits.' }, { status: 422 });
+    }
+
     const { error: updateError } = await supabase
       .from('advances')
       .update({

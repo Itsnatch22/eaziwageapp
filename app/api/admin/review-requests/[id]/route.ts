@@ -3,7 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { UserRoleEnum, isAdminRole } from '@/lib/validations/kyc-validation';
-import pusherServer from '@/lib/pusher-server';
+import { notifyEmployer, notifyEmployee } from '@/lib/notifications';
 
 interface ReviewRequestPayload {
   status: string;
@@ -79,11 +79,14 @@ export async function PATCH(
     updateResult = request;
 
     if (request.employer_onboarding?.user_id) {
-        await pusherServer.trigger(
-            `user-${request.employer_onboarding.user_id}`,
-            'risk-review-update',
-            { id: requestId, status, message: response }
-        );
+      await notifyEmployer({
+        userId: request.employer_onboarding.user_id,
+        type: 'kyc_update',
+        title: `Risk Review ${status === 'approved' ? 'Completed' : 'Rejected'}`,
+        message: status === 'approved'
+          ? 'Your risk profile has been reviewed and approved.'
+          : `Your risk review was rejected. ${response || internal_notes ? `Notes: ${response || internal_notes}` : ''}`,
+      });
     }
 
   } else if (type === 'kyc_review') {
@@ -102,11 +105,15 @@ export async function PATCH(
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
     updateResult = document;
 
-    await pusherServer.trigger(
-        `user-${document.user_id}`,
-        'kyc-update',
-        { id: requestId, status, message: response }
-    );
+    if (document.user_id) {
+        await notifyEmployee({
+            userId: document.user_id,
+            type: 'kyc_update',
+            title: `KYC Document ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+            message: `Your ${document.document_type.replace(/_/g, ' ')} has been ${status}. ${response || internal_notes ? `Notes: ${response || internal_notes}` : ''}`,
+        });
+    }
+
 
   } else if (type === 'bank_change') {
     const { data: bRequest, error: fetchError } = await adminSupabase
@@ -132,7 +139,7 @@ export async function PATCH(
       await adminSupabase
         .from('employers')
         .update(updateData)
-        .eq('id', bRequest.employer_id);
+        .eq('onboarding_id', bRequest.employer_id);
     }
 
     const { data: updatedRequest, error: updateError } = await adminSupabase
@@ -151,33 +158,18 @@ export async function PATCH(
     updateResult = updatedRequest;
 
     if (bRequest.user_id) {
-      const { data: notif } = await adminSupabase
-        .from('notifications')
-        .insert({
-          user_id: bRequest.user_id,
-          type: 'system',
-          title: `Bank Details Change ${status === 'approved' ? 'Approved' : 'Rejected'}`,
-          message: status === 'approved' 
-            ? 'Your request to change bank details has been approved and updated.'
-            : `Your bank details change request was rejected. ${response ? `Reason: ${response}` : ''}`,
-          read: false
-        })
-        .select()
-        .single();
-
-      if (notif) {
-        await pusherServer.trigger(`employer-${bRequest.user_id}`, 'new-notification', notif);
-      }
+      await notifyEmployer({
+        userId: bRequest.user_id,
+        type: 'system',
+        title: `Bank Details Change ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+        message: status === 'approved' 
+          ? 'Your request to change bank details has been approved and updated.'
+          : `Your bank details change request was rejected. ${response ? `Reason: ${response}` : ''}`,
+      });
     }
   }
 
   if (updateResult) {
-    await pusherServer.trigger('admin-reviews', 'request-updated', { 
-      id: requestId, 
-      status, 
-      type,
-      updated_at: new Date().toISOString()
-    });
     
     return NextResponse.json({ message: 'Request updated successfully', data: updateResult });
   }

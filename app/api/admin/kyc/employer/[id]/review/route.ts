@@ -4,7 +4,7 @@ import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import pusherServer from '@/lib/pusher-server';
+import { notifyEmployer } from '@/lib/notifications';
 
 function generateCompanyCode(sourceId: string): string {
   return `EW-${sourceId.slice(0, 8).toUpperCase()}`;
@@ -101,29 +101,17 @@ export async function PATCH(
     }
   }
 
-  await adminSupabase.from('notifications').insert({
-    user_id: employer.user_id,
+  await notifyEmployer({
+    userId: employer.user_id,
     type: 'kyc_update',
     title: status === 'approved' ? 'Employer Onboarding Approved' : 'Employer Onboarding Rejected',
     message:
       status === 'approved'
         ? `${employer.company_name} has been activated. You can now proceed with full platform setup.`
         : `Your onboarding submission was rejected.${notes ? ` Reason: ${notes}` : ''}`,
-    read: false,
-    created_at: new Date().toISOString(),
   });
 
   try {
-    await pusherServer.trigger(`user-${employer.user_id}`, 'kyc-update', {
-      employer_id: employer.id,
-      status,
-      message: status === 'approved' ? 'Your company has been approved.' : 'Your company onboarding was rejected.'
-    });
-
-    await pusherServer.trigger(`employer-${employer.id}`, 'kyc-update', {
-      status,
-      employer_id: employer.id
-    });
   } catch (pusherErr) {
     console.error('[Employer KYC Review] Pusher trigger error:', pusherErr);
   }

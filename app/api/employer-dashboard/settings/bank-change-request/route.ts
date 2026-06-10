@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
-import pusherServer from '@/lib/pusher-server';
+import { notifyAdmins } from '@/lib/notifications';
 import { z } from 'zod';
 
 const bankChangeSchema = z.object({
@@ -88,42 +86,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
     }
 
-    const env = getEnv();
-    const adminSupabase = createClient(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
+    const { success: notifSuccess, error: notifError } = await notifyAdmins({
+      type: 'bank_change',
+      title: 'Bank Details Change Request',
+      message: `${employer.company_name} is requesting to change their bank details.`,
+      metadata: {
+        employer_id: employer.onboarding_id,
+        company_name: employer.company_name,
+        current_bank: onboarding?.bank_name,
+        current_account: onboarding?.bank_account_number,
+        requested_bank: bank_name,
+        requested_account: bank_account_number,
+        reason: reason || 'Not provided',
+        request_type: 'bank_change',
+        request_id: requestRecord?.id
+      },
+    });
 
-    const { data: adminNotif, error: notifError } = await adminSupabase
-      .from('admin_notifications')
-      .insert({
-        type: 'employer_kyc',
-        title: 'Bank Details Change Request',
-        message: `${employer.company_name} is requesting to change their bank details.`,
-        read: false,
-        metadata: {
-          employer_id: employer.onboarding_id,
-          company_name: employer.company_name,
-          current_bank: onboarding?.bank_name,
-          current_account: onboarding?.bank_account_number,
-          requested_bank: bank_name,
-          requested_account: bank_account_number,
-          reason: reason || 'Not provided',
-          request_type: 'bank_change',
-          request_id: requestRecord?.id
-        },
-      })
-      .select()
-      .single();
-
-    if (notifError) {
+    if (!notifSuccess) {
       console.error('[bank-change-request] Notification error:', notifError);
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
-    }
-
-    if (adminNotif) {
-      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
     }
 
     return NextResponse.json({ 

@@ -6,7 +6,6 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
-import pusherServer from '@/lib/pusher-server';
 
 
 interface RiskFactors {
@@ -360,27 +359,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     };
   });
   
-  const updatedEmployers = result.filter(row => {
-    const currentRiskFactors = riskFactorsByEmployer.get(row.id);
-    const previousRiskScore = Number(row.risk_score ?? 0);
-    const newRiskScore = row.risk_score;
-    
-    return currentRiskFactors && previousRiskScore !== newRiskScore;
-  });
-
-  if (updatedEmployers.length > 0) {
-    await Promise.all(
-      updatedEmployers.map(employer => 
-        pusherServer.trigger(`employer-${employer.id}`, 'risk-updated', {
-          type: 'risk_score_updated',
-          risk_score: employer.risk_score,
-          risk_rating: employer.risk_rating,
-          updated_at: new Date().toISOString()
-        })
-      )
-    );
-  }
-
   const countries = [...new Set(result.map((e) => e.country).filter(Boolean))].sort();
   const industries = [...new Set(result.map((e) => e.industry).filter(Boolean))].sort();
 

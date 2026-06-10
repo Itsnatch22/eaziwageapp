@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
-import pusherServer from "@/lib/pusher-server";
 
 
 export const runtime = "nodejs";
@@ -96,7 +95,6 @@ export async function DELETE(req: NextRequest) {
 
         if (error) throw error;
 
-        await pusherServer.trigger(`employer-${user.id}`, 'notification-deleted', { id });
 
         return NextResponse.json({ success: true });
     } catch (error: unknown) {

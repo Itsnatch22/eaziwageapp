@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import pusherServer from '@/lib/pusher-server';
+import { notifyEmployee } from '@/lib/notifications';
 
 type LogLevel = 'info' | 'warn' | 'error';
 
@@ -208,8 +208,8 @@ export async function PATCH(
       ? `One or more KYC documents were rejected. ${notes ? `Reason: ${notes}` : ''}`.trim()
       : `Your ${doc.document_type.replace(/_/g, ' ')} document was ${status}.`;
 
-  const { error: notifError } = await adminSupabase.from('notifications').insert({
-    user_id: doc.user_id,
+  const { error: notifError } = await notifyEmployee({
+    userId: doc.user_id,
     type: 'kyc_update',
     title:
       onboardingStatus === 'approved'
@@ -218,8 +218,6 @@ export async function PATCH(
         ? 'KYC Requires Action'
         : 'KYC Document Reviewed',
     message: employeeMessage,
-    read: false,
-    created_at: new Date().toISOString(),
   });
 
   if (notifError) {
@@ -231,21 +229,7 @@ export async function PATCH(
   }
 
   try {
-    await pusherServer.trigger(`user-${doc.user_id}`, 'kyc-update', {
-      document_id: doc.id,
-      status,
-      onboarding_status: onboardingStatus,
-      message: employeeMessage,
-    });
-
-    if (employeeOnboarding?.employer_id) {
-      await pusherServer.trigger(`employer-${employeeOnboarding.employer_id}`, 'employee-kyc-update', {
-        employee_user_id: doc.user_id,
-        onboarding_status: onboardingStatus,
-      });
-    }
-
-    log('info', 'pusher', 'Pusher events triggered', {
+    log('info', 'pusher', 'Pusher events skipped (migrated to Supabase Realtime)', {
       docId: doc.id,
       userId: doc.user_id,
       employerId: employeeOnboarding?.employer_id,

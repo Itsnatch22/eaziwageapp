@@ -108,6 +108,90 @@ export async function POST(req: NextRequest) {
 
   const requestedAmount = Number(parsed.data.amount);
 
+  // Fetch per-employee EWA settings, fallback to employer onboarding settings
+  const { data: employeeEwa } = await supabase
+    .from('employee_ewa_settings')
+    .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
+    .eq('employee_onboarding_id', employee.id)
+    .maybeSingle();
+
+  let effectiveSettings = {
+    ewa_enabled: true,
+    max_advance_percentage: 50,
+    min_advance_amount: 500,
+    max_advance_amount: 50000,
+    cooldown_period: 7,
+  };
+
+  if (employeeEwa) {
+    effectiveSettings = {
+      ewa_enabled: employeeEwa.ewa_enabled ?? effectiveSettings.ewa_enabled,
+      max_advance_percentage:
+        employeeEwa.max_advance_percentage ?? effectiveSettings.max_advance_percentage,
+      min_advance_amount: Number(employeeEwa.min_advance_amount ?? effectiveSettings.min_advance_amount),
+      max_advance_amount: Number(employeeEwa.max_advance_amount ?? effectiveSettings.max_advance_amount),
+      cooldown_period: Number(employeeEwa.cooldown_period ?? effectiveSettings.cooldown_period),
+    };
+  } else {
+    const { data: employerOnboarding } = await supabase
+      .from('employer_onboarding')
+      .select('max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period, risk_score')
+      .eq('id', employee.employer_id)
+      .maybeSingle();
+
+    if (employerOnboarding) {
+      effectiveSettings = {
+        ...effectiveSettings,
+        max_advance_percentage: employerOnboarding.max_advance_percentage ?? effectiveSettings.max_advance_percentage,
+        min_advance_amount: Number(employerOnboarding.min_advance_amount ?? effectiveSettings.min_advance_amount),
+        max_advance_amount: Number(employerOnboarding.max_advance_amount ?? effectiveSettings.max_advance_amount),
+        cooldown_period: Number(employerOnboarding.cooldown_period ?? effectiveSettings.cooldown_period),
+      };
+    }
+  }
+
+  // Enforce EWA enabled/disabled
+  if (effectiveSettings.ewa_enabled === false) {
+    return NextResponse.json({ message: 'EWA access has been disabled for your account.' }, { status: 403 });
+  }
+
+  // Enforce amount limits
+  if (requestedAmount < effectiveSettings.min_advance_amount) {
+    return NextResponse.json({ message: `Requested amount is below the minimum allowed of ${effectiveSettings.min_advance_amount}.` }, { status: 422 });
+  }
+  if (requestedAmount > effectiveSettings.max_advance_amount) {
+    return NextResponse.json({ message: `Requested amount exceeds the maximum allowed of ${effectiveSettings.max_advance_amount}.` }, { status: 422 });
+  }
+
+  // Enforce percentage cap based on monthly salary if available
+  if (employee.monthly_salary && effectiveSettings.max_advance_percentage) {
+    const cap = (Number(employee.monthly_salary) * Number(effectiveSettings.max_advance_percentage)) / 100;
+    if (requestedAmount > cap) {
+      return NextResponse.json({ message: `Requested amount exceeds your percentage limit (${effectiveSettings.max_advance_percentage}% of monthly salary = ${cap}).` }, { status: 422 });
+    }
+  }
+
+  // Enforce cooldown: prevent new requests within cooldown_period days from last approved/paid advance
+  if (effectiveSettings.cooldown_period > 0) {
+    const { data: lastAdvance } = await supabase
+      .from('advances')
+      .select('requested_at, status')
+      .eq('employee_id', employee.id)
+      .in('status', ['approved', 'paid', 'completed'])
+      .order('requested_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastAdvance && lastAdvance.requested_at) {
+      const lastDate = new Date(lastAdvance.requested_at);
+      const now = new Date();
+      const diffDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays < effectiveSettings.cooldown_period) {
+        return NextResponse.json({ message: `You must wait ${effectiveSettings.cooldown_period - diffDays} more day(s) before requesting another advance.` }, { status: 429 });
+      }
+    }
+  }
+
   const fraudResult = await runFraudChecks({
     userId: user.id,
     employeeId: employee.id,
@@ -125,6 +209,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Fetch employer onboarding for risk_score (if not already fetched above)
   const { data: employer } = await supabase
     .from('employer_onboarding')
     .select('risk_score')

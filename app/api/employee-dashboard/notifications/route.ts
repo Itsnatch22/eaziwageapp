@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
-import pusherServer from "@/lib/pusher-server";
 
 export const runtime = "nodejs";
 
@@ -118,11 +117,7 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Failed to delete notification", details: error.message }, { status: 500 });
         }
 
-        try {
-            await pusherServer.trigger(`user-${user.id}`, 'notification-deleted', { id });
-        } catch (pusherErr) {
-            console.error('[notifications DELETE] Pusher error:', pusherErr);
-        }
+        // Supabase Realtime handles notification-deleted events via DB changes; no Pusher trigger needed.
 
         return NextResponse.json({ success: true });
     } catch (err: unknown) {

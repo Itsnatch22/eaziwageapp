@@ -4,7 +4,6 @@ import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { LegalDocumentSchema } from '@/lib/validations/admin-settings';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
-import pusherServer from '@/lib/pusher-server';
 
 function createAdminClient() {
   const env = getEnv();
@@ -57,7 +56,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ type
       new_value: data, created_at: new Date().toISOString()
     });
 
-    await pusherServer.trigger('global-settings', 'legal-document-updated', data);
     return NextResponse.json(data);
   } catch (error) {
     console.error('[PUT /api/admin/settings/legal-documents/[type]] Error:', error);

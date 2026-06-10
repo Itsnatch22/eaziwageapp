@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import pusherServer from '@/lib/pusher-server';
+import { notifyEmployee } from '@/lib/notifications';
 
 interface EmployeeUpsertPayload {
   user_id: string;
@@ -304,13 +304,11 @@ export async function PATCH(
       rejected:  `Your account application was rejected. Reason: ${reason || 'Not provided'}`,
     };
 
-    await adminSupabase.from('notifications').insert({
-      user_id: userId,
-      type: 'account_update',
+    await notifyEmployee({
+      userId,
+      type: 'kyc_update', // Closest type in EmployeeNotificationType
       title: titleMap[status] || 'Account Status Update',
       message: messageMap[status] || `Your account status is now ${status}.`,
-      read: false,
-      created_at: new Date().toISOString(),
     });
 
     const { data: adminProfile } = await adminSupabase
@@ -330,14 +328,7 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
-    try {
-      await pusherServer.trigger(`user-${userId}`, 'kyc-update', {
-        status: status === 'active' || status === 'approved' ? 'approved' : status,
-        message: messageMap[status]
-      });
-    } catch (err) {
-      console.error('[Pusher] Trigger error:', err);
-    }
+    // Supabase Realtime will handle user notifications from DB changes; Pusher triggers removed.
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });
   } catch (error) {

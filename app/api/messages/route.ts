@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
-import pusherServer from "@/lib/pusher-server";
 
 export const runtime = "nodejs";
 
@@ -59,8 +58,6 @@ export async function POST(req: NextRequest) {
 
         if (error) throw error;
 
-        await pusherServer.trigger(`user-${receiver_id}-messages`, 'new-message', data);
-        await pusherServer.trigger(`user-${user.id}-messages`, 'new-message', data);
 
         return NextResponse.json(data);
     } catch (err) {

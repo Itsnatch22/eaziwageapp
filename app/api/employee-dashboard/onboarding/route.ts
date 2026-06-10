@@ -5,7 +5,7 @@ import { Resend } from 'resend';
 import { employeeOnboardingSchema } from '@/lib/validations/employee-validation';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
-import pusherServer from '@/lib/pusher-server';
+import { notifyAdmins, notifyEmployer } from '@/lib/notifications';
 import { getEnv } from '@/env';
 
 export const runtime = 'nodejs';
@@ -265,49 +265,26 @@ export async function POST(req: NextRequest) {
 
   try {
     if (employer.id) {
-      await pusherServer.trigger(`employer-${employer.id}`, 'employee-kyc-update', {
-        employee_name: employeeName,
-        status: 'pending'
-      });
-
       if (employer.user_id) {
-        const { data: empNotif, error: empNotifError } = await adminSupabase
-          .from('notifications')
-          .insert({
-            user_id: employer.user_id,
-            type: 'employee',
-            title: 'New Employee Registration',
-            message: `${employeeName} has submitted their KYC application.`,
-            read: false,
-          })
-          .select()
-          .single();
-
-        if (!empNotifError && empNotif) {
-          await pusherServer.trigger(`employer-${employer.user_id}`, 'new-notification', empNotif);
-        }
+        await notifyEmployer({
+          userId: employer.user_id,
+          type: 'employee',
+          title: 'New Employee Registration',
+          message: `${employeeName} has submitted their KYC application.`,
+        });
       }
     }
 
-    const { data: adminNotif, error: adminNotifError } = await adminSupabase
-      .from('admin_notifications')
-      .insert({
-        type: 'review_request',
-        title: 'New KYC Application',
-        message: `${employeeName} from ${employer.company_name} has submitted a new KYC application for review.`,
-        read: false,
-        metadata: {
-          employee_id: user.id,
-          employer_id: employer.id,
-          company_name: employer.company_name,
-        },
-      })
-      .select()
-      .single();
-
-    if (!adminNotifError && adminNotif) {
-      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
-    }
+    await notifyAdmins({
+      type: 'review_request',
+      title: 'New KYC Application',
+      message: `${employeeName} from ${employer.company_name} has submitted a new KYC application for review.`,
+      metadata: {
+        employee_id: user.id,
+        employer_id: employer.id,
+        company_name: employer.company_name,
+      },
+    });
   } catch (notifErr) {
     console.error('[onboarding/notifications]', notifErr);
   }

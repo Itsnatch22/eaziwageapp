@@ -105,12 +105,58 @@ export async function GET() {
   const daysPassed = today.getDate();
   const earnedWages = (monthlySalary / daysInMonth) * daysPassed;
 
-  const maxAccessPct = 0.5; 
+  // Determine effective EWA settings (employee-specific -> employer onboarding)
+  const { data: employeeEwa } = await supabase
+    .from('employee_ewa_settings')
+    .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
+    .eq('employee_onboarding_id', employee.id)
+    .maybeSingle();
+
+  let effective = {
+    ewa_enabled: true,
+    max_advance_percentage: 50,
+    min_advance_amount: 500,
+    max_advance_amount: 50000,
+    cooldown_period: 7,
+  };
+
+  if (employeeEwa) {
+    effective = {
+      ewa_enabled: employeeEwa.ewa_enabled ?? effective.ewa_enabled,
+      max_advance_percentage: employeeEwa.max_advance_percentage ?? effective.max_advance_percentage,
+      min_advance_amount: Number(employeeEwa.min_advance_amount ?? effective.min_advance_amount),
+      max_advance_amount: Number(employeeEwa.max_advance_amount ?? effective.max_advance_amount),
+      cooldown_period: Number(employeeEwa.cooldown_period ?? effective.cooldown_period),
+    };
+  } else {
+    const { data: employerOnboarding } = await supabase
+      .from('employer_onboarding')
+      .select('max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
+      .eq('id', employee.employer_id)
+      .maybeSingle();
+
+    if (employerOnboarding) {
+      effective.max_advance_percentage = employerOnboarding.max_advance_percentage ?? effective.max_advance_percentage;
+      effective.min_advance_amount = Number(employerOnboarding.min_advance_amount ?? effective.min_advance_amount);
+      effective.max_advance_amount = Number(employerOnboarding.max_advance_amount ?? effective.max_advance_amount);
+      effective.cooldown_period = Number(employerOnboarding.cooldown_period ?? effective.cooldown_period);
+    }
+  }
+
+  // compute limit percentage
+  const maxAccessPct = (Number(effective.max_advance_percentage) || 50) / 100;
   const totalAdvances = (advances || [])
     .filter(a => ['approved', 'disbursed'].includes(a.status))
     .reduce((sum, a) => sum + Number(a.amount), 0);
-  
-  const advanceLimit = Math.max(0, (earnedWages * maxAccessPct) - totalAdvances);
+
+  let advanceLimit = Math.max(0, (earnedWages * maxAccessPct) - totalAdvances);
+
+  // enforce global min/max
+  if (advanceLimit < effective.min_advance_amount) advanceLimit = 0;
+  if (effective.max_advance_amount && advanceLimit > effective.max_advance_amount) {
+    advanceLimit = effective.max_advance_amount - totalAdvances;
+    if (advanceLimit < 0) advanceLimit = 0;
+  }
 
   const employerData = Array.isArray(employee.employer) 
     ? employee.employer[0] 

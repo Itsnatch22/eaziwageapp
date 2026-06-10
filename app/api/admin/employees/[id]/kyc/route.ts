@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { isAdminRole, UserRole } from '@/lib/validations/kyc-validation';
-import pusherServer from '@/lib/pusher-server';
+import { notifyEmployee } from '@/lib/notifications';
 
 function createAdminClient() {
   const env = getEnv();
@@ -68,13 +68,11 @@ export async function PATCH(
       ? 'Your identity documents have been verified successfully. Your account is now being activated.' 
       : `Your identity verification was rejected. Reason: ${reason || 'Documents are unclear or invalid'}. Please re-upload.`;
 
-    await adminSupabase.from('notifications').insert({
-      user_id: id,
+    await notifyEmployee({
+      userId: id,
       type: 'kyc_update',
       title,
       message,
-      read: false,
-      created_at: new Date().toISOString(),
     });
 
     const { data: adminProfile } = await adminSupabase
@@ -94,14 +92,7 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
-    try {
-      await pusherServer.trigger(`user-${id}`, 'kyc-update', {
-        onboarding_status: kyc_status,
-        message
-      });
-    } catch (err) {
-      console.error('[Pusher] Trigger error:', err);
-    }
+    // Pusher triggers removed; Supabase Realtime handles KYC update notifications via DB changes.
 
     return NextResponse.json({ success: true, message: `KYC status updated to ${kyc_status}` });
   } catch (error) {

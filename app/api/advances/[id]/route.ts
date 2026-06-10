@@ -71,10 +71,45 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
     }
 
-    const { data: org } = await supabase.from('organizations').select('country').eq('id', emp.organization_id).single();
+    // Respect per-employee or employer EWA settings when enforcing monthly cap
+    const { data: employeeEwa } = await supabase
+      .from('employee_ewa_settings')
+      .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount')
+      .eq('employee_onboarding_id', advance.employee_id)
+      .maybeSingle();
 
-    const limits: Record<string, number> = { KE: 0.6, UG: 0.4, RW: 0.5, TZ: 0.45 };
-    const pct = limits[org?.country || 'KE'] || 0.5;
+    let effective = {
+      ewa_enabled: true,
+      max_advance_percentage: 50,
+      min_advance_amount: 500,
+      max_advance_amount: 50000,
+    };
+
+    if (employeeEwa) {
+      effective = {
+        ewa_enabled: employeeEwa.ewa_enabled ?? effective.ewa_enabled,
+        max_advance_percentage: employeeEwa.max_advance_percentage ?? effective.max_advance_percentage,
+        min_advance_amount: Number(employeeEwa.min_advance_amount ?? effective.min_advance_amount),
+        max_advance_amount: Number(employeeEwa.max_advance_amount ?? effective.max_advance_amount),
+      };
+    } else {
+      const { data: employerOnboarding } = await supabase
+        .from('employer_onboarding')
+        .select('max_advance_percentage, min_advance_amount, max_advance_amount')
+        .eq('id', emp.organization_id)
+        .maybeSingle();
+      if (employerOnboarding) {
+        effective.max_advance_percentage = employerOnboarding.max_advance_percentage ?? effective.max_advance_percentage;
+        effective.min_advance_amount = Number(employerOnboarding.min_advance_amount ?? effective.min_advance_amount);
+        effective.max_advance_amount = Number(employerOnboarding.max_advance_amount ?? effective.max_advance_amount);
+      }
+    }
+
+    if (effective.ewa_enabled === false) {
+      return NextResponse.json({ error: 'EWA access is disabled for this employee.' }, { status: 403 });
+    }
+
+    const pct = (Number(effective.max_advance_percentage) || 50) / 100;
     const maxThisMonth = Number(emp.salary) * pct;
 
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();

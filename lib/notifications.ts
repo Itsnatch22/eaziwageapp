@@ -1,4 +1,3 @@
-import pusherServer from "./pusher-server";
 import { createClient } from "@supabase/supabase-js";
 import { getEnv } from "@/env";
 import { sendEmail } from "./email-service";
@@ -16,16 +15,6 @@ export type AdminNotificationType = 'review_request' | 'employer_kyc' | 'flagged
 export type EmployerNotificationType = 'advance' | 'system' | 'employee' | 'repayment' | 'kyc_update';
 export type EmployeeNotificationType = 'advance_approval' | 'kyc_update' | 'system_alert' | 'repayment_reminder';
 type NotificationMetadata = Record<string, unknown>;
-
-interface NotificationPayload {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  read: boolean;
-  created_at: string;
-  metadata?: NotificationMetadata;
-}
 
 export async function notifyAdmins(params: {
   type: AdminNotificationType;
@@ -105,8 +94,7 @@ export async function notifyEmployer(params: {
 
     if (error) throw error;
 
-    // Trigger real-time event for specific employer channel
-    await pusherServer.trigger(`employer-${params.userId}`, 'new-notification', data);
+    // Supabase Realtime will deliver notifications via postgres_changes; no pusher trigger needed.
 
     // ── Email Notification ──
     const { data: profile } = await supabaseAdmin
@@ -162,8 +150,7 @@ export async function notifyEmployee(params: {
 
     if (error) throw error;
 
-    // Trigger real-time event for specific user channel
-    await pusherServer.trigger(`user-${params.userId}`, 'new-notification', data);
+    // Supabase Realtime will deliver notifications via postgres_changes; no pusher trigger needed.
 
     // ── Email Notification ──
     const { data: profile } = await supabaseAdmin
@@ -195,9 +182,9 @@ export async function notifyEmployee(params: {
 /**
  * Trigger real-time message event
  */
-export async function triggerMessageEvent(userId: string, message: NotificationPayload) {
+export async function triggerMessageEvent() {
     try {
-        await pusherServer.trigger(`user-${userId}-messages`, 'new-message', message);
+        // Supabase Realtime handles message notifications via DB changes; no pusher trigger needed.
         return { success: true };
     } catch (err) {
         console.error('[triggerMessageEvent] Error:', err);

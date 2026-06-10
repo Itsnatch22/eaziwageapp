@@ -5,7 +5,6 @@ import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { BlackoutPeriodSchema } from '@/lib/validations/admin-settings';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
-import pusherServer from '@/lib/pusher-server';
 
 function createAdminClient() {
   const env = getEnv();
@@ -51,7 +50,7 @@ export async function POST(req: NextRequest) {
       admin_id: user.id, admin_name: user.email, target_id: data.id, target_type: 'blackout', action: 'create_blackout',
       new_value: data, created_at: new Date().toISOString()
     });
-    await pusherServer.trigger('global-settings', 'blackout-created', data);
+    // Pusher trigger removed; Supabase Realtime will broadcast blackout-created via Postgres changes.
     return NextResponse.json(data);
   } catch (error) {
     console.error('[POST /api/admin/settings/blackouts] Error:', error);

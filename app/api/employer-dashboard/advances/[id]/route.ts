@@ -88,6 +88,72 @@ export async function PATCH(
   const nowIso = new Date().toISOString();
   
   if (action === 'approve') {
+    // Load effective EWA settings for the target employee
+    const { data: empRow } = await supabase
+      .from('employee_onboarding')
+      .select('monthly_salary')
+      .eq('id', target.employee_id)
+      .maybeSingle();
+
+    const { data: employeeEwa } = await supabase
+      .from('employee_ewa_settings')
+      .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount')
+      .eq('employee_onboarding_id', target.employee_id)
+      .maybeSingle();
+
+    let effective = {
+      ewa_enabled: true,
+      max_advance_percentage: 50,
+      min_advance_amount: 500,
+      max_advance_amount: 50000,
+    };
+
+    if (employeeEwa) {
+      effective = {
+        ewa_enabled: employeeEwa.ewa_enabled ?? effective.ewa_enabled,
+        max_advance_percentage: employeeEwa.max_advance_percentage ?? effective.max_advance_percentage,
+        min_advance_amount: Number(employeeEwa.min_advance_amount ?? effective.min_advance_amount),
+        max_advance_amount: Number(employeeEwa.max_advance_amount ?? effective.max_advance_amount),
+      };
+    } else {
+      const { data: employerOnboarding } = await supabase
+        .from('employer_onboarding')
+        .select('max_advance_percentage, min_advance_amount, max_advance_amount')
+        .eq('id', employer.onboarding_id)
+        .maybeSingle();
+      if (employerOnboarding) {
+        effective.max_advance_percentage = employerOnboarding.max_advance_percentage ?? effective.max_advance_percentage;
+        effective.min_advance_amount = Number(employerOnboarding.min_advance_amount ?? effective.min_advance_amount);
+        effective.max_advance_amount = Number(employerOnboarding.max_advance_amount ?? effective.max_advance_amount);
+      }
+    }
+
+    if (effective.ewa_enabled === false) {
+      return NextResponse.json({ error: 'EWA access is disabled for this employee.' }, { status: 403 });
+    }
+
+    // Enforce per-employee percentage cap
+    const salary = Number(empRow?.monthly_salary ?? 0);
+    const pct = (Number(effective.max_advance_percentage) || 50) / 100;
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    const { data: approvedThisMonth } = await supabase
+      .from('advances')
+      .select('amount')
+      .eq('employee_id', target.employee_id)
+      .eq('status', 'approved')
+      .gte('requested_at', startOfMonth);
+
+    const totalAccessed = (approvedThisMonth ?? []).reduce((sum, a: { amount: number | string | null }) => sum + Number(a.amount), 0);
+    const maxThisMonth = salary * pct;
+
+    if (totalAccessed + Number(target.amount) > maxThisMonth) {
+      return NextResponse.json({ error: 'Monthly limit reached. Employee must settle pending advances first.' }, { status: 400 });
+    }
+
+    if (Number(target.amount) < effective.min_advance_amount || Number(target.amount) > effective.max_advance_amount) {
+      return NextResponse.json({ error: 'Requested amount falls outside configured EWA limits.' }, { status: 422 });
+    }
+
     try {
       await payoutService.reserveFunds(employer.onboarding_id, target.amount, id);
 

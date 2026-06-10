@@ -6,7 +6,7 @@ import {
   Building2, Search, Download, Users, Clock,
   MoreHorizontal, Eye, CheckCircle2, XCircle, X,
   Mail, Phone, Calendar, MapPin, FileText, Briefcase,
-  Ban, RefreshCw, DollarSign,
+  Ban, RefreshCw, DollarSign, CreditCard
 } from 'lucide-react';
 import { Input }                   from '@/components/ui/input';
 import { 
@@ -38,6 +38,8 @@ interface Employer {
   total_advances:      number;
   monthly_payroll:     number;
   risk_score:          number | null;
+  bank_name:           string | null;
+  bank_account_number: string | null;
   deleted_at:          string | null;
   created_at:          string;
   updated_at:          string;
@@ -347,6 +349,7 @@ interface EmployerDetailModalProps {
   isOpen:    boolean;
   onClose:   () => void;
   onRefresh: () => void;
+  onEditBank: () => void;
 }
 
 const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({ 
@@ -355,6 +358,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   isOpen, 
   onClose, 
   onRefresh, 
+  onEditBank,
 }) => {
   const [activeTab,      setActiveTab]      = useState<TabKey>('overview');
   const [loading,        setLoading]        = useState(false);
@@ -585,6 +589,34 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                     </div>
                   </div>
                 </div>
+
+                <div className="sm:col-span-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <CreditCard className="w-4 h-4" /> Bank Information
+                    </h3>
+                    <button
+                      onClick={onEditBank}
+                      className="text-xs font-semibold text-green-600 hover:text-green-700 flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Update Bank Details
+                    </button>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider">Bank Name</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
+                        {data.bank_name || 'Not set'}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider">Account Number</p>
+                      <p className="text-sm font-mono text-slate-900 dark:text-white">
+                        {data.bank_account_number || 'Not set'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           ) : activeTab === 'employees' ? (
@@ -735,6 +767,117 @@ interface QuickActionsModalProps {
   onAction: (status: EmployerStatus) => void;
 }
 
+const BankChangeModal: React.FC<{
+  employer: Employer | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onRefresh: () => void;
+}> = ({ employer, isOpen, onClose, onRefresh }) => {
+  const [formData, setFormData] = useState({ 
+    bank_name: '', 
+    bank_account_number: '', 
+    reason: '' 
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (employer) {
+      Promise.resolve().then(() => {
+        setFormData({
+          bank_name: employer.bank_name || '',
+          bank_account_number: employer.bank_account_number || '',
+          reason: ''
+        });
+      });
+    }
+  }, [employer]);
+
+  if (!isOpen || !employer) return null;
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/employers/${employer.id}/bank`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        toast.success('Bank details updated successfully');
+        onRefresh();
+        onClose();
+      } else {
+        toast.error('Failed to update bank details');
+      }
+    } catch {
+      toast.error('Connection error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-100 dark:bg-green-500/20 rounded-xl flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-green-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Bank Details</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Bank Name</label>
+            <Input
+              value={formData.bank_name}
+              onChange={e => setFormData({ ...formData, bank_name: e.target.value })}
+              placeholder="e.g. Standard Chartered"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Account Number</label>
+            <Input
+              value={formData.bank_account_number}
+              onChange={e => setFormData({ ...formData, bank_account_number: e.target.value })}
+              placeholder="e.g. 0100XXXXXXX"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Reason for Update (Optional)</label>
+            <Input
+              value={formData.reason}
+              onChange={e => setFormData({ ...formData, reason: e.target.value })}
+              placeholder="Internal note for this change"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !formData.bank_name || !formData.bank_account_number}
+              className="flex-1 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center"
+            >
+              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Apply Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const QuickActionsModal: React.FC<QuickActionsModalProps> = ({ 
   employer, 
   isOpen, 
@@ -812,6 +955,7 @@ export default function AdminEmployers() {
   const [selectedEmployer,  setSelectedEmployer]  = useState<Employer | null>(null);
   const [showDetailModal,   setShowDetailModal]   = useState(false);
   const [showQuickActions,  setShowQuickActions]  = useState(false);
+  const [showBankModal,     setShowBankModal]     = useState(false);
   const [selectedIds,       setSelectedIds]       = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
@@ -1147,6 +1291,10 @@ export default function AdminEmployers() {
           setSelectedEmployer(null);
         }}
         onRefresh={fetchEmployers}
+        onEditBank={() => {
+          setShowDetailModal(false);
+          setShowBankModal(true);
+        }}
       />
 
       <QuickActionsModal
@@ -1157,6 +1305,16 @@ export default function AdminEmployers() {
           setSelectedEmployer(null);
         }}
         onAction={handleQuickAction}
+      />
+
+      <BankChangeModal
+        employer={selectedEmployer}
+        isOpen={showBankModal}
+        onClose={() => {
+          setShowBankModal(false);
+          setSelectedEmployer(null);
+        }}
+        onRefresh={fetchEmployers}
       />
     </>
   );

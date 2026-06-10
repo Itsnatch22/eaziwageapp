@@ -5,7 +5,6 @@ import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { EmployerSettingsSchema } from '@/lib/validations/admin-settings';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
-import pusherServer from '@/lib/pusher-server';
 
 function createAdminClient() {
   const env = getEnv();
@@ -144,7 +143,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       created_at:  new Date().toISOString(),
     });
 
-    await pusherServer.trigger(`employer-${id}`, 'settings-updated', validated);
+    // Pusher trigger removed; Supabase Realtime handles DB change notifications via postgres_changes.
     return NextResponse.json({ success: true, settings: validated });
   } catch (error) {
     console.error('[PUT /api/admin/settings/employers/[id]] Error:', error);

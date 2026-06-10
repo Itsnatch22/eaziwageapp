@@ -5,7 +5,6 @@ import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NotificationSettingsSchema } from '@/lib/validations/admin-settings';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
-import pusherServer from '@/lib/pusher-server';
 
 function createAdminClient() {
   const env = getEnv();
@@ -52,7 +51,6 @@ export async function PUT(req: NextRequest) {
       admin_id: user.id, admin_name: user.email, target_id: 'notifications', target_type: 'notification_settings', action: 'update_notification_settings',
       old_value: current?.notification_settings || {}, new_value: validated, created_at: new Date().toISOString()
     });
-    await pusherServer.trigger('global-settings', 'notifications-updated', validated);
     return NextResponse.json({ success: true, settings: validated });
   } catch (error) {
     console.error('[PUT /api/admin/settings/notifications] Error:', error);

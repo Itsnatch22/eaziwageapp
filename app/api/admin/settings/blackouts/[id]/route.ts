@@ -5,7 +5,6 @@ import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { BlackoutPeriodSchema } from '@/lib/validations/admin-settings';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
-import pusherServer from '@/lib/pusher-server';
 
 function createAdminClient() {
   const env = getEnv();
@@ -38,7 +37,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       admin_id: user.id, admin_name: user.email, target_id: id, target_type: 'blackout', action: 'update_blackout',
       old_value: current, new_value: data, created_at: new Date().toISOString()
     });
-    await pusherServer.trigger('global-settings', 'blackout-updated', data);
+    // Pusher trigger removed; Supabase Realtime will broadcast blackout-updated via Postgres changes.
     return NextResponse.json(data);
   } catch (error) {
     console.error('[PUT /api/admin/settings/blackouts/[id]] Error:', error);
@@ -60,7 +59,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       admin_id: user.id, admin_name: user.email, target_id: id, target_type: 'blackout', action: 'delete_blackout',
       old_value: current, created_at: new Date().toISOString()
     });
-    await pusherServer.trigger('global-settings', 'blackout-deleted', { id });
+    // Pusher trigger removed; Supabase Realtime will broadcast blackout-deleted via Postgres changes.
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[DELETE /api/admin/settings/blackouts/[id]] Error:', error);

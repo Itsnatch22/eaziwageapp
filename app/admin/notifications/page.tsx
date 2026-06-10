@@ -265,6 +265,26 @@ export default function AdminNotificationsPage() {
                           <Link href="/admin/kyc-review">Review Application</Link>
                         </Button>
                       )}
+                      {notif.type === 'employer_kyc' && (
+                        <Button 
+                          size="sm" 
+                          className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs rounded-lg"
+                          asChild
+                        >
+                          <Link href={notif.title.toLowerCase().includes('bank') ? '/admin/review-requests' : '/admin/kyc-review'}>
+                            {notif.title.toLowerCase().includes('bank') ? 'Review Bank Change' : 'Review Onboarding'}
+                          </Link>
+                        </Button>
+                      )}
+                      {notif.type === 'system_alert' && notif.title.toLowerCase().includes('risk') && (
+                        <Button 
+                          size="sm" 
+                          className="bg-blue-600 hover:bg-blue-700 text-white h-8 text-xs rounded-lg"
+                          asChild
+                        >
+                          <Link href="/admin/fraud-detection">View Risk Alerts</Link>
+                        </Button>
+                      )}
                       {!notif.read && (
                         <button 
                           onClick={(e) => {

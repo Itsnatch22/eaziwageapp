@@ -10,7 +10,7 @@ import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { validateEmail }             from '@/lib/email-validation';
 import { createToken }               from '@/lib/token';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
-import pusherServer from '@/lib/pusher-server';
+import { notifyAdmins, notifyEmployer } from '@/lib/notifications';
 import { toast } from 'sonner';
 
 const env    = getEnv();
@@ -462,42 +462,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   try {
-    const { data: adminNotif, error: adminNotifError } = await supabase
-      .from('admin_notifications')
-      .insert({
-        type: input.role === 'employer' ? 'employer_kyc' : 'employee',
-        title: `New ${input.role.charAt(0).toUpperCase() + input.role.slice(1)} Registration`,
-        message: `${input.full_name} has registered as a ${input.role}.`,
-        read: false,
-        metadata: {
-          user_id: userId,
-          role: input.role,
-          company_name: input.company_name,
-        },
-      })
-      .select()
-      .single();
-
-    if (!adminNotifError && adminNotif) {
-      await pusherServer.trigger('admin-notifications', 'new-notification', adminNotif);
-    }
+    await notifyAdmins({
+      type: input.role === 'employer' ? 'employer_kyc' : 'system_alert',
+      title: `New ${input.role.charAt(0).toUpperCase() + input.role.slice(1)} Registration`,
+      message: `${input.full_name} has registered as a ${input.role}.`,
+      metadata: {
+        user_id: userId,
+        role: input.role,
+        company_name: input.company_name,
+      },
+    });
 
     if (input.role === 'employee' && employerUserId) {
-      const { data: empNotif, error: empNotifError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: employerUserId,
-          type: 'employee',
-          title: 'New Employee Registered',
-          message: `${input.full_name} has registered and linked to your company.`,
-          read: false,
-        })
-        .select()
-        .single();
-
-      if (!empNotifError && empNotif) {
-        await pusherServer.trigger(`employer-${employerUserId}`, 'new-notification', empNotif);
-      }
+      await notifyEmployer({
+        userId: employerUserId,
+        type: 'employee',
+        title: 'New Employee Registered',
+        message: `${input.full_name} has registered and linked to your company.`,
+      });
     }
   } catch (notifErr) {
     console.error('[register/notifications]', notifErr);

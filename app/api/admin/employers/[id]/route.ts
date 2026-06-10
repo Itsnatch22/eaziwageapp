@@ -94,6 +94,8 @@ export async function GET(
       payroll_cycle,
       status,
       risk_score,
+      bank_name,
+      bank_account_number,
       created_at,
       updated_at
     `)
@@ -157,6 +159,8 @@ export async function GET(
       payroll_cycle: employer.payroll_cycle ?? null,
       status: toAdminStatus(employer.status),
       risk_score: employer.risk_score ?? null,
+      bank_name: employer.bank_name || null,
+      bank_account_number: employer.bank_account_number || null,
       created_at: employer.created_at,
       updated_at: employer.updated_at ?? employer.created_at,
       employee_count: employeeCount,
