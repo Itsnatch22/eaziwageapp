@@ -16,11 +16,14 @@ import { cn } from '@/lib/utils';
 
 interface PaymentMethod {
   id: string;
-  type: 'mobile_money' | 'bank';
-  provider: string;
-  account_number: string;
-  account_name?: string;
-  is_primary: boolean;
+  method_type: 'mobile_money' | 'bank_account';
+  provider_name: string;
+  account_number?: string | null;
+  account_name?: string | null;
+  phone_number?: string | null;
+  country_code?: string | null;
+  is_default?: boolean;
+  is_verified?: boolean;
 }
 
 const PaymentMethods = () => {
@@ -30,11 +33,13 @@ const PaymentMethods = () => {
   const [adding, setAdding] = useState(false);
 
   const [newMethod, setNewMethod] = useState({
-    type: 'mobile_money',
-    provider: '',
+    method_type: 'mobile_money',
+    provider_name: '',
     account_number: '',
     account_name: '',
-    is_primary: false
+    phone_number: '',
+    country_code: 'KE', // TODO: infer from profile
+    is_default: false
   });
 
   const fetchMethods = async () => {
@@ -42,9 +47,22 @@ const PaymentMethods = () => {
       const res = await fetch('/api/employee-dashboard/payment-methods');
       if (res.ok) {
         const data = await res.json();
-        setMethods(data.methods || []);
+        // adapt server shape to UI
+        const adapted = (data.methods || []).map((m: any) => ({
+          id: m.id,
+          method_type: m.method_type || m.type,
+          provider_name: m.provider_name || m.provider,
+          account_number: m.account_number || null,
+          account_name: m.account_name || null,
+          phone_number: m.phone_number || null,
+          country_code: m.country_code || null,
+          is_default: m.is_default || false,
+          is_verified: m.is_verified || false,
+        }));
+        setMethods(adapted);
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to load payment methods');
     } finally {
       setLoading(false);
@@ -62,20 +80,34 @@ const PaymentMethods = () => {
     e.preventDefault();
     setAdding(true);
     try {
+      // map newMethod to API payload
+      const payload = {
+        country_code: newMethod.country_code || 'KE',
+        method_type: newMethod.method_type === 'bank' ? 'bank_account' : newMethod.method_type,
+        provider_name: newMethod.provider_name,
+        account_number: newMethod.account_number || null,
+        account_name: newMethod.account_name || null,
+        phone_number: newMethod.phone_number || (newMethod.method_type === 'mobile_money' ? newMethod.account_number : null),
+        is_default: !!newMethod.is_default,
+      };
+
       const res = await fetch('/api/employee-dashboard/payment-methods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method: newMethod })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         toast.success('Payment method added');
         setShowAddModal(false);
-        setNewMethod({ type: 'mobile_money', provider: '', account_number: '', account_name: '', is_primary: false });
+        setNewMethod({ method_type: 'mobile_money', provider_name: '', account_number: '', account_name: '', phone_number: '', country_code: 'KE', is_default: false });
         fetchMethods();
       } else {
+        const err = await res.json().catch(() => null);
+        console.error('Add error', err);
         throw new Error('Failed to add');
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast.error('Could not add payment method');
     } finally {
       setAdding(false);
@@ -89,7 +121,11 @@ const PaymentMethods = () => {
       if (res.ok) {
         toast.success('Method removed');
         fetchMethods();
-      }
+        } else {
+          const err = await res.json().catch(() => null);
+          console.error('Delete failed', err);
+          toast.error('Failed to delete');
+        }
     } catch {
       toast.error('Failed to delete');
     }
@@ -129,27 +165,27 @@ const PaymentMethods = () => {
             methods.map((m) => (
               <div key={m.id} className={cn(
                 "group relative bg-white/50 dark:bg-white/5 backdrop-blur-xl rounded-3xl p-6 border transition-all duration-300",
-                m.is_primary ? "border-emerald-500/50 shadow-lg shadow-emerald-500/5" : "border-white/60 dark:border-white/10"
+                m.is_default ? "border-emerald-500/50 shadow-lg shadow-emerald-500/5" : "border-white/60 dark:border-white/10"
               )}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-5">
                     <div className={cn(
                       "w-14 h-14 rounded-2xl flex items-center justify-center border",
-                      m.type === 'mobile_money' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-purple-50 text-purple-600 border-purple-100"
+                      m.method_type === 'mobile_money' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-purple-50 text-purple-600 border-purple-100"
                     )}>
-                      {m.type === 'mobile_money' ? <Smartphone className="w-7 h-7" /> : <Landmark className="w-7 h-7" />}
+                      {m.method_type === 'mobile_money' ? <Smartphone className="w-7 h-7" /> : <Landmark className="w-7 h-7" />}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-slate-900 dark:text-white capitalize">{m.provider}</h3>
-                        {m.is_primary && (
+                        <h3 className="font-bold text-slate-900 dark:text-white capitalize">{m.provider_name}</h3>
+                                                {m.is_default && (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-600 text-[9px] font-bold uppercase tracking-wider rounded-full border border-emerald-500/20">
                             <Star className="w-2 h-2 fill-current" /> Primary
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-mono text-slate-500 mt-0.5">{m.account_number}</p>
-                      {m.account_name && <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mt-1">{m.account_name}</p>}
+                      <p className="text-sm font-mono text-slate-500 mt-0.5">{m.account_number || m.phone_number}</p>
+                      {(m.account_name) && <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mt-1">{m.account_name}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -192,32 +228,32 @@ const PaymentMethods = () => {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Method Type</Label>
-                    <Select value={newMethod.type} onValueChange={(v: 'mobile_money' | 'bank') => setNewMethod({ ...newMethod, type: v, provider: '' })}>
+                    <Select value={newMethod.method_type} onValueChange={(v: 'mobile_money' | 'bank_account') => setNewMethod({ ...newMethod, method_type: v, provider_name: '' })}>
                       <SelectTrigger className="rounded-xl h-12 bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                        <SelectItem value="bank">Bank Account</SelectItem>
+                        <SelectItem value="bank_account">Bank Account</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>{newMethod.type === 'mobile_money' ? 'Provider' : 'Bank Name'}</Label>
+                    <Label>{newMethod.method_type === 'mobile_money' ? 'Provider' : 'Bank Name'}</Label>
                     <Input 
-                      placeholder={newMethod.type === 'mobile_money' ? "e.g. M-Pesa, Airtel" : "e.g. Stanbic, KCB"}
-                      value={newMethod.provider}
-                      onChange={e => setNewMethod({ ...newMethod, provider: e.target.value })}
+                                          placeholder={newMethod.method_type === 'mobile_money' ? "e.g. M-Pesa, Airtel" : "e.g. Stanbic, KCB"}
+                                          value={newMethod.provider_name}
+                                          onChange={e => setNewMethod({ ...newMethod, provider_name: e.target.value })}
                       className="rounded-xl h-12 bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10"
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label>{newMethod.type === 'mobile_money' ? 'Phone Number' : 'Account Number'}</Label>
+                    <Label>{newMethod.method_type === 'mobile_money' ? 'Phone Number' : 'Account Number'}</Label>
                     <Input 
-                      placeholder={newMethod.type === 'mobile_money' ? "2547XXXXXXXX" : "0100XXXXXXX"}
+                                          placeholder={newMethod.method_type === 'mobile_money' ? "2547XXXXXXXX" : "0100XXXXXXX"}
                       value={newMethod.account_number}
                       onChange={e => setNewMethod({ ...newMethod, account_number: e.target.value })}
                       className="rounded-xl h-12 bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10"
