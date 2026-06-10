@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { DEFAULT_ADMIN_CURRENCY, getCurrencySymbol, getCurrencyFromCountry } from '@/lib/utils';
+import { DEFAULT_ADMIN_CURRENCY, getCurrencySymbol } from '@/lib/utils';
 import { useAuthStore } from '@/lib/stores/auth';
 
 export function useCurrency() {
@@ -44,24 +44,8 @@ export function useCurrency() {
           setCurrency(data.currency);
           setSymbol(getCurrencySymbol(data.currency));
         } else {
-          // try to infer currency from user's profile country code
-          try {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('phone_country_code')
-              .eq('id', user.id)
-              .maybeSingle();
-
-            const inferred = profile?.phone_country_code
-              ? getCurrencyFromCountry(profile.phone_country_code, 'KES')
-              : 'KES';
-
-            setCurrency(inferred);
-            setSymbol(getCurrencySymbol(inferred));
-          } catch {
-            setCurrency('KES');
-            setSymbol(getCurrencySymbol('KES'));
-          }
+          setCurrency('KES');
+          setSymbol(getCurrencySymbol('KES'));
         }
       } catch {
         setCurrency('KES');
