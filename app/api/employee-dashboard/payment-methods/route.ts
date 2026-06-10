@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
-
-interface PaymentMethod {
-  id?: string;
-  is_primary?: boolean;
-  [key: string]: unknown;
-}
+import { z } from 'zod';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import {
+  createPaymentMethod,
+  listPaymentMethods,
+  deletePaymentMethod,
+  setDefaultPaymentMethod,
+} from '@/lib/paymentMethodsService';
 
 function createAdminClient() {
   const env = getEnv();
@@ -18,44 +19,28 @@ function createAdminClient() {
   );
 }
 
+const PaymentMethodCreateSchema = z.object({
+  country_code: z.string().min(2).max(2),
+  method_type: z.enum(['mobile_money', 'bank_account']),
+  provider_name: z.string().min(1),
+  account_name: z.string().optional().nullable(),
+  account_number: z.string().optional().nullable(),
+  phone_number: z.string().optional().nullable(),
+  is_default: z.boolean().optional(),
+});
+
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { data: profile } = await adminSupabase
-      .from('profiles')
-      .select('payment_methods')
-      .eq('id', user.id)
-      .single();
-
-    return NextResponse.json({ 
-      methods: profile?.payment_methods || [] 
-    });
-  } catch (error) {
-    console.error('Payment methods GET error:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    
-    if (error instanceof Error) {
-      if (error.message.includes('column "payment_methods" does not exist')) {
-        return NextResponse.json({ 
-          error: 'Database schema not updated. Please contact administrator.' 
-        }, { status: 500 });
-      }
-      if (error.message.includes('profiles')) {
-        return NextResponse.json({ 
-          error: 'Profile table not found. Please contact administrator.' 
-        }, { status: 500 });
-      }
-    }
-    
+    const methods = await listPaymentMethods(adminSupabase, user.id);
+    return NextResponse.json({ methods });
+  } catch (err) {
+    console.error('Payment methods GET error', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -66,72 +51,35 @@ export async function POST(req: NextRequest) {
     const adminSupabase = createAdminClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const body = await req.json();
+
+    // support actions: create, set_default
+    if (body.action === 'set_default') {
+      const id = body.id as string | undefined;
+      if (!id) return NextResponse.json({ error: 'Missing id for set_default' }, { status: 400 });
+      const updated = await setDefaultPaymentMethod(adminSupabase, user.id, id);
+      return NextResponse.json({ success: true, method: updated });
     }
 
-    const { method } = await req.json();
-    if (!method.type || !method.account_number) {
-      return NextResponse.json({ error: 'Invalid method details' }, { status: 400 });
+    // default to create
+    const parse = PaymentMethodCreateSchema.safeParse(body);
+    if (!parse.success) return NextResponse.json({ error: 'Invalid payload', details: parse.error.flatten() }, { status: 400 });
+
+    // basic cross-field validation
+    const payload = parse.data;
+    if (payload.method_type === 'mobile_money' && !payload.phone_number) {
+      return NextResponse.json({ error: 'phone_number is required for mobile_money' }, { status: 400 });
+    }
+    if (payload.method_type === 'bank_account' && !payload.account_number) {
+      return NextResponse.json({ error: 'account_number is required for bank_account' }, { status: 400 });
     }
 
-    const { data: profile } = await adminSupabase
-      .from('profiles')
-      .select('payment_methods')
-      .eq('id', user.id)
-      .single();
-
-    const currentMethods = Array.isArray(profile?.payment_methods) ? profile.payment_methods : [];
-    
-    const newMethod = {
-      ...method,
-      id: Math.random().toString(36).substring(2, 11),
-      created_at: new Date().toISOString(),
-      is_primary: currentMethods.length === 0 || method.is_primary
-    };
-
-    let updatedMethods = [...currentMethods];
-    if (newMethod.is_primary) {
-      updatedMethods = updatedMethods.map(m => ({ ...m, is_primary: false }));
-    }
-    updatedMethods.push(newMethod);
-
-    const { error: updateError } = await adminSupabase
-      .from('profiles')
-      .update({ payment_methods: updatedMethods })
-      .eq('id', user.id);
-
-    if (updateError) throw updateError;
-
-    return NextResponse.json({ success: true, method: newMethod });
-  } catch (error) {
-    let userId = 'unknown';
-    try {
-      const supabase = await createRouteHandlerClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      userId = authUser?.id || 'unknown';
-    } catch {
-    }
-    
-    console.error('Payment methods POST error:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      userId
-    });
-    
-    if (error instanceof Error) {
-      if (error.message.includes('column "payment_methods" does not exist')) {
-        return NextResponse.json({ 
-          error: 'Database schema not updated. Please contact administrator.' 
-        }, { status: 500 });
-      }
-      if (error.message.includes('profiles')) {
-        return NextResponse.json({ 
-          error: 'Profile table not found. Please contact administrator.' 
-        }, { status: 500 });
-      }
-    }
-    
+    const created = await createPaymentMethod(adminSupabase, user.id, payload);
+    return NextResponse.json({ success: true, method: created });
+  } catch (err) {
+    console.error('Payment methods POST error', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -146,56 +94,12 @@ export async function DELETE(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { data: profile } = await adminSupabase
-      .from('profiles')
-      .select('payment_methods')
-      .eq('id', user.id)
-      .single();
+    if (!methodId) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
-    const currentMethods = Array.isArray(profile?.payment_methods) ? profile.payment_methods : [];
-    const updatedMethods = currentMethods.filter((m: PaymentMethod) => m.id !== methodId);
-
-    if (currentMethods.find((m: PaymentMethod) => m.id === methodId)?.is_primary && updatedMethods.length > 0) {
-      updatedMethods[0].is_primary = true;
-    }
-
-    await adminSupabase
-      .from('profiles')
-      .update({ payment_methods: updatedMethods })
-      .eq('id', user.id);
-
+    await deletePaymentMethod(adminSupabase, user.id, methodId);
     return NextResponse.json({ success: true });
-  } catch (error) {
-    let userId = 'unknown';
-    try {
-      const supabase = await createRouteHandlerClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      userId = authUser?.id || 'unknown';
-    } catch {
-    }
-    
-    const methodIdToLog = new URL(req.url).searchParams.get('id') || 'unknown';
-    
-    console.error('Payment methods DELETE error:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      userId,
-      methodId: methodIdToLog
-    });
-    
-    if (error instanceof Error) {
-      if (error.message.includes('column "payment_methods" does not exist')) {
-        return NextResponse.json({ 
-          error: 'Database schema not updated. Please contact administrator.' 
-        }, { status: 500 });
-      }
-      if (error.message.includes('profiles')) {
-        return NextResponse.json({ 
-          error: 'Profile table not found. Please contact administrator.' 
-        }, { status: 500 });
-      }
-    }
-    
+  } catch (err) {
+    console.error('Payment methods DELETE error', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
