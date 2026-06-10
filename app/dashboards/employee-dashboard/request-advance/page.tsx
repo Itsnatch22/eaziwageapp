@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { EmployeePortalLayout } from "@/components/employee/EmployeeLayout";
 import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 interface EmployeeProfile {
   id?: string;
@@ -597,25 +598,22 @@ export default function RequestAdvance() {
                   </div>
                 </div>
               )}
-            </div>
-
             {/* CTA */}
-            <Button
+            <SubmitButton
               onClick={handleSubmit}
-              disabled={submitting || amount <= 0 || amount > maxAmount}
-              className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
-            >
-              {submitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
+              isLoading={submitting}
+              label={
                 <span className="flex items-center gap-2">
                   <Zap className="w-4 h-4 fill-current" /> Request Advance
                 </span>
-              )}
-            </Button>
+              }
+              loadingLabel="Requesting..."
+              className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-95"
+            />
           </div>
         </div>
       </div>
+    </div>
     </EmployeePortalLayout>
   );
 }

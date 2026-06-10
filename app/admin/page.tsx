@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { 
   Building2, Users, CreditCard, Shield, CheckCircle2,
   TrendingUp, ArrowRight, FileText, Activity, AlertTriangle, 
-  DollarSign, BarChart3, RefreshCw, Bell
+  DollarSign, BarChart3, Bell
 } from 'lucide-react';
 import { formatCurrency, cn, formatDateTime } from '@/lib/utils';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 
 type VariantColor = 'green' | 'slate' | 'black';
 type IconSize = 'sm' | 'md' | 'lg';
@@ -336,14 +337,13 @@ export default function AdminDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60"
+          <SubmitButton
+            isLoading={refreshingCache}
             onClick={handleCacheRefresh}
-            disabled={refreshingCache}
-          >
-            <RefreshCw className={cn('w-4 h-4 mr-2', refreshingCache && 'animate-spin')} /> 
-            {refreshingCache ? 'Clearing Cache...' : 'Clear Cache'}
-          </button>
+            label="Clear Cache"
+            loadingLabel="Clearing Cache..."
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-white/60 dark:bg-slate-800/60 h-10 px-4 py-2"
+          />
           <Link href="/admin/reports" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60">
             <BarChart3 className="w-4 h-4 mr-2" /> Reports
           </Link>

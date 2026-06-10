@@ -2,13 +2,15 @@
 
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { Loader2, WifiOff } from "lucide-react";
+import React from "react";
 
 interface SubmitButtonProps {
   isLoading?: boolean;
-  label?: string;
-  loadingLabel?: string;
+  label?: React.ReactNode;
+  loadingLabel?: React.ReactNode;
   onClick?: () => void;
   className?: string;
+  type?: "button" | "submit" | "reset";
 }
 
 export function SubmitButton({
@@ -17,6 +19,7 @@ export function SubmitButton({
   loadingLabel = "Submitting...",
   onClick,
   className,
+  type = "submit",
 }: SubmitButtonProps) {
   const { isOnline, isChecking } = useNetworkStatus();
 
@@ -29,9 +32,9 @@ export function SubmitButton({
   };
 
   return (
-    <div className="relative w-full" title={getTooltip()}>
+    <div className="relative" title={getTooltip()}>
       <button
-        type="button"
+        type={type}
         disabled={disabled}
         onClick={onClick}
         className={`

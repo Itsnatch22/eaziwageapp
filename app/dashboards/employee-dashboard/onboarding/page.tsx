@@ -43,8 +43,9 @@ import {
   IMAGE_ACCEPT,
   isDocumentFile,
   isImageFile,
-} from "@/lib/upload-file-types"
-import {DocTooltip} from "@/components/shared/DocTooltip";
+} from "@/lib/upload-file-types";
+import { DocTooltip } from "@/components/shared/DocTooltip";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 const COUNTRIES_OF_WORK = [
   { code: "KE", name: "Kenya", providers: ["M-PESA", "Airtel Money"] },
@@ -1781,17 +1782,13 @@ export default function Onboarding() {
             </Button>
 
             {currentStep === STEPS.length - 1 ? (
-              <Button
+              <SubmitButton
                 onClick={handleSubmit}
-                disabled={loading || !canProceed()}
+                isLoading={loading}
+                label="Complete Setup"
+                loadingLabel="Completing..."
                 className="flex-1 h-14 bg-primary text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-primary/30 transition-all hover:scale-[1.02] active:scale-95"
-              >
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  "Complete Setup"
-                )}
-              </Button>
+              />
             ) : (
               <Button
                 onClick={nextStep}

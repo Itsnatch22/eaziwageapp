@@ -71,24 +71,29 @@ export async function GET() {
       throw policyError;
     }
 
-    // Determine effective EWA percentage to show on UI (employee override -> employer)
-    const { data: employeeEwa } = await adminSupabase
-      .from('employee_ewa_settings')
-      .select('max_advance_percentage')
-      .eq('employee_onboarding_id', onboarding.id)
-      .maybeSingle();
+    type EmployerOnboarding = {
+  company_name: string;
+  max_advance_percentage: number;
+};
 
-    let effectivePct = policy?.withdrawal_limit_percent ?? 50;
-    if (employeeEwa && employeeEwa.max_advance_percentage) {
-      effectivePct = employeeEwa.max_advance_percentage;
-    } else if (onboarding && onboarding.employer_onboarding) {
-      const eo = Array.isArray(onboarding.employer_onboarding) 
-        ? onboarding.employer_onboarding[0] 
-        : onboarding.employer_onboarding;
-      if (eo && (eo as any).max_advance_percentage) {
-        effectivePct = (eo as any).max_advance_percentage;
-      }
-    }
+// Determine effective EWA percentage to show on UI (employee override -> employer)
+const { data: employeeEwa } = await adminSupabase
+  .from('employee_ewa_settings')
+  .select('max_advance_percentage')
+  .eq('employee_onboarding_id', onboarding.id)
+  .maybeSingle();
+
+let effectivePct = policy?.withdrawal_limit_percent ?? 50;
+if (employeeEwa && employeeEwa.max_advance_percentage) {
+  effectivePct = employeeEwa.max_advance_percentage;
+} else if (onboarding && onboarding.employer_onboarding) {
+  const eo = Array.isArray(onboarding.employer_onboarding) 
+    ? onboarding.employer_onboarding[0] 
+    : onboarding.employer_onboarding;
+  if (eo && (eo as EmployerOnboarding).max_advance_percentage) {
+    effectivePct = (eo as EmployerOnboarding).max_advance_percentage;
+  }
+}
 
     return NextResponse.json({
       employment: employmentData,

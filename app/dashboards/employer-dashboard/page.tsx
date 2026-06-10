@@ -15,9 +15,6 @@ import { GradientIconBox } from '@/components/employer/SharedComponents';
 import pusherClient from '@/lib/pusher-client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
-import { ConfettiKeys, useMilestoneConfetti } from '@/components/ui/Confetti';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface EmployerProfile {
   id: string;
@@ -68,8 +65,6 @@ interface EmployeeStats {
   department_breakdown?: Record<string, number>;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function computeTrend(
   current: number,
   previous: number,
@@ -80,8 +75,6 @@ function computeTrend(
   const sign = pct >= 0 ? '+' : '';
   return { label: `${sign}${pct.toFixed(1)}%`, trendUp: pct >= 0 };
 }
-
-// ─── Animated Counter ─────────────────────────────────────────────────────────
 
 const AnimatedCounter = ({ value, prefix = '', suffix = '' }: { value: number; prefix?: string; suffix?: string }) => {
   const [display, setDisplay] = useState(0);
@@ -100,8 +93,6 @@ const AnimatedCounter = ({ value, prefix = '', suffix = '' }: { value: number; p
   }, [value]);
   return <span>{prefix}{display.toLocaleString()}{suffix}</span>;
 };
-
-// ─── Main Stats Card ──────────────────────────────────────────────────────────
 
 const MainStatsCard = ({ employer, employeeStats }: { employer: EmployerProfile | null; employeeStats: EmployeeStats | null }) => {
   const total  = employeeStats?.total_employees  ?? 0;
@@ -321,11 +312,6 @@ export default function EmployerDashboard() {
   const [error,    setError]    = useState<string | null>(null);
   const router = useRouter();
 
-  const { triggerConfetti, ConfettiComponent } = useMilestoneConfetti(
-    employer?.id ? ConfettiKeys.FIRST_EMPLOYEE(employer.id) : 'employer-onboarding-default',
-    { intensity: 'high' }
-  );
-
   const load = useCallback(async () => {
     // defer state updates to avoid synchronous setState inside useEffect
     await Promise.resolve();
@@ -372,10 +358,6 @@ export default function EmployerDashboard() {
         const j = await employeeRes.json();
         if (j.stats) {
           setEmployeeStats(j.stats);
-          // Check if this is the first employee onboarded - trigger confetti
-          if (j.stats.total_employees === 1 && profile?.id) {
-            triggerConfetti();
-          }
         }
       }
     } catch {
@@ -383,7 +365,7 @@ export default function EmployerDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [router, triggerConfetti]);
+  }, [router]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
@@ -452,7 +434,6 @@ export default function EmployerDashboard() {
 
   return (
     <EmployerPortalLayout employer={employer}>
-      {ConfettiComponent}
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* Rejection Recovery Alert */}

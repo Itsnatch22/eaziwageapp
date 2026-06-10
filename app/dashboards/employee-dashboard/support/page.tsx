@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
@@ -226,9 +227,12 @@ const SupportPage = () => {
 
                 <div className="flex gap-3">
                   <Button type="button" variant="ghost" onClick={() => setShowAddModal(false)} className="flex-1 rounded-2xl h-12">Cancel</Button>
-                  <Button type="submit" disabled={adding} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl h-12 font-bold uppercase tracking-widest">
-                    {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Open Ticket'}
-                  </Button>
+                  <SubmitButton
+                    isLoading={adding}
+                    label="Open Ticket"
+                    loadingLabel="Opening..."
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl h-12 font-bold uppercase tracking-widest"
+                  />
                 </div>
               </form>
             </div>
