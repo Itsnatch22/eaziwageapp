@@ -1,37 +1,47 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
+type LoginHistoryRow = {
+  id: string;
+  email: string;
+  ip_address: string;
+  user_agent: string | null;
+  logged_in_at: string;
+  location: string | null;
+  device_fingerprint: string | null;
+};
 
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: logs, error: logsError } = await adminSupabase
-      .from('system_audit_logs')
-      .select('*')
-      .or(`admin_id.eq.${user.id},target_id.eq.${user.id}`)
-      .order('created_at', { ascending: false })
+    const { data: logs, error: logsError } = await supabase
+      .from('login_history')
+      .select('id, email, ip_address, user_agent, logged_in_at, location, device_fingerprint')
+      .eq('user_id', user.id)
+      .order('logged_in_at', { ascending: false })
       .limit(20);
 
     if (logsError) throw logsError;
 
-    return NextResponse.json({ logs: logs || [] });
+    // Transform data to match frontend expectations (created_at -> logged_in_at, action -> login)
+    const formattedLogs = (logs || []).map((log: LoginHistoryRow) => ({
+      action: 'login',
+      created_at: log.logged_in_at,
+      metadata: {
+        ip: log.ip_address,
+        location: log.location,
+        device_fingerprint: log.device_fingerprint,
+        user_agent: log.user_agent
+      }
+    }));
+
+    return NextResponse.json({ logs: formattedLogs });
   } catch (error: unknown) {
     console.error('[Activity Logs API Error]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

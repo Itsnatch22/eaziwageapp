@@ -24,7 +24,12 @@ import { DeleteAccountModal } from '@/components/employee/DeleteAccountModal';
 type ActivityLog = {
   action?: string;
   created_at?: string;
-  metadata?: { ip?: string };
+  metadata?: { 
+    ip?: string;
+    location?: string;
+    device_fingerprint?: string;
+    user_agent?: string;
+  };
 };
 
 type KycDocument = {
@@ -781,12 +786,18 @@ export default function EmployeeSettings() {
                       <div className="divide-y divide-slate-100 dark:divide-white/5">
                         {activityLogs.map((log, idx) => (
                           <div key={idx} className="py-3 flex items-center justify-between">
-                            <div>
+                            <div className="flex-1">
                               <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{(log.action || 'activity').replace('_', ' ')}</p>
                               <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{log.created_at ? new Date(log.created_at).toLocaleString() : 'Recent'}</p>
+                              {(log.metadata?.location || log.metadata?.ip) && (
+                                <p className="text-[9px] text-slate-400 mt-1">
+                                  {log.metadata.location ? `📍 ${log.metadata.location}` : ''} 
+                                  {log.metadata.ip ? `${log.metadata.location ? ' • ' : ''}🌐 ${log.metadata.ip}` : ''}
+                                </p>
+                              )}
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest">
-                              {log.metadata?.ip || 'Verified'}
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest ml-3">
+                              {log.metadata?.ip ? log.metadata.ip.split('.').slice(-2).join('.') : 'Verified'}
                             </span>
                           </div>
                         ))}
