@@ -183,6 +183,8 @@ export default function RequestAdvance() {
   const [amount, setAmount] = useState(0);
   const [disbursementMethod, setDisbursementMethod] =
     useState<DisbursementMethod>("mobile_money");
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -206,6 +208,33 @@ export default function RequestAdvance() {
         );
         if (available > 0) {
           setAmount(Math.min(500, available));
+        }
+
+        // load payment methods
+        try {
+          const pmRes = await fetch('/api/employee-dashboard/payment-methods');
+          if (pmRes.ok) {
+            const pmData = await pmRes.json();
+            const list = (pmData.methods || []).map((m: any) => ({
+              id: m.id,
+              method_type: m.method_type || m.type,
+              provider_name: m.provider_name || m.provider,
+              account_number: m.account_number || m.phone_number || null,
+              account_name: m.account_name || null,
+              phone_number: m.phone_number || null,
+              country_code: m.country_code || null,
+              is_default: m.is_default || m.is_primary || false,
+              is_verified: m.is_verified || false,
+            }));
+            setPaymentMethods(list);
+            const def = list.find((l: any) => l.is_default);
+            if (def) {
+              setSelectedPaymentMethodId(def.id);
+              setDisbursementMethod(def.method_type === 'bank_account' ? 'bank_transfer' : 'mobile_money');
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load payment methods', e);
         }
       } catch {
         if (!cancelled) toast.error("Connection error");
@@ -244,8 +273,9 @@ export default function RequestAdvance() {
         body: JSON.stringify({
           amount,
           disbursement_method: disbursementMethod,
-        }),
-      });
+            payment_method_id: selectedPaymentMethodId,
+          }),
+        });
       if (res.ok) {
         toast.success("Funds requested successfully!");
         router.push("/dashboards/employee-dashboard/transactions");
@@ -549,52 +579,42 @@ export default function RequestAdvance() {
                     </button>
                   </div>
                   <div className="space-y-2">
-                    {[
-                      {
-                        id: "mobile_money",
-                        label:
-                          employee?.mobile_money_provider || "Mobile Money",
-                        sub: employee?.mobile_money_number || "••••••••",
-                        icon: Smartphone,
-                      },
-                      {
-                        id: "bank_transfer",
-                        label: employee?.bank_name || "Bank Account",
-                        sub: employee?.bank_account
-                          ? `••••${employee.bank_account.slice(-4)}`
-                          : "••••••••",
-                        icon: Landmark,
-                      },
-                    ].map((m) => (
+                  {paymentMethods.length === 0 ? (
+                    <div className="text-sm text-slate-500">No payment methods found. Add one in your Payment Methods page.</div>
+                  ) : (
+                    paymentMethods.map((m) => (
                       <button
                         key={m.id}
                         onClick={() => {
-                          setDisbursementMethod(m.id as DisbursementMethod);
+                          const dm = m.method_type === 'bank_account' ? 'bank_transfer' : 'mobile_money';
+                          setDisbursementMethod(dm as DisbursementMethod);
+                          setSelectedPaymentMethodId(m.id);
                           setShowMethodSelector(false);
                         }}
                         className={cn(
                           "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left",
-                          disbursementMethod === m.id
+                          selectedPaymentMethodId === m.id
                             ? "border-emerald-400/40 bg-emerald-50 dark:bg-emerald-500/5"
                             : "border-slate-100 dark:border-white/10 hover:border-slate-200 dark:hover:border-white/20",
                         )}
                       >
                         <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-white/5">
-                          <m.icon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                          {m.method_type === 'mobile_money' ? <Smartphone className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <Landmark className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                            {m.label}
+                            {m.provider_name}
                           </p>
                           <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-                            {m.sub}
+                            {m.account_number || m.phone_number}
                           </p>
                         </div>
-                        {disbursementMethod === m.id && (
+                        {selectedPaymentMethodId === m.id && (
                           <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                         )}
                       </button>
-                    ))}
+                    ))
+                  )}
                   </div>
                 </div>
               )}
