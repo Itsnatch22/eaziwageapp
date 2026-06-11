@@ -1,7 +1,7 @@
-import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { SupabaseClient } from '@supabase/supabase-js';
 import type { PaymentMethodCreate, PaymentMethod } from './paymentTypes';
 
-export async function createPaymentMethod(supabaseClient: any, employeeId: string, payload: PaymentMethodCreate) {
+export async function createPaymentMethod(supabaseClient: SupabaseClient, employeeId: string, payload: PaymentMethodCreate) {
   // enforce ownership and basic validation should be done by caller
   // If is_default, unset other defaults in a transaction
   const { data, error } = await supabaseClient
@@ -33,7 +33,7 @@ export async function createPaymentMethod(supabaseClient: any, employeeId: strin
   return data as PaymentMethod;
 }
 
-export async function listPaymentMethods(supabaseClient: any, employeeId: string) {
+export async function listPaymentMethods(supabaseClient: SupabaseClient, employeeId: string) {
   const { data, error } = await supabaseClient
     .from('payment_methods')
     .select('*')
@@ -44,7 +44,7 @@ export async function listPaymentMethods(supabaseClient: any, employeeId: string
   return data as PaymentMethod[];
 }
 
-export async function getPaymentMethodById(supabaseClient: any, id: string) {
+export async function getPaymentMethodById(supabaseClient: SupabaseClient, id: string) {
   const { data, error } = await supabaseClient
     .from('payment_methods')
     .select('*')
@@ -54,7 +54,7 @@ export async function getPaymentMethodById(supabaseClient: any, id: string) {
   return data as PaymentMethod | null;
 }
 
-export async function setDefaultPaymentMethod(supabaseClient: any, employeeId: string, id: string) {
+export async function setDefaultPaymentMethod(supabaseClient: SupabaseClient, employeeId: string, id: string) {
   // ensure method belongs to employee
   const { data: method } = await supabaseClient
     .from('payment_methods')
@@ -87,7 +87,7 @@ export async function setDefaultPaymentMethod(supabaseClient: any, employeeId: s
   return updated as PaymentMethod;
 }
 
-export async function deletePaymentMethod(supabaseClient: any, employeeId: string, id: string) {
+export async function deletePaymentMethod(supabaseClient: SupabaseClient, employeeId: string, id: string) {
   const { data: method } = await supabaseClient
     .from('payment_methods')
     .select('*')

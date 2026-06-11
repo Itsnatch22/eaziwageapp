@@ -173,6 +173,18 @@ const CircularAmountSelector = ({
   );
 };
 
+interface PaymentMethod {
+  id: string;
+  method_type: string;
+  provider_name: string;
+  account_number: string | null;
+  account_name: string | null;
+  phone_number: string | null;
+  country_code: string | null;
+  is_default: boolean;
+  is_verified: boolean;
+}
+
 export default function RequestAdvance() {
   const { currency } = useCurrency();
   const router = useRouter();
@@ -183,7 +195,7 @@ export default function RequestAdvance() {
   const [amount, setAmount] = useState(0);
   const [disbursementMethod, setDisbursementMethod] =
     useState<DisbursementMethod>("mobile_money");
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -215,10 +227,23 @@ export default function RequestAdvance() {
           const pmRes = await fetch('/api/employee-dashboard/payment-methods');
           if (pmRes.ok) {
             const pmData = await pmRes.json();
-            const list = (pmData.methods || []).map((m: any) => ({
+            const list: PaymentMethod[] = (pmData.methods || []).map((m: {
+              id: string;
+              method_type?: string;
+              type?: string;
+              provider_name?: string;
+              provider?: string;
+              account_number?: string;
+              phone_number?: string;
+              account_name?: string;
+              country_code?: string;
+              is_default?: boolean;
+              is_primary?: boolean;
+              is_verified?: boolean;
+            }) => ({
               id: m.id,
-              method_type: m.method_type || m.type,
-              provider_name: m.provider_name || m.provider,
+              method_type: m.method_type || m.type || '',
+              provider_name: m.provider_name || m.provider || '',
               account_number: m.account_number || m.phone_number || null,
               account_name: m.account_name || null,
               phone_number: m.phone_number || null,
@@ -227,7 +252,7 @@ export default function RequestAdvance() {
               is_verified: m.is_verified || false,
             }));
             setPaymentMethods(list);
-            const def = list.find((l: any) => l.is_default);
+            const def = list.find((l) => l.is_default);
             if (def) {
               setSelectedPaymentMethodId(def.id);
               setDisbursementMethod(def.method_type === 'bank_account' ? 'bank_transfer' : 'mobile_money');

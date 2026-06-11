@@ -30,7 +30,7 @@ export interface PayoutProviderConfig {
   provider_key: string;
   provider_name: string;
   method_type: PaymentMethodType;
-  config?: Record<string, any> | null;
+  config?: Record<string, unknown> | null;
 }
 
 export interface PaymentMethodAudit {
@@ -38,7 +38,7 @@ export interface PaymentMethodAudit {
   payment_method_id?: string | null;
   employee_id?: string | null;
   action: string;
-  old_data?: any;
-  new_data?: any;
+  old_data?: unknown;
+  new_data?: unknown;
   created_at: string;
 }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
@@ -10,7 +10,7 @@ function createAdminClient() {
   return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   const supabase = await createRouteHandlerClient();
   const adminSupabase = createAdminClient();
 
@@ -23,8 +23,9 @@ export async function POST(req: NextRequest) {
   try {
     const { processed } = await processApprovedAdvances(adminSupabase, 50);
     return NextResponse.json({ success: true, processed });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('process-advances failed', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

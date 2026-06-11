@@ -1,7 +1,8 @@
+import { SupabaseClient } from '@supabase/supabase-js';
 import { GenericHttpProvider } from './genericHttpProvider';
 import type { PayoutProvider } from '@/lib/payoutProviders';
 
-export async function getProviderByKey(supabaseClient: any, providerKey: string, countryCode?: string): Promise<PayoutProvider> {
+export async function getProviderByKey(supabaseClient: SupabaseClient, providerKey: string, countryCode?: string): Promise<PayoutProvider> {
   // Try to find a country-specific provider first
   let q = supabaseClient.from('payout_providers').select('id, country_code, provider_key, provider_name, method_type, config, enabled');
   if (countryCode) q = q.eq('country_code', countryCode);

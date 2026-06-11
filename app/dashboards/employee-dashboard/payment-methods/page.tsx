@@ -48,10 +48,22 @@ const PaymentMethods = () => {
       if (res.ok) {
         const data = await res.json();
         // adapt server shape to UI
-        const adapted = (data.methods || []).map((m: any) => ({
+        const adapted = (data.methods || []).map((m: {
+          id: string;
+          method_type?: string;
+          type?: string;
+          provider_name?: string;
+          provider?: string;
+          account_number?: string;
+          account_name?: string;
+          phone_number?: string;
+          country_code?: string;
+          is_default?: boolean;
+          is_verified?: boolean;
+        }) => ({
           id: m.id,
-          method_type: m.method_type || m.type,
-          provider_name: m.provider_name || m.provider,
+          method_type: (m.method_type || m.type) as 'mobile_money' | 'bank_account',
+          provider_name: (m.provider_name || m.provider) as string,
           account_number: m.account_number || null,
           account_name: m.account_name || null,
           phone_number: m.phone_number || null,

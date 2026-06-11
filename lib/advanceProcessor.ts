@@ -1,11 +1,11 @@
+import { SupabaseClient } from '@supabase/supabase-js';
 import { getProviderByKey } from './providers/factory';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
 
-export async function processApprovedAdvances(supabaseClient: any, limit = 20) {
+export async function processApprovedAdvances(supabaseClient: SupabaseClient, limit = 20) {
   // fetch advances with status 'approved' (not yet processed)
   const { data: advances, error } = await supabaseClient
     .from('advances')
-    .select('id, amount, net_amount, payment_method_id, payment_method_snapshot, reference, employee_id, employer_id')
+    .select('id, amount, net_amount, payment_method_id, payment_method_snapshot, reference, employee_id, employer_id, currency')
     .eq('status', 'approved')
     .order('requested_at', { ascending: true })
     .limit(limit);
@@ -23,21 +23,21 @@ export async function processApprovedAdvances(supabaseClient: any, limit = 20) {
         .update({ status: 'processing' })
         .eq('id', adv.id);
 
-      const pmSnapshot = adv.payment_method_snapshot || {};
-      const pmId = adv.payment_method_id || pmSnapshot.id;
+      const pmSnapshot = (adv.payment_method_snapshot as Record<string, unknown>) || {};
+      const pmId = adv.payment_method_id || (pmSnapshot['id'] as string);
 
       // determine provider key from snapshot.provider_name or fallback mapping
-      const providerKey = mapProviderNameToKey(pmSnapshot.provider_name || pmSnapshot.provider_name || '') || (pmSnapshot.method_type === 'bank_account' ? 'bank' : 'mpesa');
+      const providerKey = mapProviderNameToKey((pmSnapshot['provider_name'] as string) || '') || (pmSnapshot['method_type'] === 'bank_account' ? 'bank' : 'mpesa');
 
-      const provider = await getProviderByKey(supabaseClient, providerKey, pmSnapshot.country_code || pmSnapshot.country);
+      const provider = await getProviderByKey(supabaseClient, providerKey, (pmSnapshot['country_code'] as string) || (pmSnapshot['country'] as string));
 
       const payload = {
         reference: adv.reference,
         amount: adv.net_amount || adv.amount,
         currency: adv.currency || 'KES',
-        phone_number: pmSnapshot.phone_number,
-        account_number: pmSnapshot.account_number,
-        account_name: pmSnapshot.account_name,
+        phone_number: (pmSnapshot['phone_number'] as string),
+        account_number: (pmSnapshot['account_number'] as string),
+        account_name: (pmSnapshot['account_name'] as string),
         advance_id: adv.id,
         employee_id: adv.employee_id,
         employer_id: adv.employer_id,
@@ -55,10 +55,11 @@ export async function processApprovedAdvances(supabaseClient: any, limit = 20) {
       }
 
       processed++;
-    } catch (err: any) {
-      console.error('[advanceProcessor] failed processing advance', adv?.id, err?.message || err);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[advanceProcessor] failed processing advance', adv?.id, message);
       try {
-        await supabaseClient.from('disbursement_audit').insert([{ advance_id: adv.id, payment_method_id: adv.payment_method_id || null, provider_key: null, success: false, error: err?.message || String(err) }]);
+        await supabaseClient.from('disbursement_audit').insert([{ advance_id: adv.id, payment_method_id: adv.payment_method_id || null, provider_key: null, success: false, error: message }]);
         await supabaseClient.from('advances').update({ status: 'failed' }).eq('id', adv.id);
       } catch (e) {
         console.error('[advanceProcessor] failed to record failure', e);

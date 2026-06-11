@@ -4,7 +4,7 @@ interface GenericConfig {
   token?: {
     url: string;
     method?: string;
-    body?: Record<string, any>;
+    body?: Record<string, unknown>;
     headers?: Record<string, string>;
     response_token_path?: string; // e.g. access_token
     expires_in_path?: string; // optional
@@ -13,7 +13,7 @@ interface GenericConfig {
     url: string;
     method?: string;
     headers?: Record<string, string>;
-    body_template?: Record<string, any>;
+    body_template?: Record<string, unknown>;
   };
   status?: {
     url: string;
@@ -26,15 +26,18 @@ interface GenericConfig {
   };
 }
 
-function replacePlaceholders(obj: any, values: Record<string, any>): any {
+function replacePlaceholders(obj: unknown, values: Record<string, unknown>): unknown {
   if (!obj) return obj;
   if (typeof obj === 'string') {
     return obj.replace(/{{\s*([^}]+)\s*}}/g, (_, key) => String(values[key] ?? ''));
   }
   if (Array.isArray(obj)) return obj.map((v) => replacePlaceholders(v, values));
-  if (typeof obj === 'object') {
-    const out: any = {};
-    for (const k of Object.keys(obj)) out[k] = replacePlaceholders(obj[k], values);
+  if (typeof obj === 'object' && obj !== null) {
+    const out: Record<string, unknown> = {};
+    const entries = Object.entries(obj);
+    for (const [k, v] of entries) {
+      out[k] = replacePlaceholders(v, values);
+    }
     return out;
   }
   return obj;
@@ -52,7 +55,7 @@ export class GenericHttpProvider implements PayoutProvider {
     this.config = config;
   }
 
-  private async fetchWithRetry(url: string, options: RequestInit = {}, retries = 1, backoff = 300) {
+  private async fetchWithRetry(url: string, options: RequestInit = {}, retries = 1, backoff = 300): Promise<unknown> {
     let attempt = 0;
     while (true) {
       try {
@@ -83,9 +86,9 @@ export class GenericHttpProvider implements PayoutProvider {
     const body = tconf.body ? JSON.stringify(tconf.body) : undefined;
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(tconf.headers || {}) };
 
-    const json = await this.fetchWithRetry(tconf.url, { method, headers, body }, this.config.retry?.retries ?? 1, this.config.retry?.backoff_ms ?? 300);
-    const token = json?.[tconf.response_token_path || 'access_token'];
-    const expiresIn = json?.[tconf.expires_in_path || 'expires_in'];
+    const json = (await this.fetchWithRetry(tconf.url, { method, headers, body }, this.config.retry?.retries ?? 1, this.config.retry?.backoff_ms ?? 300) as Record<string, unknown>);
+    const token = json?.[tconf.response_token_path || 'access_token'] as string | undefined;
+    const expiresIn = json?.[tconf.expires_in_path || 'expires_in'] as number | string | undefined;
     if (token) {
       this.tokenCache.token = token;
       if (expiresIn) this.tokenCache.expiresAt = Date.now() + Number(expiresIn) * 1000 - 5000;
@@ -93,7 +96,7 @@ export class GenericHttpProvider implements PayoutProvider {
     return token;
   }
 
-  async validateDestination(payload: any) {
+  async validateDestination(payload: Record<string, unknown>) {
     // Best-effort: ensure required fields exist according to provider config
     if (!payload) return { valid: false, reason: 'Empty payload' };
     // example check: phone or account present
@@ -101,7 +104,7 @@ export class GenericHttpProvider implements PayoutProvider {
     return { valid: true };
   }
 
-  async initiateTransfer(payload: any) {
+  async initiateTransfer(payload: Record<string, unknown>) {
     try {
       const token = await this.fetchToken();
       const init = this.config.initiate;
@@ -112,14 +115,15 @@ export class GenericHttpProvider implements PayoutProvider {
       const body = JSON.stringify(bodyObj);
       const method = (init.method || 'POST').toUpperCase();
 
-      const json = await this.fetchWithRetry(init.url, { method, headers: { 'Content-Type': 'application/json', ...headers }, body }, this.config.retry?.retries ?? 2, this.config.retry?.backoff_ms ?? 500);
+      const json = (await this.fetchWithRetry(init.url, { method, headers: { 'Content-Type': 'application/json', ...headers }, body }, this.config.retry?.retries ?? 2, this.config.retry?.backoff_ms ?? 500) as Record<string, unknown>);
 
       // try to extract reference from response
-      const reference = json?.reference || json?.transaction_id || json?.id || null;
-      const success = !!(json && (json.success === true || reference));
+      const reference = (json['reference'] || json['transaction_id'] || json['id'] || null) as string | null;
+      const success = !!(json && (json['success'] === true || reference));
       return { success, reference: reference ?? undefined, error: success ? undefined : JSON.stringify(json) };
-    } catch (err: any) {
-      return { success: false, error: err?.message || String(err) };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: message };
     }
   }
 
@@ -127,17 +131,18 @@ export class GenericHttpProvider implements PayoutProvider {
     if (!this.config.status) return { status: 'unknown' };
     try {
       const st = this.config.status;
-      const url = replacePlaceholders(st.url, { reference });
+      const url = (replacePlaceholders(st.url, { reference }) as string);
       const token = await this.fetchToken();
       const headers: Record<string, string> = { ...(st.headers || {}) };
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const method = (st.method || 'GET').toUpperCase();
-      const json = await this.fetchWithRetry(url, { method, headers }, this.config.retry?.retries ?? 1, this.config.retry?.backoff_ms ?? 300);
+      const json = (await this.fetchWithRetry(url, { method, headers }, this.config.retry?.retries ?? 1, this.config.retry?.backoff_ms ?? 300) as Record<string, unknown>);
       // map common status fields
-      const status = json?.status || json?.transaction_status || 'unknown';
+      const status = (json['status'] || json['transaction_status'] || 'unknown') as string;
       return { status, detail: json };
-    } catch (err: any) {
-      return { status: 'error', detail: err?.message || String(err) };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { status: 'error', detail: message };
     }
   }
 }
