@@ -10,6 +10,7 @@ export const runtime = 'nodejs';
 const requestSchema = z.object({
   amount: z.number().positive('Amount must be greater than 0'),
   disbursement_method: z.enum(['mobile_money', 'bank_transfer']),
+  payment_method_id: z.string().optional().nullable(),
 });
 
 const toMoney = (value: number) => Math.round(value * 100) / 100;
@@ -226,6 +227,45 @@ export async function POST(req: NextRequest) {
   const random = Math.random().toString(36).substring(2, 7).toUpperCase();
   const reference = `EWA-${timestamp}-${random}`;
 
+  // determine payment method (either supplied or default)
+  let paymentMethodId = parsed.data.payment_method_id || null;
+
+  if (!paymentMethodId) {
+    // try to fetch default payment method for employee
+    const { data: defaultMethod } = await supabase
+      .from('payment_methods')
+      .select('*')
+      .eq('employee_id', employee.id)
+      .eq('is_default', true)
+      .maybeSingle();
+
+    if (defaultMethod) paymentMethodId = defaultMethod.id;
+  }
+
+  if (!paymentMethodId) {
+    return NextResponse.json({ message: 'No payment method selected or default found. Please add and verify a payment method.' }, { status: 400 });
+  }
+
+  // validate payment method ownership and status
+  const { data: pm, error: pmError } = await supabase
+    .from('payment_methods')
+    .select('*')
+    .eq('id', paymentMethodId)
+    .maybeSingle();
+
+  if (pmError) return NextResponse.json({ message: pmError.message }, { status: 500 });
+  if (!pm) return NextResponse.json({ message: 'Payment method not found' }, { status: 404 });
+  if (pm.employee_id !== employee.id) return NextResponse.json({ message: 'Payment method does not belong to you' }, { status: 403 });
+  if (!pm.is_active) return NextResponse.json({ message: 'Payment method is inactive' }, { status: 422 });
+  if (!pm.is_verified) return NextResponse.json({ message: 'Payment method is not verified' }, { status: 422 });
+
+  // ensure disbursement method matches payment method type
+  const pmType = pm.method_type;
+  const expected = parsed.data.disbursement_method === 'mobile_money' ? 'mobile_money' : 'bank_account';
+  if (pmType !== expected) {
+    return NextResponse.json({ message: 'Selected payment method type does not match chosen disbursement method' }, { status: 422 });
+  }
+
   const payload = {
     employee_id: employee.id,
     organization_id: organizationId,
@@ -234,10 +274,18 @@ export async function POST(req: NextRequest) {
     fee_amount: feeAmount,
     net_amount: netAmount,
     disbursement_method: parsed.data.disbursement_method,
+    payment_method_id: paymentMethodId,
+    payment_method_snapshot: {
+      id: pm.id,
+      method_type: pm.method_type,
+      provider_name: pm.provider_name,
+      account_number: pm.account_number,
+      phone_number: pm.phone_number,
+    },
     status: 'pending',
     reference: reference,
     requested_at: new Date().toISOString(),
-    employer_id: employee.employer_id, 
+    employer_id: employee.employer_id,
   };
 
   const { data: inserted, error: insertError } = await supabase
