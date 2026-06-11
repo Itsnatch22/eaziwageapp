@@ -1,5 +1,3 @@
--- Payment methods table for employee payout destinations
-
 create table if not exists public.payment_methods (
   id uuid not null default gen_random_uuid(),
   employee_id uuid not null,
