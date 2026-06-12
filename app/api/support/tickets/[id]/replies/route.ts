@@ -26,19 +26,21 @@ export async function GET(
     }
 
     const access = await checkAdminAccess({ user, adminSupabase });
-    if (!access.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
 
     const { data: ticket, error: ticketError } = await adminSupabase
       .from('support_tickets')
-      .select('id, status')
+      .select('id, status, user_id')
       .eq('id', id)
       .maybeSingle();
 
     if (ticketError) throw ticketError;
     if (!ticket) {
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
+    }
+
+    // Allow admins or the ticket owner to view replies
+    if (!access.isAdmin && ticket.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { data: replies, error: repliesError } = await adminSupabase
@@ -78,13 +80,10 @@ export async function POST(
     }
 
     const access = await checkAdminAccess({ user, adminSupabase });
-    if (!access.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
 
     const { data: ticket, error: ticketError } = await adminSupabase
       .from('support_tickets')
-      .select('id, status')
+      .select('id, status, user_id')
       .eq('id', id)
       .maybeSingle();
 
@@ -93,10 +92,15 @@ export async function POST(
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
 
+    // Allow admins or the ticket owner to post replies
+    if (!access.isAdmin && ticket.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const insert = {
       ticket_id: id,
       sender_id: user.id,
-      sender_role: 'admin',
+      sender_role: access.isAdmin ? 'admin' : 'user',
       message,
     };
 
