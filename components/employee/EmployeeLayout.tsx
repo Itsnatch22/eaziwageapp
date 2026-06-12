@@ -230,7 +230,17 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
+  const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+
+  const isGenericTitle = (t?: string) => {
+    if (!t) return false;
+    const generic = ['overview', 'welcome', 'syncing...', 'loading...', 'dashboard'];
+    return generic.includes(t.toLowerCase());
+  };
+
   const getPageTitle = () => {
+    // If the caller passed a generic title like 'Overview' prefer showing the user's name
+    if (title && isGenericTitle(title)) return fullName;
     if (title) return title;
     if (pathname === '/dashboards/employee-dashboard') return 'Dashboard';
     if (pathname?.includes('request-advance')) return 'Request Advance';
