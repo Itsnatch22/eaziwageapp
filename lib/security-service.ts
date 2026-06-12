@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getEnv } from "@/env";
 import { LoginContext, sendLoginNotification } from "./security-alerts";
+import { getDeviceName } from '@/lib/ua-parser';
 import crypto from "crypto";
 
 const env = getEnv();
@@ -72,7 +73,7 @@ export async function handleLoginSecurity(
       await supabaseAdmin.from("trusted_devices").insert({
         user_id: userId,
         device_fingerprint: deviceFingerprint,
-        device_name: parseDeviceName(userAgent),
+      device_name: getDeviceName(userAgent),
         user_agent: userAgent,
         ip_address: ip,
         last_used_at: new Date().toISOString(),
@@ -100,18 +101,3 @@ export async function handleLoginSecurity(
   }
 }
 
-/**
- * Basic parser to extract a human-readable device name from User-Agent
- */
-function parseDeviceName(userAgent: string): string {
-  if (userAgent.includes("iPhone")) return "iPhone";
-  if (userAgent.includes("iPad")) return "iPad";
-  if (userAgent.includes("Android")) {
-    const match = userAgent.match(/Android\s+[^;]+;\s+([^;)]+)/);
-    return match ? match[1] : "Android Device";
-  }
-  if (userAgent.includes("Windows NT 10.0")) return "Windows 10/11 PC";
-  if (userAgent.includes("Macintosh")) return "MacBook / iMac";
-  if (userAgent.includes("Linux")) return "Linux PC";
-  return "Unknown Device";
-}
