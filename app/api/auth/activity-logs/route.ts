@@ -30,6 +30,21 @@ export async function GET() {
     if (logsError) throw logsError;
 
     // Transform data to match frontend expectations (created_at -> logged_in_at, action -> login)
+    // Basic parser to extract a human-readable device name from User-Agent
+    function parseDeviceName(userAgent: string | null): string | null {
+      if (!userAgent) return null;
+      if (userAgent.includes('iPhone')) return 'iPhone';
+      if (userAgent.includes('iPad')) return 'iPad';
+      if (userAgent.includes('Android')) {
+        const match = userAgent.match(/Android\s+[^;]+;\s+([^;)]+)/);
+        return match ? match[1].trim() : 'Android Device';
+      }
+      if (userAgent.includes('Windows NT 10.0')) return 'Windows 10/11 PC';
+      if (userAgent.includes('Macintosh')) return 'MacBook / iMac';
+      if (userAgent.includes('Linux')) return 'Linux PC';
+      return null;
+    }
+
     const formattedLogs = (logs || []).map((log: LoginHistoryRow) => ({
       action: 'login',
       created_at: log.logged_in_at,
@@ -37,7 +52,8 @@ export async function GET() {
         ip: log.ip_address,
         location: log.location,
         device_fingerprint: log.device_fingerprint,
-        user_agent: log.user_agent
+        user_agent: log.user_agent,
+        device_name: parseDeviceName(log.user_agent),
       }
     }));
 

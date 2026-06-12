@@ -4,6 +4,7 @@ import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import React from 'react';
 import { sendEmail } from '@/lib/email-service';
+import AdminSupportNotification from '@/lib/emails/AdminSupportNotification';
 
 function createAdminClient() {
   const env = getEnv();
@@ -96,14 +97,13 @@ export async function POST(req: NextRequest) {
               to,
               subject: `[Support] ${subject}`,
               react: (
-                <div>
-                  <p>New support ticket from {user.email}</p>
-                  <p><strong>Subject:</strong> {subject}</p>
-                  <p><strong>Message:</strong> {message}</p>
-                  <p>
-                    <a href={`${dashboardUrl}/admin/support/tickets/${ticket.id}`}>View ticket</a>
-                  </p>
-                </div>
+                <AdminSupportNotification
+                  submitterEmail={user.email}
+                  subject={subject}
+                  message={message}
+                  ticketId={ticket.id}
+                  dashboardUrl={dashboardUrl}
+                />
               ),
             })
           );
