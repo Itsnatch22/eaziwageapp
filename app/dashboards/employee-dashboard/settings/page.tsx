@@ -789,8 +789,11 @@ export default function EmployeeSettings() {
                             <div className="flex-1">
                               <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{(log.action || 'activity').replace('_', ' ')}</p>
                               <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{log.created_at ? new Date(log.created_at).toLocaleString() : 'Recent'}</p>
-                              {(log.metadata?.location || log.metadata?.ip) && (
+                              {(log.metadata?.device_name || log.metadata?.location || log.metadata?.ip) && (
                                 <p className="text-[9px] text-slate-400 mt-1">
+                                  {log.metadata.device_name ? `💻 ${log.metadata.device_name}` : ''}
+                                  {log.metadata.user_agent ? ` ${log.metadata.device_name ? '• ' : ''}${String(log.metadata.user_agent).slice(0, 60)}${String(log.metadata.user_agent).length > 60 ? '...' : ''}` : ''}
+                                  {(log.metadata.location || log.metadata.ip) ? (log.metadata.device_name ? ' • ' : '') : ''}
                                   {log.metadata.location ? `📍 ${log.metadata.location}` : ''} 
                                   {log.metadata.ip ? `${log.metadata.location ? ' • ' : ''}🌐 ${log.metadata.ip}` : ''}
                                 </p>
