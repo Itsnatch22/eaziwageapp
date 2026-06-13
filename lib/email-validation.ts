@@ -7,44 +7,179 @@ const resolveMx = promisify(dns.resolveMx);
  * Email domain validation utilities
  */
 
-// Common disposable/temporary email domains to block
+// Broad set of known disposable / temporary email providers
 const DISPOSABLE_DOMAINS = new Set([
   "tempmail.com",
   "10minutemail.com",
+  "10minutemail.net",
   "guerrillamail.com",
+  "guerrillamail.net",
+  "guerrillamail.org",
+  "guerrillamail.biz",
+  "guerrillamailblock.com",
   "mailinator.com",
+  "mailinator.net",
+  "mailinator2.com",
   "throwaway.email",
   "temp-mail.org",
+  "tempmailaddress.com",
+  "tempmail.net",
+  "tempmail.dev",
+  "tempmail.plus",
   "maildrop.cc",
   "getnada.com",
   "trashmail.com",
+  "trashmail.net",
+  "trashmail.me",
+  "yopmail.com",
+  "yopmail.fr",
+  "yopmail.net",
+  "fakeinbox.com",
+  "sharklasers.com",
+  "spam4.me",
+  "dispostable.com",
+  "mintemail.com",
+  "mytemp.email",
+  "mohmal.com",
+  "moakt.com",
+  "emailondeck.com",
+  "emailtemporanea.com",
+  "throwawaymail.com",
+  "tmpmail.org",
+  "tmpmail.net",
+  "tmpeml.com",
+  "discard.email",
+  "discardmail.com",
+  "spambog.com",
+  "spamgourmet.com",
+  "33mail.com",
+  "anonbox.net",
+  "burnermail.io",
+  "deadaddress.com",
+  "fake-mail.net",
+  "harakirimail.com",
+  "inboxbear.com",
+  "jetable.org",
+  "luxusmail.org",
+  "mailcatch.com",
+  "mailnesia.com",
+  "mailsac.com",
+  "mt2014.com",
+  "no-spam.ws",
+  "noclickemail.com",
+  "objectmail.com",
+  "rcpt.at",
+  "spambox.us",
+  "spamfree24.org",
+  "tempinbox.com",
+  "tempmailo.com",
+  "wegwerfmail.de",
+  "wegwerfmail.net",
+  "wegwerfmail.org",
+  "einrot.com",
+  "filzmail.com",
+  "klzlk.com",
+  "mailbox52.ml",
+  "mailbox92.biz",
+  "mail-temp.com",
+  "tempr.email",
+  "10mail.org",
+  "20minutemail.com",
+  "anonymbox.com",
+  "armyspy.com",
+  "cuvox.de",
+  "dayrep.com",
+  "einmalmail.de",
+  "fleckens.hu",
+  "gustr.com",
+  "jourrapide.com",
+  "rhyta.com",
+  "superrito.com",
+  "teleworm.us",
 ]);
 
 // Common typos for popular email domains
 const DOMAIN_CORRECTIONS: Record<string, string> = {
+  // Gmail
   "gmial.com": "gmail.com",
   "gmai.com": "gmail.com",
   "gmil.com": "gmail.com",
+  "gmal.com": "gmail.com",
+  "gamil.com": "gmail.com",
+  "gmaill.com": "gmail.com",
+  "gmail.co": "gmail.com",
+  "gmail.com.com": "gmail.com",
+  "gnail.com": "gmail.com",
+  "gmaiil.com": "gmail.com",
+  "gmail.con": "gmail.com",
+  "gmailcom": "gmail.com",
+  "gmail.comm": "gmail.com",
+
+  // Yahoo
   "yahooo.com": "yahoo.com",
   "yaho.com": "yahoo.com",
+  "yahoo.co": "yahoo.com",
+  "yahoo.cm": "yahoo.com",
+  "yahho.com": "yahoo.com",
+  "yhaoo.com": "yahoo.com",
+  "yahoo.con": "yahoo.com",
+
+  // Outlook
   "outlok.com": "outlook.com",
   "outloo.com": "outlook.com",
+  "outlook.co": "outlook.com",
+  "outlook.cm": "outlook.com",
+  "outllok.com": "outlook.com",
+  "outlook.con": "outlook.com",
+
+  // Hotmail
   "hotmial.com": "hotmail.com",
+  "hotmal.com": "hotmail.com",
+  "hotmai.com": "hotmail.com",
+  "hotmil.com": "hotmail.com",
+  "hotmaill.com": "hotmail.com",
+  "hotmail.co": "hotmail.com",
+  "hotmail.con": "hotmail.com",
+
+  // iCloud
+  "iclud.com": "icloud.com",
+  "icoud.com": "icloud.com",
+  "icloud.co": "icloud.com",
+  "iclould.com": "icloud.com",
+
+  // Others
+  "protonmai.com": "protonmail.com",
+  "protomail.com": "protonmail.com",
+  "live.co": "live.com",
 };
 
-/**
- * Validates email format
- */
 export function isValidEmailFormat(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
 /**
- * Checks if domain is a known disposable email service
+ * Checks if domain is a known disposable email service.
+ * Also checks for known subdomain patterns used by disposable providers.
  */
 export function isDisposableDomain(domain: string): boolean {
-  return DISPOSABLE_DOMAINS.has(domain.toLowerCase());
+  const normalized = domain.toLowerCase();
+
+  if (DISPOSABLE_DOMAINS.has(normalized)) {
+    return true;
+  }
+
+  // Check if domain is a subdomain of a known disposable provider
+  // e.g. "sub.mailinator.com" should match "mailinator.com"
+  const parts = normalized.split(".");
+  for (let i = 1; i < parts.length - 1; i++) {
+    const parentDomain = parts.slice(i).join(".");
+    if (DISPOSABLE_DOMAINS.has(parentDomain)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -93,7 +228,6 @@ export async function validateEmail(
   error?: string;
   suggestion?: string;
 }> {
-  // Format check
   if (!isValidEmailFormat(email)) {
     return {
       valid: false,
@@ -103,7 +237,6 @@ export async function validateEmail(
 
   const domain = email.split("@")[1].toLowerCase();
 
-  // Domain format check
   if (!isValidDomainFormat(domain)) {
     return {
       valid: false,
@@ -111,7 +244,6 @@ export async function validateEmail(
     };
   }
 
-  // Disposable email check
   if (isDisposableDomain(domain)) {
     return {
       valid: false,

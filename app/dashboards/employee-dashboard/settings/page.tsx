@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building2, Lock, Bell, HelpCircle, 
-  ChevronRight, CheckCircle2,
+  ChevronRight, CheckCircle2, X,
   Shield, CreditCard, Smartphone, 
   Mail, Phone, MapPin,
   User, Loader2,
@@ -29,6 +29,7 @@ type ActivityLog = {
     location?: string;
     device_fingerprint?: string;
     user_agent?: string;
+    device_name?: string;
   };
 };
 
@@ -133,6 +134,14 @@ const FAQItem = ({ question, answer }: { question: string; answer: string; }) =>
   );
 };
 
+interface MFAFactor {
+  id: string;
+  friendly_name?: string;
+  factor_type: string;
+  status: string;
+  created_at: string;
+}
+
 export default function EmployeeSettings() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -151,6 +160,12 @@ export default function EmployeeSettings() {
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [mfaStatus, setMfaStatus] = useState({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
   const [verificationCode, setVerificationCode] = useState('');
+
+  // MFA management UI state
+  const [mfaFactors, setMfaFactors] = useState<MFAFactor[]>([]);
+  const [showMfaModal, setShowMfaModal] = useState(false);
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
 
   useEffect(() => {
     async function fetchLogs() {
@@ -192,6 +207,7 @@ export default function EmployeeSettings() {
           if (res.ok) {
             const data = await res.json();
             setMfaStatus(prev => ({ ...prev, enabled: data.enabled, loading: false }));
+            setMfaFactors(Array.isArray(data.factors) ? data.factors : []);
           }
         } catch (error) {
           console.error('Failed to fetch MFA status:', error);
@@ -323,6 +339,62 @@ export default function EmployeeSettings() {
     } catch {
       toast.error('An error occurred during verification');
       setMfaStatus(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleOpenMfaManager = () => {
+    setShowMfaModal(true);
+  };
+
+  const handleDisableFactor = async (factorId: string) => {
+    if (!factorId) return;
+    try {
+      const res = await fetch('/api/employee-dashboard/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disable', factorId }),
+      });
+      if (res.ok) {
+        toast.success('MFA factor removed');
+        // refresh status
+        const statusRes = await fetch('/api/employee-dashboard/security/mfa');
+        if (statusRes.ok) {
+          const data = await statusRes.json();
+          setMfaStatus(prev => ({ ...prev, enabled: data.enabled }));
+          setMfaFactors(Array.isArray(data.factors) ? data.factors : []);
+        }
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Failed to remove factor');
+      }
+    } catch (error) {
+      console.error('Failed to disable factor:', error);
+      toast.error('An error occurred while removing factor');
+    }
+  };
+
+  const handleGenerateBackupCodes = async () => {
+    setBackupLoading(true);
+    try {
+      const res = await fetch('/api/employee-dashboard/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_backup_codes' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBackupCodes(Array.isArray(data.backupCodes) ? data.backupCodes : []);
+        setShowMfaModal(true);
+        toast.success('Backup codes generated — save them securely');
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Failed to generate backup codes');
+      }
+    } catch (error) {
+      console.error('Backup generation failed:', error);
+      toast.error('An error occurred while generating backup codes');
+    } finally {
+      setBackupLoading(false);
     }
   };
 
@@ -766,15 +838,86 @@ export default function EmployeeSettings() {
                       </div>
                     </div>
                   ) : (
-                    <ToggleItem 
-                      icon={Smartphone}
-                      label="Authenticator App (TOTP)"
-                      description="Use an app like Google Authenticator or Authy"
-                      checked={mfaStatus.enabled}
-                      onToggle={(checked: boolean) => handleMfaToggle(checked)}
-                    />
+                    <div className="space-y-3">
+                      <ToggleItem 
+                        icon={Smartphone}
+                        label="Authenticator App (TOTP)"
+                        description="Use an app like Google Authenticator or Authy"
+                        checked={mfaStatus.enabled}
+                        onToggle={(checked: boolean) => handleMfaToggle(checked)}
+                      />
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={handleOpenMfaManager}>Manage</Button>
+                      </div>
+                    </div>
                   )}
                 </SettingsCard>
+
+                {/* MFA Manager Modal */}
+                {showMfaModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                            <Shield className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">Manage MFA & Backup Codes</h3>
+                            <p className="text-sm text-slate-500">View and remove registered authenticators. Generate one-time backup codes.</p>
+                          </div>
+                        </div>
+                        <button onClick={() => { setShowMfaModal(false); setBackupCodes(null); }} className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><X className="w-4 h-4" /></button>
+                      </div>
+
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-slate-900 dark:text-white mb-2">Registered Authenticators</h4>
+                        {mfaFactors.length === 0 ? (
+                          <p className="text-sm text-slate-500">No authenticators found.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {mfaFactors.map((f) => (
+                              <div key={f.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800">
+                                <div>
+                                  <p className="font-medium text-sm text-slate-900 dark:text-white">{f.friendly_name || f.factor_type}</p>
+                                  <p className="text-[10px] text-slate-400">{f.created_at ? new Date(f.created_at).toLocaleString() : ''}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" onClick={() => handleDisableFactor(f.id)}>Remove</Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium text-slate-900 dark:text-white mb-2">Backup Codes</h4>
+                          {backupCodes ? (
+                            <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                              <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Save these codes somewhere safe — each code can be used once to sign in if you lose access to your authenticator.</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {backupCodes.map((c, idx) => (
+                                  <div key={idx} className="p-2 bg-white dark:bg-slate-900 rounded-md text-xs font-mono flex items-center justify-between">
+                                    <span>{c}</span>
+                                    <button onClick={() => navigator.clipboard?.writeText(c)} className="ml-2 text-xs text-primary">Copy</button>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="mt-3 flex gap-2">
+                                <Button onClick={() => { setBackupCodes(null); setShowMfaModal(false); }} className="bg-primary text-white">Done</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Button onClick={handleGenerateBackupCodes} disabled={backupLoading} className="bg-primary text-white">{backupLoading ? 'Generating...' : 'Generate Backup Codes'}</Button>
+                              <Button variant="outline" onClick={() => setShowMfaModal(false)}>Close</Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <SettingsCard icon={History} title="Login History & Activity" description="Recent security-related events on your account">
                   <div className="space-y-4">

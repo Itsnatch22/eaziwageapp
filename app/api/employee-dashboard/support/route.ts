@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         message: message.length > 300 ? `${message.slice(0, 300)}...` : message,
         read: false,
         metadata: { ticket_id: ticket.id, user_id: user.id },
-      } as any;
+      } as Record<string, unknown>;
 
       const { error: notifError } = await adminSupabase.from('admin_notifications').insert(notification);
       if (notifError) console.error('[Support Notification Insert Error]', notifError);
@@ -94,18 +94,16 @@ export async function POST(req: NextRequest) {
           const dashboardUrl = env.NEXT_PUBLIC_APP_URL || 'https://app.eaziwage.com';
           const promises = adminEmails.map((to) =>
             sendEmail({
-              to,
-              subject: `[Support] ${subject}`,
-              react: (
-                <AdminSupportNotification
-                  submitterEmail={user.email}
-                  subject={subject}
-                  message={message}
-                  ticketId={ticket.id}
-                  dashboardUrl={dashboardUrl}
-                />
-              ),
-            })
+                          to,
+                          subject: `[Support] ${subject}`,
+                          react: React.createElement(AdminSupportNotification, {
+                            submitterEmail: user.email ?? 'Unknown Submitter',
+                            subject,
+                            message,
+                            ticketId: ticket.id,
+                            dashboardUrl,
+                          }),
+                        })
           );
 
           const results = await Promise.allSettled(promises);

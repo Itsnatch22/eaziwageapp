@@ -3,6 +3,7 @@ import { getEnv } from "@/env";
 import { sendEmail } from "./email-service";
 import { DocumentApprovedEmail } from "./emails/AdminKYCNotification";
 import React from 'react';
+import webpush from 'web-push';
 
 const env = getEnv();
 const supabaseAdmin = createClient(
@@ -10,6 +11,19 @@ const supabaseAdmin = createClient(
   env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
+
+// Configure web-push VAPID details if available. Failures are logged but do not throw.
+if (env.VAPID_PRIVATE_KEY && env.PUSH_VAPID_CONTACT) {
+  try {
+    webpush.setVapidDetails(
+      env.PUSH_VAPID_CONTACT,
+      env.VAPID_PUBLIC_KEY || '',
+      env.VAPID_PRIVATE_KEY
+    );
+  } catch (e) {
+    console.error('[notifications] Failed to set VAPID details:', e);
+  }
+}
 
 export type AdminNotificationType = 'review_request' | 'employer_kyc' | 'flagged_advance' | 'system_alert' | 'new_employer' | 'bank_change';
 export type EmployerNotificationType = 'advance' | 'system' | 'employee' | 'repayment' | 'kyc_update';
@@ -96,14 +110,18 @@ export async function notifyEmployer(params: {
 
     // Supabase Realtime will deliver notifications via postgres_changes; no pusher trigger needed.
 
-    // ── Email Notification ──
+    // ── Fetch profile and preferences ──
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('email, full_name')
+      .select('email, full_name, notification_preferences')
       .eq('id', params.userId)
       .single();
 
-    if (profile?.email) {
+    const prefs = profile?.notification_preferences || {};
+    const emailAlerts = prefs.emailAlerts !== false;
+    const pushNotifications = prefs.pushNotifications !== false;
+
+    if (emailAlerts && profile?.email) {
       await sendEmail({
         to: profile.email,
         subject: params.title,
@@ -114,6 +132,28 @@ export async function notifyEmployer(params: {
           dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboards/employer-dashboard`,
         })
       }).catch(e => console.error(`[notifyEmployer] Email failed:`, e));
+    }
+
+    if (pushNotifications) {
+      const { data: subs } = await supabaseAdmin
+        .from('system_push_subscriptions')
+        .select('subscription_payload')
+        .eq('user_id', params.userId)
+        .eq('active', true);
+
+      if (subs && subs.length > 0) {
+        for (const s of subs) {
+          try {
+            await webpush.sendNotification(s.subscription_payload, JSON.stringify({
+              title: params.title,
+              body: params.message,
+              data: { ...params.metadata }
+            }));
+          } catch (e) {
+            console.error(`[notifyEmployer] Push send failed for user ${params.userId}:`, e);
+          }
+        }
+      }
     }
     
     return { success: true, data };
@@ -152,14 +192,18 @@ export async function notifyEmployee(params: {
 
     // Supabase Realtime will deliver notifications via postgres_changes; no pusher trigger needed.
 
-    // ── Email Notification ──
+    // ── Fetch profile and preferences ──
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('email, full_name')
+      .select('email, full_name, notification_preferences')
       .eq('id', params.userId)
       .single();
 
-    if (profile?.email) {
+    const prefs = profile?.notification_preferences || {};
+    const emailAlerts = prefs.emailAlerts !== false;
+    const pushNotifications = prefs.pushNotifications !== false;
+
+    if (emailAlerts && profile?.email) {
       await sendEmail({
         to: profile.email,
         subject: params.title,
@@ -170,6 +214,28 @@ export async function notifyEmployee(params: {
           dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboards/employee-dashboard`,
         })
       }).catch(e => console.error(`[notifyEmployee] Email failed:`, e));
+    }
+
+    if (pushNotifications) {
+      const { data: subs } = await supabaseAdmin
+        .from('system_push_subscriptions')
+        .select('subscription_payload')
+        .eq('user_id', params.userId)
+        .eq('active', true);
+
+      if (subs && subs.length > 0) {
+        for (const s of subs) {
+          try {
+            await webpush.sendNotification(s.subscription_payload, JSON.stringify({
+              title: params.title,
+              body: params.message,
+              data: { ...params.metadata }
+            }));
+          } catch (e) {
+            console.error(`[notifyEmployee] Push send failed for user ${params.userId}:`, e);
+          }
+        }
+      }
     }
     
     return { success: true, data };

@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
+import PushClient from '@/components/push/PushClient';
 
 
 export const EmployerBackground = () => (
@@ -456,6 +457,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300" data-testid="employer-dashboard">
       <EmployerBackground />
+      <PushClient />
       
       <SidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       

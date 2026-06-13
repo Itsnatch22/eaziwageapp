@@ -12,9 +12,9 @@ export function getDeviceName(userAgent: string | null): string | null {
   try {
     const parser = new UAParser(userAgent);
     const result = parser.getResult();
-    const device = result.device || {} as any;
-    const os = result.os || {} as any;
-    const browser = result.browser || {} as any;
+    const device = result.device;
+    const os = result.os;
+    const browser = result.browser;
 
     const vendor = device.vendor ? String(device.vendor).trim() : '';
     const model = device.model ? String(device.model).trim() : '';
@@ -35,7 +35,7 @@ export function getDeviceName(userAgent: string | null): string | null {
     if (browser.name) return browser.name;
 
     return null;
-  } catch (err) {
+  } catch {
     // Be resilient on unexpected UA strings
     return null;
   }

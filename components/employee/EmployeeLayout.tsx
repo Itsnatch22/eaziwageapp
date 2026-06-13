@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
+import PushClient from '@/components/push/PushClient';
 
 interface EmployeeUser {
   id?: string;
@@ -439,6 +440,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <EmployeeBackground />
+      <PushClient />
 
       <EmployeeSidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
 

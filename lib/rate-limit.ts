@@ -55,6 +55,28 @@ export const apiLimiter = new Ratelimit({
 });
 
 /**
+ * MFA action limiter (enroll / disable / generate codes)
+ * Limits to 10 actions per 10 minutes per user/IP
+ */
+export const mfaActionLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "10 m"),
+  analytics: true,
+  prefix: "ratelimit:mfa_action",
+});
+
+/**
+ * MFA verify limiter (TOTP verification attempts)
+ * Limits to 6 verification attempts per 15 minutes per user/IP
+ */
+export const mfaVerifyLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(6, "15 m"),
+  analytics: true,
+  prefix: "ratelimit:mfa_verify",
+});
+
+/**
  * Helper to format rate limit response headers
  */
 export function getRateLimitHeaders(

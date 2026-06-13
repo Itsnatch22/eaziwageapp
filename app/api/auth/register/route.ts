@@ -42,7 +42,7 @@ const RegisterSchema = z.object({
   email: z
     .string()
     .email('Invalid email address')
-    .max(30, 'Email must be under 30 characters'),
+    .max(50, 'Email must be under 50 characters'),
 
   phone: z
     .string()
@@ -336,6 +336,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         company_name: input.company_name || '',
         email:        input.email,
         phone:        input.phone,
+        country:      input.phone_country_code,
         user_id:      userId,
         employer_id:  userId, 
         status:       'pending',

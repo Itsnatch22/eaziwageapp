@@ -20,6 +20,11 @@ interface EnvConfig {
   ADMIN_PASSWORD?: string;
   PUSHER_APP_ID: string;
   PUSHER_APP_SECRET: string;
+  PUSH_VAPID_CONTACT?: string;
+  VAPID_PUBLIC_KEY?: string;
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  SUPABASE_PRIVATE_VAPID_KEY?: string;
 }
 
 class EnvironmentError extends Error {
@@ -127,6 +132,11 @@ export function validateEnv(): EnvConfig {
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     PUSHER_APP_ID: process.env.PUSHER_APP_ID!,
     PUSHER_APP_SECRET: process.env.PUSHER_APP_SECRET!,
+    PUSH_VAPID_CONTACT: process.env.PUSH_VAPID_CONTACT,
+    VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
+    SUPABASE_PRIVATE_VAPID_KEY: process.env.SUPABASE_PRIVATE_VAPID_KEY,
   };
 }
 

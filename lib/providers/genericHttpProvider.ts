@@ -6,8 +6,8 @@ interface GenericConfig {
     method?: string;
     body?: Record<string, unknown>;
     headers?: Record<string, string>;
-    response_token_path?: string; // e.g. access_token
-    expires_in_path?: string; // optional
+    response_token_path?: string; 
+    expires_in_path?: string; 
   };
   initiate: {
     url: string;
