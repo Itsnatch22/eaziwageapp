@@ -844,15 +844,39 @@ export default function Onboarding() {
         finalStartDate = `${formData.joining_year}-${formData.joining_month}-01`;
       }
 
+      // Explicit payload — never spread formData directly. It carries
+      // UI-only fields (joining_month, joining_year) and DB timestamps
+      // (created_at, updated_at) that break Zod validation.
+      const payload = {
+        employer_id: formData.employer_id || undefined,
+        company_code: formData.company_code || undefined,
+        employee_code: formData.employee_code || undefined,
+        national_id: formData.national_id,
+        id_type: formData.id_type,
+        nationality: formData.nationality,
+        date_of_birth: formData.date_of_birth,
+        country: formData.country,
+        address_line1: formData.address_line1,
+        address_line2: formData.address_line2 || undefined,
+        city: formData.city,
+        postal_code: formData.postal_code || undefined,
+        tax_id: formData.tax_id || undefined,
+        job_title: formData.job_title,
+        department: formData.department || undefined,
+        employment_type: formData.employment_type,
+        start_date: finalStartDate || undefined,
+        monthly_salary: parseFloat(formData.monthly_salary) || 0,
+        bank_name: formData.bank_name,
+        bank_account: formData.bank_account,
+        mobile_money_provider: formData.mobile_money_provider,
+        mobile_money_number: formData.mobile_money_number,
+        ...docUrls,
+      };
+
       const res = await fetch("/api/employee-dashboard/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          ...docUrls,
-          start_date: finalStartDate,
-          monthly_salary: parseFloat(formData.monthly_salary) || 0,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
