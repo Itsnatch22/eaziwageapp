@@ -36,7 +36,7 @@ async function getOrCreateDraft(supabase: Awaited<ReturnType<typeof createClient
 
   const { data: created, error } = await supabase
     .from('employer_onboarding')
-    .insert({ user_id: userId })
+    .insert({ user_id: userId, currency: 'USD' })
     .select('id')
     .single();
 
