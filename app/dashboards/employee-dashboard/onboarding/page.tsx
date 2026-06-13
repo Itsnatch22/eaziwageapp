@@ -277,6 +277,7 @@ type UploadedFilesState = Record<OnboardingDocKey, UploadedDocument | null>;
 interface OnboardingFormData {
   employer_id: string;
   employee_code: string;
+  company_code: string;
   national_id: string;
   id_type: IdType;
   nationality: string;
@@ -598,6 +599,7 @@ export default function Onboarding() {
   const [formData, setFormData] = useState<OnboardingFormData>({
     employer_id: "",
     employee_code: "",
+    company_code: "",
     national_id: "",
     id_type: "national_id",
     nationality: "",
@@ -909,12 +911,13 @@ export default function Onboarding() {
         return true;
       case 6:
         return !!(
-          formData.employer_id &&
+          (formData.employer_id || formData.company_code) &&
           formData.job_title &&
           formData.joining_month &&
           formData.joining_year &&
           uploadedFiles.payslip_1
         );
+
       case 7:
         return !!(
           formData.country &&
@@ -1489,13 +1492,14 @@ export default function Onboarding() {
                     instead:
                   </p>
                   <Input
-                    value={formData.employee_code}
-                    onChange={(e) =>
-                      updateField("employee_code", e.target.value)
-                    }
-                    placeholder="e.g. CO-12345"
-                    className="h-10 mt-2 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-slate-800 text-xs"
-                  />
+                  value={formData.company_code}
+                  onChange={(e) => {
+                    updateField("company_code", e.target.value.toUpperCase());
+                    if (e.target.value) updateField("employer_id", "");
+                  }}
+                  placeholder="e.g. 4VP9HM"
+                  className="h-10 mt-2 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-slate-800 text-xs"
+                />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

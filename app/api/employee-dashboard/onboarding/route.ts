@@ -71,12 +71,38 @@ export async function POST(req: NextRequest) {
 
   const adminSupabase = createAdminClient();
 
-  console.log('Verifying employer_id:', data.employer_id);
-  
+  let employerId = data.employer_id;
+
+  if (!employerId && data.company_code) {
+    const { data: byCode } = await adminSupabase
+      .from('employers')
+      .select('id')
+      .eq('company_code', data.company_code.trim().toUpperCase())
+      .in('status', ['approved', 'pending'])
+      .maybeSingle();
+
+    if (!byCode) {
+      return NextResponse.json(
+        { error: 'Company code not recognized. Please check it and try again.' },
+        { status: 422 },
+      );
+    }
+    employerId = byCode.id;
+  }
+
+  if (!employerId) {
+    return NextResponse.json(
+      { error: 'Please select an employer or enter a company code.' },
+      { status: 422 },
+    );
+  }
+
+  console.log('Verifying employer_id:', employerId);
+
   const { data: onboardingEmp } = await adminSupabase
     .from('employer_onboarding')
     .select('id, company_name, status, user_id')
-    .eq('id', data.employer_id)
+    .eq('id', employerId)
     .in('status', ['approved', 'submitted', 'under_review', 'pending'])
     .maybeSingle();
 
@@ -86,17 +112,17 @@ export async function POST(req: NextRequest) {
     const { data: syncedEmp } = await adminSupabase
       .from('employers')
       .select('id, company_name, status, user_id')
-      .eq('id', data.employer_id)
+      .eq('id', employerId)
       .in('status', ['approved', 'pending'])
       .maybeSingle();
-    
+
     if (syncedEmp) {
         employer = syncedEmp;
     }
   }
 
   if (!employer) {
-    console.error('[Onboarding] Employer verification failed for ID:', data.employer_id);
+    console.error('[Onboarding] Employer verification failed for ID:', employerId);
     return NextResponse.json(
       { error: 'Selected employer is not registered on EaziWage.' },
       { status: 422 },
@@ -124,7 +150,6 @@ export async function POST(req: NextRequest) {
   }
 
   const {
-    employer_id,
     employee_code,
     national_id,
     id_type,
@@ -155,7 +180,7 @@ export async function POST(req: NextRequest) {
     employment_contract,
   } = data;
 
-  const generatedEmployeeCode = employee_code || generateEmployeeCode(employer_id, user.id);
+  const generatedEmployeeCode = employee_code || generateEmployeeCode(employerId, user.id);
 
   const employeeCurrency = getCurrencyFromCountry(country);
 
@@ -166,7 +191,7 @@ export async function POST(req: NextRequest) {
 
   const upsertPayload = {
     user_id: user.id,
-    employer_id,
+    employer_id: employerId,
     employee_code: generatedEmployeeCode,
     full_name: employeeName,
     email: user.email,
@@ -222,7 +247,7 @@ export async function POST(req: NextRequest) {
       .from('employees')
       .upsert({
         user_id: user.id,
-        employer_id,
+        employer_id: employerId,
         employee_code: generatedEmployeeCode,
         name: employeeName, 
         full_name: employeeName, 
