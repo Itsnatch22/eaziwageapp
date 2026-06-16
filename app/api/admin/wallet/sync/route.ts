@@ -68,7 +68,7 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();

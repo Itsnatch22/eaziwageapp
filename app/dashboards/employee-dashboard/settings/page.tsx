@@ -222,7 +222,8 @@ export default function EmployeeSettings() {
 
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfile = async (options?: { silent?: boolean }) => {
+      if (!options?.silent) setLoading(true);
       try {
         const res = await fetch('/api/employee-dashboard/profile');
         if (res.ok) {
@@ -235,7 +236,7 @@ export default function EmployeeSettings() {
         setLoading(false);
       }
     };
-    fetchProfile();
+    void fetchProfile({ silent: true });
   }, []);
 
   const handleUpdateProfile = async (updates: Record<string, unknown>) => {

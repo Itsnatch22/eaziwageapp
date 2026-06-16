@@ -6,7 +6,7 @@ import { checkAdminAccess } from '@/lib/server/admin-auth';
 export const runtime = 'nodejs';
 
 export async function PATCH(
-  request: NextRequest,
+  _request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
@@ -39,7 +39,7 @@ export async function PATCH(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         employerId = (tx.metadata as any).employer_id as string;
       }
-    } catch (_) {
+    } catch (_err) {
       // ignore
     }
 
@@ -73,7 +73,7 @@ export async function PATCH(
       p_admin_id: user.id,
     });
 
-    // @ts-ignore - supabase rpc result check
+    // @ts-expect-error - supabase rpc result check
     if (rpcRes?.error) {
       console.error('[TopUp Approve] RPC error:', rpcRes.error);
       return NextResponse.json({ error: `Funding failed: ${rpcRes.error.message ?? rpcRes.error}` }, { status: 500 });

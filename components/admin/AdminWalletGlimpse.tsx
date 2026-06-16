@@ -15,8 +15,8 @@ export default function AdminWalletGlimpse() {
   const [wallet, setWallet] = useState<WalletRow | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchWallet = async () => {
-    setLoading(true);
+  const fetchWallet = async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const res = await fetch('/api/admin/wallet/sync');
       if (res.ok) {
@@ -33,7 +33,7 @@ export default function AdminWalletGlimpse() {
   };
 
   useEffect(() => {
-    void fetchWallet();
+    void fetchWallet({ silent: true });
   }, []);
 
   return (

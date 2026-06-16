@@ -1073,10 +1073,10 @@ const EmployerEmployees: React.FC = () => {
   const [seeding, setSeeding] = useState(false);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (options?: { silent?: boolean }) => {
     // defer state updates to avoid synchronous setState inside useEffect
     await Promise.resolve();
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
     setFetchError("");
     try {
       const params = new URLSearchParams();
@@ -1137,8 +1137,7 @@ const EmployerEmployees: React.FC = () => {
   }, [dateRange]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData();
+    void fetchData({ silent: true });
   }, [fetchData]);
 
   useEffect(() => {

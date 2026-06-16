@@ -23,9 +23,10 @@ export default function NotificationsPage() {
     const [loading, setLoading] = useState(true);
     const user = useAuthStore((state) => state.user);
 
-    const fetchNotifications = useCallback(async () => {
+    const fetchNotifications = useCallback(async (options?: { silent?: boolean }) => {
         // defer state updates to avoid synchronous setState inside useEffect
         await Promise.resolve();
+        if (!options?.silent) setLoading(true);
         try {
             const res = await fetch('/api/employer-dashboard/notifications');
             if (res.ok) {
@@ -40,12 +41,11 @@ export default function NotificationsPage() {
     }, []);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        fetchNotifications();
+        void fetchNotifications({ silent: true });
 
         if (!user?.id) return;
         const supabase = createClient();
-        type RealtimeNotificationPayload = { new: { id: string; user_id?: string; type: string; title: string; message: string; read: boolean; created_at: string; metadata?: Record<string, unknown>; }; old?: any };
+        type RealtimeNotificationPayload = { new: { id: string; user_id?: string; type: string; title: string; message: string; read: boolean; created_at: string; metadata?: Record<string, unknown>; }; old?: Record<string, unknown> };
         const channel = supabase
             .channel(`realtime:notifications:employer-${user.id}`)
             .on('postgres_changes', {

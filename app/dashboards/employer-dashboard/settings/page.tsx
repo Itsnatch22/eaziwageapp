@@ -3,10 +3,10 @@ import React, { useState, useEffect } from "react"
 import {
   Building2, Users, CreditCard, Bell,
   Shield, Clock, Save, AlertCircle, CheckCircle2,
-  Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight, Activity,
+  Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight,
   FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
   MessageSquare, Phone, MapPin, Globe, X, Loader2,
-  LucideIcon, User, Smartphone, History, AlertTriangle
+  LucideIcon, User, Smartphone, History
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { logout } from '@/actions/auth';
@@ -586,9 +586,9 @@ export default function EmployerSettings() {
 
   // ─── Data fetching ───────────────────────────────────────────────────────
 
-  const fetchData = async () => {
+  const fetchData = async (options?: { silent?: boolean }) => {
     await Promise.resolve();
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
     try {
       const [profileRes, settingsRes] = await Promise.all([
         fetch('/api/employer-dashboard/profile'),
@@ -646,8 +646,9 @@ export default function EmployerSettings() {
     }
   };
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void fetchData(); }, []);
+  useEffect(() => {
+    void fetchData({ silent: true });
+  }, []);
 
   // Supabase Realtime subscription
   useEffect(() => {
@@ -658,7 +659,7 @@ export default function EmployerSettings() {
 
     const channel = supabase
       .channel(`realtime:employer-settings:employer-${employer.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${employer.id}` }, (_payload: RealtimePayload<Record<string, unknown>>) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${employer.id}` }, () => {
         void fetchData();
       })
       .subscribe();

@@ -10,18 +10,21 @@ type TopUpRequest = {
   status: string;
   reference?: string | null;
   description?: string | null;
-  metadata?: Record<string, unknown> | null;
+  metadata?: {
+    employer_id?: string;
+    requested_at?: string;
+  } | null;
   created_at?: string | null;
 };
 
 export default function TopUpRequestsPage() {
   const [requests, setRequests] = useState<TopUpRequest[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const fetchRequests = async () => {
-    setLoading(true);
+  const fetchRequests = async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch('/api/admin/wallet/topup-requests');
@@ -35,7 +38,10 @@ export default function TopUpRequestsPage() {
     }
   };
 
-  useEffect(() => { fetchRequests(); }, []);
+  useEffect(() => {
+    // Defer call so setState happens asynchronously and avoids cascading renders
+    Promise.resolve().then(() => void fetchRequests({ silent: true }));
+  }, []);
 
   const approve = async (id: string) => {
     if (!confirm('Approve this top-up request?')) return;
@@ -57,7 +63,7 @@ export default function TopUpRequestsPage() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Pending Top-up Requests</h1>
-      <button onClick={fetchRequests} disabled={loading} style={{ marginBottom: 12 }}>Refresh</button>
+      <button onClick={() => fetchRequests()} disabled={loading} style={{ marginBottom: 12 }}>Refresh</button>
       {error && <div style={{ color: 'red' }}>{error}</div>}
       {loading ? (
         <div>Loading…</div>
@@ -80,9 +86,9 @@ export default function TopUpRequestsPage() {
             {requests.map((r) => (
               <tr key={r.id}>
                 <td style={{ padding: '8px 4px' }}>{r.id}</td>
-                <td style={{ padding: '8px 4px' }}>{(r.metadata as any)?.employer_id ?? 'N/A'}</td>
+                <td style={{ padding: '8px 4px' }}>{r.metadata?.employer_id ?? 'N/A'}</td>
                 <td style={{ padding: '8px 4px' }}>{r.amount}</td>
-                <td style={{ padding: '8px 4px' }}>{r.created_at ? new Date(r.created_at).toLocaleString() : ((r.metadata as any)?.requested_at ? new Date((r.metadata as any).requested_at as string).toLocaleString() : '')}</td>
+                <td style={{ padding: '8px 4px' }}>{r.created_at ? new Date(r.created_at).toLocaleString() : (r.metadata?.requested_at ? new Date(r.metadata.requested_at).toLocaleString() : '')}</td>
                 <td style={{ padding: '8px 4px' }}>{r.reference ?? '-'}</td>
                 <td style={{ padding: '8px 4px' }}>{r.description ?? '-'}</td>
                 <td style={{ padding: '8px 4px' }}>

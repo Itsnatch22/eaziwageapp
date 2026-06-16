@@ -49,7 +49,11 @@ interface SidebarNavProps {
 const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   const pathname = usePathname();
   const router = useRouter();
-  const [mounted] = useState(() => typeof window !== 'undefined');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const menuItems = [
     { label: 'Home',             href: '/dashboards/employee-dashboard',                 icon: Home },
@@ -228,7 +232,13 @@ interface TopHeaderProps {
 const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
   const pathname = usePathname();
-  const hour = new Date().getHours();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const hour = mounted ? new Date().getHours() : 9;
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
   const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';

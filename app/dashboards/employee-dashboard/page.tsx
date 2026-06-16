@@ -172,7 +172,8 @@ export default function EmployeeDashboardPage() {
   const router = useRouter();
 
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const res = await fetch('/api/employee-dashboard/overview');
       const data = await res.json();
@@ -191,10 +192,7 @@ export default function EmployeeDashboardPage() {
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void fetchStats();
-    }, 0);
-    return () => window.clearTimeout(timeoutId);
+    void fetchStats({ silent: true });
   }, [fetchStats]);
 
   useEffect(() => {
@@ -205,7 +203,7 @@ export default function EmployeeDashboardPage() {
 
     const channel = supabase
       .channel(`realtime:kyc:user-${user.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, (_payload: RealtimePayload<Record<string, unknown>>) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
         void fetchStats();
       })
       .subscribe();

@@ -77,20 +77,22 @@ export default function Transactions() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const fetchAdvances = async () => {
+    const fetchAdvances = async (options?: { silent?: boolean }) => {
+      if (!options?.silent) setLoading(true);
       try {
-        setLoading(true);
         const txRes = await fetch('/api/employee-dashboard/transactions');
-        const txData = await txRes.json();
-        const advancesData = Array.isArray(txData) ? txData : [];
-        setAdvances(advancesData);
+        if (txRes.ok) {
+          const txData = await txRes.json();
+          const advancesData = Array.isArray(txData) ? txData : [];
+          setAdvances(advancesData);
+        }
       } catch {
         toast.error('Failed to sync transactions');
       } finally {
         setLoading(false);
       }
     };
-    fetchAdvances();
+    void fetchAdvances({ silent: true });
   }, []);
 
   const allItems: TransactionItem[] = advances

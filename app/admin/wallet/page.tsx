@@ -22,8 +22,8 @@ export default function AdminWalletPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  const fetchWallet = useCallback(async () => {
-    setLoading(true);
+  const fetchWallet = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const res = await fetch('/api/admin/wallet/sync');
       if (res.ok) {
@@ -43,7 +43,8 @@ export default function AdminWalletPage() {
   }, []);
 
   useEffect(() => {
-    void fetchWallet();
+    // Defer to avoid sync setState inside effect
+    Promise.resolve().then(() => void fetchWallet({ silent: true }));
   }, [fetchWallet]);
 
   const onRefresh = async () => {

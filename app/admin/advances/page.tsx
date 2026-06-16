@@ -471,8 +471,8 @@ export default function AdminAdvances(){
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<AdvanceStatus | ''>('');
 
-  const fetchAdvances = useCallback(async () => {
-    setLoading(true);
+  const fetchAdvances = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const res = await fetch('/api/admin/advances');
       if(res.ok) {
@@ -489,10 +489,8 @@ export default function AdminAdvances(){
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      fetchAdvances();
-    }, 0);
-    return () => window.clearTimeout(timeoutId);
+    // Defer invocation to avoid synchronous setState within the effect
+    Promise.resolve().then(() => void fetchAdvances({ silent: true }));
   }, [fetchAdvances]);
 
   const handleApprove = async(id: string) => {

@@ -378,8 +378,8 @@ export default function EmployerDashboard() {
   
   const router = useRouter();
 
-  const load = useCallback(async () => {
-    setData(prev => ({ ...prev, loading: true, error: null }));
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setData(prev => ({ ...prev, loading: true, error: null }));
     try {
       const profRes = await fetch('/api/employer-dashboard/profile');
       if (profRes.status === 404) {
@@ -436,7 +436,7 @@ export default function EmployerDashboard() {
     // The previous implementation had a comment about synchronous setState in useEffect,
     // which usually refers to calling setState immediately after mount.
     // By consolidating state, we reduce the number of updates.
-    void load();
+    void load({ silent: true });
   }, [load]);
 
   useEffect(() => {
@@ -446,22 +446,22 @@ export default function EmployerDashboard() {
 
     type RealtimePayload<T> = { new: T; old?: T };
 
-    const handleUpdate = (_updateData: Record<string, unknown>) => {
+    const handleUpdate = () => {
       console.log('[Realtime] Employer overview update');
       void load();
     };
 
     const userChannel = supabase
       .channel(`realtime:kyc:user-${user.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, (payload: RealtimePayload<Record<string, unknown>>) => {
-        handleUpdate(payload.new);
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
+        handleUpdate();
       })
       .subscribe();
 
     const employerChannel = supabase
       .channel(`realtime:kyc:employer-${data.employer.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` }, (payload: RealtimePayload<Record<string, unknown>>) => {
-        handleUpdate(payload.new);
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` }, () => {
+        handleUpdate();
       })
       .subscribe();
 

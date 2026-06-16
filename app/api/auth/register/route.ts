@@ -12,7 +12,6 @@ import { createToken }               from '@/lib/token';
 import { getCurrencyFromCountry }     from '@/lib/utils';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
 import { notifyAdmins, notifyEmployer } from '@/lib/notifications';
-import { toast } from 'sonner';
 
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
