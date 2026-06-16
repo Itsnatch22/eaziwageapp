@@ -51,7 +51,8 @@ const SupportPage = () => {
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchTickets() {
+    async function fetchTickets(options?: { silent?: boolean }) {
+      if (!options?.silent) setLoading(true);
       try {
         const res = await fetch('/api/employee-dashboard/support');
         if (res.ok) {
@@ -65,7 +66,7 @@ const SupportPage = () => {
       }
     }
 
-    fetchTickets();
+    void fetchTickets({ silent: true });
 
     return () => {
       cancelled = true;

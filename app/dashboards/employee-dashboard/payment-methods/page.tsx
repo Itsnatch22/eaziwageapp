@@ -48,52 +48,52 @@ const PaymentMethods = () => {
     is_default: false
   });
 
-  const fetchMethods = async () => {
-  try {
-    const res = await fetch('/api/employee-dashboard/payment-methods');
-    if (res.ok) {
-      const data = await res.json();
+  const fetchMethods = async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const res = await fetch('/api/employee-dashboard/payment-methods');
+      if (res.ok) {
+        const data = await res.json();
 
-      const employeeCountry = data.country_code || 'KE';
-      setNewMethod(prev => ({ ...prev, country_code: employeeCountry }));
+        const employeeCountry = data.country_code || 'KE';
+        setNewMethod(prev => ({ ...prev, country_code: employeeCountry }));
 
-      const adapted = (data.methods || []).map((m: {
-        id: string;
-        method_type?: string;
-        type?: string;
-        provider_name?: string;
-        provider?: string;
-        account_number?: string;
-        account_name?: string;
-        phone_number?: string;
-        country_code?: string;
-        is_default?: boolean;
-        is_verified?: boolean;
-      }) => ({
-        id: m.id,
-        method_type: (m.method_type || m.type) as 'mobile_money' | 'bank_account',
-        provider_name: (m.provider_name || m.provider) as string,
-        account_number: m.account_number || null,
-        account_name: m.account_name || null,
-        phone_number: m.phone_number || null,
-        country_code: m.country_code || null,
-        is_default: m.is_default || false,
-        is_verified: m.is_verified || false,
-      }));
-      setMethods(adapted);
+        const adapted = (data.methods || []).map((m: {
+          id: string;
+          method_type?: string;
+          type?: string;
+          provider_name?: string;
+          provider?: string;
+          account_number?: string;
+          account_name?: string;
+          phone_number?: string;
+          country_code?: string;
+          is_default?: boolean;
+          is_verified?: boolean;
+        }) => ({
+          id: m.id,
+          method_type: (m.method_type || m.type) as 'mobile_money' | 'bank_account',
+          provider_name: (m.provider_name || m.provider) as string,
+          account_number: m.account_number || null,
+          account_name: m.account_name || null,
+          phone_number: m.phone_number || null,
+          country_code: m.country_code || null,
+          is_default: m.is_default || false,
+          is_verified: m.is_verified || false,
+        }));
+        setMethods(adapted);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to load payment methods');
+    } finally {
+      setLoading(false);
     }
-  } catch (e) {
-    console.error(e);
-    toast.error('Failed to load payment methods');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void fetchMethods();
-    }, 0);
-    return () => window.clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchMethods({ silent: true });
   }, []);
 
   const handleAdd = async (e: React.FormEvent) => {

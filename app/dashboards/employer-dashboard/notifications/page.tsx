@@ -5,7 +5,7 @@ import { Bell, CreditCard, Users, CheckCircle2, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/stores/auth';
 
 interface Notification {
@@ -23,9 +23,10 @@ export default function NotificationsPage() {
     const [loading, setLoading] = useState(true);
     const user = useAuthStore((state) => state.user);
 
-    const fetchNotifications = useCallback(async () => {
+    const fetchNotifications = useCallback(async (options?: { silent?: boolean }) => {
         // defer state updates to avoid synchronous setState inside useEffect
         await Promise.resolve();
+        if (!options?.silent) setLoading(true);
         try {
             const res = await fetch('/api/employer-dashboard/notifications');
             if (res.ok) {
@@ -41,27 +42,39 @@ export default function NotificationsPage() {
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        fetchNotifications();
+        void fetchNotifications({ silent: true });
 
-        if (user?.id && pusherClient) {
-            const channel = pusherClient.subscribe(`employer-${user.id}`);
-            
-            channel.bind('new-notification', (data: Record<string, string>) => {
-                toast(data.title, {
-                    description: data.message,
+        if (!user?.id) return;
+        const supabase = createClient();
+        type RealtimeNotificationPayload = { new: { id: string; user_id?: string; type: string; title: string; message: string; read: boolean; created_at: string; metadata?: Record<string, unknown>; }; old?: Record<string, unknown> };
+        const channel = (supabase as any)
+            .channel(`realtime:notifications:employer-${user.id}`)
+            .on('postgres_changes' as any, {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+            }, (payload: RealtimeNotificationPayload) => {
+                const newNotif = payload.new;
+                toast(newNotif.title, {
+                    description: newNotif.message,
                     icon: <Bell className="w-5 h-5 text-primary" />
                 });
                 fetchNotifications();
-            });
-
-            channel.bind('notification-deleted', (data: { id: string }) => {
-                setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
-            });
-
-            return () => {
-                pusherClient!.unsubscribe(`employer-${user.id}`);
-            };
-        }
+            })
+            .on('postgres_changes' as any, {
+                event: 'DELETE',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+            }, (payload: RealtimeNotificationPayload) => {
+                const oldRow = payload.old;
+                if (oldRow?.id) setNotifications(prev => prev.filter(n => String(n.id) !== String(oldRow.id)));
+            })
+            .subscribe();
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user?.id, fetchNotifications]);
 
     const markAsRead = async (id?: string) => {

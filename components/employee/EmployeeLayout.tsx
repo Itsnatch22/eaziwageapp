@@ -12,7 +12,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/actions/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/lib/stores/auth';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
@@ -49,7 +49,12 @@ interface SidebarNavProps {
 const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   const pathname = usePathname();
   const router = useRouter();
-  const [mounted] = useState(() => typeof window !== 'undefined');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   const menuItems = [
     { label: 'Home',             href: '/dashboards/employee-dashboard',                 icon: Home },
@@ -228,7 +233,14 @@ interface TopHeaderProps {
 const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
   const pathname = usePathname();
-  const hour = new Date().getHours();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+  const hour = mounted ? new Date().getHours() : 9;
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
   const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -382,21 +394,29 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
     if (sidebarOpen) setSidebarOpen(false);
   }
 
-  // Subscribe to Pusher for real-time updates
+  // Subscribe to Supabase Realtime for real-time updates
   useEffect(() => {
-    if (!user?.id || !pusherClient) return;
+    if (!user?.id) return;
 
-    const channel = pusherClient.subscribe(`user-${user.id}`);
-    
-    channel.bind('settings-updated', () => {
-      toast.success('Your account settings updated', {
-        description: 'An administrator has updated your account configuration.',
-        icon: <Shield className="w-5 h-5 text-emerald-500" />,
-      });
-    });
+    const supabase = createClient();
+
+    const channel = (supabase as any)
+      .channel(`realtime:usersettings:user-${user.id}`)
+      .on('postgres_changes' as any, {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'employee_onboarding',
+        // updates related to user's onboarding/settings; no filter to limit (but scoped by payload)
+      }, () => {
+        toast.success('Your account settings updated', {
+          description: 'An administrator has updated your account configuration.',
+          icon: <Shield className="w-5 h-5 text-emerald-500" />,
+        });
+      })
+      .subscribe();
 
     return () => {
-      pusherClient!.unsubscribe(`user-${user.id}`);
+      supabase.removeChannel(channel);
     };
   }, [user?.id]);
 

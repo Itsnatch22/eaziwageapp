@@ -34,10 +34,10 @@ const MessagesPage = () => {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (options?: { silent?: boolean }) => {
     // defer state updates to avoid synchronous setState inside useEffect
     await Promise.resolve();
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
     try {
       const [annRes, profileRes] = await Promise.all([
         fetch('/api/employer-dashboard/announcements'),
@@ -62,7 +62,7 @@ const MessagesPage = () => {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData();
+    void fetchData({ silent: true });
   }, [fetchData]);
 
   const handleSend = async (e: React.FormEvent) => {

@@ -48,12 +48,23 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  const openPalette = useCallback(() => {
+    setQuery('');
+    setApiResults([]);
+    setSelectedIndex(0);
+    setIsOpen(true);
+  }, []);
+
   // Handle Cmd+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setIsOpen(prev => !prev);
+        if (!isOpen) {
+          openPalette();
+        } else {
+          setIsOpen(false);
+        }
       }
       if (e.key === 'Escape') {
         setIsOpen(false);
@@ -61,17 +72,12 @@ export function CommandPalette() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isOpen, openPalette]);
 
   // Focus input when opened
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
-      /* eslint-disable react-hooks/set-state-in-effect */
-      setQuery('');
-      setApiResults([]);
-      setSelectedIndex(0);
-      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [isOpen]);
 

@@ -6,19 +6,21 @@ import {
   Users, TrendingUp, ArrowRight, CreditCard, Building2, Upload,
   BarChart3, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownRight,
   ChevronRight, Wallet, Calendar, DollarSign, Activity, Clock,
-  FileText, Zap, Landmark
+  FileText, Zap, Landmark, Copy, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
+import { toast } from 'sonner';
 
 interface EmployerProfile {
   id: string;
   company_name: string;
+  company_code: string;
   status: string;
   industry: string | null;
   payroll_cycle: string | null;
@@ -298,29 +300,90 @@ const PayrollHealthCard = ({ lastSync }: { lastSync: PeriodData['last_sync'] }) 
   );
 };
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+const ReferralCodeCard = ({ code }: { code: string }) => {
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    void navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      toast.success('Referral code copied!');
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [code]);
+
+  return (
+    <div className="bg-linear-to-br from-indigo-500/10 to-purple-500/10 dark:from-indigo-500/20 dark:to-purple-500/20 backdrop-blur-sm rounded-2xl p-6 border border-indigo-500/20 shadow-lg shadow-indigo-500/5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <GradientIconBox icon={Zap} size="md" />
+          <h2 className="font-bold text-slate-900 dark:text-white">Employee Onboarding</h2>
+        </div>
+        <div className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+          Referral Code
+        </div>
+      </div>
+      <p className="text-sm text-slate-600 dark:text-slate-400 mb-5 leading-relaxed">
+        Share this unique code with your employees. They&apos;ll use it during registration to link their accounts to your company.
+      </p>
+      
+      <div className="group relative">
+        <div className="absolute -inset-1 bg-linear-to-r from-indigo-500 to-purple-500 rounded-xl blur-sm opacity-25 group-hover:opacity-50 transition duration-300" />
+        <div className="relative flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 shadow-inner">
+          <div className="flex-1 font-mono font-bold text-xl text-center py-2 tracking-widest text-indigo-600 dark:text-indigo-400 select-all">
+            {code}
+          </div>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-10 w-10 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0"
+            onClick={copyToClipboard}
+          >
+            {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-slate-400" />}
+          </Button>
+        </div>
+      </div>
+      
+      <div className="mt-5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic text-center leading-tight">
+          &quot;Share this code to get your team started on EaziWage today!&quot;
+        </p>
+      </div>
+    </div>
+  );
+};
+
+interface DashboardData {
+  employer: EmployerProfile | null;
+  curr: PeriodData | null;
+  prev: PeriodData | null;
+  credit: CreditSummary | null;
+  employeeStats: EmployeeStats | null;
+  loading: boolean;
+  error: string | null;
+}
 
 export default function EmployerDashboard() {
   const { currency } = useCurrency();
   const user = useAuthStore((state) => state.user);
-  const [employer, setEmployer] = useState<EmployerProfile | null>(null);
-  const [curr,     setCurr]     = useState<PeriodData | null>(null);
-  const [prev,     setPrev]     = useState<PeriodData | null>(null);
-  const [credit,   setCredit]   = useState<CreditSummary | null>(null);
-  const [employeeStats, setEmployeeStats] = useState<EmployeeStats | null>(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
+  const [data, setData] = useState<DashboardData>({
+    employer: null,
+    curr: null,
+    prev: null,
+    credit: null,
+    employeeStats: null,
+    loading: true,
+    error: null,
+  });
+  
   const router = useRouter();
 
-  const load = useCallback(async () => {
-    // defer state updates to avoid synchronous setState inside useEffect
-    await Promise.resolve();
-    setLoading(true);
-    setError(null);
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setData(prev => ({ ...prev, loading: true, error: null }));
     try {
       const profRes = await fetch('/api/employer-dashboard/profile');
       if (profRes.status === 404) {
-        setError('profile_not_found');
+        setData(prev => ({ ...prev, loading: false, error: 'profile_not_found' }));
         return;
       }
       if (!profRes.ok) throw new Error(`profile ${profRes.status}`);
@@ -333,8 +396,6 @@ export default function EmployerDashboard() {
         return;
       }
 
-      setEmployer(profile);
-
       const [currRes, prevRes, creditRes, employeeRes] = await Promise.all([
         fetch('/api/employer-dashboard/reports?period=this_month'),
         fetch('/api/employer-dashboard/reports?period=last_month'),
@@ -342,64 +403,79 @@ export default function EmployerDashboard() {
         fetch('/api/employer-dashboard/employees'),
       ]);
 
+      const updates: Partial<DashboardData> = {
+        employer: profile,
+        loading: false
+      };
+
       if (currRes.ok) {
         const j = await currRes.json();
-        if (j.data) setCurr(j.data);
+        if (j.data) updates.curr = j.data;
       }
       if (prevRes.ok) {
         const j = await prevRes.json();
-        if (j.data) setPrev(j.data);
+        if (j.data) updates.prev = j.data;
       }
       if (creditRes.ok) {
         const j = await creditRes.json();
-        setCredit(j);
+        updates.credit = j;
       }
       if (employeeRes.ok) {
         const j = await employeeRes.json();
-        if (j.stats) {
-          setEmployeeStats(j.stats);
-        }
+        if (j.stats) updates.employeeStats = j.stats;
       }
+
+      setData(prev => ({ ...prev, ...updates }));
     } catch {
-      setError('Failed to load dashboard.');
-    } finally {
-      setLoading(false);
+      setData(prev => ({ ...prev, loading: false, error: 'Failed to load dashboard.' }));
     }
   }, [router]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Calling load once on mount is safe. 
+    // The previous implementation had a comment about synchronous setState in useEffect,
+    // which usually refers to calling setState immediately after mount.
+    // By consolidating state, we reduce the number of updates.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load({ silent: true });
+  }, [load]);
 
   useEffect(() => {
-    if (!user?.id || !employer?.id || !pusherClient) return;
+    if (!user?.id || !data.employer?.id) return;
 
-    const userChannel = pusherClient.subscribe(`user-${user.id}`);
-    const handleUpdate = (data: Record<string, unknown>) => {
-      console.log('[Pusher] Employer overview update:', data);
+    const supabase = createClient();
+
+    const handleUpdate = () => {
+      console.log('[Realtime] Employer overview update');
       void load();
     };
 
-    userChannel.bind('kyc-update', handleUpdate);
+    const userChannel = (supabase as any)
+      .channel(`realtime:kyc:user-${user.id}`)
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
+        handleUpdate();
+      })
+      .subscribe();
 
-    const employerChannel = pusherClient.subscribe(`employer-${employer.id}`);
-    employerChannel.bind('employee-kyc-update', handleUpdate);
-    employerChannel.bind('kyc-update', handleUpdate);
+    const employerChannel = (supabase as any)
+      .channel(`realtime:kyc:employer-${data.employer.id}`)
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` }, () => {
+        handleUpdate();
+      })
+      .subscribe();
 
     return () => {
-      userChannel.unbind('kyc-update', handleUpdate);
-      pusherClient!.unsubscribe(`user-${user.id}`);
-      employerChannel.unbind('employee-kyc-update', handleUpdate);
-      employerChannel.unbind('kyc-update', handleUpdate);
-      pusherClient!.unsubscribe(`employer-${employer.id}`);
+      supabase.removeChannel(userChannel);
+      supabase.removeChannel(employerChannel);
     };
-  }, [user?.id, employer?.id, load]);
+  }, [user?.id, data.employer?.id, load]);
 
-  const disbursedTrend   = computeTrend(curr?.advances.total_amount ?? 0, prev?.advances.total_amount ?? 0);
-  const feesTrend        = computeTrend(curr?.advances.total_fees   ?? 0, prev?.advances.total_fees   ?? 0);
-  const avgAdvanceTrend  = computeTrend(curr?.advances.avg_amount   ?? 0, prev?.advances.avg_amount   ?? 0);
-  const utilizationTrend = computeTrend(curr?.employees.utilization_rate ?? 0, prev?.employees.utilization_rate ?? 0);
+  const disbursedTrend   = computeTrend(data.curr?.advances.total_amount ?? 0, data.prev?.advances.total_amount ?? 0);
+  const feesTrend        = computeTrend(data.curr?.advances.total_fees   ?? 0, data.prev?.advances.total_fees   ?? 0);
+  const avgAdvanceTrend  = computeTrend(data.curr?.advances.avg_amount   ?? 0, data.prev?.advances.avg_amount   ?? 0);
+  const utilizationTrend = computeTrend(data.curr?.employees.utilization_rate ?? 0, data.prev?.employees.utilization_rate ?? 0);
 
-  if (loading) {
+  if (data.loading) {
     return (
       <EmployerPortalLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -409,7 +485,7 @@ export default function EmployerDashboard() {
     );
   }
 
-  if (error === 'profile_not_found') {
+  if (data.error === 'profile_not_found') {
     return (
       <EmployerPortalLayout>
         <div className="max-w-lg mx-auto py-16 text-center">
@@ -430,14 +506,14 @@ export default function EmployerDashboard() {
     );
   }
 
-  const isPending = employer?.status === 'pending' || employer?.status === 'submitted' || employer?.status === 'risk_review_in_progress';
+  const isPending = data.employer?.status === 'pending' || data.employer?.status === 'submitted' || data.employer?.status === 'risk_review_in_progress';
 
   return (
-    <EmployerPortalLayout employer={employer}>
+    <EmployerPortalLayout employer={data.employer}>
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* Rejection Recovery Alert */}
-        {employer?.status === 'rejected' && (
+        {data.employer?.status === 'rejected' && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-[2rem] p-6 flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500 shadow-lg shadow-red-500/5">
             <div className="flex items-start gap-4 text-left">
               <div className="w-12 h-12 bg-red-100 dark:bg-red-900/40 rounded-2xl flex items-center justify-center shrink-0">
@@ -446,7 +522,7 @@ export default function EmployerDashboard() {
               <div>
                 <h3 className="text-lg font-bold text-red-900 dark:text-red-200 uppercase tracking-tight">Application Rejected</h3>
                 <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                  Your company verification was not approved. Reason: {employer?.reviewer_notes || "Please review your business details and re-submit for approval."}
+                  Your company verification was not approved. Reason: {data.employer?.reviewer_notes || "Please review your business details and re-submit for approval."}
                 </p>
               </div>
             </div>
@@ -465,10 +541,10 @@ export default function EmployerDashboard() {
             </div>
             <div className="flex-1">
               <h3 className="font-semibold text-amber-900 dark:text-amber-200">
-                {employer?.status === 'risk_review_in_progress' ? 'Risk Review in Progress' : 'Verification in Progress'}
+                {data.employer?.status === 'risk_review_in_progress' ? 'Risk Review in Progress' : 'Verification in Progress'}
               </h3>
               <p className="text-sm text-amber-700 dark:text-amber-300/80 mt-0.5">
-                {employer?.status === 'risk_review_in_progress' 
+                {data.employer?.status === 'risk_review_in_progress' 
                   ? 'Our compliance team is currently assessing your company risk profile. This usually takes 1–2 business days.'
                   : 'Your company profile is being reviewed. This usually takes 1–2 business days.'}
               </p>
@@ -477,34 +553,34 @@ export default function EmployerDashboard() {
         )}
 
         <div className="grid lg:grid-cols-3 gap-6">
-          <MainStatsCard employer={employer} employeeStats={employeeStats} />
+          <MainStatsCard employer={data.employer} employeeStats={data.employeeStats} />
 
           <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
             <MetricCard
               icon={DollarSign}
               label="Disbursed This Month"
-              value={formatCurrency(curr?.advances.total_amount ?? 0, currency)}
+              value={formatCurrency(data.curr?.advances.total_amount ?? 0, currency)}
               subtext="vs last month"
               trend={disbursedTrend}
             />
             <MetricCard
               icon={Wallet}
               label="Fees Collected"
-              value={formatCurrency(curr?.advances.total_fees ?? 0, currency)}
+              value={formatCurrency(data.curr?.advances.total_fees ?? 0, currency)}
               subtext="vs last month"
               trend={feesTrend}
             />
             <MetricCard
               icon={Activity}
               label="Avg. Advance"
-              value={formatCurrency(curr?.advances.avg_amount ?? 0, currency)}
+              value={formatCurrency(data.curr?.advances.avg_amount ?? 0, currency)}
               subtext="per disbursement"
               trend={avgAdvanceTrend}
             />
             <MetricCard
               icon={TrendingUp}
               label="Utilization Rate"
-              value={`${curr?.employees.utilization_rate ?? 0}%`}
+              value={`${data.curr?.employees.utilization_rate ?? 0}%`}
               subtext="employees using advances"
               trend={utilizationTrend}
             />
@@ -522,12 +598,12 @@ export default function EmployerDashboard() {
                 View all <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
-            <MiniStatRow label="Total requests"  value={curr?.advances.total    ?? 0} />
-            <MiniStatRow label="Disbursed"        value={curr?.advances.disbursed ?? 0} accent />
-            <MiniStatRow label="Pending"          value={curr?.advances.pending   ?? 0} />
-            <MiniStatRow label="Rejected"         value={curr?.advances.rejected  ?? 0} />
-            <MiniStatRow label="Mobile Money"     value={curr?.advances.by_method.mobile_money  ?? 0} />
-            <MiniStatRow label="Bank Transfer"    value={curr?.advances.by_method.bank_transfer ?? 0} />
+            <MiniStatRow label="Total requests"  value={data.curr?.advances.total    ?? 0} />
+            <MiniStatRow label="Disbursed"        value={data.curr?.advances.disbursed ?? 0} accent />
+            <MiniStatRow label="Pending"          value={data.curr?.advances.pending   ?? 0} />
+            <MiniStatRow label="Rejected"         value={data.curr?.advances.rejected  ?? 0} />
+            <MiniStatRow label="Mobile Money"     value={data.curr?.advances.by_method.mobile_money  ?? 0} />
+            <MiniStatRow label="Bank Transfer"    value={data.curr?.advances.by_method.bank_transfer ?? 0} />
           </div>
 
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
@@ -540,20 +616,20 @@ export default function EmployerDashboard() {
                 View all <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
-            <MiniStatRow label="Total enrolled"     value={employeeStats?.total_employees ?? curr?.employees.total ?? 0} />
-            <MiniStatRow label="Active"              value={employeeStats?.active_employees ?? curr?.employees.active ?? 0} accent />
-            <MiniStatRow label="Used advances"       value={curr?.employees.with_advances  ?? 0} />
-            <MiniStatRow label="Utilization rate"   value={`${curr?.employees.utilization_rate ?? 0}%`} accent />
+            <MiniStatRow label="Total enrolled"     value={data.employeeStats?.total_employees ?? data.curr?.employees.total ?? 0} />
+            <MiniStatRow label="Active"              value={data.employeeStats?.active_employees ?? data.curr?.employees.active ?? 0} accent />
+            <MiniStatRow label="Used advances"       value={data.curr?.employees.with_advances  ?? 0} />
+            <MiniStatRow label="Utilization rate"   value={`${data.curr?.employees.utilization_rate ?? 0}%`} accent />
 
-            {curr?.monthly_trend && curr.monthly_trend.length > 0 && (
+            {data.curr?.monthly_trend && data.curr.monthly_trend.length > 0 && (
               <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <p className="text-xs text-slate-400 mb-2">Monthly disbursements (6 mo.)</p>
-                <Sparkline trend={curr.monthly_trend} currency={currency} />
+                <Sparkline trend={data.curr.monthly_trend} currency={currency} />
               </div>
             )}
           </div>
 
-          <PayrollHealthCard lastSync={curr?.last_sync} />
+          <PayrollHealthCard lastSync={data.curr?.last_sync} />
         </div>
 
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
@@ -570,42 +646,48 @@ export default function EmployerDashboard() {
             <MetricCard
               icon={Landmark}
               label="Credit Limit"
-              value={formatCurrency(credit?.company_credit_limit ?? 0, currency)}
+              value={formatCurrency(data.credit?.company_credit_limit ?? 0, currency)}
               subtext="Configured monthly cap"
             />
             <MetricCard
               icon={CreditCard}
               label="Outstanding Credit"
-              value={formatCurrency(credit?.total_outstanding_credit ?? 0, currency)}
+              value={formatCurrency(data.credit?.total_outstanding_credit ?? 0, currency)}
               subtext="Currently exposed company-wide"
             />
             <MetricCard
               icon={Zap}
               label="Month Used"
-              value={formatCurrency(credit?.month_disbursed_amount ?? 0, currency)}
-              subtext={`${credit?.utilization_percent ?? 0}% of monthly limit`}
+              value={formatCurrency(data.credit?.month_disbursed_amount ?? 0, currency)}
+              subtext={`${data.credit?.utilization_percent ?? 0}% of monthly limit`}
             />
             <MetricCard
               icon={Wallet}
               label="Remaining EWA Limit"
-              value={formatCurrency(credit?.remaining_monthly_limit ?? 0, currency)}
-              subtext={`Month: ${credit?.month ?? 'N/A'}`}
+              value={formatCurrency(data.credit?.remaining_monthly_limit ?? 0, currency)}
+              subtext={`Month: ${data.credit?.month ?? 'N/A'}`}
             />
           </div>
         </div>
 
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h2>
-            <Link href="/dashboards/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
-              Upload Payroll <ArrowRight className="w-4 h-4" />
-            </Link>
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+             <ReferralCodeCard code={data.employer?.company_code || '---'} />
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <QuickActionCard icon={Users}    title="Manage Employees" description="Add, edit, or view profiles"   href="/dashboards/employer-dashboard/employees" />
-            <QuickActionCard icon={Upload}   title="Upload Payroll"   description="Update earnings data"          href="/dashboards/employer-dashboard/payroll" />
-            <QuickActionCard icon={CreditCard} title="View Advances"  description="Track wage advances"           href="/dashboards/employer-dashboard/advances" />
-            <QuickActionCard icon={BarChart3} title="Reports"         description="Analytics and insights"        href="/dashboards/employer-dashboard/reports" />
+          
+          <div className="lg:col-span-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h2>
+              <Link href="/dashboards/employer-dashboard/payroll" className="text-sm font-medium text-primary flex items-center gap-1 hover:gap-2 transition-all">
+                Upload Payroll <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <QuickActionCard icon={Users}    title="Manage Employees" description="Add, edit, or view profiles"   href="/dashboards/employer-dashboard/employees" />
+              <QuickActionCard icon={Upload}   title="Upload Payroll"   description="Update earnings data"          href="/dashboards/employer-dashboard/payroll" />
+              <QuickActionCard icon={CreditCard} title="View Advances"  description="Track wage advances"           href="/dashboards/employer-dashboard/advances" />
+              <QuickActionCard icon={BarChart3} title="Reports"         description="Analytics and insights"        href="/dashboards/employer-dashboard/reports" />
+            </div>
           </div>
         </div>
 
@@ -616,30 +698,30 @@ export default function EmployerDashboard() {
               <StatusItem
                 icon={CheckCircle2}
                 label="Verification Status"
-                value={employer?.status === 'approved' ? 'Fully Verified' : 'Under Review'}
-                status={employer?.status === 'approved' ? 'success' : 'warning'}
+                value={data.employer?.status === 'approved' ? 'Fully Verified' : 'Under Review'}
+                status={data.employer?.status === 'approved' ? 'success' : 'warning'}
               />
               <StatusItem
                 icon={Building2}
                 label="Industry"
-                value={employer?.industry?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Not Set'}
+                value={data.employer?.industry?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Not Set'}
                 status="default"
               />
               <StatusItem
                 icon={Calendar}
                 label="Payroll Cycle"
-                value={employer?.payroll_cycle
-                  ? employer.payroll_cycle.charAt(0).toUpperCase() + employer.payroll_cycle.slice(1)
+                value={data.employer?.payroll_cycle
+                  ? data.employer.payroll_cycle.charAt(0).toUpperCase() + data.employer.payroll_cycle.slice(1)
                   : 'Monthly'}
                 status="default"
               />
               <StatusItem
                 icon={Clock}
                 label="Risk Rating"
-                value={employer?.status === 'risk_review_in_progress' || (employer?.risk_score === 0) 
+                value={data.employer?.status === 'risk_review_in_progress' || (data.employer?.risk_score === 0) 
                   ? 'Risk review in progress' 
-                  : employer?.risk_rating ? `Rating ${employer.risk_rating}` : 'Not Rated Yet'}
-                status={employer?.risk_rating === 'A' ? 'success' : (employer?.status === 'risk_review_in_progress' || employer?.risk_score === 0) ? 'warning' : employer?.risk_rating === 'D' ? 'warning' : 'default'}
+                  : data.employer?.risk_rating ? `Rating ${data.employer.risk_rating}` : 'Not Rated Yet'}
+                status={data.employer?.risk_rating === 'A' ? 'success' : (data.employer?.status === 'risk_review_in_progress' || data.employer?.risk_score === 0) ? 'warning' : data.employer?.risk_rating === 'D' ? 'warning' : 'default'}
               />
             </div>
           </div>
@@ -651,10 +733,10 @@ export default function EmployerDashboard() {
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Your company&apos;s risk profile</p>
               </div>
               {(() => {
-                if (employer?.status === 'risk_review_in_progress' || employer?.risk_score === 0) {
+                if (data.employer?.status === 'risk_review_in_progress' || data.employer?.risk_score === 0) {
                     return <div className="px-4 py-2 rounded-xl font-semibold text-sm bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">Review in Progress</div>;
                 }
-                const rs = employer?.risk_score ?? 3.5;
+                const rs = data.employer?.risk_score ?? 3.5;
                 const label = rs >= 4 ? 'Low Risk' : rs >= 3 ? 'Medium Risk' : rs >= 2.6 ? 'High Risk' : 'Very High Risk';
                 const cls   = rs >= 4
                   ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
@@ -674,7 +756,7 @@ export default function EmployerDashboard() {
                     className="text-white/50 dark:text-slate-700/50" />
                   <circle cx="50" cy="50" r="40" fill="none" stroke="url(#riskGrad)" strokeWidth="8"
                     strokeLinecap="round" strokeDasharray={2 * Math.PI * 40}
-                    strokeDashoffset={2 * Math.PI * 40 * (1 - ((employer?.risk_score ?? (employer?.status === 'risk_review_in_progress' ? 0 : 3.5)) / 5))}
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - ((data.employer?.risk_score ?? (data.employer?.status === 'risk_review_in_progress' ? 0 : 3.5)) / 5))}
                     className="transition-all duration-1000" />
                   <defs>
                     <linearGradient id="riskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -685,13 +767,13 @@ export default function EmployerDashboard() {
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {(employer?.risk_score ?? (employer?.status === 'risk_review_in_progress' ? 0 : 3.5)).toFixed(1)}
+                    {(data.employer?.risk_score ?? (data.employer?.status === 'risk_review_in_progress' ? 0 : 3.5)).toFixed(1)}
                   </span>
                 </div>
               </div>
               <div className="flex-1">
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  {employer?.status === 'risk_review_in_progress' || employer?.risk_score === 0
+                  {data.employer?.status === 'risk_review_in_progress' || data.employer?.risk_score === 0
                     ? 'Your risk profile is currently being assessed by our team. You will be notified once the review is complete.'
                     : 'Your risk score determines the fee rates applied to employee advances. A higher score means better rates.'}
                 </p>

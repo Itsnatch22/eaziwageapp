@@ -60,6 +60,13 @@ export async function proxy(req: NextRequest) {
 
   if (user) {
     let role: AppRole | null = null;
+    let profileRow: { 
+      role: string; 
+      role_normalized: string | null; 
+      is_admin: boolean;
+      is_active: boolean;
+      onboarding_complete: boolean;
+    } | null = null;
 
     const { data: adminRow, error: adminError } = await supabase
       .from("system_admins")
@@ -74,11 +81,19 @@ export async function proxy(req: NextRequest) {
     if (adminRow) {
       role = "admin";
     } else {
-      const { data: profileRow, error: profileError } = await supabase
+      const { data: fetchedProfile, error: profileError } = await supabase
         .from("profiles")
-        .select("role, role_normalized, is_admin")
+        .select("role, role_normalized, is_admin, is_active, onboarding_complete")
         .eq("id", user.id)
-        .maybeSingle<{ role: string; role_normalized: string | null; is_admin: boolean }>();
+        .maybeSingle<{ 
+          role: string; 
+          role_normalized: string | null; 
+          is_admin: boolean;
+          is_active: boolean;
+          onboarding_complete: boolean;
+        }>();
+      
+      profileRow = fetchedProfile;
 
       if (profileError) {
         console.error(`[middleware] profiles query error for ${user.id}:`, profileError);
@@ -134,6 +149,21 @@ export async function proxy(req: NextRequest) {
       );
       await supabase.auth.signOut();
       return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    // Fix 3: Server-side onboarding gate
+    if (role !== 'admin' && isDashboard) {
+      const isActive = profileRow?.is_active ?? false;
+      const employerOnboardingPath = '/dashboards/employer-dashboard/onboarding';
+      const employeeOnboardingPath = '/dashboards/employee-dashboard/onboarding';
+      
+      if (!isActive) {
+        const targetOnboardingPath = role === 'employer' ? employerOnboardingPath : employeeOnboardingPath;
+        if (pathname !== targetOnboardingPath) {
+          console.log(`[middleware] Redirecting inactive ${role} ${user.id} to ${targetOnboardingPath}`);
+          return NextResponse.redirect(new URL(targetOnboardingPath, req.url));
+        }
+      }
     }
 
     console.log(`[middleware] Path: ${pathname}, Role: ${role}, User: ${user.id}`);

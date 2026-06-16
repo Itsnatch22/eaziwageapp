@@ -1234,8 +1234,8 @@ export default function AdminEmployees() {
   const [selectedIds,       setSelectedIds]       = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
-  const fetchEmployees = useCallback(async () => {
-    setLoading(true);
+  const fetchEmployees = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const res = await fetch('/api/admin/employees');
       const payload = await res.json();
@@ -1255,10 +1255,8 @@ export default function AdminEmployees() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchEmployees();
-    }, 0);
-    return () => clearTimeout(timer);
+    // Defer invocation to avoid synchronous setState in effect
+    Promise.resolve().then(() => void fetchEmployees({ silent: true }));
   }, [fetchEmployees]);
 
   const handleQuickAction = async (action: EmployeeStatus | 'kyc_approve') => {
@@ -1404,7 +1402,7 @@ export default function AdminEmployees() {
             <Button
               variant="outline"
               className="bg-white/60 dark:bg-slate-800/60"
-              onClick={fetchEmployees}
+              onClick={() => void fetchEmployees()}
             >
               <RefreshCw className="w-4 h-4 mr-2" /> Refresh
             </Button>

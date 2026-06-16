@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useAuthStore } from '@/lib/stores/auth';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -172,7 +172,8 @@ export default function EmployeeDashboardPage() {
   const router = useRouter();
 
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const res = await fetch('/api/employee-dashboard/overview');
       const data = await res.json();
@@ -191,20 +192,24 @@ export default function EmployeeDashboardPage() {
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void fetchStats();
-    }, 0);
-    return () => window.clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchStats({ silent: true });
   }, [fetchStats]);
 
   useEffect(() => {
-    if (!user?.id || !pusherClient) return;
-    const channel = pusherClient.subscribe(`user-${user.id}`);
-    const handleUpdate = () => void fetchStats();
-    channel.bind('kyc-update', handleUpdate);
+    if (!user?.id) return;
+
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`realtime:kyc:user-${user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
+        void fetchStats();
+      })
+      .subscribe();
+
     return () => {
-      channel.unbind('kyc-update', handleUpdate);
-      pusherClient!.unsubscribe(`user-${user.id}`);
+      supabase.removeChannel(channel);
     };
   }, [user?.id, fetchStats]);
 

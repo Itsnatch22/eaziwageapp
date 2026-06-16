@@ -115,3 +115,98 @@ export async function GET() {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function POST(req: Request) {
+  try {
+    const supabase = await createRouteHandlerClient();
+    const adminSupabase = createAdminClient();
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Resolve employer (same rules as GET)
+    const { data: employer, error: employerError } = await adminSupabase
+      .from('employers')
+      .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
+      .eq('user_id', user.id)
+      .eq('status', 'approved')
+      .maybeSingle();
+
+    if (employerError) {
+      console.error('[Wallet POST] Employer lookup failed:', employerError);
+      return NextResponse.json({ error: 'Failed to fetch employer data' }, { status: 500 });
+    }
+
+    if (!employer) {
+      return NextResponse.json({ error: 'Employer not approved. Please complete onboarding.' }, { status: 403 });
+    }
+
+    const onboarding = Array.isArray(employer.employer_onboarding) ? employer.employer_onboarding[0] : employer.employer_onboarding;
+
+    const body = await req.json().catch(() => null);
+    const amount = Number(body?.amount ?? 0);
+    if (!amount || amount <= 0) return NextResponse.json({ error: 'Invalid amount' }, { status: 422 });
+
+    // Ensure wallet exists (lazy create)
+    const { data: wallet, error: walletError } = await adminSupabase
+      .from('employer_wallets')
+      .select('*')
+      .eq('employer_id', employer.onboarding_id)
+      .maybeSingle();
+
+    if (walletError) return NextResponse.json({ error: 'Wallet lookup failed' }, { status: 500 });
+
+    let currentWallet = wallet;
+    if (!wallet) {
+      const walletCurrency = onboarding?.currency || getCurrencyFromCountry(onboarding?.country, 'KES');
+      const { data: newWallet, error: createError } = await adminSupabase
+        .from('employer_wallets')
+        .insert({ employer_id: employer.onboarding_id, balance: 0, arrears_balance: 0, currency: walletCurrency })
+        .select()
+        .single();
+      if (createError) return NextResponse.json({ error: 'Failed to create wallet' }, { status: 500 });
+      currentWallet = newWallet;
+    }
+
+    // Create a pending wallet_transactions row to represent the request
+    const reference = `DEP-${employer.onboarding_id}-${Date.now()}`;
+    const txPayload = {
+      wallet_id: currentWallet.id,
+      amount: amount,
+      type: 'deposit',
+      status: 'pending',
+      reference,
+      description: 'Top-up request (pending admin approval)',
+      metadata: { employer_id: employer.onboarding_id, requested_by: user.id, requested_at: new Date().toISOString() }
+    } as unknown as Record<string, unknown>;
+
+    const { data: inserted, error: insertError } = await adminSupabase
+      .from('wallet_transactions')
+      .insert(txPayload)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('[Wallet POST] Insert wallet_transactions failed:', insertError);
+      return NextResponse.json({ error: 'Failed to create top-up request' }, { status: 500 });
+    }
+
+    // Notify admins for review
+    try {
+      const { notifyAdmins } = await import('@/lib/notifications');
+      await notifyAdmins({
+        type: 'review_request',
+        title: 'Employer Wallet Top-up Request',
+        message: `Employer ${employer.id} requested a top-up of ${amount}. Review in admin dashboard.`,
+        metadata: { wallet_transaction_id: inserted.id, employer_id: employer.onboarding_id, amount }
+      });
+    } catch (notifyErr) {
+      console.error('[Wallet POST] notifyAdmins failed:', notifyErr);
+    }
+
+    return NextResponse.json({ success: true, request: inserted }, { status: 201 });
+  } catch (err: unknown) {
+    console.error('[Wallet POST] Unexpected error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

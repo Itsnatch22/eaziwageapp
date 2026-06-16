@@ -201,7 +201,8 @@ export default function RequestAdvance() {
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchData() {
+    async function fetchData(options?: { silent?: boolean }) {
+      if (!options?.silent) setLoading(true);
       try {
         const res = await fetch("/api/employee-dashboard/overview");
         const data = await res.json();
@@ -268,7 +269,7 @@ export default function RequestAdvance() {
       }
     }
 
-    fetchData();
+    void fetchData({ silent: true });
 
     return () => {
       cancelled = true;

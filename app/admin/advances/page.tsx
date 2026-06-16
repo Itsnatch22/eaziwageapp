@@ -471,8 +471,8 @@ export default function AdminAdvances(){
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<AdvanceStatus | ''>('');
 
-  const fetchAdvances = useCallback(async () => {
-    setLoading(true);
+  const fetchAdvances = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const res = await fetch('/api/admin/advances');
       if(res.ok) {
@@ -489,10 +489,8 @@ export default function AdminAdvances(){
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      fetchAdvances();
-    }, 0);
-    return () => window.clearTimeout(timeoutId);
+    // Defer invocation to avoid synchronous setState within the effect
+    Promise.resolve().then(() => void fetchAdvances({ silent: true }));
   }, [fetchAdvances]);
 
   const handleApprove = async(id: string) => {
@@ -597,7 +595,7 @@ export default function AdminAdvances(){
           <div className="flex gap-2">
             <button 
             className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 bg-white/60 dark:bg-slate-800/60" 
-            onClick={fetchAdvances}>
+            onClick={() => void fetchAdvances()}>
               <RefreshCw className="w-4 h-4 mr-2" /> Refresh
             </button>
             <ExportButton 

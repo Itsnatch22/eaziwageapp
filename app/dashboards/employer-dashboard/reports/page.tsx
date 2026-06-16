@@ -233,9 +233,9 @@ export default function EmployerReports() {
   });
   const [exportFormat, setExportFormat] = useState<'csv' | 'pdf'>('csv');
 
-  const fetchReports = useCallback(async (period: string, month: string) => {
+  const fetchReports = useCallback(async (period: string, month: string, options?: { silent?: boolean }) => {
     await Promise.resolve();
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ period, month });
@@ -256,8 +256,10 @@ export default function EmployerReports() {
     }
   }, []);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { fetchReports(selectedPeriod, selectedMonth); }, [selectedPeriod, selectedMonth, fetchReports]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchReports(selectedPeriod, selectedMonth, { silent: true });
+  }, [selectedPeriod, selectedMonth, fetchReports]);
 
   // ── Download handlers ─────────────────────────────────────────────────────
 

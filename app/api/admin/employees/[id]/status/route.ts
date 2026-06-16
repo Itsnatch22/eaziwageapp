@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { notifyEmployee } from '@/lib/notifications';
+import { activateUser, deactivateUser } from '@/lib/activation';
 
 interface EmployeeUpsertPayload {
   user_id: string;
@@ -262,6 +263,7 @@ export async function PATCH(
           return NextResponse.json({ error: 'Cannot create employee record: missing onboarding/employer mapping' }, { status: 400 });
         }
       }
+      await activateUser(userId);
     } else {
       const { data: existingEmployee } = await adminSupabase
         .from('employees')
@@ -286,6 +288,7 @@ export async function PATCH(
           return NextResponse.json({ error: 'Failed to update employee status' }, { status: 500 });
         }
       }
+      await deactivateUser(userId);
     }
 
     const titleMap: Record<string, string> = {

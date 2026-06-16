@@ -834,7 +834,7 @@ export default function RiskInsightsPage() {
 
               <Button
                 className="w-full mt-4 bg-primary text-white"
-                onClick={() => window.open('mailto:info@eaziwage.com', '_blank')}
+                onClick={() => window.open('https://app.eaziwage.com/contact', '_blank')}
               >
                 Contact Support for Help
                 <ArrowRight className="w-4 h-4 ml-2" />

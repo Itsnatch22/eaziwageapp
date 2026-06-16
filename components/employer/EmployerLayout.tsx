@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
@@ -139,7 +139,12 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const location = usePathname();
   const user = useAuthStore((state) => state.user as EmployerUser | null);
   const [showContactModal, setShowContactModal] = useState(false);
-  const [mounted] = useState(() => typeof window !== 'undefined');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   const avatarUrl = user?.avatar_url;
 
@@ -313,7 +318,12 @@ interface TopHeaderProps {
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
   const user = useAuthStore((state) => state.user as EmployerUser | null);
-  const [mounted] = useState(() => typeof window !== 'undefined');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   const hour = mounted ? new Date().getHours() : 9;
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
@@ -438,19 +448,26 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   }, [user?.id, pathname, router, isEmployerDashboardHome]);
 
   useEffect(() => {
-    if (!user?.id || !pusherClient) return;
-    
-    const channel = pusherClient.subscribe(`employer-${user.id}`);
-    
-    channel.bind('settings-updated', () => {
-      toast.success('Organization settings updated', {
-        description: 'Your organization settings have been updated by an administrator.',
-        icon: <Settings className="w-5 h-5 text-blue-600" />,
-      });
-    });
+    if (!user?.id) return;
+
+    const supabase = createClient();
+
+    const channel = (supabase as any)
+      .channel(`realtime:employer-settings:employer-${user.id}`)
+      .on('postgres_changes' as any, {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'employee_onboarding',
+      }, () => {
+        toast.success('Organization settings updated', {
+          description: 'Your organization settings have been updated by an administrator.',
+          icon: <Settings className="w-5 h-5 text-blue-600" />,
+        });
+      })
+      .subscribe();
 
     return () => {
-      pusherClient?.unsubscribe(`employer-${user.id}`);
+      supabase.removeChannel(channel);
     };
   }, [user?.id]);
 

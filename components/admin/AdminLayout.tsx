@@ -27,7 +27,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import pusherClient from "@/lib/pusher-client";
+import { createClient } from '@/lib/supabase/client';
 import { toast } from "sonner";
 import { ChatWindow } from "../layout/ChatWindow";
 import { NotificationDropdown } from "../layout/NotificationDropdown";
@@ -72,7 +72,21 @@ interface SidebarNavProps {
 
 const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
   const pathname = usePathname();
-  const [mounted] = useState(() => typeof window !== "undefined");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    let raf = 0;
+    raf = (typeof window !== 'undefined' && 'requestAnimationFrame' in window)
+      ? window.requestAnimationFrame(() => setMounted(true))
+      : setTimeout(() => setMounted(true), 0) as unknown as number;
+    return () => {
+      if (typeof window !== 'undefined' && 'cancelAnimationFrame' in window) {
+        cancelAnimationFrame(raf);
+      } else {
+        clearTimeout(raf);
+      }
+    };
+  }, []);
 
   // Cache busting for avatar URL - keep stable per avatar_url value
   const userProfileAny = userProfile as UserProfile | null;
@@ -279,7 +293,22 @@ interface TopHeaderProps {
 }
 
 const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
-  const hour = new Date().getHours();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    raf = (typeof window !== 'undefined' && 'requestAnimationFrame' in window)
+      ? window.requestAnimationFrame(() => setMounted(true))
+      : setTimeout(() => setMounted(true), 0) as unknown as number;
+    return () => {
+      if (typeof window !== 'undefined' && 'cancelAnimationFrame' in window) {
+        cancelAnimationFrame(raf);
+      } else {
+        clearTimeout(raf);
+      }
+    };
+  }, []);
+
+  const hour = mounted ? new Date().getHours() : 9;
   const greeting =
     hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
   const [activeChat, setActiveChat] = useState<{
@@ -390,23 +419,28 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   }, [globalUser, userProfile]);
 
   useEffect(() => {
-    if (!userProfile?.id || !pusherClient) return;
+    if (!userProfile?.id) return;
 
-    const channel = pusherClient.subscribe("global-settings");
+    const supabase = createClient();
 
-    const handleUpdate = () => {
-      toast.info("Global settings updated", {
-        description: "A platform-wide configuration has been modified.",
-        icon: <Settings className="w-5 h-5 text-purple-600" />,
-      });
-    };
-
-    channel.bind("platform-updated", handleUpdate);
-    channel.bind("risk-updated", handleUpdate);
-    channel.bind("notifications-updated", handleUpdate);
+    const channel = (supabase as any)
+      .channel('realtime:global-settings')
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, () => {
+        toast.info("Global settings updated", {
+          description: "A platform-wide configuration has been modified.",
+          icon: <Settings className="w-5 h-5 text-purple-600" />,
+        });
+      })
+            .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' }, () => {
+        toast.info("Global settings updated", {
+          description: "A platform-wide configuration has been modified.",
+          icon: <Settings className="w-5 h-5 text-purple-600" />,
+        });
+      })
+      .subscribe();
 
     return () => {
-      pusherClient!.unsubscribe("global-settings");
+      supabase.removeChannel(channel);
     };
   }, [userProfile?.id]);
 

@@ -10,6 +10,7 @@ import {
 import { formatCurrency, cn, formatDateTime } from '@/lib/utils';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import AdminWalletGlimpse from '@/components/admin/AdminWalletGlimpse';
 
 type VariantColor = 'green' | 'slate' | 'black';
 type IconSize = 'sm' | 'md' | 'lg';
@@ -482,6 +483,11 @@ export default function AdminDashboard() {
             </div>
           </Link>
         ))}
+      </div>
+
+      {/* Admin Wallet Glimpse */}
+      <div className="mt-4">
+        <AdminWalletGlimpse />
       </div>
     </div>
   );
