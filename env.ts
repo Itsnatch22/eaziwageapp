@@ -25,6 +25,12 @@ interface EnvConfig {
   NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   SUPABASE_PRIVATE_VAPID_KEY?: string;
+
+  // Stanbic API credentials and endpoints
+  STANBIC_API_KEY?: string;
+  STANBIC_SANDBOX_API_KEY?: string;
+  STANBIC_SANDBOX_BASE_URL?: string;
+  STANBIC_BASE_URL?: string;
 }
 
 class EnvironmentError extends Error {
@@ -108,6 +114,19 @@ export function validateEnv(): EnvConfig {
     if (!process.env.PUSHER_APP_SECRET) {
       errors.push('PUSHER_APP_SECRET is not defined');
     }
+
+    // Stanbic: require at least one API key (production or sandbox)
+    if (!process.env.STANBIC_API_KEY && !process.env.STANBIC_SANDBOX_API_KEY) {
+      errors.push('STANBIC_API_KEY or STANBIC_SANDBOX_API_KEY is not defined');
+    }
+
+    if (process.env.STANBIC_SANDBOX_BASE_URL && !isValidUrl(process.env.STANBIC_SANDBOX_BASE_URL)) {
+      errors.push('STANBIC_SANDBOX_BASE_URL is not a valid URL');
+    }
+
+    if (process.env.STANBIC_BASE_URL && !isValidUrl(process.env.STANBIC_BASE_URL)) {
+      errors.push('STANBIC_BASE_URL is not a valid URL');
+    }
   }
 
   if (errors.length > 0) {
@@ -137,6 +156,12 @@ export function validateEnv(): EnvConfig {
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     SUPABASE_PRIVATE_VAPID_KEY: process.env.SUPABASE_PRIVATE_VAPID_KEY,
+
+    // Stanbic
+    STANBIC_API_KEY: process.env.STANBIC_API_KEY,
+    STANBIC_SANDBOX_API_KEY: process.env.STANBIC_SANDBOX_API_KEY,
+    STANBIC_SANDBOX_BASE_URL: process.env.STANBIC_SANDBOX_BASE_URL,
+    STANBIC_BASE_URL: process.env.STANBIC_BASE_URL,
   };
 }
 

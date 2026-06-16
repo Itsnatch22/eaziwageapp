@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
@@ -54,27 +54,45 @@ export default function EmployeeNotificationsPage() {
             void fetchNotifications();
         }, 0);
 
-        if (!user?.id || !pusherClient) {
+        if (!user?.id) {
             return () => window.clearTimeout(timeoutId);
         }
 
-        const channel = pusherClient.subscribe(`user-${user.id}`);
-        
-        channel.bind('new-notification', (data: Notification) => {
-            setNotifications(prev => [data, ...prev].slice(0, 50));
-            toast(data.title, {
-                description: data.message,
-                icon: <Bell className="w-5 h-5 text-primary" />
-            });
-        });
+        const supabase = createClient();
 
-        channel.bind('notification-deleted', (data: { id: string }) => {
-            setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
-        });
+        type RealtimeNotificationPayload = { new: Notification; old?: Notification };
+
+        const channel = supabase
+            .channel(`realtime:notifications:user-${user.id}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+            }, (payload: RealtimeNotificationPayload) => {
+                const newNotif = payload.new;
+                setNotifications(prev => [newNotif, ...prev].slice(0, 50));
+                toast(newNotif.title, {
+                    description: newNotif.message,
+                    icon: <Bell className="w-5 h-5 text-primary" />
+                });
+            })
+            .on('postgres_changes', {
+                event: 'DELETE',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+            }, (payload: RealtimeNotificationPayload) => {
+                const oldRow = payload.old;
+                if (oldRow?.id) {
+                    setNotifications(prev => prev.filter(n => String(n.id) !== String(oldRow.id)));
+                }
+            })
+            .subscribe();
 
         return () => {
             window.clearTimeout(timeoutId);
-            pusherClient!.unsubscribe(`user-${user.id}`);
+            supabase.removeChannel(channel);
         };
     }, [user?.id, fetchNotifications]);
 

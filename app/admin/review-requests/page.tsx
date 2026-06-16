@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select';
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 
 type IconType = React.ComponentType<{ className?: string }>;
 
@@ -399,29 +399,27 @@ export default function ReviewRequests() {
       fetchRequests();
     }, 0);
 
-    if (!pusherClient) {
-      return () => window.clearTimeout(timeoutId);
-    }
+    const supabase = createClient();
+    type RealtimeReviewPayload = { new: ReviewRequest; old?: ReviewRequest };
 
-    const channel = pusherClient.subscribe('admin-reviews');
-    
-    channel.bind('new-request', (data: ReviewRequest) => {
-      setRequests(prev => [data, ...prev]);
-      toast.info('New review request received!');
-    });
-
-    channel.bind('request-updated', (data: { id: string, status: RequestStatus }) => {
-      setRequests(prev => prev.map(req => 
-        req.id === data.id ? { ...req, status: data.status } : req
-      ));
-      toast.success('A review request was updated');
-    });
+    const channel = supabase
+      .channel('realtime:admin-review-requests')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'admin_notifications' }, (payload: RealtimeReviewPayload) => {
+        const newReq = payload.new;
+        // admin_notifications used for admin-facing alerts; if it maps to review requests, prepend
+        setRequests(prev => [newReq, ...prev]);
+        toast.info('New review request received!');
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, (payload: RealtimeReviewPayload) => {
+        const updated = payload.new as unknown as { id: string; status?: string };
+        setRequests(prev => prev.map(req => req.id === updated.id ? { ...req, status: (updated.status as RequestStatus) || req.status } : req));
+        toast.success('A review request was updated');
+      })
+      .subscribe();
 
     return () => {
       window.clearTimeout(timeoutId);
-      channel.unbind('new-request');
-      channel.unbind('request-updated');
-      pusherClient!.unsubscribe('admin-reviews');
+      supabase.removeChannel(channel);
     };
   }, []);
 

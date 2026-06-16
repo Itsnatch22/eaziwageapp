@@ -9,6 +9,7 @@ import { getEnv }                    from '@/env';
 import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { validateEmail }             from '@/lib/email-validation';
 import { createToken }               from '@/lib/token';
+import { getCurrencyFromCountry }     from '@/lib/utils';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
 import { notifyAdmins, notifyEmployer } from '@/lib/notifications';
 import { toast } from 'sonner';
@@ -22,7 +23,7 @@ const supabase = createClient(
 );
 
 const FROM_EMAIL   = 'EaziWage <noreply@eaziwage.com>';
-const BASE_URL     = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eaziwage.com';
+const BASE_URL     = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const RECAPTCHA_MIN_SCORE = 0.5;
 
@@ -183,6 +184,20 @@ function generateEmployerCode(): string {
   return random;
 }
 
+interface EmployerRecord {
+  id: string;
+  status: string;
+  user_id: string;
+  employer_code: string;
+  onboarding_id: string | null;
+}
+
+interface OnboardingRecord {
+  id: string;
+  status: string;
+  user_id: string;
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
 
@@ -242,12 +257,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   let employerUserId: string | null = null;
+  let employerOnboardingId: string | null = null;
+
   if (input.role === 'employee' && input.company_code) {
     const { data: employer, error: empError } = await supabase
       .from('employers')
-      .select('id, status, user_id, employer_code')
+      .select('id, status, user_id, employer_code, onboarding_id')
       .ilike('employer_code', input.company_code)
-      .single();
+      .maybeSingle<EmployerRecord>();
 
     if (empError || !employer) {
       const { data: profileEmp, error: profileEmpError } = await supabase
@@ -255,7 +272,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .select('id, role, company_code')
         .eq('role', 'employer')
         .ilike('company_code', input.company_code)
-        .single();
+        .maybeSingle<{ id: string; role: string; company_code: string | null }>();
 
       if (profileEmpError || !profileEmp) {
         return NextResponse.json(
@@ -266,25 +283,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       const { data: onboardingRows } = await supabase
         .from('employer_onboarding')
-        .select('status, user_id')
+        .select('id, status, user_id')
         .eq('user_id', profileEmp.id)
         .order('created_at', { ascending: false });
 
-      const onboarding = onboardingRows?.find(r => r.status === 'approved') 
-        || onboardingRows?.find(r => r.status === 'submitted' || r.status === 'pending')
-        || (onboardingRows && onboardingRows.length > 0 ? onboardingRows[0] : null);
+      const approvedOnboarding = (onboardingRows as OnboardingRecord[] | null)
+        ?.find((r) => r.status === 'approved') ?? null;
 
-      if (onboarding) {
-        if (onboarding.status === 'rejected' || onboarding.status === 'suspended') {
+      const latestOnboarding = (onboardingRows && onboardingRows.length > 0)
+        ? (onboardingRows[0] as OnboardingRecord)
+        : null;
+
+      if (!approvedOnboarding) {
+        // Employer exists but hasn't completed onboarding yet (no row,
+        // or a row exists but isn't 'approved'). Employees may only link
+        // to employers who have finished onboarding — reject rather than
+        // silently registering with no employer link.
+        if (latestOnboarding?.status === 'rejected' || latestOnboarding?.status === 'suspended') {
           return NextResponse.json(
-            { error: `This company is currently ${onboarding.status} on EaziWage. Please contact support.` },
+            { error: `This company is currently ${latestOnboarding.status} on EaziWage. Please contact support.` },
             { status: 422, headers: rateResult.headers },
           );
         }
-        employerUserId = onboarding.user_id;
-      } else {
-        employerUserId = profileEmp.id;
+        return NextResponse.json(
+          { error: 'This company has not finished onboarding yet. Please try again once they have completed setup, or continue without a code.' },
+          { status: 422, headers: rateResult.headers },
+        );
       }
+
+      employerUserId = approvedOnboarding.user_id;
+      employerOnboardingId = approvedOnboarding.id;
     } else {
         if (employer.status === 'rejected' || employer.status === 'suspended') {
             return NextResponse.json(
@@ -292,10 +320,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
               { status: 422, headers: rateResult.headers },
             );
         }
+        if (employer.status !== 'approved') {
+          return NextResponse.json(
+            { error: 'This company has not finished onboarding yet. Please try again once they have completed setup, or continue without a code.' },
+            { status: 422, headers: rateResult.headers },
+          );
+        }
         employerUserId = employer.user_id;
+        employerOnboardingId = employer.onboarding_id;
     }
-  } else if (input.role === 'employee' && !input.company_code && !input.employer_referral) {
-    toast.error('If you do not have a company code, please provide your employer details in the referral section or contact support.');
   }
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -324,11 +357,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const userId = authData.user.id;
+  const registrationCurrency = getCurrencyFromCountry(input.phone_country_code, 'KES');
 
   if (input.role === 'employer') {
     generatedEmployerCode = generateEmployerCode();
-  }
-  if (input.role === 'employer' && generatedEmployerCode) {
+    
+    // Fix 1: Atomic creation of employer_onboarding row
+    const { data: onboarding, error: onboardingError } = await supabase
+      .from('employer_onboarding')
+      .insert({
+        user_id: userId,
+        company_name: input.company_name || '',
+        status: 'draft',
+        currency: registrationCurrency,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single<{ id: string }>();
+
+    if (onboardingError || !onboarding) {
+      await supabase.auth.admin.deleteUser(userId);
+      console.error('[db] employer_onboarding insert error:', onboardingError);
+      return NextResponse.json(
+        { error: 'Failed to create employer onboarding record. Please try again.' },
+        { status: 500, headers: rateResult.headers },
+      );
+    }
+
+    employerOnboardingId = onboarding.id;
+
     const { error: employerError } = await supabase
       .from('employers')
       .upsert({
@@ -340,16 +398,40 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         user_id:      userId,
         employer_id:  userId, 
         status:       'pending',
+        onboarding_id: employerOnboardingId,
         created_at:   new Date().toISOString(),
-      }, { onConflict: 'company_code' })
-      .select()
-      .single();
+      }, { onConflict: 'company_code' });
 
     if (employerError) {
+      await supabase.from('employer_onboarding').delete().eq('id', employerOnboardingId);
       await supabase.auth.admin.deleteUser(userId);
       console.error('[db] employer insert error:', employerError);
       return NextResponse.json(
         { error: 'Failed to create employer account. Please try again.' },
+        { status: 500, headers: rateResult.headers },
+      );
+    }
+  } else if (input.role === 'employee') {
+    // Fix 1: Atomic creation of employee_onboarding row
+    const { error: onboardingError } = await supabase
+      .from('employee_onboarding')
+      .insert({
+        user_id: userId,
+        employer_id: employerOnboardingId,
+        status: 'pending',
+        full_name: input.full_name,
+        email: input.email,
+        country: input.phone_country_code,
+        currency: registrationCurrency,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (onboardingError) {
+      await supabase.auth.admin.deleteUser(userId);
+      console.error('[db] employee_onboarding insert error:', onboardingError);
+      return NextResponse.json(
+        { error: 'Failed to create employee onboarding record. Please try again.' },
         { status: 500, headers: rateResult.headers },
       );
     }
@@ -368,12 +450,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       company_code:       input.role === 'employee' ? (input.company_code || null) : generatedEmployerCode,
       company_name:       input.role === 'employer' ? input.company_name : null,
       email_verified:     true,
+      is_active:          false, // Fix 2: Explicitly set to false initially
+      onboarding_complete: false,
       created_at:         new Date().toISOString(),
     }, { onConflict: 'id' });
 
   if (profileError) {
-    if (input.role === 'employer' && generatedEmployerCode) {
-      await supabase.from('employers').delete().eq('company_code', generatedEmployerCode);
+    if (input.role === 'employer' && employerOnboardingId) {
+      await supabase.from('employers').delete().eq('onboarding_id', employerOnboardingId);
+      await supabase.from('employer_onboarding').delete().eq('id', employerOnboardingId);
+    } else if (input.role === 'employee') {
+      await supabase.from('employee_onboarding').delete().eq('user_id', userId);
     }
     await supabase.auth.admin.deleteUser(userId);
     console.error('[db] profile insert error:', profileError);

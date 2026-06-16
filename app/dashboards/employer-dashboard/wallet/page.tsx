@@ -40,6 +40,8 @@ const WalletPage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState<number>(0);
+  const [submittingTopUp, setSubmittingTopUp] = useState(false);
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -228,7 +230,7 @@ const WalletPage = () => {
           )}
         </div>
 
-        {/* Top-up Modal Placeholder */}
+        {/* Top-up Modal: collect amount and create a pending top-up request (pending admin approval) */}
         {showTopUpModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowTopUpModal(false)}>
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -237,43 +239,70 @@ const WalletPage = () => {
                    <h2 className="text-2xl font-bold">Wallet Top-up</h2>
                    <CreditCard className="w-8 h-8 opacity-50" />
                 </div>
-                <p className="text-white/80">Add funds to enable EWA for your employees.</p>
+                <p className="text-white/80">Request a wallet top-up. The request will appear in the admin review queue for approval.</p>
               </div>
+
               <div className="p-8 space-y-6">
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-800 flex items-start gap-4">
-                  <Info className="w-6 h-6 text-blue-600 mt-1" />
-                  <div>
-                    <p className="font-bold text-blue-900 dark:text-blue-200">Payment Instructions</p>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                      To top up your wallet, please make a deposit to the following account using your Company Code as the reference:
-                    </p>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Top-up Amount</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={0.01}
+                    value={typeof topUpAmount === 'number' ? topUpAmount : ''}
+                    onChange={(e) => setTopUpAmount(Number(e.target.value || 0))}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60"
+                    placeholder="Enter amount to request"
+                  />
+                  <p className="text-[11px] text-slate-500">Use your Company Code as the bank transfer reference when you pay Stanbic. Admin will confirm and fund the wallet on approval.</p>
+                </div>
+
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-800">
+                  <div className="flex items-start gap-4">
+                    <Info className="w-6 h-6 text-blue-600 mt-1" />
+                    <div>
+                      <p className="font-bold text-blue-900 dark:text-blue-200">Bank Instructions</p>
+                      <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">Deposit to Stanbic Bank using your Company Code as the reference. Upload or provide proof to admins if requested.</p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                   <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">Bank Name</p>
-                      <p className="font-bold text-slate-900 dark:text-white">Stanbic Bank Kenya</p>
-                   </div>
-                   <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">Account Number</p>
-                      <p className="font-bold text-slate-900 dark:text-white">010000XXXXXXX</p>
-                   </div>
-                   <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">Payment Reference</p>
-                      <p className="font-bold text-primary">{employer?.company_code || 'N/A'}</p>
-                   </div>
-                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <Button onClick={async () => {
+                    // submit top-up request
+                    if (!topUpAmount || topUpAmount <= 0) {
+                      toast.error('Please enter a valid amount');
+                      return;
+                    }
+                    setSubmittingTopUp(true);
+                    try {
+                      const res = await fetch('/api/employer-dashboard/wallet', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount: topUpAmount }),
+                      });
+                      if (res.ok) {
+                        toast.success('Top-up request submitted for admin review');
+                        setShowTopUpModal(false);
+                        fetchData();
+                      } else {
+                        const d = await res.json().catch(() => ({}));
+                        toast.error(d.error || 'Failed to submit top-up request');
+                      }
+                    } catch (e) {
+                      console.error('[TopUpModal] Submit error', e);
+                      toast.error('An unexpected error occurred');
+                    } finally {
+                      setSubmittingTopUp(false);
+                    }
+                  }} className="w-full bg-primary text-white h-12 rounded-2xl shadow-lg" disabled={submittingTopUp}>
+                    {submittingTopUp ? 'Submitting...' : 'Request Top-up'}
+                  </Button>
 
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800">
-                   <p className="text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                     <AlertCircle className="w-4 h-4" /> Funds will reflect within 2-24 hours after verification.
-                   </p>
+                  <Button variant="outline" onClick={() => setShowTopUpModal(false)} className="w-full rounded-2xl">
+                    Cancel
+                  </Button>
                 </div>
-
-                <Button onClick={() => setShowTopUpModal(false)} className="w-full bg-primary text-white h-12 rounded-2xl shadow-lg">
-                  Understood
-                </Button>
               </div>
             </div>
           </div>

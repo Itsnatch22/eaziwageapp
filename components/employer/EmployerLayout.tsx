@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
@@ -438,19 +438,27 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   }, [user?.id, pathname, router, isEmployerDashboardHome]);
 
   useEffect(() => {
-    if (!user?.id || !pusherClient) return;
-    
-    const channel = pusherClient.subscribe(`employer-${user.id}`);
-    
-    channel.bind('settings-updated', () => {
-      toast.success('Organization settings updated', {
-        description: 'Your organization settings have been updated by an administrator.',
-        icon: <Settings className="w-5 h-5 text-blue-600" />,
-      });
-    });
+    if (!user?.id) return;
+
+    const supabase = createClient();
+    type EmptyPayload = { new: Record<string, unknown>; old?: Record<string, unknown> };
+
+    const channel = supabase
+      .channel(`realtime:employer-settings:employer-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'employee_onboarding',
+      }, (_payload: EmptyPayload) => {
+        toast.success('Organization settings updated', {
+          description: 'Your organization settings have been updated by an administrator.',
+          icon: <Settings className="w-5 h-5 text-blue-600" />,
+        });
+      })
+      .subscribe();
 
     return () => {
-      pusherClient?.unsubscribe(`employer-${user.id}`);
+      supabase.removeChannel(channel);
     };
   }, [user?.id]);
 

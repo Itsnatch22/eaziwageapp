@@ -6,7 +6,7 @@ import {
   Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight, Activity,
   FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
   MessageSquare, Phone, MapPin, Globe, X, Loader2,
-  LucideIcon, User, Smartphone
+  LucideIcon, User, Smartphone, History, AlertTriangle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { logout } from '@/actions/auth';
@@ -22,7 +22,7 @@ import { EmployerPortalLayout } from '@/components/employer/EmployerLayout'
 import { toast } from "sonner";
 import { cn, getAdvanceLimit, getCurrencySymbol, getCurrencyFromCountry } from "@/lib/utils";
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,25 @@ interface EmployerProfile {
   sector?: string;
   documents?: Record<string, string>;
   avatar_url?: string;
+}
+
+interface MFAFactor {
+  id: string;
+  friendly_name?: string;
+  factor_type: string;
+  status: string;
+  created_at: string;
+}
+
+interface ActivityLog {
+  action: string;
+  created_at: string;
+  metadata?: {
+    ip?: string;
+    location?: string;
+    device_name?: string;
+    user_agent?: string;
+  };
 }
 
 interface Settings {
@@ -483,6 +502,28 @@ const faqItems = [
   }
 ];
 
+interface Profile {
+  maxAdvancePercentage: number;
+  minAdvanceAmount: number;
+  maxAdvanceAmount: number;
+  advanceAccessDays: [number, number];
+  cooldownPeriod: number;
+  emailNotifications: boolean;
+  advanceAlerts: boolean;
+  payrollReminders: boolean;
+  weeklyReports: boolean;
+  companyName: string;
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string;
+  payrollCycle: string;
+  physicalAddress: string;
+  city: string;
+  postalCode: string;
+  countyRegion: string;
+  country: string;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function EmployerSettings() {
@@ -494,8 +535,16 @@ export default function EmployerSettings() {
   const [activeTab, setActiveTab] = useState('account');
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
   const [showBankModal, setShowBankModal] = useState(false);
-  const [mfaEnabled, setMfaEnabled] = useState(false);
-  const [activityLogs, setActivityLogs] = useState<Array<{ action: string; created_at: string; metadata?: { ip?: string } }>>([]);
+
+  // MFA states
+  const [mfaStatus, setMfaStatus] = useState({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
+  const [verificationCode, setVerificationCode] = useState('');
+  const [mfaFactors, setMfaFactors] = useState<MFAFactor[]>([]);
+  const [showMfaModal, setShowMfaModal] = useState(false);
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
@@ -600,37 +649,183 @@ export default function EmployerSettings() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void fetchData(); }, []);
 
-  // Pusher subscription
+  // Supabase Realtime subscription
   useEffect(() => {
-    if (!employer?.id || !pusherClient) return;
-    const channel = pusherClient.subscribe(`employer-${employer.id}`);
-    const handleUpdate = () => { void fetchData(); };
-    channel.bind('kyc-update', handleUpdate);
+    if (!employer?.id) return;
+
+    const supabase = createClient();
+    type RealtimePayload<T> = { new: T; old?: T };
+
+    const channel = supabase
+      .channel(`realtime:employer-settings:employer-${employer.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${employer.id}` }, (_payload: RealtimePayload<Record<string, unknown>>) => {
+        void fetchData();
+      })
+      .subscribe();
+
     return () => {
-      channel.unbind('kyc-update', handleUpdate);
-      pusherClient!.unsubscribe(`employer-${employer.id}`);
+      supabase.removeChannel(channel);
     };
   }, [employer?.id]);
 
-  // Activity logs
+  // Security data fetching
   useEffect(() => {
     if (activeTab !== 'security') return;
-    void (async () => {
+    
+    const fetchSecurityData = async () => {
       await Promise.resolve();
       setLogsLoading(true);
       try {
-        const res = await fetch('/api/auth/activity-logs');
-        const data = res.ok ? await res.json() : { logs: [] };
-        setActivityLogs(data.logs || []);
-      } catch {
-        setActivityLogs([]);
+        const [logsRes, mfaRes] = await Promise.all([
+          fetch('/api/auth/activity-logs'),
+          fetch('/api/employer-dashboard/security/mfa')
+        ]);
+        
+        if (logsRes.ok) {
+          const data = await logsRes.json();
+          setActivityLogs(data.logs || []);
+        }
+        
+        if (mfaRes.ok) {
+          const data = await mfaRes.json();
+          setMfaStatus(prev => ({ ...prev, enabled: data.enabled, loading: false }));
+          setMfaFactors(Array.isArray(data.factors) ? data.factors : []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch security data:', err);
       } finally {
         setLogsLoading(false);
       }
-    })();
+    };
+    
+    void fetchSecurityData();
   }, [activeTab]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────
+
+  const handleMfaToggle = async (enable: boolean) => {
+    setMfaStatus(prev => ({ ...prev, loading: true }));
+    
+    try {
+      if (enable) {
+        const res = await fetch('/api/employer-dashboard/security/mfa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'enable' }),
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setMfaStatus({
+            enabled: false,
+            loading: false,
+            showSetup: true,
+            qrCode: data.qrCode,
+            factorId: data.factorId
+          });
+          toast.success('Scan the QR code to continue');
+        } else {
+          const error = await res.json();
+          toast.error(error.error || 'Failed to initialize MFA');
+          setMfaStatus(prev => ({ ...prev, loading: false }));
+        }
+      } else {
+        const res = await fetch('/api/employer-dashboard/security/mfa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'disable' }),
+        });
+        
+        if (res.ok) {
+          setMfaStatus({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
+          setMfaFactors([]);
+          toast.success('MFA disabled');
+        } else {
+          const error = await res.json();
+          toast.error(error.error || 'Failed to disable MFA');
+          setMfaStatus(prev => ({ ...prev, loading: false }));
+        }
+      }
+    } catch {
+      toast.error('MFA update failed');
+      setMfaStatus(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleMfaVerify = async () => {
+    if (!verificationCode || !mfaStatus.factorId) return;
+    setMfaStatus(prev => ({ ...prev, loading: true }));
+    
+    try {
+      const res = await fetch('/api/employer-dashboard/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'verify', 
+          factorId: mfaStatus.factorId,
+          code: verificationCode 
+        }),
+      });
+      
+      if (res.ok) {
+        setMfaStatus({ enabled: true, loading: false, showSetup: false, qrCode: '', factorId: '' });
+        setVerificationCode('');
+        const statusRes = await fetch('/api/employer-dashboard/security/mfa');
+        if (statusRes.ok) {
+          const data = await statusRes.json();
+          setMfaFactors(data.factors || []);
+        }
+        toast.success('MFA enabled successfully');
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'Invalid code');
+        setMfaStatus(prev => ({ ...prev, loading: false }));
+      }
+    } catch {
+      toast.error('Verification failed');
+      setMfaStatus(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleDisableFactor = async (factorId: string) => {
+    try {
+      const res = await fetch('/api/employer-dashboard/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disable', factorId }),
+      });
+      if (res.ok) {
+        toast.success('Authenticator removed');
+        const statusRes = await fetch('/api/employer-dashboard/security/mfa');
+        if (statusRes.ok) {
+          const data = await statusRes.json();
+          setMfaStatus(prev => ({ ...prev, enabled: data.enabled }));
+          setMfaFactors(data.factors || []);
+        }
+      }
+    } catch {
+      toast.error('Failed to remove authenticator');
+    }
+  };
+
+  const handleGenerateBackupCodes = async () => {
+    setBackupLoading(true);
+    try {
+      const res = await fetch('/api/employer-dashboard/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_backup_codes' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBackupCodes(data.backupCodes || []);
+        setShowMfaModal(true);
+        toast.success('Backup codes generated');
+      }
+    } finally {
+      setBackupLoading(false);
+    }
+  };
 
   const handleFileUpload = async (file: File, docKey: string) => {
     setUploadingDoc(docKey);
@@ -1388,16 +1583,74 @@ export default function EmployerSettings() {
             {activeTab === 'security' && (
               <>
                 <SettingsCard icon={Shield} title="Multi-Factor Authentication" description="Add an extra layer of security to your account">
-                  <ToggleItem
-                    icon={Smartphone}
-                    label="Two-Factor Authentication (TOTP)"
-                    description="Secure your account with an authenticator app"
-                    checked={mfaEnabled}
-                    onToggle={(v) => setMfaEnabled(v)}
-                  />
+                  {mfaStatus.showSetup ? (
+                    <div className="space-y-4">
+                      <div className="text-center">
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                          Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                        </p>
+                        {mfaStatus.qrCode && (
+                          <div 
+                            className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-slate-200"
+                            dangerouslySetInnerHTML={{ __html: mfaStatus.qrCode }}
+                          />
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Verification Code</Label>
+                        <Input 
+                          type="text" 
+                          placeholder="Enter 6-digit code"
+                          value={verificationCode}
+                          onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          maxLength={6}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={handleMfaVerify}
+                          disabled={mfaStatus.loading || verificationCode.length !== 6}
+                          className="bg-primary text-white"
+                        >
+                          {mfaStatus.loading ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Verifying...
+                            </div>
+                          ) : (
+                            'Enable MFA'
+                          )}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setMfaStatus(prev => ({ ...prev, showSetup: false, loading: false }));
+                            setVerificationCode('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <ToggleItem 
+                        icon={Smartphone}
+                        label="Authenticator App (TOTP)"
+                        description="Use an app like Google Authenticator or Authy"
+                        checked={mfaStatus.enabled}
+                        onToggle={(checked: boolean) => handleMfaToggle(checked)}
+                      />
+                      {mfaStatus.enabled && (
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setShowMfaModal(true)}>Manage MFA</Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </SettingsCard>
 
-                <SettingsCard icon={Activity} title="Security Logs" description="Recent security-related events for your account">
+                <SettingsCard icon={History} title="Login History & Activity" description="Recent security-related events for your account">
                   {logsLoading ? (
                     <div className="flex justify-center py-4">
                       <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -1408,15 +1661,21 @@ export default function EmployerSettings() {
                     <div className="divide-y divide-slate-100 dark:divide-white/5">
                       {activityLogs.map((log, idx) => (
                         <div key={idx} className="py-3 flex items-center justify-between">
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">
                               {log.action.replace('_', ' ')}
                             </p>
                             <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
                               {new Date(log.created_at).toLocaleString()}
                             </p>
+                            {log.metadata && (
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                {log.metadata.device_name && `Device: ${log.metadata.device_name}`}
+                                {log.metadata.location && ` • Location: ${log.metadata.location}`}
+                              </p>
+                            )}
                           </div>
-                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest">
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest ml-3">
                             {log.metadata?.ip || 'Verified'}
                           </span>
                         </div>
@@ -1502,6 +1761,72 @@ export default function EmployerSettings() {
         onSubmit={handleBankChangeRequest}
         isSubmitting={saving}
       />
+
+      {/* MFA Manager Modal */}
+      {showMfaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white">Manage MFA & Backup Codes</h3>
+                  <p className="text-sm text-slate-500">View and remove registered authenticators. Generate one-time backup codes.</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowMfaModal(false); setBackupCodes(null); }} className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-slate-900 dark:text-white mb-2">Registered Authenticators</h4>
+              {mfaFactors.length === 0 ? (
+                <p className="text-sm text-slate-500">No authenticators found.</p>
+              ) : (
+                <div className="space-y-2">
+                  {mfaFactors.map((f) => (
+                    <div key={f.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <div>
+                        <p className="font-medium text-sm text-slate-900 dark:text-white">{f.friendly_name || f.factor_type}</p>
+                        <p className="text-[10px] text-slate-400">{f.created_at ? new Date(f.created_at).toLocaleString() : ''}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleDisableFactor(f.id)}>Remove</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-slate-900 dark:text-white mb-2">Backup Codes</h4>
+                {backupCodes ? (
+                  <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Save these codes somewhere safe — each code can be used once to sign in if you lose access to your authenticator.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {backupCodes.map((c, idx) => (
+                        <div key={idx} className="p-2 bg-white dark:bg-slate-900 rounded-md text-xs font-mono flex items-center justify-between">
+                          <span>{c}</span>
+                          <button onClick={() => { if (typeof navigator !== 'undefined') void navigator.clipboard.writeText(c); toast.success('Copied!'); }} className="ml-2 text-xs text-primary">Copy</button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <Button onClick={() => { setBackupCodes(null); setShowMfaModal(false); }} className="bg-primary text-white">Done</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button onClick={handleGenerateBackupCodes} disabled={backupLoading} className="bg-primary text-white">{backupLoading ? 'Generating...' : 'Generate Backup Codes'}</Button>
+                    <Button variant="outline" onClick={() => setShowMfaModal(false)}>Close</Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </EmployerPortalLayout>
   );
 }

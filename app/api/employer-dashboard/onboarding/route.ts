@@ -29,14 +29,16 @@ async function getOrCreateDraft(supabase: Awaited<ReturnType<typeof createClient
     .from('employer_onboarding')
     .select('id')
     .eq('user_id', userId)
-    .eq('status', 'draft')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (existing) return existing.id as string;
 
   const { data: created, error } = await supabase
     .from('employer_onboarding')
-    .insert({ user_id: userId, currency: 'USD' })
+    .insert({ user_id: userId, status: 'draft', currency: 'KES' })
     .select('id')
     .single();
 

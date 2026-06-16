@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 interface Message {
@@ -52,20 +52,27 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
       fetchMessages();
     }, 0);
 
-    if (!pusherClient) {
-      return () => window.clearTimeout(timeoutId);
-    }
-    
-    const channel = pusherClient.subscribe(`user-${currentUserId}-messages`);
-    channel.bind('new-message', (data: Message) => {
-      if (data.sender_id === otherUserId || data.receiver_id === otherUserId) {
-        setMessages(prev => [...prev, data]);
-      }
-    });
+    const supabase = createClient();
+    type RealtimeMessagePayload = { new: Message; old?: Message };
+
+    const channel = supabase
+      .channel(`realtime:messages:user-${currentUserId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${currentUserId}`
+      }, (payload: RealtimeMessagePayload) => {
+        const data = payload.new;
+        if (data.sender_id === otherUserId || data.receiver_id === otherUserId) {
+          setMessages(prev => [...prev, data]);
+        }
+      })
+      .subscribe();
 
     return () => {
       window.clearTimeout(timeoutId);
-      pusherClient!.unsubscribe(`user-${currentUserId}-messages`);
+      supabase.removeChannel(channel);
     };
   }, [currentUserId, otherUserId, fetchMessages]);
 

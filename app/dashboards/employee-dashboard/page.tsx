@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useAuthStore } from '@/lib/stores/auth';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -198,13 +198,20 @@ export default function EmployeeDashboardPage() {
   }, [fetchStats]);
 
   useEffect(() => {
-    if (!user?.id || !pusherClient) return;
-    const channel = pusherClient.subscribe(`user-${user.id}`);
-    const handleUpdate = () => void fetchStats();
-    channel.bind('kyc-update', handleUpdate);
+    if (!user?.id) return;
+
+    const supabase = createClient();
+    type RealtimePayload<T> = { new: T; old?: T };
+
+    const channel = supabase
+      .channel(`realtime:kyc:user-${user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, (_payload: RealtimePayload<Record<string, unknown>>) => {
+        void fetchStats();
+      })
+      .subscribe();
+
     return () => {
-      channel.unbind('kyc-update', handleUpdate);
-      pusherClient!.unsubscribe(`user-${user.id}`);
+      supabase.removeChannel(channel);
     };
   }, [user?.id, fetchStats]);
 

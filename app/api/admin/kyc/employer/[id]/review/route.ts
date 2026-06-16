@@ -5,6 +5,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { notifyEmployer } from '@/lib/notifications';
+import { activateUser, deactivateUser } from '@/lib/activation';
 
 function generateCompanyCode(sourceId: string): string {
   return `EW-${sourceId.slice(0, 8).toUpperCase()}`;
@@ -99,6 +100,9 @@ export async function PATCH(
         })
         .eq('id', employer.id);
     }
+    await activateUser(employer.user_id);
+  } else {
+    await deactivateUser(employer.user_id);
   }
 
   await notifyEmployer({

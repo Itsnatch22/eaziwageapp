@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import pusherClient from '@/lib/pusher-client';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 export interface Notification {
@@ -34,7 +34,8 @@ export const NotificationDropdown = ({
   apiPath,
   pusherChannel,
   viewAllHref,
-  primaryColor
+  primaryColor,
+  userId
 }: NotificationDropdownProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [show, setShow] = useState(false);
@@ -70,29 +71,44 @@ export const NotificationDropdown = ({
       fetchNotifications();
     }, 0);
 
-    if (pusherClient && pusherChannel) {
-      const channel = pusherClient.subscribe(pusherChannel);
-      
-      channel.bind('new-notification', (data: Notification) => {
+    if (!userId) {
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    const supabase = createClient();
+    type RealtimeNotificationPayload = { new: Notification; old?: Notification };
+
+    const channel = supabase
+      .channel(`realtime:notifications:dropdown-${userId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`
+      }, (payload: RealtimeNotificationPayload) => {
+        const data = payload.new;
         setNotifications(prev => [data, ...prev].slice(0, 20));
         toast(data.title, {
           description: data.message,
           icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} />
         });
-      });
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`
+      }, (payload: RealtimeNotificationPayload) => {
+        const oldRow = payload.old;
+        if (oldRow?.id) setNotifications(prev => prev.filter(n => String(n.id) !== String(oldRow.id)));
+      })
+      .subscribe();
 
-      channel.bind('notification-deleted', (data: { id: string }) => {
-        setNotifications(prev => prev.filter(n => String(n.id) !== String(data.id)));
-      });
-
-      return () => {
-        window.clearTimeout(timeoutId);
-        pusherClient!.unsubscribe(pusherChannel);
-      };
-    }
-
-    return () => window.clearTimeout(timeoutId);
-  }, [pusherChannel, fetchNotifications, primaryColor]);
+    return () => {
+      window.clearTimeout(timeoutId);
+      supabase.removeChannel(channel);
+    };
+  }, [pusherChannel, fetchNotifications, primaryColor, userId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

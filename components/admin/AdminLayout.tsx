@@ -27,7 +27,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import pusherClient from "@/lib/pusher-client";
+import { createClient } from '@/lib/supabase/client';
 import { toast } from "sonner";
 import { ChatWindow } from "../layout/ChatWindow";
 import { NotificationDropdown } from "../layout/NotificationDropdown";
@@ -390,23 +390,29 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   }, [globalUser, userProfile]);
 
   useEffect(() => {
-    if (!userProfile?.id || !pusherClient) return;
+    if (!userProfile?.id) return;
 
-    const channel = pusherClient.subscribe("global-settings");
+    const supabase = createClient();
+    type EmptyPayload = { new: Record<string, unknown>; old?: Record<string, unknown> };
 
-    const handleUpdate = () => {
-      toast.info("Global settings updated", {
-        description: "A platform-wide configuration has been modified.",
-        icon: <Settings className="w-5 h-5 text-purple-600" />,
-      });
-    };
-
-    channel.bind("platform-updated", handleUpdate);
-    channel.bind("risk-updated", handleUpdate);
-    channel.bind("notifications-updated", handleUpdate);
+    const channel = supabase
+      .channel('realtime:global-settings')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, (_payload: EmptyPayload) => {
+        toast.info("Global settings updated", {
+          description: "A platform-wide configuration has been modified.",
+          icon: <Settings className="w-5 h-5 text-purple-600" />,
+        });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' }, (_payload: EmptyPayload) => {
+        toast.info("Global settings updated", {
+          description: "A platform-wide configuration has been modified.",
+          icon: <Settings className="w-5 h-5 text-purple-600" />,
+        });
+      })
+      .subscribe();
 
     return () => {
-      pusherClient!.unsubscribe("global-settings");
+      supabase.removeChannel(channel);
     };
   }, [userProfile?.id]);
 

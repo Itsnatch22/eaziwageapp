@@ -40,7 +40,7 @@ import { EmployerPortalLayout } from "@/components/employer/EmployerLayout";
 import { useCurrency } from "@/hooks/useCurrency";
 import { formatCurrency, cn } from "@/lib/utils";
 import { toast } from "sonner";
-import pusherClient from "@/lib/pusher-client";
+import { createClient } from '@/lib/supabase/client';
 import {
   GradientIconBox,
   GradientAvatar,
@@ -1142,30 +1142,33 @@ const EmployerEmployees: React.FC = () => {
   }, [fetchData]);
 
   useEffect(() => {
-    if (!employer?.id || !pusherClient) return;
+    if (!employer?.id) return;
 
-    const channel = pusherClient.subscribe(`employer-${employer.id}`);
+    const supabase = createClient();
+    type RealtimeEmployeeKycPayload = { new: EmployeeKycUpdateEvent; old?: EmployeeKycUpdateEvent };
+    type RealtimeRiskPayload = { new: RiskUpdateEvent; old?: RiskUpdateEvent };
 
-    const handleEmployeeUpdate = (data: EmployeeKycUpdateEvent) => {
-      console.log("[Pusher] Employee KYC update received by employer:", data);
-      void fetchData();
-    };
+    const channel = supabase
+      .channel(`realtime:employer-${employer.id}:employees`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${employer.id}` }, (payload: RealtimeEmployeeKycPayload) => {
+        console.log("[Realtime] Employee KYC update received by employer:", payload.new);
+        void fetchData();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents', filter: `user_id=eq.${employer.id}` }, (payload: RealtimeRiskPayload) => {
+        console.log("[Realtime] Risk score update received by admin:", payload.new);
+        const data = payload.new;
+        if (data.type === "risk_score_updated") {
+          toast.success(`Risk score updated: ${data.risk_rating} rating`);
+          void fetchData();
+        }
+      })
+      .subscribe();
 
-    const handleRiskUpdate = (data: RiskUpdateEvent) => {
-      console.log("[Pusher] Risk score update received by admin:", data);
-      if (data.type === "risk_score_updated") {
-        toast.success(`Risk score updated: ${data.risk_rating} rating`);
-        void fetchData(); // Refresh data to show updated risk score
-      }
-    };
-
-    channel.bind("employee-kyc-update", handleEmployeeUpdate);
-    channel.bind("risk-updated", handleRiskUpdate);
+    // legacy event bindings removed - Supabase realtime handlers above will trigger fetches
 
     return () => {
-      channel.unbind("employee-kyc-update", handleEmployeeUpdate);
-      channel.unbind("risk-updated", handleRiskUpdate);
-      pusherClient!.unsubscribe(`employer-${employer.id}`);
+      // clean up realtime channel
+      supabase.removeChannel(channel);
     };
   }, [employer?.id, fetchData]);
 
