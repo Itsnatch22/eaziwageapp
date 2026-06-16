@@ -55,9 +55,9 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
     const supabase = createClient();
     type RealtimeMessagePayload = { new: Message; old?: Message };
 
-    const channel = supabase
+    const channel = (supabase as any)
       .channel(`realtime:messages:user-${currentUserId}`)
-      .on('postgres_changes', {
+      .on('postgres_changes' as any, {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',

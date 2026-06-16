@@ -1402,7 +1402,7 @@ export default function AdminEmployees() {
             <Button
               variant="outline"
               className="bg-white/60 dark:bg-slate-800/60"
-              onClick={fetchEmployees}
+              onClick={() => void fetchEmployees()}
             >
               <RefreshCw className="w-4 h-4 mr-2" /> Refresh
             </Button>

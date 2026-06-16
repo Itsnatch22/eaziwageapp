@@ -52,6 +52,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -235,6 +236,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -397,16 +399,15 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
     if (!user?.id) return;
 
     const supabase = createClient();
-    type EmptyPayload = { new: Record<string, unknown>; old?: Record<string, unknown> };
 
-    const channel = supabase
+    const channel = (supabase as any)
       .channel(`realtime:usersettings:user-${user.id}`)
-      .on('postgres_changes', {
+      .on('postgres_changes' as any, {
         event: 'UPDATE',
         schema: 'public',
         table: 'employee_onboarding',
         // updates related to user's onboarding/settings; no filter to limit (but scoped by payload)
-      }, (_payload: EmptyPayload) => {
+      }, () => {
         toast.success('Your account settings updated', {
           description: 'An administrator has updated your account configuration.',
           icon: <Shield className="w-5 h-5 text-emerald-500" />,

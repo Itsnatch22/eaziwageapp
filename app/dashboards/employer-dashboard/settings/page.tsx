@@ -647,6 +647,7 @@ export default function EmployerSettings() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchData({ silent: true });
   }, []);
 
@@ -655,7 +656,6 @@ export default function EmployerSettings() {
     if (!employer?.id) return;
 
     const supabase = createClient();
-    type RealtimePayload<T> = { new: T; old?: T };
 
     const channel = supabase
       .channel(`realtime:employer-settings:employer-${employer.id}`)

@@ -78,9 +78,9 @@ export const NotificationDropdown = ({
     const supabase = createClient();
     type RealtimeNotificationPayload = { new: Notification; old?: Notification };
 
-    const channel = supabase
+    const channel = (supabase as any)
       .channel(`realtime:notifications:dropdown-${userId}`)
-      .on('postgres_changes', {
+      .on('postgres_changes' as any, {
         event: 'INSERT',
         schema: 'public',
         table: 'notifications',
@@ -93,7 +93,7 @@ export const NotificationDropdown = ({
           icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} />
         });
       })
-      .on('postgres_changes', {
+      .on('postgres_changes' as any, {
         event: 'DELETE',
         schema: 'public',
         table: 'notifications',

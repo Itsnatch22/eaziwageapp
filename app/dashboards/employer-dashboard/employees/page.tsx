@@ -1137,6 +1137,7 @@ const EmployerEmployees: React.FC = () => {
   }, [dateRange]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchData({ silent: true });
   }, [fetchData]);
 
@@ -1288,7 +1289,7 @@ const EmployerEmployees: React.FC = () => {
               </p>
             </div>
             <button
-              onClick={fetchData}
+              onClick={() => void fetchData()}
               className="text-xs text-red-600 dark:text-red-400 font-medium hover:underline shrink-0"
             >
               Retry

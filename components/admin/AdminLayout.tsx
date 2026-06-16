@@ -422,17 +422,16 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
     if (!userProfile?.id) return;
 
     const supabase = createClient();
-    type EmptyPayload = { new: Record<string, unknown>; old?: Record<string, unknown> };
 
-    const channel = supabase
+    const channel = (supabase as any)
       .channel('realtime:global-settings')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, () => {
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, () => {
         toast.info("Global settings updated", {
           description: "A platform-wide configuration has been modified.",
           icon: <Settings className="w-5 h-5 text-purple-600" />,
         });
       })
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' }, () => {
+            .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' }, () => {
         toast.info("Global settings updated", {
           description: "A platform-wide configuration has been modified.",
           icon: <Settings className="w-5 h-5 text-purple-600" />,

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { getEnv } from '@/env';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
@@ -15,12 +15,13 @@ function isRecord(obj: unknown): obj is Record<string, unknown> {
   return typeof obj === 'object' && obj !== null;
 }
 
-function isStanbicResponse(payload: Record<string, unknown>): payload is StanbicBalanceResponse {
+function isStanbicResponse(payload: unknown): payload is StanbicBalanceResponse {
+  if (!isRecord(payload)) return false;
   return (
     typeof payload.currency === 'string' &&
     (typeof payload.balance === 'string' || typeof payload.balance === 'number') &&
-    (typeof payload.accountNumber === 'string' || typeof payload.account_number === 'string') &&
-    (typeof payload.timestamp === 'string' || typeof payload.updated_at === 'string')
+    (typeof (payload as Record<string, unknown>).accountNumber === 'string' || typeof (payload as Record<string, unknown>).account_number === 'string') &&
+    (typeof (payload as Record<string, unknown>).timestamp === 'string' || typeof (payload as Record<string, unknown>).updated_at === 'string')
   );
 }
 

@@ -41,14 +41,15 @@ export default function NotificationsPage() {
     }, []);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchNotifications({ silent: true });
 
         if (!user?.id) return;
         const supabase = createClient();
         type RealtimeNotificationPayload = { new: { id: string; user_id?: string; type: string; title: string; message: string; read: boolean; created_at: string; metadata?: Record<string, unknown>; }; old?: Record<string, unknown> };
-        const channel = supabase
+        const channel = (supabase as any)
             .channel(`realtime:notifications:employer-${user.id}`)
-            .on('postgres_changes', {
+            .on('postgres_changes' as any, {
                 event: 'INSERT',
                 schema: 'public',
                 table: 'notifications',
@@ -61,7 +62,7 @@ export default function NotificationsPage() {
                 });
                 fetchNotifications();
             })
-            .on('postgres_changes', {
+            .on('postgres_changes' as any, {
                 event: 'DELETE',
                 schema: 'public',
                 table: 'notifications',

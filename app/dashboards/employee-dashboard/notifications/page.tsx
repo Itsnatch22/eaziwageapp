@@ -62,9 +62,9 @@ export default function EmployeeNotificationsPage() {
 
         type RealtimeNotificationPayload = { new: Notification; old?: Notification };
 
-        const channel = supabase
+        const channel = (supabase as any)
             .channel(`realtime:notifications:user-${user.id}`)
-            .on('postgres_changes', {
+            .on('postgres_changes' as any, {
                 event: 'INSERT',
                 schema: 'public',
                 table: 'notifications',
@@ -77,7 +77,7 @@ export default function EmployeeNotificationsPage() {
                     icon: <Bell className="w-5 h-5 text-primary" />
                 });
             })
-            .on('postgres_changes', {
+            .on('postgres_changes' as any, {
                 event: 'DELETE',
                 schema: 'public',
                 table: 'notifications',

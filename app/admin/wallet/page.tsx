@@ -9,10 +9,12 @@ import { toast } from 'sonner';
 
 interface WalletRow {
   id: string;
+  name?: string; // optional display name for the wallet/account
   account_number: string;
   currency: string;
   balance: number;
   last_synced_at: string | null;
+  last_reconciled_at?: string | null;
   created_at: string;
 }
 

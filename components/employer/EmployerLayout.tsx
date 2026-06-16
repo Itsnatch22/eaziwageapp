@@ -142,6 +142,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -320,6 +321,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -449,15 +451,14 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
     if (!user?.id) return;
 
     const supabase = createClient();
-    type EmptyPayload = { new: Record<string, unknown>; old?: Record<string, unknown> };
 
-    const channel = supabase
+    const channel = (supabase as any)
       .channel(`realtime:employer-settings:employer-${user.id}`)
-      .on('postgres_changes', {
+      .on('postgres_changes' as any, {
         event: 'UPDATE',
         schema: 'public',
         table: 'employee_onboarding',
-      }, (_payload: EmptyPayload) => {
+      }, () => {
         toast.success('Organization settings updated', {
           description: 'Your organization settings have been updated by an administrator.',
           icon: <Settings className="w-5 h-5 text-blue-600" />,

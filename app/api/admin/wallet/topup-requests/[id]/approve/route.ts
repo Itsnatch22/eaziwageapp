@@ -39,7 +39,7 @@ export async function PATCH(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         employerId = (tx.metadata as any).employer_id as string;
       }
-    } catch (_err) {
+    } catch {
       // ignore
     }
 
@@ -73,10 +73,9 @@ export async function PATCH(
       p_admin_id: user.id,
     });
 
-    // @ts-expect-error - supabase rpc result check
-    if (rpcRes?.error) {
-      console.error('[TopUp Approve] RPC error:', rpcRes.error);
-      return NextResponse.json({ error: `Funding failed: ${rpcRes.error.message ?? rpcRes.error}` }, { status: 500 });
+    if ((rpcRes as any)?.error) {
+      console.error('[TopUp Approve] RPC error:', (rpcRes as any).error);
+      return NextResponse.json({ error: `Funding failed: ${(rpcRes as any).error.message ?? (rpcRes as any).error}` }, { status: 500 });
     }
 
     // Mark the original request as completed and annotate metadata
@@ -95,8 +94,8 @@ export async function PATCH(
     try {
       const { notifyEmployer } = await import('@/lib/notifications');
       await notifyEmployer({
-        employer_id: employerId,
-        type: 'wallet_topup',
+        userId: employerId,
+        type: 'system',
         title: 'Top-up Approved',
         message: `Your top-up request of ${tx.amount} has been approved and applied to your wallet.`,
         metadata: { wallet_transaction_id: id, amount: tx.amount }

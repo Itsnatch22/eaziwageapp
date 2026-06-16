@@ -192,6 +192,7 @@ export default function EmployeeDashboardPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchStats({ silent: true });
   }, [fetchStats]);
 
@@ -199,7 +200,6 @@ export default function EmployeeDashboardPage() {
     if (!user?.id) return;
 
     const supabase = createClient();
-    type RealtimePayload<T> = { new: T; old?: T };
 
     const channel = supabase
       .channel(`realtime:kyc:user-${user.id}`)

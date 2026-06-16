@@ -436,6 +436,7 @@ export default function EmployerDashboard() {
     // The previous implementation had a comment about synchronous setState in useEffect,
     // which usually refers to calling setState immediately after mount.
     // By consolidating state, we reduce the number of updates.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load({ silent: true });
   }, [load]);
 
@@ -444,23 +445,21 @@ export default function EmployerDashboard() {
 
     const supabase = createClient();
 
-    type RealtimePayload<T> = { new: T; old?: T };
-
     const handleUpdate = () => {
       console.log('[Realtime] Employer overview update');
       void load();
     };
 
-    const userChannel = supabase
+    const userChannel = (supabase as any)
       .channel(`realtime:kyc:user-${user.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
         handleUpdate();
       })
       .subscribe();
 
-    const employerChannel = supabase
+    const employerChannel = (supabase as any)
       .channel(`realtime:kyc:employer-${data.employer.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` }, () => {
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` }, () => {
         handleUpdate();
       })
       .subscribe();
