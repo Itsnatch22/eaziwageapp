@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  const tokenHash = hashToken(token);
+  const tokenHash = await hashToken(token);
 
   const { data: reset, error: lookupError } = await supabaseAdmin
     .from('password_resets')

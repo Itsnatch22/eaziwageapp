@@ -104,7 +104,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  const tokenHash = hashToken(token);
+  const tokenHash = await hashToken(token);
 
   const { data: reset, error: lookupError } = await supabase
     .from('password_resets')

@@ -119,7 +119,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     console.error('[forgot-password] Error invalidating old tokens:', invalidateError);
   }
 
-  const { token, tokenHash } = createToken();
+  const { token, tokenHash } = await createToken();
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
 
   const { error: insertError } = await supabase

@@ -115,10 +115,7 @@ export async function PATCH(
         : `Your onboarding submission was rejected.${notes ? ` Reason: ${notes}` : ''}`,
   });
 
-  try {
-  } catch (pusherErr) {
-    console.error('[Employer KYC Review] Pusher trigger error:', pusherErr);
-  }
+  // NOTE: Pusher removed. Supabase Realtime is expected to broadcast employer KYC updates via Postgres changes. Verify RLS/select policies and triggers before relying on realtime delivery.
 
   return NextResponse.json({
     message: 'Employer review submitted successfully',

@@ -469,7 +469,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { token, tokenHash } = createToken();
+  const { token, tokenHash } = await createToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
 
   const { error: tokenError } = await supabase

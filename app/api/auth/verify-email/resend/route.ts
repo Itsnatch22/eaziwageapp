@@ -114,7 +114,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .eq('user_id', profile.id)
     .is('used_at', null);
 
-  const { token, tokenHash } = createToken();
+  const { token, tokenHash } = await createToken();
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
 
   const { error: insertError } = await supabase

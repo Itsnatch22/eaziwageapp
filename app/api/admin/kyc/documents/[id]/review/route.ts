@@ -228,20 +228,8 @@ export async function PATCH(
     }, notifError);
   }
 
-  try {
-    log('info', 'pusher', 'Pusher events skipped (migrated to Supabase Realtime)', {
-      docId: doc.id,
-      userId: doc.user_id,
-      employerId: employeeOnboarding?.employer_id,
-      onboardingStatus,
-    });
-  } catch (pusherErr) {
-    log('error', 'pusher', 'Failed to trigger Pusher event(s)', {
-      docId: doc.id,
-      userId: doc.user_id,
-      employerId: employeeOnboarding?.employer_id,
-    }, pusherErr);
-  }
+  // NOTE: Pusher removed. Supabase Realtime should broadcast these events via Postgres changes. Verify RLS/select policies and any DB triggers before relying on realtime delivery.
+  log('info', 'realtime', 'Pusher removed; relying on Supabase Realtime for event delivery', { docId: doc.id, userId: doc.user_id, employerId: employeeOnboarding?.employer_id, onboardingStatus });
 
   return NextResponse.json({
     message: 'Document reviewed successfully',

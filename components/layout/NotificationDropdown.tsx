@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Bell, Shield, CreditCard, Users, 
   Trash2, Loader2, Info, ExternalLink, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { RealtimeChannel } from '@supabase/realtime-js';
 
 export interface Notification {
   id: string;
@@ -38,9 +36,7 @@ export const NotificationDropdown = ({
   primaryColor,
   userId
 }: NotificationDropdownProps) => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [show, setShow] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -49,68 +45,18 @@ export const NotificationDropdown = ({
     return () => window.clearTimeout(mountTimer);
   }, []);
 
+  // Use reusable hook for fetching + realtime subscription
+  const { notifications, loading, unreadCount, markAsRead, deleteNotification, refresh }:
+    { notifications: Notification[]; loading: boolean; unreadCount: number; markAsRead: (id?: string) => Promise<void>; deleteNotification: (id: string) => Promise<void>; refresh: () => Promise<void> } =
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore -- dynamic import path resolution for hook in non-tsconfig root
+    require('@/hooks/useNotifications').useNotifications({ userId, apiPath, onToast: (n: Notification) => {
+      toast(n.title, { description: n.message, icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} /> });
+    } });
 
-  const fetchNotifications = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(apiPath);
-      if (res.ok) {
-        const data = await res.json();
-        // API response formats vary slightly between roles
-        const list = Array.isArray(data) ? data : (data.notifications || []);
-        setNotifications(list.slice(0, 20));
-      }
-    } catch (err) {
-      console.error('Failed to load notifications', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [apiPath]);
+  // Expose refresh as a local function used by callers if needed
+  const fetchNotifications = refresh;
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      fetchNotifications();
-    }, 0);
-
-    if (!userId) {
-      return () => window.clearTimeout(timeoutId);
-    }
-
-    const supabase = createClient();
-    type RealtimeNotificationPayload = { new: Notification; old?: Notification };
-    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
-
-    const channel = ((supabase as unknown as SupabaseWithChannel)
-      .channel(`realtime:notifications:dropdown-${userId}`) as unknown as any)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${userId}`
-      } as Record<string, unknown>, (payload: RealtimeNotificationPayload) => {
-        const data = payload.new;
-        setNotifications(prev => [data, ...prev].slice(0, 20));
-        toast(data.title, {
-          description: data.message,
-          icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} />
-        });
-      })
-      .on('postgres_changes', {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${userId}`
-      } as Record<string, unknown>, (payload: RealtimeNotificationPayload) => {
-        const oldRow = payload.old;
-        if (oldRow?.id) setNotifications(prev => prev.filter(n => String(n.id) !== String(oldRow.id)));
-      })
-      .subscribe();
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
-    };
-  }, [pusherChannel, fetchNotifications, primaryColor, userId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -121,39 +67,6 @@ export const NotificationDropdown = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const markAsRead = async (id?: string) => {
-    // Optimistic UI
-    if (id) {
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    } else {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    }
-
-    try {
-      await fetch(apiPath, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-    } catch (err) {
-      console.error('Failed to mark as read', err);
-    }
-  };
-
-  const deleteNotification = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setNotifications(prev => prev.filter(n => n.id !== id));
-    try {
-      await fetch(`${apiPath}?id=${id}`, { method: 'DELETE' });
-      toast.success('Notification removed');
-    } catch {
-      toast.error('Failed to delete');
-      fetchNotifications();
-    }
-  };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   const getIcon = (type: string) => {
     const t = type.toLowerCase();
@@ -265,7 +178,7 @@ export const NotificationDropdown = ({
                     
                     {/* Hover Actions */}
                     <button 
-                      onClick={(e) => deleteNotification(e, notif.id)}
+                      onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
                     >
                       <Trash2 className="w-4 h-4" />

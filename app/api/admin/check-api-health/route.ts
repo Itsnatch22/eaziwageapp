@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import pusherServer from '@/lib/pusher-server';
+// Pusher removed; Supabase Realtime in use. Health checks will report Pusher as removed/disabled.
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
@@ -269,24 +269,14 @@ async function checkResend() {
 }
 
 async function checkPusher() {
-  const start = Date.now();
-  try {
-    const auth = pusherServer.authenticate('test-channel', 'test-0001:12345');
-    const latency = Date.now() - start;
-    return {
-      name: 'Pusher WebSocket',
-      provider: 'Pusher',
-      status: !!auth ? 'healthy' as const : 'degraded' as const,
-      latency_ms: latency,
-    };
-  } catch {
-    return {
-      name: 'Pusher WebSocket',
-      provider: 'Pusher',
-      status: 'down' as const,
-      latency_ms: Date.now() - start,
-    };
-  }
+  // Pusher service has been removed from the codebase; Supabase Realtime is in use instead.
+  return {
+    name: 'Pusher WebSocket',
+    provider: 'Pusher',
+    status: 'down' as const,
+    latency_ms: 0,
+    metadata: { note: 'Pusher removed; using Supabase Realtime' }
+  };
 }
 
 async function getSystemMetrics() {

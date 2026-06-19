@@ -37,7 +37,7 @@ export async function PUT(req: NextRequest, { params }: IdRouteContext) {
       admin_id: user.id, admin_name: user.email, target_id: id, target_type: 'blackout', action: 'update_blackout',
       old_value: current, new_value: data, created_at: new Date().toISOString()
     });
-    // Pusher trigger removed; Supabase Realtime will broadcast blackout-updated via Postgres changes.
+    // NOTE: Pusher removed. Supabase Realtime is expected to broadcast DB changes via Postgres. Verify RLS/select policies and triggers before relying on realtime delivery.
     return NextResponse.json(data);
   } catch (error) {
     console.error('[PUT /api/admin/settings/blackouts/[id]] Error:', error);
@@ -59,7 +59,7 @@ export async function DELETE(req: NextRequest, { params }: IdRouteContext) {
       admin_id: user.id, admin_name: user.email, target_id: id, target_type: 'blackout', action: 'delete_blackout',
       old_value: current, created_at: new Date().toISOString()
     });
-    // Pusher trigger removed; Supabase Realtime will broadcast blackout-deleted via Postgres changes.
+    // NOTE: Pusher removed. Supabase Realtime is expected to broadcast DB changes via Postgres. Verify RLS/select policies and triggers before relying on realtime delivery.
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[DELETE /api/admin/settings/blackouts/[id]] Error:', error);

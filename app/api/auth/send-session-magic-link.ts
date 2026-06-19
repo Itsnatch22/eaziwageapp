@@ -96,7 +96,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .is('used_at', null);
   if (invalidateError) console.error('[send-session-magic-link] Error invalidating old tokens:', invalidateError.message);
 
-  const { token, tokenHash } = createToken();
+  const { token, tokenHash } = await createToken();
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
 
   const { error: insertError } = await supabase

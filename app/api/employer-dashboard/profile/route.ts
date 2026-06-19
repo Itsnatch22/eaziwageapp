@@ -120,7 +120,7 @@ export async function POST(req: Request) {
 
     if (onboardingError) throw onboardingError;
 
-    // Pusher trigger removed; Supabase Realtime will broadcast DB changes to clients.
+    // NOTE: Pusher removed. Supabase Realtime is expected to broadcast DB changes via Postgres. Verify RLS/select policies and triggers before relying on realtime delivery.
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

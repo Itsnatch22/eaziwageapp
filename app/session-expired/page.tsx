@@ -225,9 +225,6 @@ export default function SessionExpiredPage() {
                     {isSubmitting ? (<span className="flex items-center gap-2"><div className="w-5 h-5 border-2 border-slate-300 rounded-full animate-spin" />Sending…</span>) : (<span className="flex items-center gap-2">Send magic link</span>)}
                   </button>
                 </div>
-
-                <Link href="/admin" className="flex items-center justify-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 transition-colors pt-1"><ArrowLeft className="w-4 h-4" /> Back to Sign In</Link>
-
               </div>
             </div>
 
