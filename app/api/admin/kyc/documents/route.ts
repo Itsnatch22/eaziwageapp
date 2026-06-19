@@ -6,6 +6,8 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { DocumentStatusEnum } from '@/lib/validations/kyc-validation';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 
+const EMPLOYEE_KYC_BUCKET = 'employee-kyc-documents';
+
 const EMPLOYER_DOCUMENT_FIELDS = [
   'certificate_of_incorporation',
   'business_registration',
@@ -24,6 +26,22 @@ type EmployeeIdentityRow = {
   user_id: string | null;
   national_id: string | null;
   id_type: string | null;
+};
+
+type EmployeeKycDocumentRow = {
+  id: string;
+  user_id: string;
+  document_type: string;
+  document_url: string | null;
+  storage_path: string | null;
+  document_number: string | null;
+  status: string;
+  reviewer_notes: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  expiry_date: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 function createAdminClient() {
@@ -105,6 +123,50 @@ async function hydrateEmployerDocumentUrls(
   );
 }
 
+function recoverEmployeeStoragePath(doc: EmployeeKycDocumentRow) {
+  const storedPath = doc.storage_path?.trim();
+  if (storedPath && !storedPath.startsWith('http')) return storedPath;
+
+  const urlValue = storedPath?.startsWith('http') ? storedPath : doc.document_url;
+  if (!urlValue) return null;
+
+  try {
+    const url = new URL(urlValue);
+    const pathPrefix = `/storage/v1/object/sign/${EMPLOYEE_KYC_BUCKET}/`;
+    const publicPathPrefix = `/storage/v1/object/public/${EMPLOYEE_KYC_BUCKET}/`;
+    const authenticatedPathPrefix = `/storage/v1/object/authenticated/${EMPLOYEE_KYC_BUCKET}/`;
+    const matchingPrefix = [pathPrefix, publicPathPrefix, authenticatedPathPrefix]
+      .find((prefix) => url.pathname.startsWith(prefix));
+
+    if (!matchingPrefix) return null;
+    return decodeURIComponent(url.pathname.slice(matchingPrefix.length));
+  } catch {
+    return null;
+  }
+}
+
+async function getFreshEmployeeDocumentUrl(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  doc: EmployeeKycDocumentRow
+) {
+  const storagePath = recoverEmployeeStoragePath(doc);
+  if (!storagePath) return doc.document_url;
+
+  const { data: signedData, error } = await adminSupabase.storage
+    .from(EMPLOYEE_KYC_BUCKET)
+    .createSignedUrl(storagePath, 60 * 60 * 24);
+
+  if (error) {
+    console.error('[GET /api/admin/kyc/documents] Failed to sign employee KYC document URL:', {
+      documentId: doc.id,
+      storagePath,
+      error: error.message,
+    });
+  }
+
+  return signedData?.signedUrl ?? doc.document_url;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
@@ -172,19 +234,21 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const normalizedDocuments = (documents ?? []).map((doc) => {
+    const normalizedDocuments = await Promise.all((documents ?? []).map(async (doc: EmployeeKycDocumentRow) => {
       const identity = identityByUserId.get(doc.user_id);
       const storedDocumentNumber = typeof doc.document_number === 'string'
         ? doc.document_number.trim()
         : null;
       const onboardingDocumentNumber = identity?.national_id?.trim() || null;
+      const freshDocumentUrl = await getFreshEmployeeDocumentUrl(adminSupabase, doc);
 
       return {
         ...doc,
+        document_url: freshDocumentUrl,
         document_number: storedDocumentNumber || onboardingDocumentNumber,
         id_type: identity?.id_type ?? null,
       };
-    });
+    }));
 
     let empOnboardingQuery = adminSupabase
       .from('employer_onboarding')
@@ -250,4 +314,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error', code: 'SERVER_ERROR' }, { status: 500 });
   }
 }
-
