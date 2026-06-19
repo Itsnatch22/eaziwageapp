@@ -94,7 +94,7 @@ export async function PUT(
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'employee_onboarding_id' },
+      { onConflict: 'employee_id' },
     );
 
   if (upsertError) {

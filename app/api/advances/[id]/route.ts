@@ -75,7 +75,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { data: employeeEwa } = await supabase
       .from('employee_ewa_settings')
       .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount')
-      .eq('employee_onboarding_id', advance.employee_id)
+      .eq('employee_id', advance.employee_id)
       .maybeSingle();
 
     let effective = {
