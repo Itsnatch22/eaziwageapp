@@ -13,7 +13,7 @@ function generateCompanyCode(sourceId: string): string {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: IdRouteContext
 ): Promise<NextResponse> {
   const { id: appId } = await params;
   const { searchParams } = new URL(req.url);

@@ -51,7 +51,7 @@ async function verifyAdmin() {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: IdRouteContext
 ) {
   const { id: requestId } = await params;
   const auth = await verifyAdmin();

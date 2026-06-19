@@ -20,7 +20,7 @@ function toPrimaryEmployerStatus(status: string): 'approved' | 'pending' | 'susp
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: IdRouteContext
 ): Promise<NextResponse> {
   const { id } = await params;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';

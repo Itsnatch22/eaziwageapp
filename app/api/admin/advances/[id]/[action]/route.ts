@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: Promise<{ id: string; action: string }> }
+  context: AppRouteContext<{ id: string; action: string }>
 ) {
   const { id, action } = await context.params;
   const supabase = await createRouteHandlerClient();

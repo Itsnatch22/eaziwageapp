@@ -16,7 +16,7 @@ function createAdminClient() {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: IdRouteContext
 ) {
   try {
     const { id } = await params;

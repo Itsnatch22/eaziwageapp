@@ -23,7 +23,7 @@ function createAdminClient() {
 
 export async function PATCH(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: IdRouteContext
 ) {
   try {
     const supabase = await createRouteHandlerClient();

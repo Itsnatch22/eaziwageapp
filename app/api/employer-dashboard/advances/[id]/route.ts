@@ -22,7 +22,7 @@ interface AdvanceRow {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: IdRouteContext,
 ) {
   const { id } = await params;
   const supabase = await createRouteHandlerClient();

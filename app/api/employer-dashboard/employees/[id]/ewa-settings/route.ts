@@ -5,7 +5,7 @@ import { ewaSettingsSchema } from '@/lib/validations/employee-validation';
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: IdRouteContext,
 ) {
   const supabase = await createClient();
   const { id } = await params;

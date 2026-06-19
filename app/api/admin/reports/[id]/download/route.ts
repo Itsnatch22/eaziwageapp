@@ -412,7 +412,7 @@ ID,Admin ID,Action,Target Type,Created At`;
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: IdRouteContext
 ): Promise<NextResponse> {
   const { id } = await params;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';

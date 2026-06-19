@@ -21,7 +21,7 @@ async function verifyAdmin(supabase: SupabaseClient, adminSupabase: SupabaseClie
   return user;
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: IdRouteContext) {
   try {
     const { id } = await params;
     const supabase = await createRouteHandlerClient();
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, { params }: IdRouteContext) {
   try {
     const { id } = await params;
     const supabase = await createRouteHandlerClient();

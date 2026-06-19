@@ -38,7 +38,7 @@ function log(level: LogLevel, step: string, message: string, ctx: LogContext = {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: IdRouteContext
 ): Promise<NextResponse> {
   const { id: docId } = await params;
   const { searchParams } = new URL(req.url);

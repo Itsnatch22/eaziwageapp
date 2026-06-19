@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 
 export async function PATCH(
   _request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: IdRouteContext
 ) {
   const { id } = await context.params;
   try {

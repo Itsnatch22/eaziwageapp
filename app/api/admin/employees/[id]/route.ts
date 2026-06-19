@@ -38,7 +38,7 @@ interface KycDocumentRow {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: IdRouteContext
 ) {
   try {
     const { id } = await params;
