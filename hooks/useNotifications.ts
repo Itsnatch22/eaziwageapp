@@ -86,17 +86,20 @@ export function useNotifications({ userId, apiPath, onToast }: UseNotificationsO
   }, [userId, onToast]);
 
   const markAsRead = useCallback(async (id?: string) => {
-    // optimistic
+    // optimistic update
     if (id) setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     else setNotifications(prev => prev.map(n => ({ ...n, read: true })));
 
     try {
-      await fetch(apiPath, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      // Most server endpoints accept POST { notification_ids: string[] } to mark read.
+      const ids = id ? [id] : notifications.filter(n => !n.read).map(n => n.id);
+      if (ids.length === 0) return;
+      await fetch(apiPath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notification_ids: ids }) });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('markAsRead failed', err);
     }
-  }, [apiPath]);
+  }, [apiPath, notifications]);
 
   const deleteNotification = useCallback(async (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
