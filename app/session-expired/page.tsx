@@ -99,9 +99,18 @@ export default function SessionExpiredPage() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), recaptcha_token: recaptchaToken }),
       });
 
-      const data = await res.json();
+      // Read body as text first because server may return an HTML error page (e.g., 500 error HTML).
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = { text };
+      }
+
       if (!res.ok) {
-        setErrorMessage(data?.error ?? 'Failed to send magic link');
+        const msg = data?.error ?? data?.message ?? data?.text ?? 'Failed to send magic link';
+        setErrorMessage(msg);
         setPageState('error');
         return;
       }
