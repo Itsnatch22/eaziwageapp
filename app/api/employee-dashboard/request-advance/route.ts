@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = {
-      employee_id: employee.id, // advances table uses onboarding id — intentional
+      employee_id: employeeId, // advances table uses onboarding id — intentional
       amount: requestedAmount,
       fee_percentage: feePercentage,
       fee_amount: feeAmount,
