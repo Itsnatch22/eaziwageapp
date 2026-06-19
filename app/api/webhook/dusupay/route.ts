@@ -138,11 +138,11 @@ interface AdvancePayoutRow {
   employer_id: string;
   amount: number;
   employee_id: string;
-  employee_onboarding?: { user_id?: string | null } | Array<{ user_id?: string | null }> | null;
+  employees?: { user_id?: string | null } | Array<{ user_id?: string | null }> | null;
 }
 
 function getOnboardingUserId(
-  onboarding: AdvancePayoutRow['employee_onboarding']
+  onboarding: AdvancePayoutRow['employees']
 ): string | undefined {
   if (!onboarding) return undefined;
   if (Array.isArray(onboarding)) return onboarding[0]?.user_id ?? undefined;
@@ -155,11 +155,15 @@ async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, 
                    [PayoutStatus.FAILED, PayoutStatus.CANCELLED].map(s => s as string).includes(payload.status || '');
   const newStatus = isCompleted ? 'completed' : isFailed ? 'failed' : 'processing';
 
-  const { data: advanceData } = await supabaseAdmin
+  const { data: advanceData, error: advanceError } = await supabaseAdmin
     .from('advances')
-    .select('id, status, employer_id, amount, employee_id, employee_onboarding(user_id)')
+    .select('id, status, employer_id, amount, employee_id, employees!advances_employee_id_fkey(user_id)')
     .eq('reference', merchantRef)
     .single();
+
+  if (advanceError) {
+    console.error('[webhook-payout] Failed to fetch advance for reference', merchantRef, advanceError);
+  }
 
   const advance = advanceData as AdvancePayoutRow | null;
 
@@ -171,7 +175,7 @@ async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, 
     }).eq('id', advance.id);
 
     try {
-      const employeeUserId = getOnboardingUserId(advance.employee_onboarding);
+      const employeeUserId = getOnboardingUserId(advance.employees);
 
       if (employeeUserId) {
         await notifyEmployee({
@@ -183,6 +187,8 @@ async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, 
             : `There was an issue sending your advance of ${advance.amount}. Please contact support.`,
           metadata: { advance_id: advance.id, status: newStatus }
         });
+      } else {
+        console.warn('[webhook-payout] No employee user_id resolved for advance', advance.id);
       }
     } catch (notifyErr) {
       console.error('[webhook-payout] Notification failed:', notifyErr);
@@ -198,7 +204,7 @@ async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, 
       if (wallet) {
         await supabaseAdmin.from('wallet_transactions').upsert({
           wallet_id: wallet.id,
-          amount: -Number(advance.amount), // Negative for payouts
+          amount: -Number(advance.amount),
           type: 'payout',
           status: 'completed',
           reference: `PAY-${merchantRef}`,
@@ -208,5 +214,7 @@ async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, 
         }, { onConflict: 'reference' });
       }
     }
+  } else if (!advance) {
+    console.error('[webhook-payout] No advance found for reference', merchantRef);
   }
 }

@@ -1,186 +1,138 @@
-# Agent Rules — `eaziwageapp` (EaziWage Product App)
-> For: Cursor, Windsurf, Blackbox, Codex, Gemini CLI, Kilo Code, GitHub Copilot  
-> Project: `app.eaziwage.com` — Next.js authenticated product app  
-> Last updated: May 2026
+Section 1 — Role & context
 
----
+Who you are and what EaziWage is
 
-## 1. Project Identity
+You are a senior software security engineer and fintech architect conducting a comprehensive code audit of EaziWage — a wage advance and disbursement application built for the East African market.
 
-This is the **authenticated product application** for EaziWage, a fintech earned wage access (EWA) platform targeting East Africa (Kenya, Uganda, Tanzania, Rwanda). It lives at `app.eaziwage.com` and is separate from the marketing site (`eaziwage.com`), which lives in the `eaziwageapp` repo.
+EaziWage's tech stack:
+- Frontend: Next.js / React
+- Backend & Database: Supabase (PostgreSQL 17.6, Row Level Security, Edge Functions)
+- Auth: Supabase Auth
+- Payments: Third-party payment APIs (wage disbursements, advance repayments)
+- Hosting: Supabase EU North (Stockholm)
 
-**Do not mix concerns between the two repos.** This repo handles:
-- User authentication (employee and employer)
-- Advance (earned wage) requests and processing
-- Dashboard — balances, history, wallet
-- Employer portal — payroll, employee management
-- Wiza AI — financial copilot feature
-- Currency handling (KES, UGX, TZS, RWF)
-- Notifications and transaction history
+The application handles sensitive financial and employee data. Core flows include: employer onboarding, employee registration, payroll data ingestion, wage advance requests, and payment disbursement.
 
----
+Known architectural context:
+- There is an identity split between two tables — `employer_onboarding` (legacy, de facto source of truth) and `employers` (authoritative, sparsely populated). A three-phase migration is underway to reconcile these.
+- 26 Supabase functions have been patched for mutable search_path vulnerabilities.
+- A pre-existing broken function `compute_earnings_for_employee` references a non-existent composite type.
+- Payment methods have an `is_verified` flag; advance requests have been 422-ing due to unverified payment methods.
 
-## 2. Stack
+Section 2 — Audit goals
 
-| Layer | Tool |
-|---|---|
-| Framework | Next.js (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS |
-| Database | Supabase (shared project with `advance`) |
-| Auth | Supabase Auth |
-| Validation | Zod |
-| Deployment | Vercel |
+What must be assessed
 
----
+Audit across all five dimensions:
 
-## 3. Absolute Rules (Never Break These)
+1. SECURITY & VULNERABILITY ASSESSMENT
+   - SQL injection, RLS bypass, privilege escalation
+   - SECURITY DEFINER function risks
+   - Exposed secrets or API keys in code
+   - Insecure direct object references (IDOR) in API routes
+   - Payment API integration security (token handling, webhook verification)
+   - Auth session management, JWT handling
+   - Data exposure via misconfigured Supabase policies
 
-### 3.1 No Mock Data in Production Code
-- **Never** use hardcoded balance figures, fake transaction lists, simulated advance statuses, or any fabricated financial data outside of `__mocks__` or `*.test.*` files.
-- Financial data is sensitive — fake data in production is a trust and compliance risk, not just a code quality issue.
-- If real data isn't available yet, render an empty/null/skeleton state — never invent numbers.
-- Do not ship `console.log` statements, `debugger` calls, or commented-out dead code.
+2. CODE QUALITY & MAINTAINABILITY
+   - Inconsistent patterns across API routes and controllers
+   - Dead code, duplicated logic, poor error handling
+   - Missing or inadequate input validation and sanitisation
+   - Type safety (TypeScript coverage and strictness)
+   - Test coverage gaps for critical business logic
 
-### 3.2 No Simulated APIs or Flows
-- Every API route under `app/api/` must interact with **real services** — Supabase, a payment provider, or a verified external API.
-- Do not fake advance request processing, approval flows, or disbursement logic with `setTimeout` or hardcoded state transitions.
-- If a flow isn't wired up yet, return `501 Not Implemented` — never fake a success response.
+3. PERFORMANCE OPTIMISATION
+   - Missing indexes on high-query columns
+   - N+1 queries, unoptimised joins, full table scans
+   - Unnecessary re-renders or data fetching on the frontend
+   - Edge Function cold start and execution time concerns
+   - Pagination gaps on list endpoints
 
-```ts
-return NextResponse.json({ error: 'Not implemented' }, { status: 501 });
-```
+4. ARCHITECTURE REVIEW
+   - The `employer_onboarding` vs `employers` identity split — risk assessment of the current state and the three-phase migration plan
+   - Foreign key integrity and referential consistency across child tables
+   - RLS policy completeness for all tables (especially those on the disbursement path)
+   - API route design — RESTful consistency, versioning, error response standards
+   - Frontend data-fetching patterns (SWR / React Query / direct fetch — is there a consistent strategy?)
 
-### 3.3 Do Not Break Working Code
-- Before editing any file, read it fully. Understand what it does before touching it.
-- Make **surgical changes only** — edit the minimum lines necessary to accomplish the task.
-- Never refactor, rename, or restructure code that wasn't part of the request.
-- If you think a refactor would help, leave a comment suggesting it — do not do it unasked.
-- Never delete or overwrite existing logic without explicit instruction.
-- Pay special attention to: advance request state machines, auth guards, and currency conversion logic — these are critical paths.
+5. COMPLIANCE & REGULATORY READINESS
+   - Kenya CBK regulations: data residency, audit trails, transaction records retention
+   - GDPR: right to erasure conflicts with financial record retention, consent logging, PII handling
+   - PCI-DSS: are raw card/payment credentials ever logged or persisted? Tokenisation coverage?
+   - Internal security policy: role separation (employer vs employee vs admin), least-privilege enforcement
 
----
+Section 3 — Scope
 
-## 4. Environment Variables
+What to examine, layer by layer
 
-All secrets live in `.env.local` (local) and Vercel environment settings (production). Never hardcode them.
+DATABASE LAYER
+- All tables, columns, constraints, and indexes in the public schema
+- All RLS policies — verify every table has appropriate policies for SELECT, INSERT, UPDATE, DELETE
+- All Supabase functions — check for logic errors, mutable search_path, SECURITY DEFINER risks
+- All migrations — check for irreversible operations, missing rollback paths, ordering issues
 
-| Variable | Purpose |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (public) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (public) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role — **server-side only, never expose to client** |
+API / BACKEND LAYER
+- All Next.js API routes (pages/api or app/api) — auth checks, input validation, error handling
+- Supabase Edge Functions — permissions, secrets usage, error boundaries
+- Payment API integration — request signing, webhook signature verification, idempotency keys
+- Advance request flow specifically — the 422 error root cause (is_verified flag logic) and any broader fragility in the flow
 
-**Rules:**
-- Variables prefixed `NEXT_PUBLIC_` are safe for client-side use.
-- `SUPABASE_SERVICE_ROLE_KEY` must **only** be used in server components, API routes, or server actions — never in client components or hooks.
-- Never hardcode API keys, tokens, or credentials anywhere in the codebase.
+AUTHENTICATION & AUTHORISATION
+- Supabase Auth configuration — email confirmation, password policy, session length
+- RLS policies — are all sensitive tables covered? Are there any policy gaps that allow unintended access?
+- Role hierarchy — employer, employee, admin — is separation enforced at the DB level or only in application code?
+- JWT claims — are custom claims used? Are they verified server-side?
 
----
+FRONTEND LAYER
+- Authentication state management — token storage (localStorage vs httpOnly cookies)
+- Sensitive data rendering — are amounts, NIN/ID numbers, payment details masked appropriately?
+- API error handling — are raw error messages from Supabase ever surfaced to the UI?
+- Form validation — client-side only or backed by server-side checks?
 
-## 5. Supabase Usage
+Section 4 — Output format
 
-- The `eaziwageapp` repo shares a single Supabase project with `advance`. Be mindful of shared tables.
-- Core tables owned by this repo: users, advances, transactions, wallets, employers, employees, notifications.
-- Always use the **service role client** for server-side writes (API routes, server actions, admin operations).
-- Always use the **anon client** with Supabase Auth session for client-side operations — RLS enforces row-level access.
-- **Never disable RLS** on any table — this is a financial app, RLS is a security boundary.
-- Never expose the service role key to the browser under any circumstances.
+How to structure your findings
 
-```ts
-import { createClient } from '@supabase/supabase-js';
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+Deliver findings in three parts:
 
-import { createBrowserClient } from '@supabase/ssr';
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-```
+PART A — PRIORITISED ISSUE LIST
+For each issue found, output a structured entry:
 
----
+  ID: [LAYER-NNN] e.g. DB-001, API-003, FE-007
+  Severity: Critical / High / Medium / Low / Informational
+  Layer: Database / API / Auth / Frontend
+  Title: One-line summary
+  Description: What the problem is and why it matters
+  Evidence: The specific file, function, table, policy, or query where it was found
+  Risk: What an attacker or compliance auditor could exploit or flag
+  Fix: Concrete remediation (SQL, code snippet, or config change)
 
-## 6. Authentication & Route Protection
+Sort the list: Critical → High → Medium → Low → Informational.
 
-- All dashboard and app routes must be protected — unauthenticated users redirect to `/login`.
-- Auth state is managed via Supabase Auth and middleware.
-- Never bypass auth checks, even for testing — use a real test account.
-- Employer and employee roles have different access levels — always check the user's role before rendering sensitive UI or allowing mutations.
+PART B — WRITTEN AUDIT REPORT
+A structured narrative report covering:
+  - Executive summary (3–5 sentences)
+  - Methodology
+  - Findings by category (Security, Architecture, Performance, Code Quality, Compliance)
+  - Risk heatmap summary table
+  - Compliance gap summary (CBK, GDPR, PCI-DSS)
+  - Overall risk rating
 
----
+PART C — REMEDIATION PLAN
+A sequenced action plan I can execute sprint by sprint:
+  - Sprint 1: Critical & High fixes (with exact SQL migrations, API changes, config updates)
+  - Sprint 2: Medium fixes
+  - Sprint 3: Low / hardening / compliance documentation
+  For each fix, include the exact code or SQL — not pseudocode.
 
-## 7. Currency Handling
+Section 5 — Ground rules
 
-EaziWage operates across multiple East African currencies. This is a critical area — currency bugs are financial bugs.
+How to conduct the audit
 
-- Supported currencies: **KES, UGX, TZS, RWF**
-- Always use the `useCurrency()` hook for formatting and conversion on the client side.
-- Never hardcode currency symbols or conversion rates — always derive from the hook or a central utility.
-- Store monetary values in the database as **integers (smallest unit / cents)** to avoid floating point errors.
-- Display formatting (e.g. `KES 1,200.00`) must always go through the currency utility — never format manually inline.
-
----
-
-## 8. Advance Request Flow
-
-The advance request is the core product feature. Treat it with care.
-
-- The advance request modal has **three UX states**: `processing`, `success`, `failed/retry`.
-- Never skip or collapse these states — each one has a distinct UI and user action.
-- State transitions must reflect **real backend responses**, not optimistic fakes.
-- Never mark an advance as `success` without a confirmed Supabase write.
-
----
-
-## 9. Wiza AI
-
-- Wiza AI is the in-app financial copilot feature.
-- It is tethered to the authenticated user's real financial data (balances, advance history, transactions).
-- Never feed Wiza mock or fabricated data — it must only reference real user records from Supabase.
-- Keep Wiza's scope within the app — it is not a general-purpose chatbot.
-
----
-
-## 10. File & Folder Conventions
-
-```
-app/
-  (auth)/            # Login, register, onboarding routes
-  (dashboard)/       # Authenticated app routes
-  api/               # API routes
-components/
-  ui/                # Base UI components
-  dashboard/         # Dashboard-specific components
-lib/
-  supabase/          # Supabase client helpers
-  validation/        # Zod schemas
-  utils/
-    currency.ts      # Currency formatting and conversion
-hooks/
-  useCurrency.ts     # Currency hook
-  useAdvance.ts      # Advance request hook
-```
-
-- Keep API routes in `app/api/[route]/route.ts`.
-- Keep Zod schemas in `lib/validation/`.
-- Keep all currency logic in `lib/utils/currency.ts` and `hooks/useCurrency.ts` — never scattered inline.
-- Do not create new top-level folders without a clear reason.
-
----
-
-## 11. TypeScript
-
-- **Strict mode is on.** No `any` types unless absolutely unavoidable — and if used, add a comment explaining why.
-- Always type API request bodies, response shapes, and Supabase query results explicitly.
-- Use Zod schemas for runtime validation of all incoming API data.
-- Financial values must always be typed as `number` (integer cents) — never `string` or `any`.
-
----
-
-## 12. What This Repo Is NOT
-
-- Not the marketing site — do not add landing pages, blog posts, SEO pages, or the contact form here. Those belong in `advance`.
-- Not a fintech sandbox — do not experiment with payment flows, fake disbursements, or test integrations directly in this repo. Use a dedicated test environment.
+- Do not make assumptions about intent. If a policy, function, or route looks wrong, flag it.
+- Do not suggest fixes that change business logic unless you explicitly flag that the logic itself is the problem.
+- Before recommending any database change, retrieve the full current function/table definition first.
+- Be specific. "Improve error handling" is not a finding. "API route /api/advances/request returns a raw Supabase error object with table names exposed when is_verified = false" is a finding.
+- Flag any place where security is enforced only in application code and not at the database level — this is a critical pattern in Supabase applications.
+- Note any finding that touches the `employer_onboarding` / `employers` migration — these must be handled carefully to avoid breaking the in-progress reconciliation.
+- If you find a compliance gap, cite the specific regulation and clause where possible (e.g. CBK Prudential Guideline CBK/PG/04, GDPR Article 17, PCI-DSS Requirement 3.4).

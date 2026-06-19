@@ -1,31 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { NextResponse } from 'next/server';
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-
-  try {
-    const { error } = await supabaseAdmin
-      .from('advances')
-      .update({
-        status: 'rejected',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
-
-    if (error) {
-      console.error('[Admin Reject] Error:', error);
-      return NextResponse.json({ message: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ message: 'Advance rejected successfully' });
-
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[Admin Reject] Fatal Error:', message);
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
-  }
+export async function POST() {
+  // Deprecated duplicate endpoint. Use /api/admin/advances/[id]/[action] instead.
+  return NextResponse.json({ error: 'Deprecated: use /api/admin/advances/[id]/[action] instead' }, { status: 410 });
 }

@@ -30,7 +30,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 
     const { data: employersData, error: employersError } = await supabase
       .from('employers')
-      .select('id, company_name, employer_code, user_id')
+      .select('id, company_name, employer_code')
       .eq('status', 'approved');
 
     const { data: onboardingData, error: onboardingError } = await supabase
@@ -46,8 +46,8 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
+    // Collect user IDs only from onboarding records (employer rows no longer return user_id here).
     const userIds = new Set<string>();
-    employersData?.forEach(e => { if (e.user_id) userIds.add(e.user_id); });
     onboardingData?.forEach(e => { if (e.user_id) userIds.add(e.user_id); });
     const { data: profilesData } = await supabase
         .from('profiles')
@@ -68,7 +68,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     });
 
     employersData?.forEach((row) => {
-        const code = row.employer_code || codeMap.get(row.user_id) || `EW-${row.id.slice(0, 8).toUpperCase()}`;
+        const code = row.employer_code || `EW-${row.id.slice(0, 8).toUpperCase()}`;
         companyMap.set(row.id, {
             id: row.id,
             company_name: row.company_name ?? 'Unknown Company',

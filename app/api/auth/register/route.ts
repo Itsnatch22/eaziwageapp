@@ -448,7 +448,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       role_normalized:    input.role,
       company_code:       input.role === 'employee' ? (input.company_code || null) : generatedEmployerCode,
       company_name:       input.role === 'employer' ? input.company_name : null,
-      email_verified:     true,
+      email_verified:     false,
       is_active:          false, // Fix 2: Explicitly set to false initially
       onboarding_complete: false,
       created_at:         new Date().toISOString(),

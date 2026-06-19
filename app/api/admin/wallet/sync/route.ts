@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { getEnv } from '@/env';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { getStanbicAuthHeader, getStanbicBaseUrl } from '@/lib/stanbic/client';
 
 interface StanbicBalanceResponse {
   currency: string;
@@ -84,26 +84,22 @@ export async function POST() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Call Stanbic Account Balance API (use env.ts via getEnv)
-    // Credentials should come from getEnv(); do NOT log them
-    const env = getEnv();
-    const stanbicApiKey = env.STANBIC_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? '';
-    const stanbicBase = env.STANBIC_SANDBOX_BASE_URL ?? env.STANBIC_BASE_URL ?? 'https://sandbox.stanbicbank.example';
-
-    if (!stanbicApiKey) {
-      return NextResponse.json({ error: 'Stanbic API key not configured' }, { status: 500 });
-    }
+    // Call Stanbic Account Balance API (credentials resolved inside getStanbicBaseUrl/getStanbicAuthHeader)
+    const stanbicBase = getStanbicBaseUrl();
 
     const url = `${stanbicBase}/accounts/balance`;
 
     let response: Response;
     try {
+      const authHeader = await getStanbicAuthHeader();
+      const headers = {
+        ...authHeader,
+        'Accept': 'application/json',
+      } as Record<string, string>;
+
       response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${stanbicApiKey}`,
-          'Accept': 'application/json',
-        },
+        headers,
       });
     } catch (fetchErr) {
       const m = fetchErr instanceof Error ? fetchErr.message : 'Network error';

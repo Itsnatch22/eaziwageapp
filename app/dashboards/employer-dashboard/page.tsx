@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
+import type { RealtimeChannel } from '@supabase/realtime-js';
 
 interface EmployerProfile {
   id: string;
@@ -450,23 +451,25 @@ export default function EmployerDashboard() {
       void load();
     };
 
-    const userChannel = (supabase as any)
-      .channel(`realtime:kyc:user-${user.id}`)
-      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
+    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
+
+    const userChannel = ((supabase as unknown as SupabaseWithChannel)
+      .channel(`realtime:kyc:user-${user.id}`) as unknown as any)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` } as Record<string, unknown>, () => {
         handleUpdate();
       })
       .subscribe();
 
-    const employerChannel = (supabase as any)
-      .channel(`realtime:kyc:employer-${data.employer.id}`)
-      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` }, () => {
+    const employerChannel = ((supabase as unknown as SupabaseWithChannel)
+      .channel(`realtime:kyc:employer-${data.employer.id}`) as unknown as any)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` } as Record<string, unknown>, () => {
         handleUpdate();
       })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(userChannel);
-      supabase.removeChannel(employerChannel);
+      (supabase as unknown as SupabaseWithChannel).removeChannel(userChannel);
+      (supabase as unknown as SupabaseWithChannel).removeChannel(employerChannel);
     };
   }, [user?.id, data.employer?.id, load]);
 

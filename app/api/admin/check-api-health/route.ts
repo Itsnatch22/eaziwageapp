@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import pusherServer from '@/lib/pusher-server';
 import { NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,6 +29,12 @@ export async function HEAD() {
 }
 
 export async function GET() {
+  const routeSupabase = await createRouteHandlerClient();
+  const { data: { user }, error: authError } = await routeSupabase.auth.getUser();
+  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
+  if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const { data, error } = await supabase
     .from('api_health')
     .select('*')
@@ -71,6 +80,12 @@ export async function GET() {
 }
 
 export async function POST() {
+  const routeSupabase = await createRouteHandlerClient();
+  const { data: { user }, error: authError } = await routeSupabase.auth.getUser();
+  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
+  if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const startTime = Date.now();
 
   const checks = await Promise.allSettled([

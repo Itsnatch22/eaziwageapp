@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createRouteHandlerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
+    if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     const { amount, reference, description } = await req.json();
 
     if (!amount) {

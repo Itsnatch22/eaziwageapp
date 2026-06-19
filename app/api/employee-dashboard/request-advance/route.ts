@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       return errorResponse(404, 'Employee record not found.', { note: 'resolveEmployeeId returned null' });
     }
 
-    const { data: profile, error: profileError } = await supabase
+    const { error: profileError } = await supabase
       .from('profiles')
       .select('organization_id')
       .eq('id', user.id)
@@ -110,24 +110,6 @@ export async function POST(req: NextRequest) {
 
     employerId = employee.employer_id;
 
-    let organizationId = profile?.organization_id ?? null;
-    if (!organizationId) {
-      const { data: employeeOrg, error: employeeOrgError } = await supabase
-        .from('employees')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (employeeOrgError) {
-        return errorResponse(500, 'Employee organization lookup failed', { employeeOrgError });
-      }
-
-      organizationId = employeeOrg?.organization_id ?? null;
-    }
-
-    if (!organizationId) {
-      return errorResponse(400, 'Organization not found for this user.');
-    }
 
     const { data: existingPending, error: existingPendingError } = await supabase
       .from('advances')
@@ -304,7 +286,6 @@ export async function POST(req: NextRequest) {
 
     const payload = {
       employee_id: employee.id, // advances table uses onboarding id — intentional
-      organization_id: organizationId,
       amount: requestedAmount,
       fee_percentage: feePercentage,
       fee_amount: feeAmount,

@@ -45,13 +45,8 @@ export async function GET(req: Request) {
     .maybeSingle();
 
   if (employerError) {
-    console.error('[credit-overview] ❌ Employer query error:', {
-      message: employerError.message,
-      details: employerError.details,
-      hint: employerError.hint,
-      code: employerError.code,
-    });
-    return NextResponse.json({ error: employerError.message }, { status: 500 });
+    console.error('[credit-overview] ❌ Employer query error:', employerError);
+    return NextResponse.json({ error: 'Failed to fetch employer record' }, { status: 500 });
   }
 
   if (!employer) {
@@ -85,13 +80,8 @@ export async function GET(req: Request) {
     .eq('employer_id', employer.id);
 
   if (employeeError) {
-    console.error('[credit-overview] Employee query error:', {
-      message: employeeError.message,
-      details: employeeError.details,
-      hint: employeeError.hint,
-      code: employeeError.code,
-    });
-    return NextResponse.json({ error: employeeError.message }, { status: 500 });
+    console.error('[credit-overview] Employee query error:', employeeError);
+    return NextResponse.json({ error: 'Failed to fetch employees for employer' }, { status: 500 });
   }
 
   const employeeIds = (employees ?? []).map((e) => e.id);
@@ -129,25 +119,15 @@ export async function GET(req: Request) {
   ]);
 
   if (outstandingQuery.error) {
-    console.error('[credit-overview] Outstanding advances query error:', {
-      message: outstandingQuery.error.message,
-      details: outstandingQuery.error.details,
-      hint: outstandingQuery.error.hint,
-      code: outstandingQuery.error.code,
-    });
-    return NextResponse.json({ error: outstandingQuery.error.message }, { status: 500 });
+    console.error('[credit-overview] Outstanding advances query error:', outstandingQuery.error);
+    return NextResponse.json({ error: 'Failed to fetch outstanding advances' }, { status: 500 });
   }
 
   console.log('[credit-overview]  Outstanding advances found:', outstandingQuery.data?.length ?? 0);
 
   if (monthQuery.error) {
-    console.error('[credit-overview] Month advances query error:', {
-      message: monthQuery.error.message,
-      details: monthQuery.error.details,
-      hint: monthQuery.error.hint,
-      code: monthQuery.error.code,
-    });
-    return NextResponse.json({ error: monthQuery.error.message }, { status: 500 });
+    console.error('[credit-overview] Month advances query error:', monthQuery.error);
+    return NextResponse.json({ error: 'Failed to fetch advances for month range' }, { status: 500 });
   }
 
   console.log('[credit-overview] Month advances found:', monthQuery.data?.length ?? 0);

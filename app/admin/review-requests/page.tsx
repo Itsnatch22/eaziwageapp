@@ -15,6 +15,7 @@ import {
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import type { RealtimeChannel } from '@supabase/realtime-js';
 
 type IconType = React.ComponentType<{ className?: string }>;
 
@@ -401,8 +402,9 @@ export default function ReviewRequests() {
 
     const supabase = createClient();
     type RealtimeReviewPayload = { new: ReviewRequest; old?: ReviewRequest };
+    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
-    const channel = (supabase as any)
+    const channel = (supabase as unknown as SupabaseWithChannel)
       .channel('realtime:admin-review-requests')
       .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'admin_notifications' }, (payload: RealtimeReviewPayload) => {
         const newReq = payload.new;
@@ -419,7 +421,7 @@ export default function ReviewRequests() {
 
     return () => {
       window.clearTimeout(timeoutId);
-      supabase.removeChannel(channel);
+      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
     };
   }, []);
 

@@ -26,7 +26,7 @@ export async function GET() {
     const adminSupabase = createAdminClient();
     const user = await verifyAdmin(supabase, adminSupabase);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { data, error } = await adminSupabase.from('legal_documents').select('*').eq('is_active', 1);
+    const { data, error } = await adminSupabase.from('legal_documents').select('*').eq('is_active', true);
     if (error) throw error;
     return NextResponse.json(data || []);
   } catch (error) {

@@ -347,6 +347,9 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
     sync_frequency: 'daily',
     sync_time: '00:00',
   });
+  const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [revealing, setRevealing] = useState(false);
 
   const handleConnect = async () => {
     if (!form.provider) { toast.error('Please select a provider'); return; }
@@ -510,8 +513,39 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
             <div className="space-y-1">
               <Label className="text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider">Webhook Secret <span className="text-amber-500">(keep private)</span></Label>
               <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                <code className="flex-1 font-mono text-xs text-slate-600 dark:text-slate-300 truncate">{result.webhook_secret}</code>
-                <CopyButton text={result.webhook_secret} />
+                {/* Masked by default — reveal requires an explicit audited action */}
+                <code className="flex-1 font-mono text-xs text-slate-600 dark:text-slate-300 truncate">{revealedSecret ?? '••••••••••••••••••••••••••••••'}</code>
+                {!revealed && (
+                  <Button
+                    variant="outline"
+                    disabled={revealing}
+                    onClick={async () => {
+                      try {
+                        setRevealing(true);
+                        // One-time fetch to reveal webhook secret — server endpoint must authorize and audit this action.
+                        const resp = await fetch('/api/employer-dashboard/payroll/reveal', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ integration_code: result.integration_code })
+                        });
+                        if (!resp.ok) throw new Error('Reveal failed');
+                        const json = await resp.json();
+                        setRevealedSecret(json.secret ?? null);
+                        setRevealed(true);
+                      } catch (err) {
+                        console.error('Reveal failed', err);
+                        // show toast or inline error as needed
+                      } finally {
+                        setRevealing(false);
+                      }
+                    }}
+                  >
+                    Reveal (audited)
+                  </Button>
+                )}
+                {revealed && (
+                  <CopyButton text={revealedSecret ?? ''} />
+                )}
               </div>
             </div>
             <div className="space-y-1">

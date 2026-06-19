@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await req.json();
     const validated = BlackoutPeriodSchema.parse(body);
-    const { data, error } = await adminSupabase.from('blackout_periods').insert([{ ...validated, is_active: validated.is_active ? 1 : 0 }]).select().single();
+    const { data, error } = await adminSupabase.from('blackout_periods').insert([{ ...validated, is_active: validated.is_active }]).select().single();
     if (error) throw error;
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id, admin_name: user.email, target_id: data.id, target_type: 'blackout', action: 'create_blackout',

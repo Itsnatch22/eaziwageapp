@@ -29,3 +29,7 @@ create table public.risk_review_requests (
 create index IF not exists idx_review_requests_employer_status on public.risk_review_requests using btree (employer_id, status) TABLESPACE pg_default;
 
 create index IF not exists idx_review_requests_status_created on public.risk_review_requests using btree (status, created_at desc) TABLESPACE pg_default;
+
+create trigger trg_notify_on_risk_review_request
+after INSERT on risk_review_requests for EACH row
+execute FUNCTION notify_on_risk_review_request ();

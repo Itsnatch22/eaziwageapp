@@ -14,8 +14,8 @@ create table public.account_deletion_events (
   constraint account_deletion_events_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE
 ) TABLESPACE pg_default;
 
-create index IF not exists idx_account_deletion_events_user_id on public.account_deletion_events using btree (user_id) TABLESPACE pg_default;
-
 create index IF not exists idx_account_deletion_events_created_at on public.account_deletion_events using btree (created_at) TABLESPACE pg_default;
 
 create index IF not exists idx_account_deletion_events_reason_category on public.account_deletion_events using btree (deletion_reason_category) TABLESPACE pg_default;
+
+create index IF not exists idx_account_deletion_events_user_id on public.account_deletion_events using btree (user_id) TABLESPACE pg_default;

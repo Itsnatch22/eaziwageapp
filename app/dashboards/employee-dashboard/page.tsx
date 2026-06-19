@@ -201,8 +201,8 @@ export default function EmployeeDashboardPage() {
 
     const supabase = createClient();
 
-    const channel = supabase
-      .channel(`realtime:kyc:user-${user.id}`)
+    const channel = (supabase
+      .channel(`realtime:kyc:user-${user.id}`) as unknown as any)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
         void fetchStats();
       })

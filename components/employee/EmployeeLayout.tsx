@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/lib/stores/auth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import type { RealtimeChannel } from '@supabase/realtime-js';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
@@ -400,14 +401,16 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
 
     const supabase = createClient();
 
-    const channel = (supabase as any)
-      .channel(`realtime:usersettings:user-${user.id}`)
-      .on('postgres_changes' as any, {
+    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
+
+    const channel = ((supabase as unknown as SupabaseWithChannel)
+      .channel(`realtime:usersettings:user-${user.id}`) as unknown as any)
+      .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'employee_onboarding',
         // updates related to user's onboarding/settings; no filter to limit (but scoped by payload)
-      }, () => {
+      } as Record<string, unknown>, () => {
         toast.success('Your account settings updated', {
           description: 'An administrator has updated your account configuration.',
           icon: <Shield className="w-5 h-5 text-emerald-500" />,
@@ -416,7 +419,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
     };
   }, [user?.id]);
 

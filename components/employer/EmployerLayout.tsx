@@ -16,6 +16,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import type { RealtimeChannel } from '@supabase/realtime-js';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
@@ -452,13 +453,15 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
 
     const supabase = createClient();
 
-    const channel = (supabase as any)
-      .channel(`realtime:employer-settings:employer-${user.id}`)
-      .on('postgres_changes' as any, {
+    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
+
+    const channel = ((supabase as unknown as SupabaseWithChannel)
+      .channel(`realtime:employer-settings:employer-${user.id}`) as unknown as any)
+      .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'employee_onboarding',
-      }, () => {
+      } as Record<string, unknown>, () => {
         toast.success('Organization settings updated', {
           description: 'Your organization settings have been updated by an administrator.',
           icon: <Settings className="w-5 h-5 text-blue-600" />,
@@ -467,7 +470,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
     };
   }, [user?.id]);
 

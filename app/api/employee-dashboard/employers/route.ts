@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error('[employers/list]', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch employers' }, { status: 500 });
   }
 
   return NextResponse.json({ employers: data ?? [] });

@@ -62,7 +62,7 @@ export default function EmployeeNotificationsPage() {
 
         type RealtimeNotificationPayload = { new: Notification; old?: Notification };
 
-        const channel = (supabase as any)
+        const channel = supabase
             .channel(`realtime:notifications:user-${user.id}`)
             .on('postgres_changes' as any, {
                 event: 'INSERT',

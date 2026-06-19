@@ -4,6 +4,7 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { cn } from "@/lib/utils";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import SessionTimeout from '@/components/SessionTimeout';
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -37,6 +38,7 @@ export default function RootLayout({
         className={`${ibmPlexMono.variable} ${playfairDisplay.variable} antialiased`}
       >
         <OfflineBanner />
+        <SessionTimeout />
         {children}
         <Analytics />
       </body>

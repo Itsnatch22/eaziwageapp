@@ -36,8 +36,8 @@ export async function PATCH(
     let employerId: string | undefined = undefined;
     try {
       if (tx.metadata && typeof tx.metadata === 'object' && 'employer_id' in tx.metadata) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        employerId = (tx.metadata as any).employer_id as string;
+        const rawEmployerId = (tx.metadata as Record<string, unknown>).employer_id;
+        if (typeof rawEmployerId === 'string') employerId = rawEmployerId;
       }
     } catch {
       // ignore
@@ -65,7 +65,7 @@ export async function PATCH(
     if (adminWalletErr || !adminWallet) throw adminWalletErr || new Error('Admin wallet not found');
 
     // Call RPC to move funds from admin -> employer (this will also create the employer deposit tx)
-    const rpcRes = await supabaseAdmin.rpc('fund_employer_from_admin', {
+    const { error: rpcError } = await supabaseAdmin.rpc('fund_employer_from_admin', {
       p_employer_id: employerId,
       p_admin_wallet_id: adminWallet.id,
       p_amount: tx.amount,
@@ -73,9 +73,9 @@ export async function PATCH(
       p_admin_id: user.id,
     });
 
-    if ((rpcRes as any)?.error) {
-      console.error('[TopUp Approve] RPC error:', (rpcRes as any).error);
-      return NextResponse.json({ error: `Funding failed: ${(rpcRes as any).error.message ?? (rpcRes as any).error}` }, { status: 500 });
+    if (rpcError) {
+      console.error('[TopUp Approve] RPC error:', rpcError);
+      return NextResponse.json({ error: `Funding failed: ${rpcError.message}` }, { status: 500 });
     }
 
     // Mark the original request as completed and annotate metadata

@@ -6,21 +6,21 @@ create table public.employees (
   employee_number text null,
   department text null,
   status text null default 'Active'::text,
-  hire_date date null,
+  hire_date date not null,
   termination_date date null,
   created_at timestamp with time zone null default now(),
   updated_at timestamp with time zone null default now(),
   user_id uuid not null,
   employer_id uuid not null,
   employee_code text null,
-  full_name text null,
-  job_title text null,
-  monthly_salary numeric(10, 2) null,
+  full_name text not null,
+  job_title text not null default 'Unassigned'::text,
+  monthly_salary numeric(10, 2) not null default 0,
   kyc_status text not null default 'pending'::text,
   employment_type text not null default 'full-time'::text,
   advance_limit numeric(10, 2) not null default 0,
   earned_wages numeric(10, 2) not null default 0,
-  risk_score numeric(3, 1) null,
+  risk_score numeric(3, 1) not null default 3.0,
   risk_override_reason text null,
   id_document_front boolean not null default false,
   id_document_back boolean not null default false,
@@ -30,6 +30,8 @@ create table public.employees (
   payslip_2 boolean not null default false,
   bank_statement boolean not null default false,
   employment_contract boolean not null default false,
+  phone text not null default 'N/A'::text,
+  country text null,
   constraint employees_pkey primary key (id),
   constraint employees_organization_id_email_key unique (organization_id, email),
   constraint employees_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE,
@@ -93,17 +95,17 @@ create index IF not exists employees_status_idx on public.employees using btree 
 
 create unique INDEX IF not exists employees_user_id_key on public.employees using btree (user_id) TABLESPACE pg_default;
 
+create index IF not exists idx_employees_employer_id on public.employees using btree (employer_id) TABLESPACE pg_default;
+
 create index IF not exists idx_employees_kyc_status on public.employees using btree (kyc_status) TABLESPACE pg_default;
 
 create index IF not exists idx_employees_risk_score on public.employees using btree (risk_score) TABLESPACE pg_default
 where
   (risk_score is not null);
 
-create index IF not exists idx_employees_employer_id on public.employees using btree (employer_id) TABLESPACE pg_default;
+create index IF not exists idx_employees_status on public.employees using btree (status) TABLESPACE pg_default;
 
 create index IF not exists idx_employees_user_id on public.employees using btree (user_id) TABLESPACE pg_default;
-
-create index IF not exists idx_employees_status on public.employees using btree (status) TABLESPACE pg_default;
 
 create trigger t2 BEFORE
 update on employees for EACH row

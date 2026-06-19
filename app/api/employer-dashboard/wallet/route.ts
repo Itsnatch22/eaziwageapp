@@ -38,24 +38,26 @@ export async function GET() {
 
     if (!employer) {
       // Check if employer exists but is not approved or was deleted
-      const { data: anyEmployer } = await adminSupabase
+      const anyResp = await adminSupabase
         .from('employers')
         .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
         .eq('user_id', user.id)
         .maybeSingle();
-      
+
+      const anyEmployer = (anyResp.data ?? null) as unknown as Record<string, unknown> | null;
       if (!anyEmployer) {
         return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
       }
-      
-      const anyOnboarding = Array.isArray(anyEmployer.employer_onboarding)
-        ? anyEmployer.employer_onboarding[0]
-        : anyEmployer.employer_onboarding;
 
-      if (anyOnboarding?.deleted_at) {
+      const anyOnboardingRaw = anyEmployer['employer_onboarding'] as unknown;
+      const anyOnboarding = Array.isArray(anyOnboardingRaw)
+        ? (anyOnboardingRaw[0] as Record<string, unknown>)
+        : (anyOnboardingRaw as Record<string, unknown> | undefined);
+
+      if (anyOnboarding?.['deleted_at']) {
         return NextResponse.json({ error: 'Account has been terminated' }, { status: 403 });
       }
-      
+
       return NextResponse.json({ error: 'Employer not approved. Please complete onboarding.' }, { status: 403 });
     }
     const onboarding = Array.isArray(employer.employer_onboarding)

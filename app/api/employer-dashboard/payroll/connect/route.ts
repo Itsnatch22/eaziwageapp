@@ -181,7 +181,6 @@ export async function POST(req: NextRequest) {
       {
         message:          existing ? 'Integration updated.' : 'Integration created.',
         integration_code: integrationCode,
-        webhook_secret:   webhookSecret,
         provider,
         sync_mode,
         sync_frequency,
@@ -195,9 +194,56 @@ export async function POST(req: NextRequest) {
       },
       { status: existing ? 200 : 201 },
     );
+
   } catch (err: unknown) {
     console.error('[payroll/connect] unexpected error', err);
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const body = await req.json().catch(() => null);
+    const integrationCode = body?.integration_code as string | undefined;
+    const integrationId = body?.id as string | undefined;
+
+    if (!integrationCode && !integrationId) return NextResponse.json({ error: 'Missing integration identifier' }, { status: 400 });
+
+    const { data: emp, error: empError } = await supabase
+      .from('employers')
+      .select('id, onboarding_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (empError) {
+      console.error('[payroll/connect][DELETE] employer lookup error', empError);
+      return NextResponse.json({ error: 'Failed to resolve employer' }, { status: 500 });
+    }
+    if (!emp) return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
+
+    const q = supabase
+      .from('payroll_integrations')
+      .delete();
+
+    if (integrationId) q.eq('id', integrationId);
+    if (integrationCode) q.eq('integration_code', integrationCode);
+
+    q.eq('employer_id', emp.onboarding_id);
+
+    const { error: delErr } = await q;
+    if (delErr) {
+      console.error('[payroll/connect][DELETE] delete error', delErr);
+      return NextResponse.json({ error: 'Failed to delete integration' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[payroll/connect][DELETE] unexpected', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

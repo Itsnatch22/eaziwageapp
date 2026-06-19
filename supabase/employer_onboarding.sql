@@ -107,6 +107,7 @@ create trigger employer_onboarding_updated_at BEFORE
 update on employer_onboarding for EACH row
 execute FUNCTION update_updated_at ();
 
-create trigger update_employer_onboarding_updated_at BEFORE
+create trigger trg_employer_onboarding_approval
+after
 update on employer_onboarding for EACH row
-execute FUNCTION update_updated_at_column ();
+execute FUNCTION handle_employer_onboarding_approval ();

@@ -36,3 +36,7 @@ create table public.admin_wallet_transactions (
     )
   )
 ) TABLESPACE pg_default;
+
+create index IF not exists idx_admin_wallet_txn_created_at on public.admin_wallet_transactions using btree (created_at desc) TABLESPACE pg_default;
+
+create index IF not exists idx_admin_wallet_txn_type on public.admin_wallet_transactions using btree (type) TABLESPACE pg_default;

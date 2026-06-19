@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useEffect, useImperativeHandle, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { 
   Settings, Building2, Users, Sliders, Bell, Shield, 
   Save, RefreshCw, Search, Percent, Clock, DollarSign, AlertTriangle,
@@ -2053,18 +2054,18 @@ interface AuditTrailTabProps {
 }
 
 const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
-  const [, setLogs] = useState<AuditLog[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
-  const [, setAdmins] = useState<AdminUser[]>([]);
-  const [, setLoading] = useState<boolean>(true);
-  const [filters] = useState<AuditFilters>({
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filters, setFilters] = useState<AuditFilters>({
     auditType: '',
     settingsType: '',
     changedBy: '',
     startDate: '',
     endDate: ''
   });
-  const [pagination, setPagination] = useState<Pagination>({ skip: 0, limit: 50, total: 0 });
+  const [pagination, setPagination] = useState<Pagination>({ skip: 0, limit: 10, total: 0 });
 
   const fetchAuditData = useCallback(async () => {
     try {
@@ -2188,10 +2189,224 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
         </div>
       )}
 
-      {/* Audit Log table implementation would go here - keeping it brief for the overhauled version */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 text-center">
-        <History className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-        <p className="text-slate-600 dark:text-slate-400">Full Audit log viewer available in Admin Reports dashboard</p>
+      {/* Filters Panel */}
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+        <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <Search className="w-5 h-5 text-purple-500" />
+          Filter Audit Logs
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Category</Label>
+            <select
+              value={filters.auditType}
+              onChange={(e) => {
+                setFilters(prev => ({ ...prev, auditType: e.target.value }));
+                setPagination(prev => ({ ...prev, skip: 0 }));
+              }}
+              className="mt-1 w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">All Categories</option>
+              <option value="platform_settings">Platform Settings</option>
+              <option value="risk_settings">Risk & Compliance</option>
+              <option value="notification_settings">Notifications Settings</option>
+              <option value="employer_settings">Employer Settings</option>
+              <option value="employee_settings">Employee Settings</option>
+              <option value="legal_document">Legal Documents</option>
+              <option value="blackout">Blackout Periods</option>
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Changed By</Label>
+            <select
+              value={filters.changedBy}
+              onChange={(e) => {
+                setFilters(prev => ({ ...prev, changedBy: e.target.value }));
+                setPagination(prev => ({ ...prev, skip: 0 }));
+              }}
+              className="mt-1 w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">All Admins</option>
+              {admins.map((admin) => (
+                <option key={admin.id} value={admin.id}>
+                  {admin.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Start Date</Label>
+            <Input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => {
+                setFilters(prev => ({ ...prev, startDate: e.target.value }));
+                setPagination(prev => ({ ...prev, skip: 0 }));
+              }}
+              className="mt-1 h-10"
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">End Date</Label>
+            <Input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => {
+                setFilters(prev => ({ ...prev, endDate: e.target.value }));
+                setPagination(prev => ({ ...prev, skip: 0 }));
+              }}
+              className="mt-1 h-10"
+            />
+          </div>
+        </div>
+
+        {(filters.auditType || filters.changedBy || filters.startDate || filters.endDate) && (
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFilters({
+                  auditType: '',
+                  settingsType: '',
+                  changedBy: '',
+                  startDate: '',
+                  endDate: ''
+                });
+                setPagination(prev => ({ ...prev, skip: 0 }));
+              }}
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              Clear Filters
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Table Viewer */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <RefreshCw className="w-8 h-8 animate-spin text-purple-500" />
+            <p className="text-slate-500 text-sm">Loading audit logs...</p>
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <History className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
+            <p className="text-slate-600 dark:text-slate-400 font-medium">No audit logs found</p>
+            <p className="text-slate-500 text-xs mt-1">Try adjusting your filters or search criteria.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Date/Time</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Category</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Action/Description</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Target</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Performed By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {logs.map((log) => {
+                  let badgeStyles = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
+                  let categoryLabel: string = log.type;
+
+                  switch (log.type) {
+                    case 'platform_settings':
+                      badgeStyles = 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
+                      categoryLabel = 'Platform';
+                      break;
+                    case 'risk_settings':
+                      badgeStyles = 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400';
+                      categoryLabel = 'Risk & Compliance';
+                      break;
+                    case 'notification_settings':
+                      badgeStyles = 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400';
+                      categoryLabel = 'Notifications';
+                      break;
+                    case 'employer_settings':
+                      badgeStyles = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400';
+                      categoryLabel = 'Employer Settings';
+                      break;
+                    case 'employee_settings':
+                      badgeStyles = 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400';
+                      categoryLabel = 'Employee Settings';
+                      break;
+                    case 'legal_document':
+                      badgeStyles = 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400';
+                      categoryLabel = 'Legal';
+                      break;
+                    case 'blackout':
+                      badgeStyles = 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400';
+                      categoryLabel = 'Blackout';
+                      break;
+                  }
+
+                  const formattedDate = new Date(log.changed_at).toLocaleString();
+                  const targetLabel = log.employee_name || log.employer_name || '-';
+
+                  return (
+                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {formattedDate}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-md font-semibold ${badgeStyles}`}>
+                          {categoryLabel}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white max-w-xs truncate">
+                        {log.description || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                        {targetLabel}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                        {log.changed_by_name || 'System'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {!loading && logs.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-slate-50 dark:bg-slate-900/30 border-t border-slate-200 dark:border-slate-700">
+            <p className="text-xs text-slate-500">
+              Showing <span className="font-semibold">{pagination.skip + 1}</span> to{' '}
+              <span className="font-semibold">{Math.min(pagination.skip + logs.length, pagination.total)}</span> of{' '}
+              <span className="font-semibold">{pagination.total}</span> entries
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination(prev => ({ ...prev, skip: Math.max(0, prev.skip - prev.limit) }))}
+                disabled={pagination.skip === 0}
+                className="h-8 text-xs"
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination(prev => ({ ...prev, skip: prev.skip + prev.limit }))}
+                disabled={pagination.skip + logs.length >= pagination.total}
+                className="h-8 text-xs"
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2207,6 +2422,9 @@ interface AdminProfileData {
 const AdminProfileTab: React.FC = () => {
   const [profile, setProfile] = useState<AdminProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showMfaModal, setShowMfaModal] = useState(false);
+  const [mfaEnabledLocal, setMfaEnabledLocal] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchAdminProfile = async () => {
@@ -2221,6 +2439,17 @@ const AdminProfileTab: React.FC = () => {
               full_name: data.full_name,
               avatar_url: data.avatar_url,
             });
+
+            // Also fetch MFA status for this admin user
+            try {
+              const mfaRes = await fetch('/api/admin/security/mfa');
+              if (mfaRes.ok) {
+                const mfaJson = await mfaRes.json();
+                setMfaEnabledLocal(Boolean(mfaJson?.enabled));
+              }
+            } catch (mfaErr) {
+              console.warn('Failed to fetch MFA status:', mfaErr);
+            }
           }
         }
       } catch (err) {
@@ -2302,30 +2531,281 @@ const AdminProfileTab: React.FC = () => {
               <p className="font-medium text-slate-900 dark:text-white">Change Password</p>
               <p className="text-sm text-slate-500">Update your account password</p>
             </div>
-            <Button variant="outline" className="rounded-lg">Update</Button>
+            <Button variant="outline" className="rounded-lg" onClick={() => setShowPasswordModal(true)}>Change</Button>
           </div>
+
           <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div>
               <p className="font-medium text-slate-900 dark:text-white">Two-Factor Authentication</p>
               <p className="text-sm text-slate-500">Add an extra layer of security</p>
             </div>
-            <Button variant="outline" className="rounded-lg text-emerald-600 border-emerald-200 bg-emerald-50">Enable</Button>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-slate-500 mr-2">{mfaEnabledLocal ? 'Enabled' : 'Disabled'}</p>
+              <Button variant="outline" className="rounded-lg text-emerald-600 border-emerald-200 bg-emerald-50" onClick={() => setShowMfaModal(true)}>
+                {mfaEnabledLocal ? 'Manage' : 'Enable'}
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Modals (conditionally rendered) */}
+        {showPasswordModal && (
+          <PasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
+        )}
+        {showMfaModal && (
+          <MfaManagerModal isOpen={showMfaModal} onClose={async () => { setShowMfaModal(false); /* refresh status */ try { const res = await fetch('/api/admin/security/mfa'); if (res.ok) { const js = await res.json(); setMfaEnabledLocal(Boolean(js?.enabled)); } } catch {} }} />
+        )}
       </SectionCard>
     </div>
   );
 };
 
+const PasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const [newPassword, setNewPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Change Password</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">Close</button>
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>New Password</Label>
+            <Input value={newPassword} type="password" onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 8 characters" />
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 inline-flex items-center justify-center rounded-xl border border-input bg-background h-10 px-4 py-2 text-sm">Cancel</button>
+            <button
+              onClick={async () => {
+                if (!newPassword || newPassword.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+                setSubmitting(true);
+                try {
+                  const res = await fetch('/api/admin/security/password', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newPassword })
+                  });
+                  const json = await res.json();
+                  if (res.ok && json.success) {
+                    toast.success('Password updated');
+                    onClose();
+                  } else {
+                    toast.error(json.error || 'Failed to update password');
+                  }
+                } catch (err) {
+                  console.error('Password change failed', err);
+                  toast.error('Failed to update password');
+                } finally { setSubmitting(false); }
+              }}
+              disabled={submitting}
+              className="flex-1 inline-flex items-center justify-center rounded-xl bg-primary text-white h-10 px-4 py-2 text-sm"
+            >
+              {submitting ? 'Updating...' : 'Update Password'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface MfaFactor {
+  id: string;
+  friendly_name?: string;
+  factor_type: string;
+  created_at: string;
+}
+
+const MfaManagerModal: React.FC<{ isOpen: boolean; onClose: () => Promise<void> | void }> = ({ isOpen, onClose }) => {
+  const [loading, setLoading] = useState(false);
+  const [factors, setFactors] = useState<MfaFactor[]>([]);
+  const [stage, setStage] = useState<'idle'|'enrolling'|'verifying'>('idle');
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [factorId, setFactorId] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/admin/security/mfa');
+        const js = await res.json();
+        setFactors(js?.factors || []);
+      } catch (err) {
+        console.error('Failed to fetch MFA factors', err);
+      } finally { setLoading(false); }
+    })();
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const startEnroll = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'enable', friendlyName: 'Admin Authenticator' })
+      });
+      const js = await res.json();
+      if (res.ok && js.success) {
+        setQrCode(js.qrCode || null);
+        setSecret(js.secret || null);
+        setFactorId(js.factorId || null);
+        setStage('verifying');
+      } else {
+        toast.error(js.error || 'Failed to start MFA enrollment');
+      }
+    } catch (err) {
+      console.error('MFA enroll failed', err);
+      toast.error('Failed to start MFA enrollment');
+    } finally { setLoading(false); }
+  };
+
+  const verifyEnroll = async () => {
+    if (!factorId || !code) { toast.error('Enter verification code'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', factorId, code })
+      });
+      const js = await res.json();
+      if (res.ok && js.success) {
+        toast.success('MFA enabled');
+        await Promise.resolve(onClose?.());
+      } else {
+        toast.error(js.error || 'Verification failed');
+      }
+    } catch (err) {
+      console.error('MFA verify failed', err);
+      toast.error('Verification failed');
+    } finally { setLoading(false); }
+  };
+
+  const disableFactor = async (id: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/security/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disable', factorId: id })
+      });
+      const js = await res.json();
+      if (res.ok && js.success) {
+        toast.success('MFA disabled');
+        // refresh list
+        const r = await fetch('/api/admin/security/mfa'); const j = await r.json(); setFactors(j?.factors || []);
+      } else {
+        toast.error(js.error || 'Failed to disable MFA');
+      }
+    } catch (err) {
+      console.error('Disable MFA failed', err);
+      toast.error('Failed to disable MFA');
+    } finally { setLoading(false); }
+  };
+
+  const genBackupCodes = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/security/mfa', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'generate_backup_codes' })
+      });
+      const js = await res.json();
+      if (res.ok && js.success) {
+        const codes = js.backupCodes || js.backupCodes || [];
+        // show codes to admin
+        toast.success('Backup codes generated — copy and store them safely');
+        // quick modal fallback: prompt for copy
+        alert('Backup codes:\n' + (codes.join('\n')));
+      } else {
+        toast.error(js.error || 'Failed to generate backup codes');
+      }
+    } catch (err) {
+      console.error('Generate backup failed', err);
+      toast.error('Failed to generate backup codes');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Manage MFA</h2>
+          <div className="flex items-center gap-3">
+            <button onClick={() => { onClose(); }} className="text-slate-400 hover:text-slate-600">Close</button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-slate-600">Current factors</p>
+            <div className="mt-3 space-y-2">
+              {loading && <div className="text-sm text-slate-500">Loading...</div>}
+              {!loading && factors.length === 0 && <div className="text-sm text-slate-500">No MFA factors enrolled.</div>}
+              {factors.map(f => (
+                <div key={f.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                  <div>
+                    <div className="font-medium">{f.friendly_name || 'Authenticator App'}</div>
+                    <div className="text-xs text-slate-500">{f.factor_type} • created {new Date(f.created_at).toLocaleString()}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => disableFactor(f.id)}>Disable</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-3 border-t">
+            {stage === 'idle' && (
+              <div className="flex gap-3">
+                <button onClick={startEnroll} className="inline-flex items-center justify-center rounded-xl bg-primary text-white h-10 px-4">Enable MFA</button>
+                <button onClick={genBackupCodes} className="inline-flex items-center justify-center rounded-xl border h-10 px-4">Generate Backup Codes</button>
+              </div>
+            )}
+
+            {stage === 'verifying' && (
+              <div className="space-y-3">
+                {qrCode && (
+                  <div>
+                    <p className="text-sm text-slate-600">Scan this QR code with your authenticator app and enter the 6-digit code below.</p>
+                    <div className="mt-3">
+                      <Image src={qrCode} alt="MFA QR" width={200} height={200} className="max-w-xs" unoptimized />
+                    </div>
+                    {secret && (
+                      <p className="text-xs text-slate-500 mt-2">
+                        Or enter this key manually: <code className="font-mono">{secret}</code>
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Verification Code</Label>
+                  <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setStage('idle')} className="inline-flex items-center justify-center rounded-xl border h-10 px-4">Cancel</button>
+                  <button onClick={verifyEnroll} className="inline-flex items-center justify-center rounded-xl bg-primary text-white h-10 px-4">Verify</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdminSettings: React.FC = () => {
-  const [token] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('eaziwage_token');
-  });
-  const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return Boolean(localStorage.getItem('eaziwage_token'));
-  });
+  const [token] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<TabId | 'account'>('account');
   const [hasChanges, setHasChanges] = useState<boolean>(false);
@@ -2360,34 +2840,34 @@ const AdminSettings: React.FC = () => {
     fetchSecurityLogs();
   }, [activeTab]);
 
-  const fetchAllSettings = useCallback(async (authToken: string) => {
-    setLoading(true);
-    try {
-      const [globalRes, riskRes, notifRes] = await Promise.all([
-        fetch(`/api/admin/settings/platform`, { headers: { Authorization: `Bearer ${authToken}` } }),
-        fetch(`/api/admin/settings/risk`, { headers: { Authorization: `Bearer ${authToken}` } }),
-        fetch(`/api/admin/settings/notifications`, { headers: { Authorization: `Bearer ${authToken}` } }),
-      ]);
-
-      if (globalRes.ok) setGlobalSettings(await globalRes.json());
-      if (riskRes.ok) setRiskSettings(await riskRes.json());
-      if (notifRes.ok) setNotificationSettings(await notifRes.json());
-    } catch {
-      console.error('Error fetching settings:');
-      toast.error('Failed to load settings');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    if (!token) return;
+    let cancelled = false;
 
-    const timeoutId = window.setTimeout(() => {
-      fetchAllSettings(token);
-    }, 0);
-    return () => window.clearTimeout(timeoutId);
-  }, [token, fetchAllSettings]);
+    (async () => {
+      try {
+        const [globalRes, riskRes, notifRes] = await Promise.all([
+          fetch(`/api/admin/settings/platform`),
+          fetch(`/api/admin/settings/risk`),
+          fetch(`/api/admin/settings/notifications`),
+        ]);
+
+        if (cancelled) return;
+
+        if (globalRes.ok) setGlobalSettings(await globalRes.json());
+        if (riskRes.ok) setRiskSettings(await riskRes.json());
+        if (notifRes.ok) setNotificationSettings(await notifRes.json());
+      } catch {
+        console.error('Error fetching settings:');
+        toast.error('Failed to load settings');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSaveAll = async () => {
     setSaving(true);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { convertToUSD } from '@/lib/utils';
+import { convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -80,19 +80,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }, {} as Record<string, number>);
 
     const { data: advances, error: advError } = await supabase
-      .from('advances')
-      .select(`
-        id,
-        amount,
-        fee_amount,
-        status,
-        reference,
-        created_at,
-        employer_id,
-        employee_id,
-        employee_onboarding(currency)
-      `)
-      .in('status', ['disbursed', 'repaid']);
+  .from('advances')
+  .select(`
+    id,
+    amount,
+    fee_amount,
+    status,
+    reference,
+    created_at,
+    employer_id,
+    employee_id,
+    employees!advances_employee_id_fkey(country)
+  `)
+  .in('status', ['disbursed', 'repaid']);
+
+if (advError) throw advError;
 
     if (advError) throw advError;
 
@@ -102,18 +104,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let pendingRecoupment = 0;
 
     type AdvanceRow = {
-      id?: string;
-      amount?: number | string | null;
-      fee_amount?: number | string | null;
-      status?: string | null;
-      reference?: string | null;
-      created_at?: string | null;
-      employer_id?: string | null;
-      employee_id?: string | null;
-      employee_onboarding?: {
-        currency?: string | null;
-      };
-    };
+  id?: string;
+  amount?: number | string | null;
+  fee_amount?: number | string | null;
+  status?: string | null;
+  reference?: string | null;
+  created_at?: string | null;
+  employer_id?: string | null;
+  employee_id?: string | null;
+  employees?: {
+    country?: string | null;
+  };
+};
     type ProfileRow = { id: string; full_name?: string | null } | null;
 
     const advancesRows = (advances || []) as AdvanceRow[];
@@ -148,7 +150,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         };
       }
 
-      const currency = advRow.employee_onboarding?.currency || 'KES';
+      const currency = getCurrencyFromCountry(advRow.employees?.country, 'KES');
       const amount = convertToUSD(Number(advRow.amount || 0), currency, rates);
       const fee = convertToUSD(Number(advRow.fee_amount || 0), currency, rates);
       const total = amount + fee;

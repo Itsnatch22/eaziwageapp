@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ type
     const adminSupabase = createAdminClient();
     const user = await verifyAdmin(supabase, adminSupabase);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { data, error } = await adminSupabase.from('legal_documents').select('*').eq('document_type', type).eq('is_active', 1).maybeSingle();
+    const { data, error } = await adminSupabase.from('legal_documents').select('*').eq('document_type', type).eq('is_active', true).maybeSingle();
     if (error) throw error;
     return NextResponse.json(data || { document_type: type, content: '', title: '', version: '1.0' });
   } catch (error) {
@@ -46,9 +46,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ type
     const body = await req.json();
     const validated = LegalDocumentSchema.parse({ ...body, document_type: type });
 
-    await adminSupabase.from('legal_documents').update({ is_active: 0 }).eq('document_type', type);
+    await adminSupabase.from('legal_documents').update({ is_active: false }).eq('document_type', type);
 
-    const { data, error } = await adminSupabase.from('legal_documents').insert([{ ...validated, is_active: 1 }]).select().single();
+    const { data, error } = await adminSupabase.from('legal_documents').insert([{ ...validated, is_active: true }]).select().single();
     if (error) throw error;
 
     await adminSupabase.from('system_audit_logs').insert({

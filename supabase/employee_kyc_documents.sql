@@ -30,12 +30,17 @@ create table public.employee_kyc_documents (
   )
 ) TABLESPACE pg_default;
 
-create index IF not exists idx_ekd_user_id on public.employee_kyc_documents using btree (user_id) TABLESPACE pg_default;
+create index IF not exists idx_ekd_document_type on public.employee_kyc_documents using btree (document_type) TABLESPACE pg_default;
 
 create index IF not exists idx_ekd_status on public.employee_kyc_documents using btree (status) TABLESPACE pg_default;
 
-create index IF not exists idx_ekd_document_type on public.employee_kyc_documents using btree (document_type) TABLESPACE pg_default;
+create index IF not exists idx_ekd_user_id on public.employee_kyc_documents using btree (user_id) TABLESPACE pg_default;
 
 create trigger employee_kyc_documents_updated_at BEFORE
 update on employee_kyc_documents for EACH row
 execute FUNCTION update_updated_at ();
+
+create trigger trg_notify_on_kyc_change
+after
+update on employee_kyc_documents for EACH row
+execute FUNCTION notify_on_kyc_status_change ();

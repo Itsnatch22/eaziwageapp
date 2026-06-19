@@ -1,6 +1,7 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { getCurrencyFromCountry } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
@@ -18,8 +19,8 @@ interface AdvanceRow {
   requested_at: string | null;
   approved_at: string | null;
   employer_id: string;
-  employee_onboarding?: {
-    currency?: string | null;
+  employees?: {
+    country?: string | null;
   };
 }
 
@@ -31,6 +32,7 @@ interface EmployeeRow {
 
 interface EmployerRow {
   id: string;
+  user_id: string | null;
   company_name: string | null;
 }
 
@@ -64,7 +66,7 @@ export async function GET() {
     const { data: advances, error: advancesError } = await supabase
       .from('advances')
       .select(
-        'id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount, disbursement_method, status, created_at, requested_at, approved_at, employer_id, employee_onboarding(currency)',
+        'id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount, disbursement_method, status, created_at, requested_at, approved_at, employer_id, employees!advances_employee_id_fkey(country)',
       )
       .order('created_at', { ascending: false });
 
@@ -82,47 +84,48 @@ export async function GET() {
     let profilesByUserId = new Map<string, ProfileRow>();
 
     if (employeeIds.length > 0) {
-      const { data: employees } = await supabase
-        .from('employee_onboarding')
-        .select('id, user_id, employee_code')
-        .in('id', employeeIds);
+  // FIXED: advances.employee_id -> employees.id, not employee_onboarding.id
+  const { data: employees } = await supabase
+    .from('employees')
+    .select('id, user_id, employee_code')
+    .in('id', employeeIds);
 
-      employeeById = new Map<string, EmployeeRow>(((employees ?? []) as EmployeeRow[]).map((e) => [e.id, e]));
+  employeeById = new Map<string, EmployeeRow>(((employees ?? []) as EmployeeRow[]).map((e) => [e.id, e]));
 
-      const profileIds = (employees ?? []).map((e) => e.user_id).filter((id): id is string => Boolean(id));
-      if (profileIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', profileIds);
+  const profileIds = (employees ?? []).map((e) => e.user_id).filter((id): id is string => Boolean(id));
+  if (profileIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', profileIds);
 
-        profilesByUserId = new Map<string, ProfileRow>(((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p]));
-      }
-    }
+    profilesByUserId = new Map<string, ProfileRow>(((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p]));
+  }
+}
 
-    if (employerIds.length > 0) {
-      const { data: employers } = await supabase
-        .from('employers') 
-        .select('id, company_name')
-        .in('id', employerIds);
+if (employerIds.length > 0) {
+  const { data: employers } = await supabase
+    .from('employers') 
+    .select('id, company_name')
+    .in('id', employerIds);
 
-      employerById = new Map<string, EmployerRow>(((employers ?? []) as EmployerRow[]).map((e) => [e.id, e]));
-    }
+  employerById = new Map<string, EmployerRow>(((employers ?? []) as EmployerRow[]).map((e) => [e.id, e]));
+}
 
-    const payload = typedAdvances.map((a) => {
-      const employee = employeeById.get(a.employee_id);
-      const employer = employerById.get(a.employer_id);
-      const profile = employee?.user_id ? profilesByUserId.get(employee.user_id) : null;
-      const sourceCurrency = a.employee_onboarding?.currency || 'KES';
+const payload = typedAdvances.map((a) => {
+  const employee = employeeById.get(a.employee_id);
+  const employer = employerById.get(a.employer_id);
+  const profile = employee?.user_id ? profilesByUserId.get(employee.user_id) : null;
+  const sourceCurrency = getCurrencyFromCountry(a.employees?.country, 'KES');
 
-      return {
-        ...a,
-        currency: sourceCurrency,
-        employee_name: profile?.full_name || employee?.employee_code || 'Employee',
-        employee_code: employee?.employee_code || null,
-        employer_name: employer?.company_name || 'Unknown',
-      };
-    });
+  return {
+    ...a,
+    currency: sourceCurrency,
+    employee_name: profile?.full_name || employee?.employee_code || 'Employee',
+    employee_code: employee?.employee_code || null,
+    employer_name: employer?.company_name || 'Unknown',
+  };
+});
 
     return NextResponse.json(payload);
   } catch (error: unknown) {

@@ -199,6 +199,16 @@ export class PayoutService {
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : 'Unknown payout error';
 
+      // If the synchronous disbursement fails before DusuPay responds, mark the reserve transaction as failed
+      try {
+        await supabaseAdmin
+          .from('wallet_transactions')
+          .update({ status: 'failed' })
+          .eq('reference', `ADV-RESERVE-${advanceId}`);
+      } catch (txErr) {
+        console.error('[payoutService.disburseAdvance] Failed to mark reserve transaction as failed', txErr, { advanceId });
+      }
+
       await supabaseAdmin
         .from('advances')
         .update({ status: 'failed', reason })

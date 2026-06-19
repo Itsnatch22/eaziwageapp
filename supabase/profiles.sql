@@ -20,6 +20,7 @@ create table public.profiles (
   role_normalized text null,
   payment_methods jsonb null default '[]'::jsonb,
   organization_id uuid null,
+  notification_preferences jsonb null default '{"emailAlerts": true, "pushNotifications": true}'::jsonb,
   constraint profiles_pkey primary key (id),
   constraint profiles_email_unique unique (email),
   constraint profiles_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE,
@@ -66,13 +67,13 @@ create index IF not exists idx_profiles_locked_until on public.profiles using bt
 where
   (locked_until is not null);
 
+create index IF not exists idx_profiles_organization_id on public.profiles using btree (organization_id) TABLESPACE pg_default;
+
 create index IF not exists idx_profiles_payment_methods on public.profiles using gin (payment_methods) TABLESPACE pg_default;
 
 create index IF not exists idx_profiles_role on public.profiles using btree (role) TABLESPACE pg_default;
 
 create index IF not exists idx_profiles_role_normalized on public.profiles using btree (role_normalized) TABLESPACE pg_default;
-
-create index IF not exists idx_profiles_organization_id on public.profiles using btree (organization_id) TABLESPACE pg_default;
 
 create trigger set_profiles_updated_at BEFORE
 update on profiles for EACH row

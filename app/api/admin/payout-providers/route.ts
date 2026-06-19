@@ -28,7 +28,10 @@ export async function GET() {
   if (!access.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { data, error } = await adminSupabase.from('payout_providers').select('*').order('country_code');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[admin-payout-providers] DB error:', error);
+    return NextResponse.json({ error: 'Failed to fetch payout providers' }, { status: 500 });
+  }
   return NextResponse.json({ providers: data });
 }
 
@@ -46,7 +49,10 @@ export async function POST(req: NextRequest) {
 
   const payload = { ...parsed.data, enabled: parsed.data.enabled ?? true };
   const { data, error } = await adminSupabase.from('payout_providers').insert(payload).select('*').single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[admin-payout-providers] Insert error:', error);
+    return NextResponse.json({ error: 'Failed to create payout provider' }, { status: 500 });
+  }
   return NextResponse.json({ provider: data });
 }
 
@@ -63,7 +69,10 @@ export async function PATCH(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
   const { data, error } = await adminSupabase.from('payout_providers').update(body).eq('id', id).select('*').single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[admin-payout-providers] Update error:', error);
+    return NextResponse.json({ error: 'Failed to update payout provider' }, { status: 500 });
+  }
   return NextResponse.json({ provider: data });
 }
 
@@ -80,6 +89,9 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
   const { error } = await adminSupabase.from('payout_providers').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[admin-payout-providers] Delete error:', error);
+    return NextResponse.json({ error: 'Failed to delete payout provider' }, { status: 500 });
+  }
   return NextResponse.json({ success: true });
 }

@@ -151,10 +151,6 @@ or
 update on employer_risk_factors for EACH row
 execute FUNCTION sync_employer_risk_score ();
 
-create trigger trg_risk_factors_updated_at BEFORE
-update on employer_risk_factors for EACH row
-execute FUNCTION update_updated_at ();
-
 create trigger trg_sync_risk_score
 after INSERT
 or

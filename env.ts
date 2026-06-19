@@ -31,6 +31,9 @@ interface EnvConfig {
   STANBIC_SANDBOX_API_KEY?: string;
   STANBIC_SANDBOX_BASE_URL?: string;
   STANBIC_BASE_URL?: string;
+  // New: optional explicit endpoint and token URL used by Stanbic integrations
+  STANBIC_SANDBOX_URL_ENDPOINT?: string;
+  STANBIC_TOKEN_URL?: string;
 }
 
 class EnvironmentError extends Error {
@@ -127,6 +130,15 @@ export function validateEnv(): EnvConfig {
     if (process.env.STANBIC_BASE_URL && !isValidUrl(process.env.STANBIC_BASE_URL)) {
       errors.push('STANBIC_BASE_URL is not a valid URL');
     }
+
+    // Optional Stanbic endpoint and token URL
+    if (process.env.STANBIC_SANDBOX_URL_ENDPOINT && !isValidUrl(process.env.STANBIC_SANDBOX_URL_ENDPOINT)) {
+      errors.push('STANBIC_SANDBOX_URL_ENDPOINT is not a valid URL');
+    }
+
+    if (process.env.STANBIC_TOKEN_URL && !isValidUrl(process.env.STANBIC_TOKEN_URL)) {
+      errors.push('STANBIC_TOKEN_URL is not a valid URL');
+    }
   }
 
   if (errors.length > 0) {
@@ -162,6 +174,9 @@ export function validateEnv(): EnvConfig {
     STANBIC_SANDBOX_API_KEY: process.env.STANBIC_SANDBOX_API_KEY,
     STANBIC_SANDBOX_BASE_URL: process.env.STANBIC_SANDBOX_BASE_URL,
     STANBIC_BASE_URL: process.env.STANBIC_BASE_URL,
+    // New endpoints (optional)
+    STANBIC_SANDBOX_URL_ENDPOINT: process.env.STANBIC_SANDBOX_URL_ENDPOINT,
+    STANBIC_TOKEN_URL: process.env.STANBIC_TOKEN_URL,
   };
 }
 

@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = await req.json();
     const validated = BlackoutPeriodSchema.parse(body);
     const { data: current } = await adminSupabase.from('blackout_periods').select('*').eq('id', id).single();
-    const { data, error } = await adminSupabase.from('blackout_periods').update({ ...validated, is_active: validated.is_active ? 1 : 0 }).eq('id', id).select().single();
+    const { data, error } = await adminSupabase.from('blackout_periods').update({ ...validated, is_active: validated.is_active }).eq('id', id).select().single();
     if (error) throw error;
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id, admin_name: user.email, target_id: id, target_type: 'blackout', action: 'update_blackout',

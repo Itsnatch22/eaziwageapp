@@ -82,7 +82,7 @@ export async function PATCH(
 
   const { data: initialEmployer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
-    .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,currency')
+    .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,currency,max_advance_percentage,cooldown_period')
     .eq('id', id)
     .maybeSingle();
   let employer = initialEmployer;
@@ -98,7 +98,7 @@ export async function PATCH(
     if (primaryEmp) {
       const { data: fallbackOnboarding } = await adminSupabase
         .from('employer_onboarding')
-        .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,currency')
+        .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,currency,max_advance_percentage,cooldown_period')
         .eq('user_id', primaryEmp.user_id)
         .maybeSingle();
       
@@ -202,6 +202,10 @@ export async function PATCH(
       risk_score: employer.risk_score ?? null,
       risk_rating: employer.risk_rating || null,
       is_verified: primaryStatus === 'approved',
+      // Explicit remap of EWA config columns (P2 Fix)
+      advance_limit_percent: (employer as { max_advance_percentage?: number | null }).max_advance_percentage ?? 50,
+      cooldown_days:         (employer as { cooldown_period?: number | null }).cooldown_period ?? 7,
+      min_advance_amount:    (updatePayload.min_advance_amount as number | undefined) ?? employer.min_advance_amount ?? 500,
       updated_at: new Date().toISOString(),
     };
 

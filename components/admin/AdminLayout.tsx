@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from '@/lib/supabase/client';
 import { toast } from "sonner";
+import type { RealtimeChannel } from "@supabase/realtime-js";
 import { ChatWindow } from "../layout/ChatWindow";
 import { NotificationDropdown } from "../layout/NotificationDropdown";
 import { logout } from "@/actions/auth";
@@ -423,15 +424,17 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
 
     const supabase = createClient();
 
-    const channel = (supabase as any)
-      .channel('realtime:global-settings')
-      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, () => {
+    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
+
+    const channel = ((supabase as unknown as SupabaseWithChannel)
+      .channel('realtime:global-settings') as unknown as any)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' } as Record<string, unknown>, () => {
         toast.info("Global settings updated", {
           description: "A platform-wide configuration has been modified.",
           icon: <Settings className="w-5 h-5 text-purple-600" />,
         });
       })
-            .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' }, () => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' } as Record<string, unknown>, () => {
         toast.info("Global settings updated", {
           description: "A platform-wide configuration has been modified.",
           icon: <Settings className="w-5 h-5 text-purple-600" />,
@@ -440,7 +443,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
     };
   }, [userProfile?.id]);
 

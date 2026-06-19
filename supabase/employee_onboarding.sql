@@ -7,7 +7,7 @@ create table public.employee_onboarding (
   employee_code text null,
   national_id text not null,
   id_type text not null default 'national_id'::text,
-  nationality text null,
+  nationality text not null default 'Kenyan'::text,
   date_of_birth date not null,
   country text not null,
   address_line1 text not null,
@@ -18,7 +18,7 @@ create table public.employee_onboarding (
   job_title text not null,
   department text null,
   employment_type text not null,
-  start_date date null,
+  start_date date not null,
   monthly_salary numeric(15, 2) not null,
   bank_name text not null,
   bank_account text not null,
@@ -42,11 +42,11 @@ create table public.employee_onboarding (
   face_id text null,
   full_name text null,
   email text null,
-  risk_score text null,
-  risk_level text null,
+  risk_score numeric(4, 2) not null default 3.0,
+  risk_level text not null default 'medium'::text,
   full_name_placeholder text null,
   email_placeholder text null,
-  currency text null,
+  currency text not null,
   constraint employee_onboarding_pkey primary key (id),
   constraint employee_onboarding_user_unique unique (user_id),
   constraint employee_onboarding_reviewed_by_fkey foreign KEY (reviewed_by) references auth.users (id),
@@ -69,17 +69,6 @@ create table public.employee_onboarding (
         ]
       )
     )
-  ),
-  constraint employee_onboarding_employment_type_check check (
-    (
-      employment_type = any (
-        array[
-          'full-time'::text,
-          'part-time'::text,
-          'contract'::text
-        ]
-      )
-    )
   )
 ) TABLESPACE pg_default;
 
@@ -94,10 +83,6 @@ create index IF not exists employee_onboarding_user_id_idx on public.employee_on
 create trigger employee_onboarding_updated_at BEFORE
 update on employee_onboarding for EACH row
 execute FUNCTION update_updated_at ();
-
-create trigger update_employee_onboarding_updated_at BEFORE
-update on employee_onboarding for EACH row
-execute FUNCTION update_updated_at_column ();
 
 create trigger trigger_sync_employee_onboarding
 after INSERT

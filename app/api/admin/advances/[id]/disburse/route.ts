@@ -1,23 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { payoutService } from '@/lib/services/payout-service';
+import { NextResponse } from 'next/server';
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-
-  try {
-    const result = await payoutService.disburseAdvance(id);
-
-    return NextResponse.json({ 
-      message: 'Disbursement initiated successfully',
-      data: result
-    });
-
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[Admin Disburse] Error: ${message}`);
-    return NextResponse.json({ message }, { status: 500 });
-  }
+export async function POST() {
+  // Deprecated duplicate endpoint. Use /api/admin/advances/[id]/[action] instead.
+  return NextResponse.json({ error: 'Deprecated: use /api/admin/advances/[id]/[action] instead' }, { status: 410 });
 }

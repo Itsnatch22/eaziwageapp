@@ -2,7 +2,7 @@ create table public.organizations (
   id uuid not null default extensions.uuid_generate_v4 (),
   name text not null,
   slug text not null,
-  country_code character(2) not null default 'US'::bpchar,
+  country_code character(2) not null default 'KE'::bpchar,
   currency character(3) not null default 'USD'::bpchar,
   withdrawable_percentage numeric(5, 2) not null default 50,
   metadata jsonb not null default '{}'::jsonb,

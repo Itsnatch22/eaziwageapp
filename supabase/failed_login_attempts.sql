@@ -25,9 +25,3 @@ create index IF not exists idx_failed_login_attempted_at on public.failed_login_
 create index IF not exists idx_failed_login_email on public.failed_login_attempts using btree (email) TABLESPACE pg_default;
 
 create index IF not exists idx_failed_login_email_time on public.failed_login_attempts using btree (email, attempted_at desc) TABLESPACE pg_default;
-
-create index IF not exists idx_failed_logins_attempted_at on public.failed_login_attempts using btree (attempted_at desc) TABLESPACE pg_default;
-
-create index IF not exists idx_failed_logins_email on public.failed_login_attempts using btree (email) TABLESPACE pg_default;
-
-create index IF not exists idx_failed_logins_email_attempted on public.failed_login_attempts using btree (email, attempted_at desc) TABLESPACE pg_default;

@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { createClient } from '@supabase/supabase-js';
+import type { RealtimeChannel } from '@supabase/realtime-js';
 
 type APIStatus = 'healthy' | 'degraded' | 'down';
 type APIMetadataValue = string | number | boolean | null | object;
@@ -419,7 +420,8 @@ export default function AdminAPIHealth() {
   }, [fetchData]);
 
   useEffect(() => {
-    const channel = supabase
+    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
+    const channel = (supabase as unknown as SupabaseWithChannel)
       .channel('api-health-realtime')
       .on(
         'postgres_changes',
@@ -431,7 +433,7 @@ export default function AdminAPIHealth() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
     };
   }, [fetchData, supabase]);
 

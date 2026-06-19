@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient }             from '@supabase/supabase-js';
 import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { convertToUSD }             from '@/lib/utils';
+import { convertToUSD, getCurrencyFromCountry }             from '@/lib/utils';
 import { Redis }                   from '@upstash/redis';
 
 type AdvanceAmountRow = {
   amount: number | string | null;
   fee_amount: number | string | null;
-  employee_onboarding?: {
-    currency?: string | null;
+  employees?: {
+    country?: string | null;
   };
 };
 
@@ -163,18 +163,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending'),
       supabase
-        .from('advances')
-        .select('amount, fee_amount, employee_onboarding(currency)')
-        .eq('status', 'disbursed'),
+      .from('advances')
+  .select('amount, fee_amount, employees!advances_employee_id_fkey(country)')
+  .eq('status', 'disbursed'),
       supabase
         .from('advances')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'disbursed'),
       supabase
-        .from('advances')
-        .select('amount, fee_amount, employee_onboarding(currency)')
-        .gte('created_at', startOfMonth)
-        .eq('status', 'disbursed'),
+      .from('advances')
+  .select('amount, fee_amount, employees!advances_employee_id_fkey(country)')
+  .gte('created_at', startOfMonth)
+  .eq('status', 'disbursed'),
       supabase
         .from('employers')
         .select('risk_score')
@@ -194,22 +194,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const monthDisbursedAdvances = (monthlyAdvances || []) as AdvanceAmountRow[];
     const totalDisbursed = disbursedAdvances.reduce((sum, row) => sum + convertToUSD(
       Number(row.amount || 0),
-      row.employee_onboarding?.currency || 'KES',
+      getCurrencyFromCountry(row.employees?.country, 'KES'),
       rates,
     ), 0);
     const totalFees = disbursedAdvances.reduce((sum, row) => sum + convertToUSD(
       Number(row.fee_amount || 0),
-      row.employee_onboarding?.currency || 'KES',
+      getCurrencyFromCountry(row.employees?.country, 'KES'),
       rates,
     ), 0);
     const monthlyDisbursed = monthDisbursedAdvances.reduce((sum, row) => sum + convertToUSD(
       Number(row.amount || 0),
-      row.employee_onboarding?.currency || 'KES',
+      getCurrencyFromCountry(row.employees?.country, 'KES'),
       rates,
     ), 0);
     const monthlyFees = monthDisbursedAdvances.reduce((sum, row) => sum + convertToUSD(
       Number(row.fee_amount || 0),
-      row.employee_onboarding?.currency || 'KES',
+      getCurrencyFromCountry(row.employees?.country, 'KES'),
       rates,
     ), 0);
 

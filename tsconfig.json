@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+,     "supabase/login_history.sql"  ],
   "exclude": ["node_modules", "supabase/functions"]
 }

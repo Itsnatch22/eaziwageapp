@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import type { RealtimeChannel } from '@supabase/realtime-js';
 
 export interface Notification {
   id: string;
@@ -77,15 +78,16 @@ export const NotificationDropdown = ({
 
     const supabase = createClient();
     type RealtimeNotificationPayload = { new: Notification; old?: Notification };
+    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
-    const channel = (supabase as any)
-      .channel(`realtime:notifications:dropdown-${userId}`)
-      .on('postgres_changes' as any, {
+    const channel = ((supabase as unknown as SupabaseWithChannel)
+      .channel(`realtime:notifications:dropdown-${userId}`) as unknown as any)
+      .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${userId}`
-      }, (payload: RealtimeNotificationPayload) => {
+      } as Record<string, unknown>, (payload: RealtimeNotificationPayload) => {
         const data = payload.new;
         setNotifications(prev => [data, ...prev].slice(0, 20));
         toast(data.title, {
@@ -93,12 +95,12 @@ export const NotificationDropdown = ({
           icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} />
         });
       })
-      .on('postgres_changes' as any, {
+      .on('postgres_changes', {
         event: 'DELETE',
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${userId}`
-      }, (payload: RealtimeNotificationPayload) => {
+      } as Record<string, unknown>, (payload: RealtimeNotificationPayload) => {
         const oldRow = payload.old;
         if (oldRow?.id) setNotifications(prev => prev.filter(n => String(n.id) !== String(oldRow.id)));
       })
@@ -106,7 +108,7 @@ export const NotificationDropdown = ({
 
     return () => {
       window.clearTimeout(timeoutId);
-      supabase.removeChannel(channel);
+      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
     };
   }, [pusherChannel, fetchNotifications, primaryColor, userId]);
 
