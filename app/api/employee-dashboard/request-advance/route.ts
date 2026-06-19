@@ -289,7 +289,6 @@ export async function POST(req: NextRequest) {
       amount: requestedAmount,
       fee_percentage: feePercentage,
       fee_amount: feeAmount,
-      net_amount: netAmount,
       disbursement_method: parsed.data.disbursement_method,
       payment_method_id: paymentMethodId,
       payment_method_snapshot: {
