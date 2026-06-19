@@ -59,7 +59,7 @@ export async function PATCH(
     const { data: employeeEwa } = await supabase
       .from('employee_ewa_settings')
       .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount')
-      .eq('employee_onboarding_id', advance.employee_id)
+      .eq('employee_id', advance.employee_id)
       .maybeSingle();
 
     let effective = {
@@ -78,7 +78,7 @@ export async function PATCH(
       };
     } else {
       const { data: employerOnboarding } = await supabase
-        .from('employer_onboarding')
+        .from('employers')
         .select('max_advance_percentage, min_advance_amount, max_advance_amount')
         .eq('id', advance.employer_id)
         .maybeSingle();
