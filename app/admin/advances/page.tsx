@@ -477,7 +477,8 @@ export default function AdminAdvances(){
       const res = await fetch('/api/admin/advances');
       if(res.ok) {
         const data = await res.json();
-        setAdvances(data.advances);
+        // Defensively ensure advances is an array to avoid runtime errors
+        setAdvances(Array.isArray(data?.advances) ? data.advances : []);
       } else {
         toast.error('Failed to fetch advances');
       }
