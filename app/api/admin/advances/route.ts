@@ -127,7 +127,7 @@ const payload = typedAdvances.map((a) => {
   };
 });
 
-    return NextResponse.json(payload);
+    return NextResponse.json({ advances: payload });
   } catch (error: unknown) {
     console.error('[AdminAdvances] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
