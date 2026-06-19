@@ -20,6 +20,12 @@ const EMPLOYER_DOCUMENT_FIELDS = [
   'employment_contract_template',
 ] as const;
 
+type EmployeeIdentityRow = {
+  user_id: string | null;
+  national_id: string | null;
+  id_type: string | null;
+};
+
 function createAdminClient() {
   const env = getEnv();
   return createSupabaseClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -151,29 +157,34 @@ export async function GET(req: NextRequest) {
     }
 
     const documentUserIds = [...new Set((documents ?? []).map((d) => d.user_id).filter(Boolean))];
-    const documentNumberByUserId = new Map<string, string>();
+    const identityByUserId = new Map<string, EmployeeIdentityRow>();
 
     if (documentUserIds.length > 0) {
       const { data: onboardingRows } = await adminSupabase
         .from('employee_onboarding')
-        .select('user_id,national_id')
+        .select('user_id,national_id,id_type')
         .in('user_id', documentUserIds);
 
-      (onboardingRows ?? []).forEach((row) => {
-        if (row.user_id && row.national_id) {
-          documentNumberByUserId.set(row.user_id, row.national_id);
+      (onboardingRows ?? []).forEach((row: EmployeeIdentityRow) => {
+        if (row.user_id) {
+          identityByUserId.set(row.user_id, row);
         }
       });
     }
 
-    const normalizedDocuments = (documents ?? []).map((doc) => ({
-      ...doc,
-      document_number:
-        doc.document_number ||
-        (doc.document_type === 'national_id' || doc.document_type === 'passport'
-          ? documentNumberByUserId.get(doc.user_id) ?? null
-          : null),
-    }));
+    const normalizedDocuments = (documents ?? []).map((doc) => {
+      const identity = identityByUserId.get(doc.user_id);
+      const storedDocumentNumber = typeof doc.document_number === 'string'
+        ? doc.document_number.trim()
+        : null;
+      const onboardingDocumentNumber = identity?.national_id?.trim() || null;
+
+      return {
+        ...doc,
+        document_number: storedDocumentNumber || onboardingDocumentNumber,
+        id_type: identity?.id_type ?? null,
+      };
+    });
 
     let empOnboardingQuery = adminSupabase
       .from('employer_onboarding')
@@ -239,5 +250,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error', code: 'SERVER_ERROR' }, { status: 500 });
   }
 }
-
 

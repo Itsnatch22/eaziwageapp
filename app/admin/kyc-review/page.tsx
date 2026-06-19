@@ -63,11 +63,20 @@ type FilterType = 'all' | DocumentStatus;
 type EntityType = 'employee' | 'employer';
 type IconType = React.ComponentType<{ className?: string }>;
 type GradientVariant = 'purple' | 'green' | 'amber' | 'red' | 'blue';
-type ReviewItem = KYCDocument | EmployerApplication;
+type KYCReviewDocument = KYCDocument & {
+  id_type?: 'national_id' | 'passport' | string | null;
+};
+type ReviewItem = KYCReviewDocument | EmployerApplication;
 
-const isKycDocument = (item: ReviewItem): item is KYCDocument => 'document_type' in item;
+const isKycDocument = (item: ReviewItem): item is KYCReviewDocument => 'document_type' in item;
 
-const getDocumentNumber = (doc: KYCDocument) => doc.document_number?.trim() || 'Not provided';
+const getDocumentNumber = (doc: KYCReviewDocument) => doc.document_number?.trim() || 'Not provided';
+
+const getIdTypeLabel = (idType?: string | null) => {
+  if (idType === 'national_id') return 'National ID';
+  if (idType === 'passport') return 'Passport';
+  return idType?.replace(/_/g, ' ') || 'Not provided';
+};
 
 const getDocumentPreviewKind = (doc: KYCDocument) => {
   const source = (doc.storage_path || doc.document_url || '').split('?')[0].toLowerCase();
@@ -158,8 +167,8 @@ const DocumentCard = ({
   onReview,
   getEmployeeName,
 }: {
-  doc: KYCDocument;
-  onReview: (doc: KYCDocument) => void;
+  doc: KYCReviewDocument;
+  onReview: (doc: KYCReviewDocument) => void;
   getEmployeeName: (uid: string) => string;
 }) => (
   <div
@@ -205,7 +214,7 @@ const EmployerCard = ({ app, onReview }: { app: EmployerApplication, onReview: (
 
 export default function KYCReviewPage() {
   const [entityType, setEntityType] = useState<EntityType>('employee');
-  const [documents, setDocuments] = useState<KYCDocument[]>([]);
+  const [documents, setDocuments] = useState<KYCReviewDocument[]>([]);
   const [employerApplications, setEmployerApplications] = useState<EmployerApplication[]>([]);
   const [usersById, setUsersById] = useState<
     Record<string, { full_name: string; role: string }>
@@ -216,7 +225,7 @@ export default function KYCReviewPage() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<KYCDocument | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<KYCReviewDocument | null>(null);
   const [selectedEmployer, setSelectedEmployer] = useState<EmployerApplication | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -434,7 +443,7 @@ export default function KYCReviewPage() {
 }
 
 interface ReviewModalProps {
-  doc: KYCDocument | null;
+  doc: KYCReviewDocument | null;
   employer: EmployerApplication | null;
   usersById: Record<string, { full_name: string; role: string }>;
   isOpen: boolean;
@@ -451,7 +460,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
 
   const isEmployerApp = !!employer;
   if (!isEmployerApp && !doc) return null;
-  const selectedDoc = doc as KYCDocument;
+  const selectedDoc = doc as KYCReviewDocument;
   
   const userRole = doc ? (usersById[doc.user_id]?.role || 'employee') : 'employer';
   const isEmployerDoc = userRole === 'employer';
@@ -543,6 +552,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Document Info</h4>
                   <div className="space-y-3">
                     <InfoRow icon={FileText} label="Type" value={DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type} />
+                    <InfoRow icon={CreditCard} label="ID Type" value={getIdTypeLabel(selectedDoc.id_type)} />
                     <InfoRow icon={Shield} label="Number" value={getDocumentNumber(selectedDoc)} />
                     <InfoRow icon={Calendar} label="Submitted" value={formatDateTime(selectedDoc.created_at)} />
                   </div>
@@ -603,7 +613,7 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: IconType; label: string; 
   </div>
 );
 
-const DocumentPreview = ({ doc }: { doc: KYCDocument }) => {
+const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
   const previewKind = getDocumentPreviewKind(doc);
 
   return (
