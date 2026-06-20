@@ -55,22 +55,32 @@ export async function fetchStanbicToken(): Promise<{ token: string; expiresIn: n
   const tokenUrl = env.STANBIC_TOKEN_URL;
   if (!tokenUrl) throw new Error('STANBIC_TOKEN_URL not configured');
 
-  const apiKey = env.STANBIC_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? '';
+  const clientId = env.STANBIC_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? '';
+  const clientSecret = env.STANBIC_CLIENT_SECRET ?? '';
+
+  if (!clientId || !clientSecret) {
+    throw new Error('STANBIC_API_KEY/STANBIC_CLIENT_SECRET not configured for token request');
+  }
+
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Authorization: `Basic ${basicAuth}`,
   };
 
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    scope: 'payments',
+  });
 
   let resp: Response;
   try {
     resp = await fetch(tokenUrl, {
       method: 'POST',
       headers,
-      // Keep body minimal — many token endpoints accept client credentials in body
-      body: JSON.stringify({ grant_type: 'client_credentials' }),
+      body: body.toString(),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

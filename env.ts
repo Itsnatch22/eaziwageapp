@@ -28,6 +28,7 @@ interface EnvConfig {
 
   // Stanbic API credentials and endpoints
   STANBIC_API_KEY?: string;
+  STANBIC_CLIENT_SECRET?: string;
   STANBIC_SANDBOX_API_KEY?: string;
   STANBIC_SANDBOX_BASE_URL?: string;
   STANBIC_BASE_URL?: string;
@@ -123,6 +124,11 @@ export function validateEnv(): EnvConfig {
       errors.push('STANBIC_API_KEY or STANBIC_SANDBOX_API_KEY is not defined');
     }
 
+    // Stanbic: client secret required for OAuth client_credentials token requests
+    if (process.env.STANBIC_TOKEN_URL && !process.env.STANBIC_CLIENT_SECRET) {
+      errors.push('STANBIC_CLIENT_SECRET is not defined (required when STANBIC_TOKEN_URL is set)');
+    }
+
     if (process.env.STANBIC_SANDBOX_BASE_URL && !isValidUrl(process.env.STANBIC_SANDBOX_BASE_URL)) {
       errors.push('STANBIC_SANDBOX_BASE_URL is not a valid URL');
     }
@@ -171,6 +177,7 @@ export function validateEnv(): EnvConfig {
 
     // Stanbic
     STANBIC_API_KEY: process.env.STANBIC_API_KEY,
+    STANBIC_CLIENT_SECRET: process.env.STANBIC_CLIENT_SECRET,
     STANBIC_SANDBOX_API_KEY: process.env.STANBIC_SANDBOX_API_KEY,
     STANBIC_SANDBOX_BASE_URL: process.env.STANBIC_SANDBOX_BASE_URL,
     STANBIC_BASE_URL: process.env.STANBIC_BASE_URL,
