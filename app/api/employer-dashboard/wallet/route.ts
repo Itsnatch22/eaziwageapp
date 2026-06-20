@@ -172,6 +172,18 @@ export async function POST(req: Request) {
 
     // Create a pending wallet_transactions row to represent the request
     const reference = `DEP-${employer.onboarding_id}-${Date.now()}`;
+    
+    // Fetch current exchange rate for employer's currency
+    const employerCurrency = currentWallet.currency;
+    const { data: rateRow } = await adminSupabase
+      .from('exchange_rates')
+      .select('rate_to_usd')
+      .eq('currency_code', employerCurrency)
+      .single();
+
+    const rateSnapshot = rateRow?.rate_to_usd ?? null;
+    const usdAmount = rateSnapshot ? Number((amount / rateSnapshot).toFixed(6)) : null;
+
     const txPayload = {
       wallet_id: currentWallet.id,
       amount: amount,
@@ -179,6 +191,9 @@ export async function POST(req: Request) {
       status: 'pending',
       reference,
       description: 'Top-up request (pending admin approval)',
+      local_currency: employerCurrency,
+      rate_snapshot: rateSnapshot,
+      usd_amount: usdAmount,
       metadata: { employer_id: employer.onboarding_id, requested_by: user.id, requested_at: new Date().toISOString() }
     } as unknown as Record<string, unknown>;
 

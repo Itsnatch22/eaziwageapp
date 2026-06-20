@@ -34,13 +34,11 @@ export async function GET(): Promise<NextResponse> {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Check admin access using central helper
     const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
     if (adminAccess.error || !adminAccess.isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Read existing admin_wallets row (Main Stanbic Source)
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from('admin_wallets')
       .select('id, name, balance, currency, last_reconciled_at, updated_at')
@@ -119,11 +117,15 @@ export async function POST() {
 
     const stanbicData = parsed as StanbicBalanceResponse;
 
-    // Normalize balance to numeric with two decimals
-    const balanceNumber = typeof stanbicData.balance === 'string' ? parseFloat(stanbicData.balance) : Number(stanbicData.balance);
+    const balanceNumber = typeof stanbicData.balance === 'string' 
+      ? parseFloat(stanbicData.balance) 
+      : Number(stanbicData.balance);
     const normalizedBalance = Number(balanceNumber.toFixed(2));
 
-    // Read existing admin_wallets row
+    if (!Number.isFinite(normalizedBalance) || normalizedBalance < 0) {
+      return NextResponse.json({ error: 'Stanbic returned invalid balance' }, { status: 502 });
+    }
+
     const { data: existingWallet, error: existingError } = await supabaseAdmin
       .from('admin_wallets')
       .select('id, name, balance, currency')
@@ -135,17 +137,34 @@ export async function POST() {
       return NextResponse.json({ error: 'Admin wallet record not found' }, { status: 500 });
     }
 
-    // Start update: update admin_wallets row
+    const dropPercent = existingWallet.balance > 0 
+      ? ((existingWallet.balance - normalizedBalance) / existingWallet.balance) * 100 
+      : 0;
+
+    if (dropPercent > 50 && existingWallet.balance > 100) {
+      console.error(`[Stanbic Sync] Balance drop >50% detected: ${existingWallet.balance} -> ${normalizedBalance}`);
+      return NextResponse.json({ 
+        error: 'Suspicious balance drop detected. Manual reconciliation required.',
+        previous: existingWallet.balance,
+        incoming: normalizedBalance
+      }, { status: 409 });
+    }
+
     const nowIso = new Date().toISOString();
+
     const { error: updateError } = await supabaseAdmin
       .from('admin_wallets')
-      .update({ balance: normalizedBalance, currency: stanbicData.currency, last_reconciled_at: nowIso, updated_at: nowIso })
+      .update({ 
+        balance: normalizedBalance, 
+        currency: 'USD',
+        last_reconciled_at: nowIso, 
+        updated_at: nowIso 
+      })
       .eq('id', existingWallet.id);
 
     if (updateError) throw updateError;
 
-    // Insert transaction record. NOTE: admin_wallet_transactions.type does not include 'reconciliation' in schema; using 'adjustment' and recording reconciliation in metadata.
-    const txPayload = {
+     const txPayload = {
       admin_wallet_id: existingWallet.id,
       amount: normalizedBalance,
       type: 'adjustment',
