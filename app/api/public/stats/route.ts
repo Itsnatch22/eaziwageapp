@@ -33,10 +33,25 @@ export async function GET() {
 
     if (employerError) throw employerError;
 
-    // 4. Get satisfaction rate (simulated based on successful transactions or constant if no feedback table)
-    // For now, let's use a dynamic but high base + small random factor or calculation
-    // If we had a feedback table, we'd query it here.
-    const satisfactionRate = 98 + (Math.random() > 0.5 ? 1 : 0);
+    // Satisfaction rate = % of all satisfaction_feedback responses that were positive (4-5★).
+    // Honest number: includes negative responses too (they're also routed to support_tickets).
+    const { count: totalFeedback, error: feedbackTotalError } = await supabaseAdmin
+      .from('satisfaction_feedback')
+      .select('*', { count: 'exact', head: true });
+
+    if (feedbackTotalError) throw feedbackTotalError;
+
+    const { count: positiveFeedback, error: feedbackPositiveError } = await supabaseAdmin
+      .from('satisfaction_feedback')
+      .select('*', { count: 'exact', head: true })
+      .eq('sentiment', 'positive');
+
+    if (feedbackPositiveError) throw feedbackPositiveError;
+
+    const satisfactionRate =
+      totalFeedback && totalFeedback > 0
+        ? Math.round((positiveFeedback! / totalFeedback) * 100)
+        : 98; // fallback while feedback volume is still building
 
     const interestRate = 0;
 
@@ -55,7 +70,9 @@ export async function GET() {
       raw: {
         employees: employeeCount,
         transactions: transactionCount,
-        employers: approvedEmployerCount
+        employers: approvedEmployerCount,
+        feedbackTotal: totalFeedback,
+        feedbackPositive: positiveFeedback
       }
     });
   } catch (error) {
@@ -63,7 +80,7 @@ export async function GET() {
     return NextResponse.json({
       employeesServed: '2.5K+',
       satisfactionRate: '99%',
-      interestRate: '0%',
+      interestRate: '0%'
     });
   }
 }
