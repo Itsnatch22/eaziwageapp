@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { getCurrencyFromCountry } from '@/lib/utils';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -63,7 +64,7 @@ export async function GET() {
   }
 
   try {
-    const { data: advances, error: advancesError } = await supabase
+    const { data: advances, error: advancesError } = await supabaseAdmin
       .from('advances')
       .select(
         'id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount, disbursement_method, status, created_at, requested_at, approved_at, employer_id, employees!advances_employee_id_fkey(country)',
@@ -85,7 +86,7 @@ export async function GET() {
 
     if (employeeIds.length > 0) {
       // First, try to resolve advances.employee_id as employees.id
-      const { data: employees } = await supabase
+      const { data: employees } = await supabaseAdmin
         .from('employees')
         .select('id, user_id, employee_code')
         .in('id', employeeIds);
@@ -95,7 +96,7 @@ export async function GET() {
       // Collect user_ids from resolved employees to fetch profiles
       const profileIds = (employees ?? []).map((e) => e.user_id).filter((id): id is string => Boolean(id));
       if (profileIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profiles } = await supabaseAdmin
           .from('profiles')
           .select('id, full_name')
           .in('id', profileIds);
@@ -106,14 +107,14 @@ export async function GET() {
       // If some advances reference employee_onboarding.id instead of employees.id, resolve those too
       const missingIds = employeeIds.filter((id) => !employeeById.has(id));
       if (missingIds.length > 0) {
-        const { data: onboardings } = await supabase
+        const { data: onboardings } = await supabaseAdmin
           .from('employee_onboarding')
           .select('id, user_id, employee_code')
           .in('id', missingIds as string[]);
 
         const onboardingUserIds = (onboardings ?? []).map((o: any) => o.user_id).filter((id: any): id is string => Boolean(id));
         if (onboardingUserIds.length > 0) {
-          const { data: employeesByUser } = await supabase
+          const { data: employeesByUser } = await supabaseAdmin
             .from('employees')
             .select('id, user_id, employee_code')
             .in('user_id', onboardingUserIds as string[]);
@@ -134,7 +135,7 @@ export async function GET() {
     }
 
 if (employerIds.length > 0) {
-  const { data: employers } = await supabase
+  const { data: employers } = await supabaseAdmin
     .from('employers') 
     .select('id, company_name')
     .in('id', employerIds);
