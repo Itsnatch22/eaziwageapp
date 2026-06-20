@@ -11,10 +11,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { data: employee } = await supabase
-    .from('employee_onboarding')
-    .select('id')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  .from('employees')
+  .select('id')
+  .eq('user_id', user.id)
+  .maybeSingle();
 
   if (!employee) {
     return NextResponse.json([]);
