@@ -403,14 +403,14 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
 
     type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
-    const channel = ((supabase as unknown as SupabaseWithChannel)
-      .channel(`realtime:usersettings:user-${user.id}`) as unknown as any)
-      .on('postgres_changes', {
+    const channel = supabase
+      .channel(`realtime:usersettings:user-${user.id}`)
+      .on('postgres_changes' as const, {
         event: 'UPDATE',
         schema: 'public',
         table: 'employee_onboarding',
         // updates related to user's onboarding/settings; no filter to limit (but scoped by payload)
-      } as Record<string, unknown>, () => {
+      }, () => {
         toast.success('Your account settings updated', {
           description: 'An administrator has updated your account configuration.',
           icon: <Shield className="w-5 h-5 text-emerald-500" />,

@@ -455,13 +455,13 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
 
     type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
-    const channel = ((supabase as unknown as SupabaseWithChannel)
-      .channel(`realtime:employer-settings:employer-${user.id}`) as unknown as any)
-      .on('postgres_changes', {
+    const channel = supabase
+      .channel(`realtime:employer-settings:employer-${user.id}`)
+      .on('postgres_changes' as const, {
         event: 'UPDATE',
         schema: 'public',
         table: 'employee_onboarding',
-      } as Record<string, unknown>, () => {
+      }, () => {
         toast.success('Organization settings updated', {
           description: 'Your organization settings have been updated by an administrator.',
           icon: <Settings className="w-5 h-5 text-blue-600" />,
@@ -470,7 +470,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
       .subscribe();
 
     return () => {
-      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [user?.id]);
 

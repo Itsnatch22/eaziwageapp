@@ -54,6 +54,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
     }
 
+    // Resolve live employees.id from user_id for correct FK references
+    const { data: employeeRecord, error: employeeRecordError } = await adminSupabase
+     .from('employees')
+     .select('id')
+     .eq('user_id', user.id)
+     .maybeSingle();
+
+    if (employeeRecordError || !employeeRecord) {
+     return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
+    }
+
+    const liveEmployeeId = employeeRecord.id;
+
     const employmentData = {
       ...onboarding,
       full_name: profile?.full_name || 'Not specified',
@@ -78,10 +91,10 @@ export async function GET() {
 
 // Determine effective EWA percentage to show on UI (employee override -> employer)
 const { data: employeeEwa } = await adminSupabase
-  .from('employee_ewa_settings')
-  .select('max_advance_percentage')
-  .eq('employee_onboarding_id', onboarding.id)
-  .maybeSingle();
+   .from('employee_ewa_settings')
+   .select('max_advance_percentage')
+   .eq('employee_id', liveEmployeeId)
+   .maybeSingle();
 
 let effectivePct = policy?.withdrawal_limit_percent ?? 50;
 if (employeeEwa && employeeEwa.max_advance_percentage) {

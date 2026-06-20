@@ -45,20 +45,20 @@ export async function GET() {
       return NextResponse.json({ integrations: [] });
     }
 
-    const { data: integrations, error } = await supabase
-      .from('payroll_integrations')
-      .select(`
-        id, provider, provider_label, integration_code,
-        sync_mode, sync_frequency, sync_time,
-        status, last_sync_at, last_sync_status, last_error,
-        connected_by, created_at, updated_at,
-        sync_logs:payroll_sync_logs (
-          id, status, records_received, records_valid, records_failed,
-          error_message, duration_ms, created_at
-        )
-      `)
-      .eq('employer_id', employer.onboarding_id)
-      .order('created_at', { ascending: false });
+const { data: integrations, error } = await supabase
+       .from('payroll_integrations')
+       .select(`
+         id, provider, provider_label, integration_code,
+         sync_mode, sync_frequency, sync_time,
+         status, last_sync_at, last_sync_status, last_error,
+         connected_by, created_at, updated_at,
+         sync_logs:payroll_sync_logs (
+           id, status, records_received, records_valid, records_failed,
+           error_message, duration_ms, created_at
+         )
+       `)
+       .eq('employer_id', employer.id)
+       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('[payroll/connect] fetch integrations error', error.message);
@@ -117,12 +117,12 @@ export async function POST(req: NextRequest) {
 
     const { provider, provider_label, sync_mode, sync_frequency, sync_time } = parsed.data;
 
-    const { data: existing, error: existingError } = await supabase
-      .from('payroll_integrations')
-      .select('id, integration_code, webhook_secret')
-      .eq('employer_id', employer.onboarding_id)
-      .eq('provider', provider)
-      .maybeSingle();
+const { data: existing, error: existingError } = await supabase
+       .from('payroll_integrations')
+       .select('id, integration_code, webhook_secret')
+       .eq('employer_id', employer.id)
+       .eq('provider', provider)
+       .maybeSingle();
 
     if (existingError) {
       console.error('[payroll/connect] existing lookup error', existingError.message);
@@ -156,20 +156,20 @@ export async function POST(req: NextRequest) {
       integrationCode = generateIntegrationCode();
       webhookSecret   = generateWebhookSecret();
 
-      const { error: insertErr } = await supabase
-        .from('payroll_integrations')
-        .insert({
-          employer_id:      employer.onboarding_id,
-          provider,
-          provider_label,
-          integration_code: integrationCode,
-          webhook_secret:   webhookSecret,
-          sync_mode,
-          sync_frequency,
-          sync_time,
-          status:           'pending',
-          connected_by:     user.id,
-        });
+const { error: insertErr } = await supabase
+         .from('payroll_integrations')
+         .insert({
+           employer_id:      employer.id,
+           provider,
+           provider_label,
+           integration_code: integrationCode,
+           webhook_secret:   webhookSecret,
+           sync_mode,
+           sync_frequency,
+           sync_time,
+           status:           'pending',
+           connected_by:     user.id,
+         });
 
       if (insertErr) {
         console.error('[payroll/connect] insert:', insertErr.message);
@@ -233,7 +233,7 @@ export async function DELETE(req: NextRequest) {
     if (integrationId) q.eq('id', integrationId);
     if (integrationCode) q.eq('integration_code', integrationCode);
 
-    q.eq('employer_id', emp.onboarding_id);
+    q.eq('employer_id', emp.id);
 
     const { error: delErr } = await q;
     if (delErr) {

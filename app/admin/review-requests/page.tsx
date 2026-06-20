@@ -15,13 +15,18 @@ import {
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import type { RealtimeChannel } from '@supabase/realtime-js';
+import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
 
 type IconType = React.ComponentType<{ className?: string }>;
 
 type RequestStatus = 'pending' | 'approved' | 'disbursed' | 'resolved' | 'rejected' | 'in_review';
 type RequestPriority = 'high' | 'medium' | 'low';
 type RequestType = 'risk_score' | 'kyc_review' | 'bank_change' | 'general';
+
+const requestStatuses = ['pending', 'approved', 'disbursed', 'resolved', 'rejected', 'in_review'] as const;
+
+const isRequestStatus = (status: unknown): status is RequestStatus =>
+  typeof status === 'string' && requestStatuses.includes(status as RequestStatus);
 
 interface RawData {
   old_bank_name?: string;
@@ -401,27 +406,59 @@ export default function ReviewRequests() {
     }, 0);
 
     const supabase = createClient();
-    type RealtimeReviewPayload = { new: ReviewRequest; old?: ReviewRequest };
-    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
-    const channel = (supabase as unknown as SupabaseWithChannel)
+    type AdminNotificationRow = { id: string; [key: string]: unknown };
+    type ReviewRequestUpdateRow = { id: string; status?: unknown; [key: string]: unknown };
+
+    const updateRequestStatus = (updated: ReviewRequestUpdateRow) => {
+      const status = updated.status;
+      if (!isRequestStatus(status)) return;
+
+      setRequests(prev =>
+        prev.map(req =>
+          req.id === updated.id
+            ? { ...req, status }
+            : req
+        )
+      );
+      toast.success('A review request was updated');
+    };
+
+    const channel = supabase
       .channel('realtime:admin-review-requests')
-      .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'admin_notifications' }, (payload: RealtimeReviewPayload) => {
-        const newReq = payload.new;
-        // admin_notifications used for admin-facing alerts; if it maps to review requests, prepend
-        setRequests(prev => [newReq, ...prev]);
-        toast.info('New review request received!');
-      })
-      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, (payload: RealtimeReviewPayload) => {
-        const updated = payload.new as unknown as { id: string; status?: string };
-        setRequests(prev => prev.map(req => req.id === updated.id ? { ...req, status: (updated.status as RequestStatus) || req.status } : req));
-        toast.success('A review request was updated');
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'admin_notifications' },
+        (payload: RealtimePostgresChangesPayload<AdminNotificationRow>) => {
+          const newReq = payload.new as unknown as ReviewRequest;
+          // admin_notifications used for admin-facing alerts; if it maps to review requests, prepend
+          setRequests(prev => [newReq, ...prev]);
+          toast.info('New review request received!');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'risk_review_requests' },
+        (payload: RealtimePostgresChangesPayload<ReviewRequestUpdateRow>) =>
+          updateRequestStatus(payload.new as ReviewRequestUpdateRow)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' },
+        (payload: RealtimePostgresChangesPayload<ReviewRequestUpdateRow>) =>
+          updateRequestStatus(payload.new as ReviewRequestUpdateRow)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bank_change_requests' },
+        (payload: RealtimePostgresChangesPayload<ReviewRequestUpdateRow>) =>
+          updateRequestStatus(payload.new as ReviewRequestUpdateRow)
+      )
       .subscribe();
 
     return () => {
       window.clearTimeout(timeoutId);
-      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, []);
 

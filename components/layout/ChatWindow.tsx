@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { RealtimeChannel } from '@supabase/realtime-js';
+import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
 
 interface Message {
   id: string;
@@ -54,18 +54,17 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
     }, 0);
 
     const supabase = createClient();
-    type RealtimeMessagePayload = { new: Message; old?: Message };
-    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
+    type MessageRow = Message;
 
-    const channel = ((supabase as unknown as SupabaseWithChannel)
-      .channel(`realtime:messages:user-${currentUserId}`) as unknown as any)
+    const channel = supabase
+      .channel(`realtime:messages:user-${currentUserId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
         filter: `receiver_id=eq.${currentUserId}`
-      } as Record<string, unknown>, (payload: RealtimeMessagePayload) => {
-        const data = payload.new;
+      }, (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+        const data = payload.new as Message;
         if (data.sender_id === otherUserId || data.receiver_id === otherUserId) {
           setMessages(prev => [...prev, data]);
         }
@@ -74,7 +73,7 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
 
     return () => {
       window.clearTimeout(timeoutId);
-      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [currentUserId, otherUserId, fetchMessages]);
 

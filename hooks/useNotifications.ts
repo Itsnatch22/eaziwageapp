@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { RealtimeChannel } from '@supabase/realtime-js';
+import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
 import { toast } from 'sonner';
 
 export interface Notification {
@@ -37,7 +37,6 @@ export function useNotifications({ userId, apiPath, onToast }: UseNotificationsO
       }
     } catch (err) {
       // swallow here; components may log
-      // eslint-disable-next-line no-console
       console.error('useNotifications fetch failed', err);
     } finally {
       setLoading(false);
@@ -54,34 +53,28 @@ export function useNotifications({ userId, apiPath, onToast }: UseNotificationsO
     if (!userId) return;
 
     const supabase = createClient();
-    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
+    type NotificationRow = Notification & { user_id?: string };
 
-    const channel = ((supabase as unknown as SupabaseWithChannel)
-      .channel(`realtime:notifications-hook-${userId}`) as unknown as any)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}`
-      } as Record<string, unknown>, (payload: { new: Notification }) => {
-        const n = payload.new;
+    const channel = supabase
+      .channel(`realtime:notifications-hook-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+        const n = payload.new as Notification;
         setNotifications(prev => [n, ...prev].slice(0, 50));
         try { if (onToast) onToast(n); }
         catch {}
       })
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}`
-      } as Record<string, unknown>, (payload: { new: Notification }) => {
-        const n = payload.new;
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+        const n = payload.new as Notification;
         setNotifications(prev => prev.map(p => (p.id === n.id ? n : p)));
       })
-      .on('postgres_changes', {
-        event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}`
-      } as Record<string, unknown>, (payload: { old?: Notification }) => {
-        const oldRow = payload.old;
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+        const oldRow = payload.old as Partial<Notification> | undefined;
         if (oldRow?.id) setNotifications(prev => prev.filter(n => String(n.id) !== String(oldRow.id)));
       })
       .subscribe();
 
     return () => {
-      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [userId, onToast]);
 
@@ -96,7 +89,6 @@ export function useNotifications({ userId, apiPath, onToast }: UseNotificationsO
       if (ids.length === 0) return;
       await fetch(apiPath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notification_ids: ids }) });
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('markAsRead failed', err);
     }
   }, [apiPath, notifications]);
@@ -107,7 +99,6 @@ export function useNotifications({ userId, apiPath, onToast }: UseNotificationsO
       await fetch(`${apiPath}?id=${id}`, { method: 'DELETE' });
       toast.success('Notification removed');
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('deleteNotification failed', err);
       void fetchNotifications();
     }

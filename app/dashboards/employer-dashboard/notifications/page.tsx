@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/stores/auth';
-import type { RealtimeChannel } from '@supabase/realtime-js';
+import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
 
 interface Notification {
   id: string;
@@ -47,18 +47,17 @@ export default function NotificationsPage() {
 
         if (!user?.id) return;
         const supabase = createClient();
-        type RealtimeNotificationPayload = { new: { id: string; user_id?: string; type: string; title: string; message: string; read: boolean; created_at: string; metadata?: Record<string, unknown>; }; old?: { id?: string } };
-        type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
+        type NotificationRow = Notification & { user_id?: string; metadata?: Record<string, unknown> };
 
-        const channel = ((supabase as unknown as SupabaseWithChannel)
-            .channel(`realtime:notifications:employer-${user.id}`) as unknown as any)
-            .on('postgres_changes', {
+        const channel = supabase
+                    .channel(`realtime:notifications:employer-${user.id}`)
+                    .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
                 table: 'notifications',
                 filter: `user_id=eq.${user.id}`
-            } as Record<string, unknown>, (payload: RealtimeNotificationPayload) => {
-                const newNotif = payload.new;
+                    }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+                const newNotif = payload.new as NotificationRow;
                 toast(newNotif.title, {
                     description: newNotif.message,
                     icon: <Bell className="w-5 h-5 text-primary" />
@@ -70,13 +69,13 @@ export default function NotificationsPage() {
                 schema: 'public',
                 table: 'notifications',
                 filter: `user_id=eq.${user.id}`
-            } as Record<string, unknown>, (payload: RealtimeNotificationPayload) => {
-                const oldRow = payload.old;
+            }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+                const oldRow = payload.old as Partial<NotificationRow> | undefined;
                 if (oldRow?.id) setNotifications(prev => prev.filter(n => String(n.id) !== String(oldRow.id)));
             })
             .subscribe();
         return () => {
-            (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
+            supabase.removeChannel(channel);
         };
     }, [user?.id, fetchNotifications]);
 

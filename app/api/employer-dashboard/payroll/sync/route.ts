@@ -100,12 +100,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { integration_id } = parsed.data;
 
   // 4. Verify integration belongs to this employer
-  const { data: integration, error: intgErr } = await supabase
-    .from('payroll_integrations')
-    .select('id, provider, status, sync_mode, sync_frequency, sync_time')
-    .eq('id', integration_id)
-    .eq('employer_id', onboarding_id)
-    .maybeSingle();
+const { data: integration, error: intgErr } = await supabase
+     .from('payroll_integrations')
+     .select('id, provider, status, sync_mode, sync_frequency, sync_time')
+     .eq('id', integration_id)
+     .eq('employer_id', employer.id)
+     .maybeSingle();
 
   if (intgErr) {
     console.error('[payroll/sync] integration lookup error', intgErr.message);
@@ -121,21 +121,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const intg = integration as IntegrationRow;
 
-  const { data: latestUpload, error: uploadErr } = await supabase
-    .from('payroll_uploads')
-    .select(`
-      id, status, month,
-      total_rows, processed_rows, failed_rows,
-      total_gross, total_net, total_deductions,
-      error_summary, warning_summary,
-      uploaded_at, processed_at
-    `)
-    .eq('employer_id', onboarding_id)
-    .eq('source', 'api_push')
-    .eq('integration_id', integration_id)
-    .order('uploaded_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+const { data: latestUpload, error: uploadErr } = await supabase
+     .from('payroll_uploads')
+     .select(`
+       id, status, month,
+       total_rows, processed_rows, failed_rows,
+       total_gross, total_net, total_deductions,
+       error_summary, warning_summary,
+       uploaded_at, processed_at
+     `)
+     .eq('employer_id', employer.id)
+     .eq('source', 'api_push')
+     .eq('integration_id', integration_id)
+     .order('uploaded_at', { ascending: false })
+     .limit(1)
+     .maybeSingle();
 
   if (uploadErr) {
     console.error('[payroll/sync] upload fetch error', uploadErr.message);
@@ -156,19 +156,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       })
       .eq('id', integration_id);
 
-    await supabase
-      .from('payroll_sync_logs')
-      .insert({
-        integration_id,
-        employer_id:      onboarding_id,
-        triggered_by:     'manual',
-        status:           'failed',
-        records_received: 0,
-        records_valid:    0,
-        records_failed:   0,
-        error_message:    'No payroll data has been pushed by the provider yet.',
-        duration_ms:      durationMs,
-      });
+await supabase
+       .from('payroll_sync_logs')
+       .insert({
+         integration_id,
+         employer_id:      employer.id,
+         triggered_by:     'manual',
+         status:           'failed',
+         records_received: 0,
+         records_valid:    0,
+         records_failed:   0,
+         error_message:    'No payroll data has been pushed by the provider yet.',
+         duration_ms:      durationMs,
+       });
 
     return NextResponse.json(
       {
@@ -210,24 +210,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const now = new Date().toISOString();
 
   // 9. Write sync log
-  const { data: syncLog, error: logErr } = await supabase
-    .from('payroll_sync_logs')
-    .insert({
-      integration_id,
-      employer_id:      onboarding_id,
-      triggered_by:     'manual',
-      status:           syncStatus,
-      records_received: upload.total_rows,
-      records_valid:    upload.processed_rows,
-      records_failed:   upload.failed_rows,
-      upload_id:        upload.id,
-      error_message:    upload.failed_rows > 0
-        ? `${upload.failed_rows} row(s) failed validation`
-        : null,
-      duration_ms:      durationMs,
-    })
-    .select('id')
-    .single();
+const { data: syncLog, error: logErr } = await supabase
+     .from('payroll_sync_logs')
+     .insert({
+       integration_id,
+       employer_id:      employer.id,
+       triggered_by:     'manual',
+       status:           syncStatus,
+       records_received: upload.total_rows,
+       records_valid:    upload.processed_rows,
+       records_failed:   upload.failed_rows,
+       upload_id:        upload.id,
+       error_message:    upload.failed_rows > 0
+         ? `${upload.failed_rows} row(s) failed validation`
+         : null,
+       duration_ms:      durationMs,
+     })
+     .select('id')
+     .single();
 
   if (logErr) {
     console.error('[payroll/sync] log insert error', logErr.message);

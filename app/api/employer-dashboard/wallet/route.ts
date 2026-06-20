@@ -72,7 +72,7 @@ export async function GET() {
     const { data: wallet, error: walletError } = await adminSupabase
       .from('employer_wallets')
       .select('*')
-      .eq('employer_id', employer.onboarding_id)
+      .eq('employer_id', employer.id)
       .maybeSingle();
 
     if (walletError) throw walletError;
@@ -85,7 +85,7 @@ export async function GET() {
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
         .insert({
-          employer_id: employer.onboarding_id,
+          employer_id: employer.id,
           balance: 0,
           arrears_balance: 0,
           currency: walletCurrency
@@ -153,7 +153,7 @@ export async function POST(req: Request) {
     const { data: wallet, error: walletError } = await adminSupabase
       .from('employer_wallets')
       .select('*')
-      .eq('employer_id', employer.onboarding_id)
+      .eq('employer_id', employer.id)
       .maybeSingle();
 
     if (walletError) return NextResponse.json({ error: 'Wallet lookup failed' }, { status: 500 });
@@ -163,7 +163,7 @@ export async function POST(req: Request) {
       const walletCurrency = onboarding?.currency || getCurrencyFromCountry(onboarding?.country, 'KES');
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
-        .insert({ employer_id: employer.onboarding_id, balance: 0, arrears_balance: 0, currency: walletCurrency })
+       .insert({ employer_id: employer.id, balance: 0, arrears_balance: 0, currency: walletCurrency })
         .select()
         .single();
       if (createError) return NextResponse.json({ error: 'Failed to create wallet' }, { status: 500 });
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
     }
 
     // Create a pending wallet_transactions row to represent the request
-    const reference = `DEP-${employer.onboarding_id}-${Date.now()}`;
+    const reference = `DEP-${employer.id}-${Date.now()}`;
     
     // Fetch current exchange rate for employer's currency
     const employerCurrency = currentWallet.currency;
@@ -194,7 +194,7 @@ export async function POST(req: Request) {
       local_currency: employerCurrency,
       rate_snapshot: rateSnapshot,
       usd_amount: usdAmount,
-      metadata: { employer_id: employer.onboarding_id, requested_by: user.id, requested_at: new Date().toISOString() }
+      metadata: { employer_id: employer.id, requested_by: user.id, requested_at: new Date().toISOString() }
     } as unknown as Record<string, unknown>;
 
     const { data: inserted, error: insertError } = await adminSupabase
@@ -215,7 +215,7 @@ export async function POST(req: Request) {
         type: 'review_request',
         title: 'Employer Wallet Top-up Request',
         message: `Employer ${employer.id} requested a top-up of ${amount}. Review in admin dashboard.`,
-        metadata: { wallet_transaction_id: inserted.id, employer_id: employer.onboarding_id, amount }
+        metadata: { wallet_transaction_id: inserted.id, employer_id: employer.id, amount }
       });
     } catch (notifyErr) {
       console.error('[Wallet POST] notifyAdmins failed:', notifyErr);

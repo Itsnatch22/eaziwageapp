@@ -65,11 +65,29 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
       return NextResponse.json({ error: 'Advance request not found' }, { status: 404 });
     }
 
-    const { data: emp, error: empError } = await supabase.from('profiles').select('salary, organization_id').eq('id', advance.employee_id).single();
+    // Fetch employee data to get user_id and organization_id
+    const { data: employee, error: employeeError } = await supabase
+      .from('employees')
+      .select('user_id, organization_id')
+      .eq('id', advance.employee_id)
+      .single();
+
+    if (employeeError || !employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    // Now fetch salary from profiles using the user_id
+    const { data: emp, error: empError } = await supabase
+      .from('profiles')
+      .select('salary')
+      .eq('id', employee.user_id)
+      .single();
 
     if (empError || !emp) {
       return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
     }
+
+    const organization_id = employee.organization_id;
 
     // Respect per-employee or employer EWA settings when enforcing monthly cap
     const { data: employeeEwa } = await supabase
@@ -96,7 +114,7 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
       const { data: employerOnboarding } = await supabase
         .from('employer_onboarding')
         .select('max_advance_percentage, min_advance_amount, max_advance_amount')
-        .eq('id', emp.organization_id)
+       .eq('id', organization_id)
         .maybeSingle();
       if (employerOnboarding) {
         effective.max_advance_percentage = employerOnboarding.max_advance_percentage ?? effective.max_advance_percentage;

@@ -2,6 +2,9 @@ import { Suspense } from 'react';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import AdminWalletClient from './AdminWalletClient';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface ExchangeRate {
   currency_code: string;
   rate_to_usd: number;

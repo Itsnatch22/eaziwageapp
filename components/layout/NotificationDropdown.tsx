@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export interface Notification {
   id: string;
@@ -46,13 +47,9 @@ export const NotificationDropdown = ({
   }, []);
 
   // Use reusable hook for fetching + realtime subscription
-  const { notifications, loading, unreadCount, markAsRead, deleteNotification, refresh }:
-    { notifications: Notification[]; loading: boolean; unreadCount: number; markAsRead: (id?: string) => Promise<void>; deleteNotification: (id: string) => Promise<void>; refresh: () => Promise<void> } =
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore -- dynamic import path resolution for hook in non-tsconfig root
-    require('@/hooks/useNotifications').useNotifications({ userId, apiPath, onToast: (n: Notification) => {
-      toast(n.title, { description: n.message, icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} /> });
-    } });
+  const { notifications, loading, unreadCount, markAsRead, deleteNotification, refresh } = useNotifications({ userId, apiPath, onToast: (n: Notification) => {
+    toast(n.title, { description: n.message, icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} /> });
+  } });
 
   // Expose refresh as a local function used by callers if needed
   const fetchNotifications = refresh;

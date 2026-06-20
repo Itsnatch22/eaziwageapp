@@ -1150,13 +1150,13 @@ const EmployerEmployees: React.FC = () => {
     type RealtimeRiskPayload = { new: RiskUpdateEvent; old?: RiskUpdateEvent };
     type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
-    const channel = ((supabase as unknown as SupabaseWithChannel)
-      .channel(`realtime:employer-${employer.id}:employees`) as unknown as any)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${employer.id}` }, (payload: RealtimeEmployeeKycPayload) => {
+    const channel = supabase
+          .channel(`realtime:employer-${employer.id}:employees`)
+          .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${employer.id}` }, (payload: RealtimeEmployeeKycPayload) => {
         console.log("[Realtime] Employee KYC update received by employer:", payload.new);
         void fetchData();
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents', filter: `user_id=eq.${employer.id}` }, (payload: RealtimeRiskPayload) => {
+          .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents', filter: `user_id=eq.${employer.id}` }, (payload: RealtimeRiskPayload) => {
         console.log("[Realtime] Risk score update received by admin:", payload.new);
         const data = payload.new;
         if (data.type === "risk_score_updated") {

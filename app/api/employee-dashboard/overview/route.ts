@@ -80,6 +80,19 @@ export async function GET() {
     }, { status: 404 });
   }
 
+  // Resolve employees.id from user_id for correct FK references
+  const { data: employeeRecord, error: employeeRecordError } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (employeeRecordError || !employeeRecord) {
+    return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
+  }
+
+  const liveEmployeeId = employeeRecord.id;
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('phone_country_code')
@@ -90,7 +103,7 @@ export async function GET() {
   const { data: advances, error: advancesError } = await supabase
     .from('advances')
     .select('*')
-    .eq('employee_id', employee.id)
+    .eq('employee_id', liveEmployeeId)
     .gte('created_at', startOfMonth)
     .order('created_at', { ascending: false });
 
@@ -109,7 +122,7 @@ export async function GET() {
   const { data: employeeEwa } = await supabase
     .from('employee_ewa_settings')
     .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
-    .eq('employee_onboarding_id', employee.id)
+    .eq('employee_id', liveEmployeeId)
     .maybeSingle();
 
   let effective = {

@@ -1,21 +1,7 @@
 import { supabaseAdmin } from '../supabaseAdmin';
 import { dusupayClient } from '../dusupay/client';
-import { PayoutMethod, Currency, PayoutStatus } from '../dusupay/types';
+import { PayoutMethod, Currency } from '../dusupay/types';
 import { generateMerchantReference } from '../dusupay/utils';
-
-const mapPayoutStatusToAdvanceStatus = (status?: PayoutStatus) => {
-  switch (status) {
-    case PayoutStatus.COMPLETED:
-      return 'completed';
-    case PayoutStatus.FAILED:
-    case PayoutStatus.CANCELLED:
-      return 'failed';
-    case PayoutStatus.PROCESSING:
-    case PayoutStatus.PENDING:
-    default:
-      return 'processing';
-  }
-};
 
 export class PayoutService {
   async fundEmployerWallet(
@@ -95,127 +81,298 @@ export class PayoutService {
    * Disburse an approved advance to an employee via DusuPay.
    */
   async disburseAdvance(advanceId: string) {
-    // 1. Fetch advance details
-    const { data: advance, error: advanceError } = await supabaseAdmin
-      .from('advances')
-      .select(`
-        *,
-        employee_onboarding!employee_id (
-          id,
-          full_name,
-          mobile_money_number,
-          mobile_money_provider,
-          bank_account,
-          bank_name
-        ),
-        organizations (
-          id,
-          name,
-          payout_settings
-        )
-      `)
-      .eq('id', advanceId)
-      .single();
-
-    if (advanceError || !advance) {
-      throw new Error(`Advance not found: ${advanceError?.message}`);
-    }
-
-    if (advance.status !== 'approved' && advance.status !== 'processing') {
-      throw new Error(`Advance is not in approved or processing status: ${advance.status}`);
-    }
-
-    // 2. Map payment details from onboarding data
-    const employee = advance.employee_onboarding;
-    const isMobileMoney = advance.disbursement_method === 'mobile_money';
-    
-    const payoutData = {
-      type: isMobileMoney ? PayoutMethod.MOBILE_MONEY : PayoutMethod.BANK,
-      account: isMobileMoney ? employee.mobile_money_number : employee.bank_account,
-      provider_code: isMobileMoney ? employee.mobile_money_provider : employee.bank_name,
-      // Note: provider_code might need mapping to DusuPay codes
+    type FraudFlagInput = { flagType: string; severity: string; description: string; metadata?: Record<string, unknown> };
+    type EligibilityCheckResult = { eligible: boolean; rejectionReason?: string; fraudFlags: FraudFlagInput[] };
+    const firstRow = <T,>(value: T | T[] | null | undefined): T | undefined =>
+      Array.isArray(value) ? value[0] : value ?? undefined;
+    const toNumber = (value: number | string | null | undefined, fallback = 0) => {
+      const parsed = Number(value ?? fallback);
+      return Number.isFinite(parsed) ? parsed : fallback;
     };
 
-    if (!payoutData.account) {
-      throw new Error('Employee has no payment account details configured');
+    // Gate 1 - load advance with full context
+    const { data: advanceRow, error: advanceError } = await supabaseAdmin
+      .from('advances')
+      .select(`
+        a:advances(*),
+        e:employees(id, full_name, kyc_status, status:status, risk_score, employer_id, country, monthly_salary),
+        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access),
+        ees:employee_ewa_settings(ewa_enabled, max_advance_percentage, max_advance_amount, min_advance_amount, cooldown_period)
+      `)
+      .eq('a.id', advanceId)
+      .maybeSingle();
+
+    if (advanceError || !advanceRow || !advanceRow.a) {
+      throw new Error(`Advance not found: ${advanceError?.message || 'missing'}`);
     }
+
+    interface AdvanceRow {
+      id: string;
+      employee_id: string;
+      employer_id: string;
+      amount: number | string | null;
+      fee_amount?: number | string | null;
+      fee_percentage?: number | string | null;
+      net_amount?: number | string | null;
+      currency?: string | null;
+      status?: string | null;
+      payment_method_id?: string | null;
+    }
+
+    interface EmployeeRow {
+      id: string;
+      full_name?: string | null;
+      kyc_status?: string | null;
+      status?: string | null;
+      risk_score?: number | null;
+      employer_id?: string | null;
+      country?: string | null;
+      monthly_salary?: number | string | null;
+    }
+
+    interface EmployerRow {
+      ewa_enabled?: boolean | null;
+      disbursements_frozen?: boolean | null;
+      freeze_reason?: string | null;
+      is_defaulted?: boolean | null;
+      processing_fee?: number | string | null;
+      advance_limit_percent?: number | string | null;
+      min_advance_amount?: number | string | null;
+      cooldown_days?: number | string | null;
+      max_monthly_advances?: number | string | null;
+      weekend_access?: boolean | null;
+    }
+
+    interface EESRow {
+      ewa_enabled?: boolean | null;
+      max_advance_percentage?: number | string | null;
+      max_advance_amount?: number | string | null;
+      min_advance_amount?: number | string | null;
+      cooldown_period?: number | string | null;
+    }
+
+    const advance = firstRow(advanceRow.a as unknown as AdvanceRow | AdvanceRow[]);
+    const employee = firstRow(advanceRow.e as unknown as EmployeeRow | EmployeeRow[]);
+    const employer = firstRow(advanceRow.er as unknown as EmployerRow | EmployerRow[]);
+    const ees = firstRow(advanceRow.ees as unknown as EESRow | EESRow[]);
+
+    if (!advance) {
+      throw new Error('Advance not found: missing advance details');
+    }
+
+    const advanceAmount = toNumber(advance.amount);
+    const netAmount = toNumber(advance.net_amount, advanceAmount);
+
+    if (advance.status !== 'pending') {
+      throw new Error(`Advance not in pending status: ${advance.status}`);
+    }
+
+    // Gate 2 - employer freeze and EWA enabled checks
+    if (employer?.disbursements_frozen) {
+      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: `Employer disbursements frozen: ${employer.freeze_reason}` }).eq('id', advanceId);
+      throw new Error(`Employer disbursements frozen: ${employer.freeze_reason}`);
+    }
+
+    if (!employer?.ewa_enabled) {
+      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'EWA not enabled for this employer' }).eq('id', advanceId);
+      throw new Error('EWA not enabled for employer');
+    }
+
+    // Gate 3 - employee eligibility
+    const checkEmployeeEligibility = async (): Promise<EligibilityCheckResult> => {
+      const flags: FraudFlagInput[] = [];
+
+      if (employee?.status !== 'active') {
+        return { eligible: false, rejectionReason: 'Employee is not active', fraudFlags: [] };
+      }
+      if (employee?.kyc_status !== 'approved') {
+        return { eligible: false, rejectionReason: 'Employee KYC not approved', fraudFlags: [] };
+      }
+      if (!ees?.ewa_enabled) {
+        return { eligible: false, rejectionReason: 'EWA disabled for this employee', fraudFlags: [] };
+      }
+
+      const riskThreshold = 7.5;
+      if (typeof employee.risk_score === 'number' && employee.risk_score > riskThreshold) {
+        flags.push({
+          flagType: 'risk_score_threshold',
+          severity: employee.risk_score > 9 ? 'critical' : 'high',
+          description: `Employee risk score ${employee.risk_score} exceeds threshold ${riskThreshold}`,
+        });
+      }
+
+      const effectiveMaxPercent = toNumber(ees?.max_advance_percentage ?? employer?.advance_limit_percent, 50);
+      const maxAllowed = (toNumber(employee?.monthly_salary) * effectiveMaxPercent) / 100;
+      if (advanceAmount > maxAllowed) {
+        return { eligible: false, rejectionReason: `Requested amount exceeds limit of ${maxAllowed}`, fraudFlags: [] };
+      }
+
+      const effectiveMin = toNumber(ees?.min_advance_amount ?? employer?.min_advance_amount, 500);
+      if (advanceAmount < effectiveMin) {
+        return { eligible: false, rejectionReason: `Amount below minimum of ${effectiveMin}`, fraudFlags: [] };
+      }
+
+      const isWeekend = [0, 6].includes(new Date().getDay());
+      if (isWeekend && !employer?.weekend_access) {
+        return { eligible: false, rejectionReason: 'Advances not permitted on weekends for this employer', fraudFlags: [] };
+      }
+
+      const cooldownDays = toNumber(ees?.cooldown_period ?? employer?.cooldown_days, 7);
+      const { data: recentAdvance } = await supabaseAdmin
+        .from('advances')
+        .select('disbursed_at')
+        .eq('employee_id', advance.employee_id)
+        .eq('status', 'completed')
+        .order('disbursed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recentAdvance?.disbursed_at) {
+        const daysSince = Math.floor((Date.now() - new Date(recentAdvance.disbursed_at).getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSince < cooldownDays) {
+          return { eligible: false, rejectionReason: `Cooldown active: ${cooldownDays - daysSince} days remaining`, fraudFlags: [] };
+        }
+      }
+
+      const maxMonthly = toNumber(employer?.max_monthly_advances, 2);
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+      const monthSelect = await supabaseAdmin
+        .from('advances')
+        .select('id', { count: 'exact', head: true })
+        .eq('employee_id', advance.employee_id)
+        .in('status', ['completed', 'processing'])
+        .gte('created_at', monthStart.toISOString());
+
+      const monthCount = (monthSelect.count as number) ?? 0;
+      if (monthCount >= maxMonthly) {
+        flags.push({ flagType: 'velocity', severity: 'high', description: `Employee has reached monthly advance limit of ${maxMonthly}`, metadata: { month_count: monthCount, limit: maxMonthly } });
+      }
+
+      return { eligible: flags.length === 0 || flags.every(f => f.severity === 'low'), fraudFlags: flags };
+    };
+
+    const eligibility = await checkEmployeeEligibility();
+    if (!eligibility.eligible && eligibility.rejectionReason) {
+      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: eligibility.rejectionReason }).eq('id', advanceId);
+      throw new Error(eligibility.rejectionReason);
+    }
+
+    const fraudFlags: FraudFlagInput[] = [...eligibility.fraudFlags];
+
+    // Gate 4 - payment method verification (read from payment_methods by id)
+    const { data: paymentMethod } = await supabaseAdmin
+      .from('payment_methods')
+      .select('id, method_type, provider_name, account_number, phone_number, account_name, country_code, is_verified, is_active')
+      .eq('id', advance.payment_method_id)
+      .maybeSingle();
+
+    if (!paymentMethod || !paymentMethod.is_verified || !paymentMethod.is_active) {
+      fraudFlags.push({ flagType: 'unverified_payment_method', severity: 'high', description: 'Payment method not verified or inactive' });
+    }
+
+    // Gate 5 - evaluate fraud flags
+    if (fraudFlags.length > 0) {
+      // pick highest severity
+      const severityOrder: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+      fraudFlags.sort((a, b) => (severityOrder[b.severity] ?? 0) - (severityOrder[a.severity] ?? 0));
+      const highest = fraudFlags[0];
+
+      const { data: flagRecord } = await supabaseAdmin
+        .from('fraud_flags')
+        .insert({
+          advance_id: advanceId,
+          employee_id: advance.employee_id,
+          employer_id: advance.employer_id,
+          flag_type: highest.flagType,
+          severity: highest.severity,
+          description: fraudFlags.map(f => f.description).join('; '),
+          triggered_by: 'system',
+          status: 'open',
+          metadata: { all_flags: fraudFlags }
+        })
+        .select()
+        .single();
+
+      await supabaseAdmin
+        .from('advances')
+        .update({ status: 'fraud_review', fraud_flag_id: flagRecord.id, auto_approved: false })
+        .eq('id', advanceId);
+
+      return { success: false, status: 'fraud_review', heldForFraudReview: true, fraudFlagId: flagRecord.id };
+    }
+
+    // Gate 6 - DusuPay disbursement (all gates passed)
+    await supabaseAdmin.from('advances').update({ status: 'processing', auto_approved: true, approved_at: new Date().toISOString() }).eq('id', advanceId);
 
     const merchantReference = generateMerchantReference(advanceId);
-    
-    // 3. Initiate DusuPay Payout
-    try {
-      // Update advance status to processing
-      await supabaseAdmin
-        .from('advances')
-        .update({ status: 'processing', reference: merchantReference })
-        .eq('id', advanceId);
 
-      const payoutResponse = await dusupayClient.sendFunds({
-        merchant_reference: merchantReference,
-        transaction_method: payoutData.type,
-        currency: advance.currency as Currency || 'KES',
-        amount: advance.amount,
-        provider_code: payoutData.provider_code,
-        account_number: payoutData.account,
-        customer_name: employee.full_name || 'EaziWage Employee',
-        description: `EaziWage Advance: ${advanceId}`,
-        // bank_code: needs mapping if it's a bank transfer
-      });
+    const pm = paymentMethod!; // paymentMethod is guaranteed non-null here because missing/unverified PMs create fraud flags earlier
 
-      // 4. Update transaction audit trail
-      await supabaseAdmin.from('dusupay_transactions').insert({
-        merchant_reference: merchantReference,
-        internal_reference: payoutResponse.data?.internal_reference,
-        event_type: 'payout_initiated',
-        status: payoutResponse.data?.transaction_status || 'PENDING',
-        amount: advance.amount,
-        currency: advance.currency,
-        raw_payload: payoutResponse
-      });
+    const payoutMethod = (pm.method_type === 'mobile_money') ? PayoutMethod.MOBILE_MONEY : PayoutMethod.BANK;
+    const account = pm.method_type === 'bank' ? pm.account_number : pm.phone_number;
 
-      const transactionStatus = payoutResponse.data?.transaction_status;
-      const advanceUpdate: {
-        status: string;
-        internal_reference?: string;
-        disbursed_at?: string;
-      } = {
-        status: mapPayoutStatusToAdvanceStatus(transactionStatus),
-      };
-
-      if (payoutResponse.data?.internal_reference) {
-        advanceUpdate.internal_reference = payoutResponse.data.internal_reference;
-      }
-
-      if (transactionStatus === PayoutStatus.COMPLETED) {
-        advanceUpdate.disbursed_at = new Date().toISOString();
-      }
-
-      await supabaseAdmin
-        .from('advances')
-        .update(advanceUpdate)
-        .eq('id', advanceId);
-
-      return payoutResponse;
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : 'Unknown payout error';
-
-      // If the synchronous disbursement fails before DusuPay responds, mark the reserve transaction as failed
-      try {
-        await supabaseAdmin
-          .from('wallet_transactions')
-          .update({ status: 'failed' })
-          .eq('reference', `ADV-RESERVE-${advanceId}`);
-      } catch (txErr) {
-        console.error('[payoutService.disburseAdvance] Failed to mark reserve transaction as failed', txErr, { advanceId });
-      }
-
-      await supabaseAdmin
-        .from('advances')
-        .update({ status: 'failed', reason })
-        .eq('id', advanceId);
-
-      throw err;
+    if (!account) {
+      await supabaseAdmin.from('advances').update({ status: 'failed', reason: 'Missing account for payout' }).eq('id', advanceId);
+      throw new Error('Missing account for payout');
     }
+
+    let payoutResponse;
+    try {
+      payoutResponse = await dusupayClient.sendFunds({
+        merchant_reference: merchantReference,
+        transaction_method: payoutMethod,
+        currency: advance.currency as Currency,
+        amount: netAmount,
+        provider_code: pm.provider_name,
+        account_number: account,
+        customer_name: employee?.full_name ?? 'EaziWage Employee',
+        description: `EaziWage Advance: ${advanceId}`,
+      });
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : 'DusuPay sendFunds failed';
+      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
+      throw new Error(reason);
+    }
+
+    // record dusupay transaction
+    await supabaseAdmin.from('dusupay_transactions').insert({
+      merchant_reference: merchantReference,
+      internal_reference: payoutResponse.data?.internal_reference,
+      event_type: 'payout_initiated',
+      status: payoutResponse.data?.transaction_status ?? 'PENDING',
+      amount: netAmount,
+      currency: advance.currency,
+      raw_payload: payoutResponse
+    });
+
+    // Gate 7 - update employer liability using RPC
+    try {
+      await supabaseAdmin.rpc('increment_employer_liability', {
+        p_employer_id: advance.employer_id,
+        p_amount: advanceAmount,
+        p_currency: advance.currency,
+      });
+    } catch (err: unknown) {
+      // ensure advance is marked failed if liability update fails
+      const reason = err instanceof Error ? err.message : 'Failed to update employer liability';
+      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
+      throw new Error(reason);
+    }
+
+    // mark advance completed
+    await supabaseAdmin.from('advances').update({
+      status: 'completed',
+      reference: merchantReference,
+      internal_reference: payoutResponse.data?.internal_reference ?? null,
+      disbursed_at: new Date().toISOString(),
+    }).eq('id', advanceId);
+
+    return {
+      success: true,
+      status: 'completed',
+      merchantReference,
+      internalReference: payoutResponse.data?.internal_reference ?? null,
+    };
   }
 
   /**

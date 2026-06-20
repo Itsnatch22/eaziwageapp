@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     const { data: employeeEwa, error: employeeEwaError } = await supabase
       .from('employee_ewa_settings')
       .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
-      .eq('employee_onboarding_id', employee.id)
+      .eq('employee_id', employeeId)
       .maybeSingle();
 
     if (employeeEwaError) {
@@ -235,9 +235,21 @@ export async function POST(req: NextRequest) {
       .eq('id', employee.employer_id)
       .maybeSingle();
 
+    // Resolve live employers.id from onboarding employer_id
+    const { data: employerRecord, error: employerLookupError } = await supabase
+      .from('employers')
+      .select('id')
+      .eq('onboarding_id', employee.employer_id)
+      .maybeSingle();
+
+    if (employerLookupError || !employerRecord) {
+      return errorResponse(500, 'Failed to resolve employer record', { employerLookupError });
+    }
+
+    const liveEmployerId = employerRecord.id;
+
     const feePercentage = toMoney(calculateFeePercentage(Number(employer?.risk_score ?? 3)));
     const feeAmount = toMoney((requestedAmount * feePercentage) / 100);
-    const netAmount = toMoney(requestedAmount - feeAmount);
 
     const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
     const random = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -285,7 +297,7 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = {
-      employee_id: employeeId, // advances table uses onboarding id — intentional
+      employee_id: employeeId,
       amount: requestedAmount,
       fee_percentage: feePercentage,
       fee_amount: feeAmount,
@@ -301,7 +313,7 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       reference,
       requested_at: new Date().toISOString(),
-      employer_id: employee.employer_id,
+      employer_id: liveEmployerId,
     };
 
     const { data: inserted, error: insertError } = await supabase

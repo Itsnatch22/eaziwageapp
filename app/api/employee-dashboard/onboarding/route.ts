@@ -129,107 +129,103 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { data: existing } = await adminSupabase
-    .from('employee_onboarding')
-    .select('id, status')
-    .eq('user_id', user.id)
-    .maybeSingle();
+const { data: existing } = await adminSupabase
+     .from('employee_onboarding')
+     .select('id, status')
+     .eq('user_id', user.id)
+     .maybeSingle();
 
-  if (existing && existing.status !== 'rejected') {
-    return NextResponse.json(
-      { error: 'You already have an active KYC application.' },
-      { status: 409 },
-    );
-  }
+   if (existing && existing.status !== 'rejected') {
+     return NextResponse.json(
+       { error: 'You already have an active KYC application.' },
+       { status: 409 },
+     );
+   }
 
-  function generateEmployeeCode(employerId: string, userId: string): string {
-    const employerPrefix = employerId.slice(-4).toUpperCase();
-    const userSuffix = userId.slice(-6).toUpperCase();
-    const timestamp = Date.now().toString(36).slice(-3).toUpperCase();
-    return `EMP-${employerPrefix}-${userSuffix}-${timestamp}`;
-  }
+   function generateEmployeeCode(employerId: string, userId: string): string {
+     const employerPrefix = employerId.slice(-4).toUpperCase();
+     const userSuffix = userId.slice(-6).toUpperCase();
+     const timestamp = Date.now().toString(36).slice(-3).toUpperCase();
+     return `EMP-${employerPrefix}-${userSuffix}-${timestamp}`;
+   }
 
-  const {
-    employee_code,
-    national_id,
-    id_type,
-    nationality,
-    date_of_birth,
-    country,
-    address_line1,
-    address_line2,
-    city,
-    postal_code,
-    tax_id,
-    job_title,
-    department,
-    start_date,
-    monthly_salary,
-    bank_name,
-    bank_account,
-    mobile_money_provider,
-    mobile_money_number,
-    face_id,
-    id_front,
-    id_back,
-    address_proof,
-    tax_certificate,
-    payslip_1,
-    payslip_2,
-    bank_statement,
-    employment_contract,
-  } = data;
+   const {
+     employee_code,
+     national_id,
+     id_type,
+     nationality,
+     date_of_birth,
+     country,
+     address_line1,
+     address_line2,
+     city,
+     postal_code,
+     tax_id,
+     job_title,
+     department,
+     start_date,
+     monthly_salary,
+     bank_name,
+     bank_account,
+     mobile_money_provider,
+     mobile_money_number,
+     face_id,
+     id_front,
+     id_back,
+     address_proof,
+     tax_certificate,
+     payslip_1,
+     payslip_2,
+     bank_statement,
+     employment_contract,
+   } = data;
 
-  const generatedEmployeeCode = employee_code || generateEmployeeCode(employerId, user.id);
+   const generatedEmployeeCode = employee_code || generateEmployeeCode(employerId, user.id);
 
-  const employeeCurrency = getCurrencyFromCountry(country);
+   const employeeCurrency = getCurrencyFromCountry(country);
 
-  const employeeName =
-    (user.user_metadata?.full_name as string | undefined) ??
-    user.email?.split('@')[0] ??
-    'there';
+   const employeeName =
+     (user.user_metadata?.full_name as string | undefined) ??
+     user.email?.split('@')[0] ??
+     'there';
 
-  const upsertPayload = {
-    user_id: user.id,
-    employer_id: employerId,
-    employee_code: generatedEmployeeCode,
-    full_name: employeeName,
-    email: user.email,
-    national_id,
-    id_type,
-    nationality: nationality || 'Kenyan',
-    date_of_birth,
-    country,
-    address_line1,
-    address_line2: address_line2 || null,
-    city,
-    postal_code: postal_code || null,
-    tax_id: tax_id || null,
-    job_title,
-    department: department || null,
-    employment_type: normalizedEmploymentType,
-    start_date: start_date || null,
-    monthly_salary,
-    bank_name,
-    bank_account,
-    mobile_money_provider,
-    mobile_money_number,
-    currency: employeeCurrency,
+   const upsertPayload = {
+     user_id: user.id,
+     employer_id: employerId,
+     employee_code: generatedEmployeeCode,
+     full_name: employeeName,
+     email: user.email,
+     national_id,
+     id_type,
+     nationality: nationality || 'Kenyan',
+     date_of_birth,
+     country,
+     address_line1,
+     address_line2: address_line2 || null,
+     city,
+     postal_code: postal_code || null,
+     tax_id: tax_id || null,
+     job_title,
+     department: department || null,
+     employment_type: normalizedEmploymentType,
+     start_date: start_date || null,
+     monthly_salary,
+     currency: employeeCurrency,
 
-    face_id: face_id || null,
-    id_front: id_front || null,
-    id_back: id_back || null,
-    address_proof: address_proof || null,
-    tax_certificate: tax_certificate || null,
-    payslip_1: payslip_1 || null,
-    payslip_2: payslip_2 || null,
-    bank_statement: bank_statement || null,
-    employment_contract: employment_contract || null,
+     face_id: face_id || null,
+     id_front: id_front || null,
+     id_back: id_back || null,
+     address_proof: address_proof || null,
+     tax_certificate: tax_certificate || null,
+     payslip_1: payslip_1 || null,
+     payslip_2: payslip_2 || null,
+     bank_statement: bank_statement || null,
+     employment_contract: employment_contract || null,
 
-    status: 'pending' as const,
-    terms_accepted_at: new Date().toISOString(),
-    submitted_at: new Date().toISOString(),
-  };
+     status: 'pending' as const,
+     terms_accepted_at: new Date().toISOString(),
+     submitted_at: new Date().toISOString(),
+   };
 
   const { error: upsertError } = existing
     ? await adminSupabase
@@ -238,55 +234,90 @@ export async function POST(req: NextRequest) {
         .eq('id', existing.id)
     : await adminSupabase.from('employee_onboarding').insert(upsertPayload);
 
-  if (upsertError) {
-    console.error('[employee/onboarding/submit]', upsertError);
-    return NextResponse.json({ error: upsertError.message }, { status: 500 });
-  }
-  try {
-    await adminSupabase
-      .from('employees')
-      .upsert({
-        user_id: user.id,
-        employer_id: employerId,
-        employee_code: generatedEmployeeCode,
-        name: employeeName, 
-        full_name: employeeName, 
-        email: user.email,
-        phone: user.user_metadata?.phone || null,
-        employee_number: generatedEmployeeCode,
-        job_title,
-        department: department || null,
-        monthly_salary,
-        employment_type: normalizedEmploymentType,
-        status: 'pending',
-        kyc_status: 'pending',
-        hire_date: start_date ? new Date(start_date).toISOString() : null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+if (upsertError) {
+     console.error('[employee/onboarding/submit]', upsertError);
+     return NextResponse.json({ error: upsertError.message }, { status: 500 });
+   }
+    try {
+     const { data: emp } = await adminSupabase
+       .from('employees')
+       .upsert({
+         user_id: user.id,
+         employer_id: employerId,
+         employee_code: generatedEmployeeCode,
+         name: employeeName, 
+         full_name: employeeName, 
+         email: user.email,
+         phone: user.user_metadata?.phone || null,
+         employee_number: generatedEmployeeCode,
+         job_title,
+         department: department || null,
+         monthly_salary,
+         employment_type: normalizedEmploymentType,
+         status: 'pending',
+         kyc_status: 'pending',
+         hire_date: start_date ? new Date(start_date).toISOString() : null,
+         updated_at: new Date().toISOString(),
+       }, { onConflict: 'user_id' })
+       .select('id')
+       .single();
 
-    const docSyncs = [];
-    const idDocType = data.id_type === 'passport' ? 'passport' : 'national_id';
-    
-    if (face_id) docSyncs.push({ user_id: user.id, document_type: 'face_id', document_url: face_id, status: 'pending' });
-    if (id_front) docSyncs.push({
-      user_id: user.id,
-      document_type: idDocType,
-      document_url: id_front,
-      document_number: national_id,
-      status: 'pending',
-    });
-    if (address_proof) docSyncs.push({ user_id: user.id, document_type: 'utility_bill', document_url: address_proof, status: 'pending' });
-    if (tax_certificate) docSyncs.push({ user_id: user.id, document_type: 'tax_certificate', document_url: tax_certificate, status: 'pending' });
-    if (payslip_1) docSyncs.push({ user_id: user.id, document_type: 'payslip', document_url: payslip_1, status: 'pending' });
-    if (bank_statement) docSyncs.push({ user_id: user.id, document_type: 'bank_statement', document_url: bank_statement, status: 'pending' });
-    if (employment_contract) docSyncs.push({ user_id: user.id, document_type: 'employment_contract', document_url: employment_contract, status: 'pending' });
+     const docSyncs = [];
+     const idDocType = data.id_type === 'passport' ? 'passport' : 'national_id';
+     
+     if (face_id) docSyncs.push({ user_id: user.id, document_type: 'face_id', document_url: face_id, status: 'pending' });
+     if (id_front) docSyncs.push({
+       user_id: user.id,
+       document_type: idDocType,
+       document_url: id_front,
+       document_number: national_id,
+       status: 'pending',
+     });
+     if (address_proof) docSyncs.push({ user_id: user.id, document_type: 'utility_bill', document_url: address_proof, status: 'pending' });
+     if (tax_certificate) docSyncs.push({ user_id: user.id, document_type: 'tax_certificate', document_url: tax_certificate, status: 'pending' });
+     if (payslip_1) docSyncs.push({ user_id: user.id, document_type: 'payslip', document_url: payslip_1, status: 'pending' });
+     if (bank_statement) docSyncs.push({ user_id: user.id, document_type: 'bank_statement', document_url: bank_statement, status: 'pending' });
+     if (employment_contract) docSyncs.push({ user_id: user.id, document_type: 'employment_contract', document_url: employment_contract, status: 'pending' });
 
-    if (docSyncs.length > 0) {
-      await adminSupabase.from('employee_kyc_documents').upsert(docSyncs, { onConflict: 'user_id,document_type' });
-    }
-  } catch (err) {
-    console.error('[onboarding/sync-employees]', err);
-  }
+     if (docSyncs.length > 0) {
+       await adminSupabase.from('employee_kyc_documents').upsert(docSyncs, { onConflict: 'user_id,document_type' });
+     }
+
+     if (emp?.id && (bank_name || bank_account || mobile_money_provider || mobile_money_number)) {
+       if (bank_name && bank_account) {
+         await adminSupabase
+           .from('payment_methods')
+           .insert({
+             employee_id: emp.id,
+             country_code: country,
+             method_type: 'bank_account',
+             provider_name: bank_name,
+             account_name: employeeName,
+             account_number: bank_account,
+             is_default: false,
+             is_verified: false,
+             is_active: true,
+           });
+       }
+       if (mobile_money_provider && mobile_money_number) {
+         await adminSupabase
+           .from('payment_methods')
+           .insert({
+             employee_id: emp.id,
+             country_code: country,
+             method_type: 'mobile_money',
+             provider_name: mobile_money_provider,
+             account_name: employeeName,
+             phone_number: mobile_money_number,
+             is_default: false,
+             is_verified: false,
+             is_active: true,
+           });
+       }
+     }
+   } catch (err) {
+     console.error('[onboarding/sync-employees]', err);
+   }
 
   try {
     if (employer.id) {

@@ -453,16 +453,16 @@ export default function EmployerDashboard() {
 
     type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
-    const userChannel = ((supabase as unknown as SupabaseWithChannel)
-      .channel(`realtime:kyc:user-${user.id}`) as unknown as any)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` } as Record<string, unknown>, () => {
+    const userChannel = supabase
+      .channel(`realtime:kyc:user-${user.id}`)
+      .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
         handleUpdate();
       })
       .subscribe();
 
-    const employerChannel = ((supabase as unknown as SupabaseWithChannel)
-      .channel(`realtime:kyc:employer-${data.employer.id}`) as unknown as any)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` } as Record<string, unknown>, () => {
+    const employerChannel = supabase
+      .channel(`realtime:kyc:employer-${data.employer.id}`)
+      .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `employer_id=eq.${data.employer.id}` }, () => {
         handleUpdate();
       })
       .subscribe();

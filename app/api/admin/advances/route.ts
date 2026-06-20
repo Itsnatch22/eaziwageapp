@@ -112,7 +112,8 @@ export async function GET() {
           .select('id, user_id, employee_code')
           .in('id', missingIds as string[]);
 
-        const onboardingUserIds = (onboardings ?? []).map((o: any) => o.user_id).filter((id: any): id is string => Boolean(id));
+        interface OnboardingRow { id: string; user_id?: string | null; employee_code?: string | null }
+        const onboardingUserIds = (onboardings ?? []).map((o: OnboardingRow) => o.user_id).filter((id): id is string => Boolean(id));
         if (onboardingUserIds.length > 0) {
           const { data: employeesByUser } = await supabaseAdmin
             .from('employees')
@@ -122,7 +123,7 @@ export async function GET() {
           const byUser = new Map<string, EmployeeRow>(((employeesByUser ?? []) as EmployeeRow[]).map((e) => [e.user_id as string, e]));
 
           // Map onboarding.id -> corresponding employees row (if found by user_id)
-          (onboardings ?? []).forEach((o: any) => {
+          (onboardings ?? []).forEach((o: OnboardingRow) => {
             const matched = o && o.user_id ? byUser.get(o.user_id) : undefined;
             if (matched) {
               employeeById.set(o.id, matched);

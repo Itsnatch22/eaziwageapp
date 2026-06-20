@@ -426,15 +426,15 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
 
     type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
-    const channel = ((supabase as unknown as SupabaseWithChannel)
-      .channel('realtime:global-settings') as unknown as any)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' } as Record<string, unknown>, () => {
+    const channel = supabase
+      .channel('realtime:global-settings')
+      .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, () => {
         toast.info("Global settings updated", {
           description: "A platform-wide configuration has been modified.",
           icon: <Settings className="w-5 h-5 text-purple-600" />,
         });
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' } as Record<string, unknown>, () => {
+      .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' }, () => {
         toast.info("Global settings updated", {
           description: "A platform-wide configuration has been modified.",
           icon: <Settings className="w-5 h-5 text-purple-600" />,
@@ -443,7 +443,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       .subscribe();
 
     return () => {
-      (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [userProfile?.id]);
 

@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
+import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,30 +61,30 @@ export default function EmployeeNotificationsPage() {
 
         const supabase = createClient();
 
-        type RealtimeNotificationPayload = { new: Notification; old?: Notification };
+        type NotificationRow = Notification & { user_id?: string };
 
         const channel = supabase
             .channel(`realtime:notifications:user-${user.id}`)
-            .on('postgres_changes' as any, {
+            .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
                 table: 'notifications',
                 filter: `user_id=eq.${user.id}`
-            }, (payload: RealtimeNotificationPayload) => {
-                const newNotif = payload.new;
+            }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+                const newNotif = payload.new as Notification;
                 setNotifications(prev => [newNotif, ...prev].slice(0, 50));
                 toast(newNotif.title, {
                     description: newNotif.message,
                     icon: <Bell className="w-5 h-5 text-primary" />
                 });
             })
-            .on('postgres_changes' as any, {
+            .on('postgres_changes', {
                 event: 'DELETE',
                 schema: 'public',
                 table: 'notifications',
                 filter: `user_id=eq.${user.id}`
-            }, (payload: RealtimeNotificationPayload) => {
-                const oldRow = payload.old;
+            }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+                const oldRow = payload.old as Partial<Notification> | undefined;
                 if (oldRow?.id) {
                     setNotifications(prev => prev.filter(n => String(n.id) !== String(oldRow.id)));
                 }

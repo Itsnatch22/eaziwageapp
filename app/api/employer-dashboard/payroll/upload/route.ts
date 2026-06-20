@@ -40,24 +40,24 @@ export async function POST(req: NextRequest) {
 
   const { month, employees: rows, file_name, file_size_bytes } = parsed.data;
 
-  const { data: upload, error: uploadErr } = await supabase
-    .from('payroll_uploads')
-    .upsert(
-      {
-        employer_id:    employer.onboarding_id,
-        month,
-        source:         'manual',
-        status:         'processing',
-        file_name:      file_name ?? null,
-        file_size_bytes: file_size_bytes ?? null,
-        total_rows:     rows.length,
-        uploaded_by:    user.id,
-        uploaded_at:    new Date().toISOString(),
-      },
-      { onConflict: 'employer_id,month,source' },
-    )
-    .select('id')
-    .single();
+const { data: upload, error: uploadErr } = await supabase
+     .from('payroll_uploads')
+     .upsert(
+       {
+         employer_id:    employer.id,
+         month,
+         source:         'manual',
+         status:         'processing',
+         file_name:      file_name ?? null,
+         file_size_bytes: file_size_bytes ?? null,
+         total_rows:     rows.length,
+         uploaded_by:    user.id,
+         uploaded_at:    new Date().toISOString(),
+       },
+       { onConflict: 'employer_id,month,source' },
+     )
+     .select('id')
+     .single();
 
   if (uploadErr || !upload) {
     console.error('[payroll/upload] upsert upload:', uploadErr?.message);
@@ -66,10 +66,10 @@ export async function POST(req: NextRequest) {
 
   const uploadId = upload.id;
 
-  const { data: knownEmployees } = await supabase
-    .from('employee_onboarding')
-    .select('id, employee_code, monthly_salary, status')
-    .eq('employer_id', employer.onboarding_id);
+const { data: knownEmployees } = await supabase
+     .from('employee_onboarding')
+     .select('id, employee_code, monthly_salary, status')
+     .eq('employer_id', employer.id);
 
   const employeeMap = new Map(
     (knownEmployees ?? []).map(e => [e.employee_code, e])
@@ -159,20 +159,20 @@ export async function POST(req: NextRequest) {
 
     const net = Math.max(0, row.gross_salary - row.deductions);
 
-    rowResults.push({
-      upload_id:     uploadId,
-      employer_id:   employer.onboarding_id,
-      employee_code: row.employee_code,
-      employee_id:   known?.id ?? null,
-      days_worked:   row.days_worked ?? null,
-      gross_salary:  row.gross_salary,
-      deductions:    row.deductions,
-      net_salary:    net,
-      row_status:    rowStatus,
-      row_errors:    errors,
-      row_warnings:  warnings,
-      source_row:    rowNum,
-    });
+rowResults.push({
+       upload_id:     uploadId,
+       employer_id:   employer.id,
+       employee_code: row.employee_code,
+       employee_id:   known?.id ?? null,
+       days_worked:   row.days_worked ?? null,
+       gross_salary:  row.gross_salary,
+       deductions:    row.deductions,
+       net_salary:    net,
+       row_status:    rowStatus,
+       row_errors:    errors,
+       row_warnings:  warnings,
+       source_row:    rowNum,
+     });
   }
 
   await supabase.from('payroll_upload_rows').delete().eq('upload_id', uploadId);
