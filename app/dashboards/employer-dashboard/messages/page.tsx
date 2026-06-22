@@ -35,7 +35,7 @@ const MessagesPage = () => {
   const [message, setMessage] = useState('');
 
   const fetchData = useCallback(async (options?: { silent?: boolean }) => {
-    // defer state updates to avoid synchronous setState inside useEffect
+
     await Promise.resolve();
     if (!options?.silent) setLoading(true);
     try {
@@ -61,7 +61,7 @@ const MessagesPage = () => {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     void fetchData({ silent: true });
   }, [fetchData]);
 
@@ -96,7 +96,7 @@ const MessagesPage = () => {
   return (
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
+        
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Communication Center</h1>
@@ -110,7 +110,7 @@ const MessagesPage = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Compose Section */}
+          
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-3xl p-6 border border-slate-200/50 dark:border-slate-700/30">
               <div className="flex items-center gap-3 mb-6">
@@ -158,7 +158,7 @@ const MessagesPage = () => {
             </div>
           </div>
 
-          {/* History Section */}
+          
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-3xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
               <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/30 flex items-center justify-between">

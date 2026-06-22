@@ -359,7 +359,7 @@ export default function KYCReviewPage() {
           </div>
         </div>
 
-        {/* Stats */}
+        
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={Clock} label="Pending Review" value={stats.pending} variant="amber" onClick={() => setFilter('pending')} active={filter === 'pending'} />
           <MetricCard icon={CheckCircle2} label="Approved" value={stats.approved} variant="green" onClick={() => setFilter('approved')} active={filter === 'approved'} />
@@ -367,7 +367,7 @@ export default function KYCReviewPage() {
           <MetricCard icon={FileText} label="Total" value={stats.total} variant="purple" onClick={() => setFilter('all')} active={filter === 'all'} />
         </div>
 
-        {/* Search & Filters */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
@@ -388,7 +388,7 @@ export default function KYCReviewPage() {
           </div>
         </div>
 
-        {/* List */}
+        
         {loading ? (
           <div className="py-20 flex justify-center">
             <Loader2 className="w-10 h-10 text-purple-600 animate-spin" />
@@ -478,7 +478,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
+        
         <div className={cn("p-6 text-white flex items-center justify-between", isEmployer ? "bg-blue-600" : "bg-purple-600")}>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -503,7 +503,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
           {isEmployerApp ? (
             <div className="grid md:grid-cols-2 gap-8">
-              {/* Employer Details */}
+              
               <div className="space-y-6">
                 <section>
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Company Details</h4>
@@ -524,7 +524,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
                 </section>
               </div>
 
-              {/* Documents */}
+              
               <div className="space-y-4">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Verification Documents</h4>
                 <div className="grid gap-3">
@@ -544,7 +544,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
             </div>
           ) : (
             <div className="grid lg:grid-cols-3 gap-6">
-              {/* Document Preview */}
+              
               <DocumentPreview doc={selectedDoc} />
 
               <div className="space-y-6">
@@ -561,7 +561,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
             </div>
           )}
 
-          {/* Notes */}
+          
           <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 items-center gap-2">
               <MessageSquare className="w-4 h-4" />
@@ -576,7 +576,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
           </div>
         </div>
 
-        {/* Footer Actions */}
+        
         <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
           <Button
             onClick={() => handleReview('approved')}
@@ -640,7 +640,7 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
 
       <div className="h-105 lg:h-140 bg-slate-200/70 dark:bg-slate-950">
         {previewKind === 'image' ? (
-          // eslint-disable-next-line @next/next/no-img-element
+
           <img
             src={doc.document_url}
             alt={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}

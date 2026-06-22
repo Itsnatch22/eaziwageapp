@@ -17,7 +17,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import { createClient } from '@/lib/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
 
 interface RecentTransaction {
   id: string | number;
@@ -46,7 +46,7 @@ interface EmployeeSummary {
   employer_id?: string;
 }
 
-// ─── Circular Dial ────────────────────────────────────────────────────────────
+
 
 const SpeedDial = ({ 
   value, 
@@ -66,20 +66,20 @@ const SpeedDial = ({
   let monthlyInfo = '';
   
   if (isMonthlyProgress) {
-    // Calculate monthly progress
+
     const now = new Date();
     const currentDay = now.getDate();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const monthlyPct = Math.min((currentDay / daysInMonth) * 100, 100);
     
-    // Use monthly progress for dial, financial values for display
+
     pct = monthlyPct;
     displayValue = formatCurrency(value || 0, currency).split('.')[0];
     subtitle = 'Accrued This Month';
     badge = 'Available Now';
     monthlyInfo = `Day ${currentDay} of ${daysInMonth} (${Math.round(monthlyPct)}%)`;
   } else {
-    // Original financial logic
+
     pct = max && max > 0 ? Math.min((value || 0) / max * 100, 100) : 0;
     displayValue = formatCurrency(value || 0, currency).split('.')[0];
     subtitle = 'Unlocked Funds';
@@ -160,7 +160,7 @@ const StatBlock = ({ icon: Icon, label, value, sub, variant = 'blue' }: {
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+
 
 export default function EmployeeDashboardPage() {
   const { currency } = useCurrency();
@@ -192,7 +192,7 @@ export default function EmployeeDashboardPage() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     void fetchStats({ silent: true });
   }, [fetchStats]);
 
@@ -220,7 +220,7 @@ export default function EmployeeDashboardPage() {
     return { date: lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), daysUntil };
   };
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+
   if (loading) return (
     <EmployeePortalLayout title="Syncing...">
       <div className="flex flex-col items-center justify-center py-40 gap-4">
@@ -230,7 +230,7 @@ export default function EmployeeDashboardPage() {
     </EmployeePortalLayout>
   );
 
-  // ── Profile Not Found ──────────────────────────────────────────────────────
+
   if (error === 'profile_not_found') return (
     <EmployeePortalLayout title="Welcome">
       <div className="max-w-sm mx-auto text-center py-16 space-y-8">
@@ -265,7 +265,7 @@ export default function EmployeeDashboardPage() {
     <EmployeePortalLayout title="Overview">
       <div className="max-w-5xl mx-auto space-y-6">
 
-        {/* Rejection Recovery Alert */}
+        
         {employee?.kyc_status === 'rejected' && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="flex items-start gap-4 text-left">
@@ -287,13 +287,13 @@ export default function EmployeeDashboardPage() {
           </div>
         )}
 
-        {/* Hero */}
+        
         <div className="grid lg:grid-cols-12 gap-6 items-start">
 
-          {/* Dial Card */}
+          
           <div className="lg:col-span-5">
             <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 p-8 space-y-8 relative overflow-hidden">
-              {/* Top accent line */}
+              
               <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-emerald-400/50 to-transparent" />
 
               <SpeedDial 
@@ -327,7 +327,7 @@ export default function EmployeeDashboardPage() {
             </div>
           </div>
 
-          {/* Stats Grid */}
+          
           <div className="lg:col-span-7 space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <StatBlock icon={TrendingUp} label="Earned Wages" value={formatCurrency(earnedWages, currency)} sub="Accrued this cycle" variant="emerald" />
@@ -357,10 +357,10 @@ export default function EmployeeDashboardPage() {
           </div>
         </div>
 
-        {/* Bottom */}
+        
         <div className="grid lg:grid-cols-12 gap-6">
 
-          {/* Transactions */}
+          
           <div className="lg:col-span-8 space-y-3">
             <div className="flex items-center justify-between px-1">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Activity</p>
@@ -415,7 +415,7 @@ export default function EmployeeDashboardPage() {
             </div>
           </div>
 
-          {/* Account Health */}
+          
           <div className="lg:col-span-4 space-y-3">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">Account Health</p>
 

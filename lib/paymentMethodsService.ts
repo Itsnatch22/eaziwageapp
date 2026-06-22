@@ -2,8 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import type { PaymentMethodCreate, PaymentMethod } from './paymentTypes';
 
 export async function createPaymentMethod(supabaseClient: SupabaseClient, employeeId: string, payload: PaymentMethodCreate) {
-  // enforce ownership and basic validation should be done by caller
-  // If is_default, unset other defaults in a transaction
+
   const { data, error } = await supabaseClient
     .from('payment_methods')
     .insert([{
@@ -16,7 +15,6 @@ export async function createPaymentMethod(supabaseClient: SupabaseClient, employ
 
   if (error) throw new Error(error.message);
 
-  // if this was set as default, ensure uniqueness
   if (payload.is_default) {
     await supabaseClient
       .from('payment_methods')
@@ -25,7 +23,6 @@ export async function createPaymentMethod(supabaseClient: SupabaseClient, employ
       .eq('employee_id', employeeId);
   }
 
-  // insert audit log
   await supabaseClient
     .from('payment_method_audit')
     .insert([{ payment_method_id: data.id, employee_id: employeeId, action: 'created', new_data: data }]);
@@ -55,7 +52,7 @@ export async function getPaymentMethodById(supabaseClient: SupabaseClient, id: s
 }
 
 export async function setDefaultPaymentMethod(supabaseClient: SupabaseClient, employeeId: string, id: string) {
-  // ensure method belongs to employee
+
   const { data: method } = await supabaseClient
     .from('payment_methods')
     .select('*')

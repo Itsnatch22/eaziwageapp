@@ -51,7 +51,7 @@ function pick<T>(arr: T[]): T {
 }
 
 function randomSalary(): number {
-  // Between 25,000 and 250,000 KES, rounded to nearest 5,000
+
   return Math.round((25000 + Math.random() * 225000) / 5000) * 5000;
 }
 

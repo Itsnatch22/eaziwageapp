@@ -88,7 +88,7 @@ export async function PATCH(
   const nowIso = new Date().toISOString();
   
   if (action === 'approve') {
-    // Load effective EWA settings for the target employee
+
     const { data: empRow } = await supabase
       .from('employee_onboarding')
       .select('monthly_salary')
@@ -132,7 +132,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'EWA access is disabled for this employee.' }, { status: 403 });
     }
 
-    // Enforce per-employee percentage cap
+
     const salary = Number(empRow?.monthly_salary ?? 0);
     const pct = (Number(effective.max_advance_percentage) || 50) / 100;
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();

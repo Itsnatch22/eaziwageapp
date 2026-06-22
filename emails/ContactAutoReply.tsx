@@ -28,7 +28,7 @@ export default function ContactAutoReply({
       <Preview>We received your message - EaziWage</Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header */}
+          
           <Section style={header}>
             <Img
               src={`${baseUrl}/logo.png`}
@@ -39,7 +39,7 @@ export default function ContactAutoReply({
             />
           </Section>
 
-          {/* Content */}
+          
           <Section style={content}>
             <Heading style={h1}>Hi {name},</Heading>
 
@@ -66,7 +66,7 @@ export default function ContactAutoReply({
             </Text>
           </Section>
 
-          {/* Footer */}
+          
           <Section style={footer}>
             <Text style={footerText}>
               Nairobi, Kenya | +254 723 154900 | support@eaziwage.com
@@ -94,7 +94,7 @@ export default function ContactAutoReply({
   );
 }
 
-/* ----------------------------- styles ----------------------------- */
+
 
 const main = {
   backgroundColor: "#f6f9fc",

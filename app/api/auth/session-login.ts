@@ -59,8 +59,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(dest, { headers: rateResult.headers });
   }
 
-  // Mark token as used (atomic)
-  const { error: markError } = await supabaseAdmin
+    const { error: markError } = await supabaseAdmin
     .from('password_resets')
     .update({ used_at: new Date().toISOString() })
     .eq('id', reset.id)
@@ -73,9 +72,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(dest, { headers: rateResult.headers });
   }
 
-  // === Best approach: Use generateLink + verifyOtp to get real session tokens ===
   try {
-    // 1. Get user email (you may need to fetch it if not stored in password_resets)
+
     const { data: userData } = await supabaseAdmin.auth.admin.getUserById(reset.user_id);
     const userEmail = userData?.user?.email;
 
@@ -83,7 +81,7 @@ export async function GET(req: NextRequest) {
       throw new Error('User email not found');
     }
 
-    // Generate a magic link (this creates a valid OTP under the hood)
+
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: userEmail,
@@ -93,7 +91,7 @@ export async function GET(req: NextRequest) {
       throw new Error('Failed to generate magic link');
     }
 
-    // Verify the OTP to obtain access_token + refresh_token
+
     const { data: otpData, error: otpError } = await supabaseAdmin.auth.verifyOtp({
       token_hash: linkData.properties.hashed_token,
       type: 'magiclink',
@@ -105,7 +103,7 @@ export async function GET(req: NextRequest) {
 
     const { access_token, refresh_token } = otpData.session;
 
-    // 2. Create response and set cookies using @supabase/ssr
+
     const response = NextResponse.redirect(new URL(env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com'));
 
     const supabaseForCookies = createServerClient(
@@ -135,7 +133,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('[session-login] Error creating server session:', err);
     
-    // Fallback: redirect with success flag (let client-side handle auth if needed)
+
     const dest = new URL(env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com');
     dest.searchParams.set('session_reauth', 'success');
     return NextResponse.redirect(dest, { headers: rateResult.headers });

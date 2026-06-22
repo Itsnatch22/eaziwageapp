@@ -19,9 +19,9 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+
+
+
           }
         },
       },
@@ -65,8 +65,7 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
       return NextResponse.json({ error: 'Advance request not found' }, { status: 404 });
     }
 
-    // Fetch employee data to get user_id and organization_id
-    const { data: employee, error: employeeError } = await supabase
+     const { data: employee, error: employeeError } = await supabase
       .from('employees')
       .select('user_id, organization_id')
       .eq('id', advance.employee_id)
@@ -76,7 +75,6 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    // Now fetch salary from profiles using the user_id
     const { data: emp, error: empError } = await supabase
       .from('profiles')
       .select('salary')
@@ -89,7 +87,6 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
 
     const organization_id = employee.organization_id;
 
-    // Respect per-employee or employer EWA settings when enforcing monthly cap
     const { data: employeeEwa } = await supabase
       .from('employee_ewa_settings')
       .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount')

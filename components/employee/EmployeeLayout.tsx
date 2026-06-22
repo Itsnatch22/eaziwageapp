@@ -27,7 +27,7 @@ interface EmployeeUser {
   avatar_url?: string;
 }
 
-//  Background 
+
 
 export const EmployeeBackground = () => (
   <>
@@ -39,7 +39,7 @@ export const EmployeeBackground = () => (
   </>
 );
 
-//  Sidebar 
+
 
 interface SidebarNavProps {
   isOpen: boolean;
@@ -53,7 +53,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setMounted(true);
   }, []);
 
@@ -106,12 +106,12 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
         )}
         aria-label="Employee navigation sidebar"
       >
-        {/* Glass panel */}
+        
         <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/50 dark:border-white/10" />
 
         <div className="relative flex flex-col h-full overflow-hidden">
 
-          {/* Logo */}
+          
           <div className="p-6 border-b border-slate-100 dark:border-white/10 shrink-0">
             <Link href="/dashboards/employee-dashboard" className="flex items-center gap-3" onClick={onClose}>
               <div className="w-11 h-11 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 dark:border-white/10">
@@ -139,7 +139,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
             </button>
           </div>
 
-          {/* Nav */}
+          
           <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto custom-scrollbar">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -171,7 +171,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
               );
             })}
 
-            {/* Help card */}
+            
             <div className="mt-4 rounded-2xl p-4 border"
               style={{ background: '#10b98108', borderColor: '#10b98120' }}>
               <div className="flex items-center gap-3 mb-3">
@@ -193,7 +193,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
             </div>
           </nav>
 
-          {/* User section */}
+          
           <div className="p-4 border-t border-slate-100 dark:border-white/10 shrink-0 mb-20 lg:mb-0">
             <div className="flex items-center gap-3 mb-3">
               <Avatar className="w-10 h-10 rounded-xl border border-slate-100 dark:border-white/10">
@@ -223,7 +223,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
   );
 };
 
-// ─── Top Header ───────────────────────────────────────────────────────────────
+
 
 interface TopHeaderProps {
   onMenuClick: () => void;
@@ -237,7 +237,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setMounted(true);
   }, []);
 
@@ -253,7 +253,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   };
 
   const getPageTitle = () => {
-    // If the caller passed a generic title like 'Overview' prefer showing the user's name
+
     if (title && isGenericTitle(title)) return fullName;
     if (title) return title;
     if (pathname === '/dashboards/employee-dashboard') return 'Dashboard';
@@ -314,7 +314,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
   );
 };
 
-// ─── Floating Nav ─────────────────────────────────────────────────────────────
+
 
 export const FloatingNav = () => {
   const pathname = usePathname();
@@ -375,7 +375,7 @@ export const FloatingNav = () => {
   );
 };
 
-// ─── Main Layout ──────────────────────────────────────────────────────────────
+
 
 interface EmployeePortalLayoutProps {
   children: React.ReactNode;
@@ -395,7 +395,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
     if (sidebarOpen) setSidebarOpen(false);
   }
 
-  // Subscribe to Supabase Realtime for real-time updates
+
   useEffect(() => {
     if (!user?.id) return;
 
@@ -409,7 +409,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
         event: 'UPDATE',
         schema: 'public',
         table: 'employee_onboarding',
-        // updates related to user's onboarding/settings; no filter to limit (but scoped by payload)
+
       }, () => {
         toast.success('Your account settings updated', {
           description: 'An administrator has updated your account configuration.',
@@ -423,7 +423,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
     };
   }, [user?.id]);
 
-  // Show loading state while auth is initializing
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
@@ -435,7 +435,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
     );
   }
 
-  // Show error state if no user after loading completes
+
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center px-6">
@@ -459,7 +459,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
     );
   }
 
-  // Render the authenticated layout
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <EmployeeBackground />
@@ -479,7 +479,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
   );
 }
 
-// Compatibility Exports 
+
 
 export { EmployeePortalLayout as EmployeePageLayout };
 

@@ -52,7 +52,7 @@ export function EmptyState({
           isSearch ? "text-amber-600" : "text-primary"
         )} />
         
-        {/* Subtle decorative circles */}
+        
         <div className="absolute -inset-2 bg-current opacity-5 rounded-full blur-xl group-hover:opacity-10 transition-opacity" />
       </div>
 

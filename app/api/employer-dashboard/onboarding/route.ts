@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         ...fields,
         currency: employerCurrency,
         ...documentUrls,
-        // Workflow
+
         status: 'pending',
         risk_score: 0,
         current_step: 7,

@@ -179,14 +179,14 @@ async function fetchTopUpData() {
 function TopUpRequestsLoading() {
   return (
     <div className="space-y-8">
-      {/* Skeleton wallet panel */}
+      
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6 animate-pulse">
         <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-32 mb-3" />
         <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded w-48 mb-6" />
         <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-40" />
       </div>
 
-      {/* Skeleton table */}
+      
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
         <div className="h-16 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700" />
         {[1, 2, 3].map(i => (

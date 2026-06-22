@@ -33,10 +33,6 @@ import EmailLayout, {
   styles,
 } from './EmailLayout';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. NEW EMPLOYER REGISTRATION
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface NewEmployerRegistrationEmailProps {
   companyName: string;
   contactPerson: string;
@@ -104,9 +100,6 @@ export function NewEmployerRegistrationEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. NEW EMPLOYEE REGISTRATION
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface NewEmployeeRegistrationEmailProps {
   employeeName: string;
@@ -169,10 +162,6 @@ export function NewEmployeeRegistrationEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. EMPLOYER ONBOARDING SUBMITTED
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface EmployerOnboardingSubmittedEmailProps {
   companyName: string;
@@ -264,10 +253,6 @@ export function EmployerOnboardingSubmittedEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. NEW KYC DOCUMENT / APPLICATION
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface NewKYCDocumentEmailProps {
   employeeName: string;
   employeeEmail?: string;
@@ -342,9 +327,6 @@ export function NewKYCDocumentEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. BANK CHANGE REQUEST
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface BankChangeRequestEmailProps {
   companyName: string;
@@ -388,7 +370,7 @@ export function BankChangeRequestEmail({
         before approving.
       </Text>
 
-      {/* Side-by-side comparison */}
+      
       <Section style={{ margin: '20px 0' }}>
         <Row>
           <Column style={{ width: '48%', paddingRight: '8px' }}>
@@ -442,10 +424,6 @@ export function BankChangeRequestEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. FRAUD / FLAGGED ADVANCE ALERT
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type FraudSeverity = 'low' | 'medium' | 'high' | 'critical';
 
@@ -563,10 +541,6 @@ export function FraudAlertEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 7. WALLET TOP-UP REQUEST
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface WalletTopUpRequestEmailProps {
   companyName: string;
   contactPerson?: string;
@@ -617,7 +591,7 @@ export function WalletTopUpRequestEmail({
         This funds their advance disbursement pool. Review and approve from the admin dashboard.
       </Text>
 
-      {/* Amount highlight card */}
+      
       <Section style={{ backgroundColor: '#f5f3ff', borderRadius: '12px', padding: '24px', margin: '20px 0', textAlign: 'center' as const }}>
         <Text style={{ fontSize: '13px', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>
           Requested Amount
@@ -671,11 +645,6 @@ export function WalletTopUpRequestEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 8. DOCUMENT UPLOAD NOTIFICATION
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type DocumentUploaderRole = 'employee' | 'employer';
 
 export interface DocumentUploadNotificationEmailProps {
@@ -758,9 +727,5 @@ export function DocumentUploadNotificationEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Re-export for notifications.ts compatibility
-// ─────────────────────────────────────────────────────────────────────────────
 
 export { NewKYCDocumentEmail as DocumentApprovedEmail };

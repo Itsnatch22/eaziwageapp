@@ -124,7 +124,7 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
 
   return (
     <div className="fixed bottom-4 right-4 w-80 sm:w-96 h-125 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden z-50 animate-in slide-in-from-bottom-4 duration-300">
-      {/* Header */}
+      
       <div className="p-4 bg-linear-to-r from-primary to-emerald-600 text-white flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/10">
@@ -151,7 +151,7 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
         </div>
       </div>
 
-      {/* Messages */}
+      
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar" ref={scrollRef}>
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-slate-400">
@@ -210,7 +210,7 @@ export function ChatWindow({ currentUserId, otherUserId, otherUserName, onClose 
         )}
       </div>
 
-      {/* Input */}
+      
       <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
           <Input

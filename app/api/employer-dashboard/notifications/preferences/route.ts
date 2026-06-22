@@ -12,7 +12,7 @@ const getAdmin = () => {
   });
 };
 
-// GET — fetch current notification preferences
+
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
@@ -27,7 +27,7 @@ export async function GET() {
       .single();
 
     if (error || !employer) {
-      // Return safe defaults if no record found
+
       return NextResponse.json({
         emailNotifications: true,
         advanceAlerts: true,
@@ -44,7 +44,7 @@ export async function GET() {
   }
 }
 
-// PUT — update notification preferences
+
 export async function PUT(req: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
@@ -54,7 +54,7 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { emailNotifications, advanceAlerts, payrollReminders, weeklyReports, pushNotifications } = body;
 
-    // Validate — all must be booleans
+
     const fields = { emailNotifications, advanceAlerts, payrollReminders, weeklyReports, pushNotifications };
     for (const [key, val] of Object.entries(fields)) {
       if (typeof val !== 'boolean') {

@@ -86,7 +86,7 @@ const SupportPage = () => {
         toast.success('Support ticket opened!');
         setShowAddModal(false);
         setNewTicket({ subject: '', message: '', category: 'General' });
-        // Refresh tickets after creating a new one
+
         const refreshRes = await fetch('/api/employee-dashboard/support');
         if (refreshRes.ok) {
           const data = await refreshRes.json();
@@ -104,7 +104,7 @@ const SupportPage = () => {
     <EmployeePortalLayout title="Support & Help">
       <div className="max-w-4xl mx-auto space-y-12">
         
-        {/* Help Options */}
+        
         <div className="grid md:grid-cols-2 gap-6">
            <div className="bg-linear-to-br from-emerald-500 to-emerald-600 rounded-[2rem] p-8 text-white shadow-xl shadow-emerald-500/20 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
@@ -131,7 +131,7 @@ const SupportPage = () => {
            </div>
         </div>
 
-        {/* FAQs */}
+        
         <div className="space-y-6">
            <div className="flex items-center gap-3 px-1">
               <HelpCircle className="w-5 h-5 text-emerald-500" />
@@ -157,7 +157,7 @@ const SupportPage = () => {
            </div>
         </div>
 
-        {/* Ticket History */}
+        
         <div className="space-y-6">
            <div className="flex items-center gap-3 px-1">
               <History className="w-5 h-5 text-emerald-500" />
@@ -193,7 +193,7 @@ const SupportPage = () => {
            </div>
         </div>
 
-        {/* Ticket Modal */}
+        
         {showAddModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>

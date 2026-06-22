@@ -12,10 +12,8 @@ import webpush from 'web-push';
 import { getEnv } from '@/env';
 import { sendEmail } from './email-service';
 
-// ── Email Templates ─────────────────────────────────────────────────────────
 
 import {
-  // Admin
   NewEmployerRegistrationEmail,
   EmployerOnboardingSubmittedEmail,
   NewKYCDocumentEmail,
@@ -25,7 +23,6 @@ import {
 } from './emails/AdminNotifications';
 
 import {
-  // Employer
   NewEmployeeLinkedEmail,
   EmployeeKYCSubmittedEmail,
   EmployeeKYCApprovedEmail,
@@ -40,7 +37,6 @@ import {
 } from './emails/EmployerNotifications';
 
 import {
-  // Employee
   AdvanceApprovedEmail,
   AdvanceRejectedEmail,
   KYCUpdateEmail,
@@ -48,8 +44,6 @@ import {
   BalanceUpdateEmail,
   SystemAlertEmail,
 } from './emails/EmployeeNotifications';
-
-// ── Types ───────────────────────────────────────────────────────────────────
 
 export type AdminNotificationType =
   | 'new_employer'
@@ -85,8 +79,6 @@ export type EmployeeNotificationType =
 
 type NotificationMetadata = Record<string, unknown>;
 
-// ── Setup ───────────────────────────────────────────────────────────────────
-
 const env = getEnv();
 const APP_URL = env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com';
 
@@ -96,7 +88,6 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-// Web Push Setup
 if (env.VAPID_PRIVATE_KEY && env.PUSH_VAPID_CONTACT) {
   try {
     webpush.setVapidDetails(
@@ -108,8 +99,6 @@ if (env.VAPID_PRIVATE_KEY && env.PUSH_VAPID_CONTACT) {
     console.error('[notifications] Failed to set VAPID details:', e);
   }
 }
-
-// ── Email Builders ──────────────────────────────────────────────────────────
 
 function buildAdminEmailElement(
   type: AdminNotificationType,
@@ -435,8 +424,6 @@ function buildEmployeeEmailElement(
   }
 }
 
-// ── Push Notifications ──────────────────────────────────────────────────────
-
 async function sendPushNotifications(
   userId: string,
   title: string,
@@ -463,8 +450,6 @@ async function sendPushNotifications(
   );
 }
 
-// ── Main Notification Functions ─────────────────────────────────────────────
-
 export async function notifyAdmin(params: {
   type: AdminNotificationType;
   title: string;
@@ -472,7 +457,6 @@ export async function notifyAdmin(params: {
   metadata?: NotificationMetadata;
 }) {
   try {
-    // Insert notification record (optional - if you have an admin notifications table)
     await supabaseAdmin
       .from('admin_notifications')
       .insert({
@@ -489,7 +473,6 @@ export async function notifyAdmin(params: {
       params.message,
       params.metadata ?? {}
     );
-// Read global notification settings
 const { data: globalSettings } = await supabaseAdmin
   .from('global_settings')
   .select('notification_settings')
@@ -647,7 +630,6 @@ export async function notifyEmployee(params: {
   }
 }
 
-// Convenience wrapper
 export async function triggerNotification(params: {
   target: 'admin' | 'employer' | 'employee';
   userId?: string;

@@ -41,7 +41,7 @@ export function ExportButton<T>({ data, filename, headers, mapping, title = 'Exp
         link.click();
         document.body.removeChild(link);
       } else {
-        // PDF Export - Using a simple approach for now
+
         toast.info('Generating PDF document...');
         const rows = [headers, ...data.map(mapping)];
         const text = rows.map(r => r.join(' | ')).join('\n');

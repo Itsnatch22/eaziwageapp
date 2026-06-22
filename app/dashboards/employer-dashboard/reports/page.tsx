@@ -14,7 +14,7 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
 
 interface ReportsData {
   period: { label: string; from: string; to: string };
@@ -33,7 +33,7 @@ interface ReportsData {
   monthly_trend: Array<{ label: string; amount: number; count: number }>;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+
 interface MetricCardProps {
   icon: LucideIcon;
   title: string;
@@ -185,7 +185,7 @@ const SummaryRow = ({ label, value, valueColor = '' }: SummaryRowProps) => (
   </div>
 );
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 
 function pctChange(current: number, previous: number): { label: string; type: 'positive' | 'negative' } | undefined {
   if (previous === 0 && current === 0) return undefined;
@@ -219,7 +219,7 @@ async function downloadReportFile(
   URL.revokeObjectURL(url);
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+
 
 export default function EmployerReports() {
   const { currency } = useCurrency();
@@ -257,11 +257,11 @@ export default function EmployerReports() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     void fetchReports(selectedPeriod, selectedMonth, { silent: true });
   }, [selectedPeriod, selectedMonth, fetchReports]);
 
-  // ── Download handlers ─────────────────────────────────────────────────────
+
 
   const downloadReport = useCallback(async (
     type: 'advances' | 'employees' | 'financial' | 'payroll' | 'all',
@@ -275,7 +275,7 @@ export default function EmployerReports() {
     }
   }, [data, exportFormat, selectedMonth, selectedPeriod]);
 
-  // ── Derived metrics ───────────────────────────────────────────────────────
+
 
   const amountChange   = data ? pctChange(data.advances.total_amount, data.previous_period.total_amount) : undefined;
   const feesChange     = data ? pctChange(data.advances.total_fees,   data.previous_period.total_fees)   : undefined;
@@ -311,7 +311,7 @@ export default function EmployerReports() {
     <EmployerPortalLayout>
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white" data-testid="reports-title">
@@ -322,7 +322,7 @@ export default function EmployerReports() {
             </p>
           </div>
           <div className="flex gap-3 flex-wrap">
-            {/* Month selector */}
+            
             <div className="flex items-center gap-2 px-3 h-10 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
               <Calendar className="w-4 h-4 text-primary" />
               <input
@@ -366,7 +366,7 @@ export default function EmployerReports() {
           </div>
         </div>
 
-        {/* Key Metrics */}
+        
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title="Total Disbursed"
@@ -394,7 +394,7 @@ export default function EmployerReports() {
           />
         </div>
 
-        {/* Monthly Trend */}
+        
         {data?.monthly_trend && data.monthly_trend.length > 0 && (
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center gap-3 mb-6">
@@ -410,9 +410,9 @@ export default function EmployerReports() {
           </div>
         )}
 
-        {/* Charts Row */}
+        
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Disbursement by Method */}
+          
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
@@ -456,7 +456,7 @@ export default function EmployerReports() {
             </div>
           </div>
 
-          {/* Employee Breakdown */}
+          
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
@@ -496,9 +496,9 @@ export default function EmployerReports() {
           </div>
         </div>
 
-        {/* Bottom Row */}
+        
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Monthly Summary */}
+          
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
@@ -519,7 +519,7 @@ export default function EmployerReports() {
             </div>
           </div>
 
-          {/* Available Reports */}
+          
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
@@ -563,7 +563,7 @@ export default function EmployerReports() {
           </div>
         </div>
 
-        {/* Risk Score Card */}
+        
         {(data?.risk_score != null) && (
           <div className="bg-linear-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-primary/10 dark:border-primary/20">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">

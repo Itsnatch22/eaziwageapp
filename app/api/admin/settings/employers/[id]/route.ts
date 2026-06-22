@@ -143,7 +143,6 @@ export async function PUT(req: NextRequest, { params }: IdRouteContext) {
       created_at:  new Date().toISOString(),
     });
 
-    // NOTE: Pusher removed. Supabase Realtime is expected to broadcast DB changes via Postgres. Verify RLS/select policies and triggers before relying on realtime delivery.
     return NextResponse.json({ success: true, settings: validated });
   } catch (error) {
     console.error('[PUT /api/admin/settings/employers/[id]] Error:', error);

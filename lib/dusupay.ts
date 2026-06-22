@@ -45,7 +45,7 @@ export enum Currency {
   USD = 'USD',
 }
 
-// Provider mappings (same as your Python code)
+
 export const MOBILE_MONEY_PROVIDERS: Record<string, Record<string, string>> = {
   KE: { mpesa: 'safaricom_ke', safaricom: 'safaricom_ke', airtel: 'airtel_ke', airtel_money: 'airtel_ke' },
   TZ: { mpesa: 'vodacom_tz', vodacom: 'vodacom_tz', airtel: 'airtel_tz', tigo: 'tigo_tz', halopesa: 'halotel_tz' },
@@ -115,7 +115,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const getErrorMessage = (err: unknown, fallback: string) =>
   err instanceof Error ? err.message : fallback;
 
-// ======================== MODELS ========================
+
 export interface PayoutRequest {
   amount: number;
   currency: string;
@@ -126,7 +126,7 @@ export interface PayoutRequest {
   merchantReference?: string;
   narration?: string;
   callbackUrl?: string;
-  // Bank only
+
   bankCode?: string;
   branchCode?: string;
 }
@@ -146,7 +146,7 @@ export interface WebhookPayload {
   payload: DusupayWebhookPayload;
 }
 
-// ======================== SERVICE ========================
+
 export class DusupayService {
   private config: DusupayConfig;
   private baseUrl: string;
@@ -181,7 +181,7 @@ export class DusupayService {
     return COUNTRY_CURRENCY[countryCode.toUpperCase()] ?? Currency.USD;
   }
 
-  // ======================== PAYOUTS ========================
+
   async createMobileMoneyPayout(
     amount: number,
     countryCode: string,
@@ -288,7 +288,7 @@ export class DusupayService {
     }
   }
 
-  // ======================== STATUS & UTILITIES ========================
+
   async checkPayoutStatus(merchantReference: string): Promise<PayoutResponse> {
     if (!this.config.isConfigured) {
       return { success: false, message: 'Not configured', errorCode: 'NOT_CONFIGURED' };
@@ -317,7 +317,7 @@ export class DusupayService {
     }
   }
 
-  // Get banks for a specific bank provider (use payment-providers first to get provider_code)
+
   async getBanks(providerCode: string): Promise<BankInfo[]> {
     if (!this.config.isConfigured) return [];
     try {
@@ -332,7 +332,7 @@ export class DusupayService {
     }
   }
 
-  // ======================== WEBHOOK ========================
+
   verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
     if (!this.config.webhookSecret) return false;
 
@@ -397,14 +397,14 @@ export class DusupayService {
   }
 }
 
-// ======================== EXPORT ========================
+
 export const dusupay = new DusupayService();
 
-// Optional: Server Action example
+
 export async function initiatePayoutAction(request: PayoutRequest) {
   'use server';
   if (request.method === PayoutMethod.MOBILE_MONEY) {
-    // call createMobileMoneyPayout with mapped params
+
   }
-  // ...
+
 }

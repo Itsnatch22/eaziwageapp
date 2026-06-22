@@ -7,7 +7,7 @@ import {
 } from '@/lib/emails/AdminKYCNotification';
 import { DocumentType, DocumentStatus, DOCUMENT_TYPE_LABELS } from '@/lib/validations/kyc-validation';
 
-// Initialize Resend
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export interface EmailOptions {
@@ -161,8 +161,8 @@ export async function logEmail(params: {
   errorMessage?: string;
   metadata?: Record<string, unknown>;
 }) {
-  // This would be implemented with your database client
-  // For example, using Supabase:
+
+
   /*
   const { createAdminClient } = await import('@/utils/supabase/server');
   const supabase = createAdminClient();
@@ -203,5 +203,5 @@ export async function sendTestEmail(recipientEmail: string) {
   });
 }
 
-// Export email templates for direct use if needed
+
 export { DocumentApprovedEmail, DocumentRejectedEmail, DocumentSubmittedEmail };

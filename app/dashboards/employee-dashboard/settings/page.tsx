@@ -150,7 +150,7 @@ export default function EmployeeSettings() {
   const [activeTab, setActiveTab] = useState('account');
   const [saving, setSaving] = useState(false);
 
-  // Settings states
+
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -163,7 +163,7 @@ export default function EmployeeSettings() {
   const [verificationCode, setVerificationCode] = useState('');
   const { subscribe, unsubscribe, status } = usePushNotifications();
 
-  // MFA management UI state
+
   const [mfaFactors, setMfaFactors] = useState<MFAFactor[]>([]);
   const [showMfaModal, setShowMfaModal] = useState(false);
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
@@ -266,7 +266,7 @@ export default function EmployeeSettings() {
     
     try {
       if (enable) {
-        // Start MFA enrollment process
+
         const res = await fetch('/api/employee-dashboard/security/mfa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -289,7 +289,7 @@ export default function EmployeeSettings() {
           setMfaStatus(prev => ({ ...prev, loading: false }));
         }
       } else {
-        // Disable MFA
+
         const res = await fetch('/api/employee-dashboard/security/mfa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -359,7 +359,7 @@ export default function EmployeeSettings() {
       });
       if (res.ok) {
         toast.success('MFA factor removed');
-        // refresh status
+
         const statusRes = await fetch('/api/employee-dashboard/security/mfa');
         if (statusRes.ok) {
           const data = await statusRes.json();
@@ -404,7 +404,7 @@ export default function EmployeeSettings() {
   const handleNotificationUpdate = async (key: 'emailAlerts' | 'pushNotifications', value: boolean) => {
   setNotificationLoading(true);
   try {
-    // If toggling push, handle browser subscription first
+
     if (key === 'pushNotifications') {
       if (value) {
         await subscribe(); // registers sw + saves to system_push_subscriptions
@@ -413,7 +413,7 @@ export default function EmployeeSettings() {
       }
     }
 
-    // Then save preference flag to profiles
+
     const newPrefs = { ...notificationPrefs, [key]: value };
     const res = await fetch('/api/employee-dashboard/notifications/preferences', {
       method: 'PUT',
@@ -543,7 +543,7 @@ export default function EmployeeSettings() {
       <main className="max-w-6xl mx-auto px-4 pb-28 space-y-6">
         <div className="grid lg:grid-cols-4 gap-6">
           
-          {/* Sidebar */}
+          
           <div className="lg:col-span-1 space-y-4">
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-3 border border-slate-200/50 dark:border-slate-700/30 space-y-1">
               {tabs.map((tab) => (
@@ -559,10 +559,10 @@ export default function EmployeeSettings() {
 
           </div>
 
-          {/* Content */}
+          
           <div className="lg:col-span-3 space-y-6">
             
-            {/* Account Tab */}
+            
             {activeTab === 'account' && (
               <div className="space-y-6">
                 <SettingsCard icon={User} title="Personal Information" description="Manage your basic account details">
@@ -572,7 +572,7 @@ export default function EmployeeSettings() {
                       currentAvatarUrl={profile?.avatar_url} 
                       fullName={profile?.full_name}
                       onUploadSuccess={(url) => {
-                        // The component now handles store sync internally
+
                         console.log('Avatar updated in settings:', url);
                       }}
                     />
@@ -643,7 +643,7 @@ export default function EmployeeSettings() {
               </div>
             )}
 
-            {/* Employment Tab */}
+            
             {activeTab === 'employment' && (
               <div className="space-y-6">
                 <SettingsCard icon={Building2} title="Work Details" description="Information about your professional affiliation" locked>
@@ -687,7 +687,7 @@ export default function EmployeeSettings() {
               </div>
             )}
 
-            {/* Payment Tab */}
+            
             {activeTab === 'payment' && (
               <div className="space-y-6">
                 <SettingsCard icon={Smartphone} title="Mobile Money" description="Your primary disbursement method">
@@ -722,7 +722,7 @@ export default function EmployeeSettings() {
               </div>
             )}
 
-            {/* KYC Tab */}
+            
             {activeTab === 'kyc' && (
               <SettingsCard icon={Shield} title="KYC Compliance" description="Your identity verification status">
                 <div className="space-y-3">
@@ -770,7 +770,7 @@ export default function EmployeeSettings() {
               </SettingsCard>
             )}
 
-            {/* Notifications Tab */}
+            
             {activeTab === 'notifications' && (
               <SettingsCard icon={Bell} title="Preferences" description="Control your notification settings">
                 <div className="space-y-4">
@@ -794,7 +794,7 @@ export default function EmployeeSettings() {
               </SettingsCard>
             )}
 
-            {/* Security Tab */}
+            
             {activeTab === 'security' && (
               <div className="space-y-6">
                 <SettingsCard icon={Shield} title="Multi-Factor Authentication" description="Add an extra layer of security to your account">
@@ -863,7 +863,7 @@ export default function EmployeeSettings() {
                   )}
                 </SettingsCard>
 
-                {/* MFA Manager Modal */}
+                
                 {showMfaModal && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
@@ -1003,7 +1003,7 @@ export default function EmployeeSettings() {
               </div>
             )}
 
-            {/* Help Tab */}
+            
             {activeTab === 'help' && (
               <div className="space-y-6">
                 <SettingsCard icon={HelpCircle} title="Common Questions" description="Quick answers to frequently asked questions">
@@ -1035,7 +1035,7 @@ export default function EmployeeSettings() {
         </div>
       </main>
 
-      {/* Delete Account Modal */}
+      
       <DeleteAccountModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}

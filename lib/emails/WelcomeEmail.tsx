@@ -47,7 +47,7 @@ export default function WelcomeEmail({
 
   return (
     <EmailLayout previewText={previewText} recipientEmail={email}>
-      {/* ── Hero ── */}
+      
       <Section>
         <div style={layoutStyles.badge}>
           <span style={layoutStyles.badgeText}>✅ {roleLabel} Account Created</span>
@@ -58,7 +58,7 @@ export default function WelcomeEmail({
         <Text style={layoutStyles.text}>{roleTagline}</Text>
       </Section>
 
-      {/* ── Verify CTA ── */}
+      
       <Section style={layoutStyles.buttonContainer}>
         <Text style={{ ...layoutStyles.text, marginBottom: '20px' }}>
           First things first — confirm your email address:
@@ -73,7 +73,7 @@ export default function WelcomeEmail({
 
       <Hr style={layoutStyles.divider} />
 
-      {/* ── Features ── */}
+      
       <Section style={{ padding: '32px 0' }}>
         <Heading as="h2" style={{ ...layoutStyles.heading, fontSize: '20px' }}>
           What&apos;s waiting for you
@@ -88,7 +88,7 @@ export default function WelcomeEmail({
 
       <Hr style={layoutStyles.divider} />
 
-      {/* ── Account summary ── */}
+      
       <Section style={{ ...layoutStyles.box, margin: '32px 0' }}>
         <Heading as="h2" style={{ ...layoutStyles.heading, fontSize: '18px' }}>Your Account</Heading>
         <div style={styles.summaryRow}>
@@ -113,7 +113,7 @@ export default function WelcomeEmail({
 
       <Hr style={layoutStyles.divider} />
 
-      {/* ── Fallback link ── */}
+      
       <Section style={{ padding: '24px 0' }}>
         <Text style={{ color: '#64748b', fontSize: '13px', margin: '0 0 6px' }}>
           Button not working? Copy and paste this URL into your browser:

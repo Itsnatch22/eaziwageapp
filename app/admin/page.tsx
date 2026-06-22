@@ -351,7 +351,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Alerts */}
+      
       {(stats && (stats.kyc_pending.employers > 0 || stats.kyc_pending.employees > 0 || stats.pending_reviews > 0)) && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {stats.kyc_pending.employers > 0 && (
@@ -406,7 +406,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Metrics */}
+      
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard icon={Building2} label="Total Employers" value={stats?.employers.total || 0} subtext={`${stats?.employers.active || 0} active, ${stats?.employers.rejected || 0} rejected`} trend={stats?.employers.trend} trendUp={stats?.employers.trendUp} variant="green" />
         <MetricCard icon={Users} label="Total Employees" value={stats?.employees.total || 0} subtext={`${stats?.employees.active || 0} active`} trend={stats?.employees.trend} trendUp={stats?.employees.trendUp} variant="slate" />
@@ -414,7 +414,7 @@ export default function AdminDashboard() {
         <MetricCard icon={DollarSign} label="Total Disbursed" value={formatCurrency(stats?.advances.total_disbursed || 0, 'USD')} subtext={`Fees: ${formatCurrency(stats?.advances.total_fees || 0, 'USD')}`} variant="slate" />
       </div>
 
-      {/* Secondary */}
+      
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-center gap-3 mb-6">
@@ -463,7 +463,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Quick Actions */}
+      
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { link: '/admin/employers?status=pending', icon: CheckCircle2, label: 'Verify Employers', count: stats?.kyc_pending.employers || 0, variant: 'slate' as const },
@@ -485,7 +485,7 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Admin Wallet Glimpse */}
+      
       <div className="mt-4">
         <AdminWalletGlimpse />
       </div>

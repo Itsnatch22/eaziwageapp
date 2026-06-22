@@ -47,7 +47,6 @@ export async function GET(): Promise<NextResponse> {
 
     if (walletError) throw walletError;
 
-    // Fetch recent transactions
     let transactions: Array<Record<string, unknown>> = [];
     if (wallet?.id) {
       const { data: txs, error: txError } = await supabaseAdmin
@@ -76,13 +75,11 @@ export async function POST() {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Check admin access using central helper
     const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
     if (adminAccess.error || !adminAccess.isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Call Stanbic Account Balance API (credentials resolved inside getStanbicBaseUrl/getStanbicAuthHeader)
     const stanbicBase = getStanbicBaseUrl();
 
     const url = `${stanbicBase}/accounts/balance`;

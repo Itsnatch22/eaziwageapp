@@ -23,7 +23,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Get Employer Record (must be approved and not deleted)
+
     const { data: employer, error: employerError } = await adminSupabase
       .from('employers')
       .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
@@ -37,7 +37,7 @@ export async function GET() {
     }
 
     if (!employer) {
-      // Check if employer exists but is not approved or was deleted
+
       const anyResp = await adminSupabase
         .from('employers')
         .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
@@ -68,7 +68,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Account has been terminated' }, { status: 403 });
     }
 
-    // 2. Get Wallet
+
     const { data: wallet, error: walletError } = await adminSupabase
       .from('employer_wallets')
       .select('*')
@@ -77,7 +77,7 @@ export async function GET() {
 
     if (walletError) throw walletError;
 
-    // 3. If no wallet exists, create one (lazy creation)
+
     let currentWallet = wallet;
     if (!wallet) {
       const walletCurrency = onboarding?.currency || getCurrencyFromCountry(onboarding?.country, 'KES');
@@ -97,7 +97,7 @@ export async function GET() {
       currentWallet = newWallet;
     }
 
-    // 4. Get recent transactions
+
     const { data: transactions, error: txError } = await adminSupabase
       .from('wallet_transactions')
       .select('*')
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Resolve employer (same rules as GET)
+
     const { data: employer, error: employerError } = await adminSupabase
       .from('employers')
       .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
     const amount = Number(body?.amount ?? 0);
     if (!amount || amount <= 0) return NextResponse.json({ error: 'Invalid amount' }, { status: 422 });
 
-    // Ensure wallet exists (lazy create)
+
     const { data: wallet, error: walletError } = await adminSupabase
       .from('employer_wallets')
       .select('*')
@@ -170,10 +170,10 @@ export async function POST(req: Request) {
       currentWallet = newWallet;
     }
 
-    // Create a pending wallet_transactions row to represent the request
+
     const reference = `DEP-${employer.id}-${Date.now()}`;
     
-    // Fetch current exchange rate for employer's currency
+
     const employerCurrency = currentWallet.currency;
     const { data: rateRow } = await adminSupabase
       .from('exchange_rates')
@@ -208,7 +208,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to create top-up request' }, { status: 500 });
     }
 
-    // Notify admins for review
+
     try {
       const { notifyAdmin } = await import('@/lib/notifications');
       await notifyAdmin({

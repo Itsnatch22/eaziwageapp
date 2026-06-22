@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
 
       if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
 
-      // Send OTP via Twilio
+
       const phoneNumber = pm.phone_number ?? pm.account_number;
 
       if (!phoneNumber) {

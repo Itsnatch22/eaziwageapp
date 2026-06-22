@@ -50,12 +50,10 @@ export class PayoutService {
       throw new Error('Employer wallet not found');
     }
 
-    // Employer wallet balance must cover the reserved payout amount.
     if (wallet.balance < amount) {
       throw new Error('Insufficient balance in employer wallet');
     }
 
-    // 3. Create a pending payout transaction to "reserve" the funds
     const { data, error } = await supabaseAdmin
       .from('wallet_transactions')
       .insert({
@@ -90,7 +88,6 @@ export class PayoutService {
       return Number.isFinite(parsed) ? parsed : fallback;
     };
 
-    // Gate 1 - load advance with full context
     const { data: advanceRow, error: advanceError } = await supabaseAdmin
       .from('advances')
       .select(`
@@ -167,7 +164,6 @@ export class PayoutService {
       throw new Error(`Advance not in pending status: ${advance.status}`);
     }
 
-    // Gate 2 - employer freeze and EWA enabled checks
     if (employer?.disbursements_frozen) {
       await supabaseAdmin.from('advances').update({ status: 'rejected', reason: `Employer disbursements frozen: ${employer.freeze_reason}` }).eq('id', advanceId);
       throw new Error(`Employer disbursements frozen: ${employer.freeze_reason}`);
@@ -178,7 +174,6 @@ export class PayoutService {
       throw new Error('EWA not enabled for employer');
     }
 
-    // Gate 3 - employee eligibility
     const checkEmployeeEligibility = async (): Promise<EligibilityCheckResult> => {
       const flags: FraudFlagInput[] = [];
 
@@ -259,7 +254,6 @@ export class PayoutService {
 
     const fraudFlags: FraudFlagInput[] = [...eligibility.fraudFlags];
 
-    // Gate 4 - payment method verification (read from payment_methods by id)
     const { data: paymentMethod } = await supabaseAdmin
       .from('payment_methods')
       .select('id, method_type, provider_name, account_number, phone_number, account_name, country_code, is_verified, is_active')
@@ -270,9 +264,7 @@ export class PayoutService {
       fraudFlags.push({ flagType: 'unverified_payment_method', severity: 'high', description: 'Payment method not verified or inactive' });
     }
 
-    // Gate 5 - evaluate fraud flags
     if (fraudFlags.length > 0) {
-      // pick highest severity
       const severityOrder: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
       fraudFlags.sort((a, b) => (severityOrder[b.severity] ?? 0) - (severityOrder[a.severity] ?? 0));
       const highest = fraudFlags[0];
@@ -301,12 +293,11 @@ export class PayoutService {
       return { success: false, status: 'fraud_review', heldForFraudReview: true, fraudFlagId: flagRecord.id };
     }
 
-    // Gate 6 - DusuPay disbursement (all gates passed)
-    await supabaseAdmin.from('advances').update({ status: 'processing', auto_approved: true, approved_at: new Date().toISOString() }).eq('id', advanceId);
+   await supabaseAdmin.from('advances').update({ status: 'processing', auto_approved: true, approved_at: new Date().toISOString() }).eq('id', advanceId);
 
     const merchantReference = generateMerchantReference(advanceId);
 
-    const pm = paymentMethod!; // paymentMethod is guaranteed non-null here because missing/unverified PMs create fraud flags earlier
+    const pm = paymentMethod!; 
 
     const payoutMethod = (pm.method_type === 'mobile_money') ? PayoutMethod.MOBILE_MONEY : PayoutMethod.BANK;
     const account = pm.method_type === 'bank' ? pm.account_number : pm.phone_number;
@@ -334,7 +325,6 @@ export class PayoutService {
       throw new Error(reason);
     }
 
-    // record dusupay transaction
     await supabaseAdmin.from('dusupay_transactions').insert({
       merchant_reference: merchantReference,
       internal_reference: payoutResponse.data?.internal_reference,
@@ -345,7 +335,6 @@ export class PayoutService {
       raw_payload: payoutResponse
     });
 
-    // Gate 7 - update employer liability using RPC
     try {
       await supabaseAdmin.rpc('increment_employer_liability', {
         p_employer_id: advance.employer_id,
@@ -353,13 +342,11 @@ export class PayoutService {
         p_currency: advance.currency,
       });
     } catch (err: unknown) {
-      // ensure advance is marked failed if liability update fails
       const reason = err instanceof Error ? err.message : 'Failed to update employer liability';
       await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
       throw new Error(reason);
     }
 
-    // mark advance completed
     await supabaseAdmin.from('advances').update({
       status: 'completed',
       reference: merchantReference,

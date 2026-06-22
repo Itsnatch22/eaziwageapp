@@ -21,7 +21,7 @@ const supabase = createClient(
 const FROM_EMAIL = 'EaziWage Auth <noreply@eaziwage.com>';
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com';
 const RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
-const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const TOKEN_TTL_MS = 60 * 60 * 1000; 
 
 const Schema = z.object({
   email: z.string().email('Please enter a valid email address').max(254),
@@ -84,11 +84,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .maybeSingle<{ id: string; full_name: string | null; email: string }>();
 
   if (!profile) {
-    // Avoid account enumeration.
     return NextResponse.json({ message: 'If an account exists for this email, a magic link has been sent.' }, { status: 200, headers: rate.headers });
   }
 
-  // Invalidate existing outstanding tokens for the user
   const { error: invalidateError } = await supabase
     .from('password_resets')
     .update({ used_at: new Date().toISOString() })
@@ -108,7 +106,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to generate magic link. Please try again.' }, { status: 500, headers: rate.headers });
   }
 
-  const magicUrl = `${BASE_URL}/api/auth/session-login?token=${token}`; // session-login route to be implemented next
+  const magicUrl = `${BASE_URL}/api/auth/session-login?token=${token}`;
 
   let html: string;
   try {

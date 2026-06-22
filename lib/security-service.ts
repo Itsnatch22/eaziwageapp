@@ -50,8 +50,6 @@ export async function handleLoginSecurity(
     });
 
     const deviceFingerprint = buildDeviceFingerprint(ctx);
-
-    // 3. Check if this device is already trusted
     const { data: trustedDevice, error: fetchError } = await supabaseAdmin
       .from("trusted_devices")
       .select("id")
@@ -69,7 +67,6 @@ export async function handleLoginSecurity(
       isNewDevice = true;
       console.log(`[security-service] New device detected for user ${userId}`);
 
-      // Register this as a new trusted device
       await supabaseAdmin.from("trusted_devices").insert({
         user_id: userId,
         device_fingerprint: deviceFingerprint,
@@ -79,7 +76,6 @@ export async function handleLoginSecurity(
         last_used_at: new Date().toISOString(),
       });
     } else {
-      // Update the last_used_at timestamp for the existing device
       await supabaseAdmin
         .from("trusted_devices")
         .update({
@@ -89,14 +85,11 @@ export async function handleLoginSecurity(
         .eq("id", trustedDevice.id);
     }
 
-    // 4. Send the security notification email
-    // This will use the "Google-like" template updated in security-alerts.ts
     await sendLoginNotification(email, fullName, ctx, isNewDevice);
 
     return { isNewDevice };
   } catch (error) {
     console.error("[security-service] Fatal error in handleLoginSecurity:", error);
-    // Fallback: still return something so login isn't blocked by security logging
     return { isNewDevice: false };
   }
 }

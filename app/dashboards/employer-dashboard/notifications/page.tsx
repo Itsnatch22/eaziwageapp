@@ -25,7 +25,7 @@ export default function NotificationsPage() {
     const user = useAuthStore((state) => state.user);
 
     const fetchNotifications = useCallback(async (options?: { silent?: boolean }) => {
-        // defer state updates to avoid synchronous setState inside useEffect
+
         await Promise.resolve();
         if (!options?.silent) setLoading(true);
         try {
@@ -42,7 +42,7 @@ export default function NotificationsPage() {
     }, []);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+
         void fetchNotifications({ silent: true });
 
         if (!user?.id) return;

@@ -37,8 +37,7 @@ export async function PUT(req: NextRequest, { params }: IdRouteContext) {
       admin_id: user.id, admin_name: user.email, target_id: id, target_type: 'blackout', action: 'update_blackout',
       old_value: current, new_value: data, created_at: new Date().toISOString()
     });
-    // NOTE: Pusher removed. Supabase Realtime is expected to broadcast DB changes via Postgres. Verify RLS/select policies and triggers before relying on realtime delivery.
-    return NextResponse.json(data);
+     return NextResponse.json(data);
   } catch (error) {
     console.error('[PUT /api/admin/settings/blackouts/[id]] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -59,8 +58,7 @@ export async function DELETE(req: NextRequest, { params }: IdRouteContext) {
       admin_id: user.id, admin_name: user.email, target_id: id, target_type: 'blackout', action: 'delete_blackout',
       old_value: current, created_at: new Date().toISOString()
     });
-    // NOTE: Pusher removed. Supabase Realtime is expected to broadcast DB changes via Postgres. Verify RLS/select policies and triggers before relying on realtime delivery.
-    return NextResponse.json({ success: true });
+   return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[DELETE /api/admin/settings/blackouts/[id]] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -22,7 +22,6 @@ export function getDeviceName(userAgent: string | null): string | null {
     if (vendor && model) return `${vendor} ${model}`;
     if (model) return model;
 
-    // Use device type if available (mobile/tablet/console)
     const type = (device.type || '') as string;
     if (type) {
       const prettyType = type === 'mobile' ? 'Mobile' : type === 'tablet' ? 'Tablet' : 'Desktop';
@@ -30,13 +29,11 @@ export function getDeviceName(userAgent: string | null): string | null {
       return prettyType;
     }
 
-    // Fallback to OS name or browser
     if (os.name) return `${os.name}${os.version ? ` ${os.version}` : ''}`;
     if (browser.name) return browser.name;
 
     return null;
   } catch {
-    // Be resilient on unexpected UA strings
     return null;
   }
 }

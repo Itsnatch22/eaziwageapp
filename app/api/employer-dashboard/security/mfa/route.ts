@@ -23,7 +23,7 @@ function buildRateLimitResponseHeaders(rate: RateLimitResult) {
       headers['Retry-After'] = String(retryAfterSec);
     }
   } catch {
-    // ignore
+
   }
   return headers;
 }

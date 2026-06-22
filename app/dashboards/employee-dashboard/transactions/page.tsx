@@ -128,7 +128,7 @@ export default function Transactions() {
     <EmployeePortalLayout title="Ledger">
       <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Transaction History</p>
@@ -149,9 +149,9 @@ export default function Transactions() {
           </div>
         </div>
 
-        {/* Stats */}
+        
         <div className="grid sm:grid-cols-2 gap-4">
-          {/* Monthly Total - dark card */}
+          
           <div className="bg-slate-900 dark:bg-white/4 rounded-3xl p-6 relative overflow-hidden">
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full blur-2xl opacity-20"
               style={{ background: '#10b981' }} />
@@ -168,7 +168,7 @@ export default function Transactions() {
             </div>
           </div>
 
-          {/* Activity Count - glass card */}
+          
           <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 p-6 relative overflow-hidden">
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full blur-2xl opacity-15"
               style={{ background: '#3b82f6' }} />
@@ -186,7 +186,7 @@ export default function Transactions() {
           </div>
         </div>
 
-        {/* Filters & Search */}
+        
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative w-full flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -221,7 +221,7 @@ export default function Transactions() {
           </div>
         </div>
 
-        {/* Transaction List */}
+        
         <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 overflow-hidden min-h-64">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -246,7 +246,7 @@ export default function Transactions() {
                 return (
                   <div key={item.id} className="px-5 py-4 flex items-center gap-4 hover:bg-slate-50/50 dark:hover:bg-white/2 transition-colors group">
 
-                    {/* Method Icon */}
+                    
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
                       item.method === 'mobile_money'
@@ -259,7 +259,7 @@ export default function Transactions() {
                         : <Landmark className="w-4 h-4" />}
                     </div>
 
-                    {/* Details */}
+                    
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-slate-900 dark:text-white leading-none">Wage Advance</p>
@@ -270,7 +270,7 @@ export default function Transactions() {
                       </p>
                     </div>
 
-                    {/* Amount & Status */}
+                    
                     <div className="text-right shrink-0">
                       <p className={cn(
                         "text-sm font-bold tabular-nums tracking-tight",
@@ -287,7 +287,7 @@ export default function Transactions() {
                       </div>
                     </div>
 
-                    {/* Hover Arrow */}
+                    
                     <ChevronRight className="w-4 h-4 text-slate-300 dark:text-white/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
                   </div>
                 );

@@ -39,8 +39,8 @@ function getFriendlyMessage(error: Error): string {
 
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
-    // Log the error to an error reporting service if available
-    // For now, we'll just log to console with more context
+
+
     console.group("Application Error");
     console.error("Message:", error.message);
     console.error("Digest:", error.digest);

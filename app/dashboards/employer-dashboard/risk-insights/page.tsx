@@ -13,15 +13,15 @@ import { GradientIconBox } from '@/components/employer/SharedComponents';
 import { cn, getRiskRatingLabel, calculateFeePercentage } from '@/lib/utils';
 import { toast } from 'sonner';
 
-// ─── Framework Constants (from PDF) ───────────────────────────────────────────
-//
-// EaziWage Risk Classification, Scoring & Framework (REV1 - Oct 25, 2025)
-// 
-// Risk formula: CRS_employer = Σ(Score_i × Weight_i) / Σ Weight_i
-// Fee formula: Application Fee (%) = Bf + (Rf × (1 - CRS_total/5))
-//   where Bf = 3.5% (Base Service Fee)
-//   and   Rf = 3.0% (Risk Adjustment Factor)
-//
+
+
+
+
+
+
+
+
+
 
 const RISK_CATEGORIES = {
   legal_compliance: {
@@ -235,7 +235,7 @@ const RISK_CATEGORIES = {
   },
 } as const;
 
-// Risk rating thresholds from PDF Table 6
+
 const RISK_RATING_SCALE = [
   { 
     rating: 'A', 
@@ -271,7 +271,7 @@ const RISK_RATING_SCALE = [
   },
 ] as const;
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+
 
 interface RiskRatingBadgeProps {
   rating: string;
@@ -359,7 +359,7 @@ const CategoryScoreCard = ({
 
       {expanded && (
         <div className="px-5 pb-5 border-t border-slate-200/50 dark:border-slate-700/30 bg-slate-50/50 dark:bg-slate-800/20">
-          {/* Individual Factor Scores */}
+          
           <div className="pt-4 mb-4">
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2 mb-3">
               <Calculator className="w-4 h-4 text-primary" />
@@ -404,7 +404,7 @@ const CategoryScoreCard = ({
             </div>
           </div>
 
-          {/* Improvement Tips */}
+          
           <div className="pt-4 border-t border-slate-200/50 dark:border-slate-700/30">
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2 mb-3">
               <Lightbulb className="w-4 h-4 text-amber-500" />
@@ -431,7 +431,7 @@ interface FeeImpactCardProps {
 }
 
 const FeeImpactCard = ({ currentScore, currentFee }: FeeImpactCardProps) => {
-  // Calculate potential fees at different risk levels using central utility
+
   const potentialSavings = [
     { score: 4.5, label: 'Excellent (4.5)', rating: 'A' },
     { score: 3.5, label: 'Good (3.5)', rating: 'B' },
@@ -452,14 +452,14 @@ const FeeImpactCard = ({ currentScore, currentFee }: FeeImpactCardProps) => {
         </div>
       </div>
 
-      {/* Current Fee */}
+      
       <div className="p-4 bg-linear-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 mb-4">
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Current Application Fee</p>
         <p className="text-3xl font-bold text-primary">{currentFee.toFixed(2)}%</p>
         <p className="text-xs text-slate-500 mt-1">Based on your current score of {currentScore.toFixed(1)}</p>
       </div>
 
-      {/* Fee Formula from PDF */}
+      
       <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl mb-4">
         <p className="text-xs font-mono text-slate-600 dark:text-slate-400 mb-2">
           Fee = 3.5% + (3.0% × (1 - Score/5))
@@ -469,7 +469,7 @@ const FeeImpactCard = ({ currentScore, currentFee }: FeeImpactCardProps) => {
         </p>
       </div>
 
-      {/* Potential Savings */}
+      
       <div>
         <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
           Potential with Higher Scores
@@ -516,7 +516,7 @@ const FeeImpactCard = ({ currentScore, currentFee }: FeeImpactCardProps) => {
   );
 };
 
-// ─── Main Page Component ──────────────────────────────────────────────────────
+
 
 type RiskCategory = keyof typeof RISK_CATEGORIES;
 type RiskFactorMap = Partial<Record<string, number>>;
@@ -540,7 +540,7 @@ export default function RiskInsightsPage() {
   const [data, setData] = useState<RiskInsightsData | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
-  // Fetch risk data from API
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -605,10 +605,10 @@ export default function RiskInsightsPage() {
     framework_date,
   } = data;
 
-  // Use API fee if available, otherwise calculate
+
   const feePercentage = apiFee ?? calculateFeePercentage(risk_score);
 
-  // Calculate category averages using proper framework weights
+
   const getCategoryAverage = (category: RiskCategory) => {
     const factors = risk_factors?.[category];
     if (!factors) return 3.0;
@@ -631,7 +631,7 @@ export default function RiskInsightsPage() {
   return (
     <EmployerPortalLayout>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        
         <div>
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
@@ -648,7 +648,7 @@ export default function RiskInsightsPage() {
           </p>
         </div>
 
-        {/* Pending Review Alert */}
+        
         {has_pending_review && (
           <div className="bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-4 border border-amber-200 dark:border-amber-800/30">
             <div className="flex items-center gap-3">
@@ -665,16 +665,16 @@ export default function RiskInsightsPage() {
           </div>
         )}
 
-        {/* Risk Score Overview */}
+        
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Composite Score Card */}
+          
           <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-slate-200/50 dark:border-slate-700/30">
             <div className="text-center">
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-4">
                 Composite Risk Score (CRS)
               </p>
 
-              {/* Circular progress */}
+              
               <div className="relative w-32 h-32 mx-auto mb-4">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8"
@@ -713,7 +713,7 @@ export default function RiskInsightsPage() {
             </div>
           </div>
 
-          {/* Rating Scale */}
+          
           <div className="lg:col-span-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
             <div className="flex items-center gap-3 mb-5">
               <GradientIconBox icon={Scale} size="md" />
@@ -753,7 +753,7 @@ export default function RiskInsightsPage() {
           </div>
         </div>
 
-        {/* Category Breakdown */}
+        
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -777,7 +777,7 @@ export default function RiskInsightsPage() {
           </div>
         </div>
 
-        {/* Fee Impact + How to Improve */}
+        
         <div className="grid lg:grid-cols-2 gap-6">
           <FeeImpactCard currentScore={risk_score} currentFee={feePercentage} />
 
@@ -843,7 +843,7 @@ export default function RiskInsightsPage() {
           </div>
         </div>
 
-        {/* Framework Info Banner */}
+        
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-6 border border-blue-200/50 dark:border-blue-800/30">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 bg-blue-100 dark:bg-blue-800/30 rounded-xl flex items-center justify-center shrink-0">

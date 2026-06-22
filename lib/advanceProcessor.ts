@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { getProviderByKey } from './providers/factory';
 
 export async function processApprovedAdvances(supabaseClient: SupabaseClient, limit = 20) {
-  // fetch advances with status 'approved' (not yet processed)
+
   const { data: advances, error } = await supabaseClient
     .from('advances')
     .select('id, amount, net_amount, payment_method_id, payment_method_snapshot, reference, employee_id, employer_id, currency')
@@ -17,7 +17,7 @@ export async function processApprovedAdvances(supabaseClient: SupabaseClient, li
 
   for (const adv of advances) {
     try {
-      // mark processing
+
       await supabaseClient
         .from('advances')
         .update({ status: 'processing' })
@@ -26,7 +26,7 @@ export async function processApprovedAdvances(supabaseClient: SupabaseClient, li
       const pmSnapshot = (adv.payment_method_snapshot as Record<string, unknown>) || {};
       const pmId = adv.payment_method_id || (pmSnapshot['id'] as string);
 
-      // determine provider key from snapshot.provider_name or fallback mapping
+
       const providerKey = mapProviderNameToKey((pmSnapshot['provider_name'] as string) || '') || (pmSnapshot['method_type'] === 'bank_account' ? 'bank' : 'mpesa');
 
       const provider = await getProviderByKey(supabaseClient, providerKey, (pmSnapshot['country_code'] as string) || (pmSnapshot['country'] as string));
@@ -45,7 +45,7 @@ export async function processApprovedAdvances(supabaseClient: SupabaseClient, li
 
       const result = await provider.initiateTransfer(payload);
 
-      // record audit
+
       await supabaseClient.from('disbursement_audit').insert([{ advance_id: adv.id, payment_method_id: pmId, provider_key: providerKey, success: !!result.success, provider_reference: result.reference || null, response: result, error: result.error || null }]);
 
       if (result.success) {

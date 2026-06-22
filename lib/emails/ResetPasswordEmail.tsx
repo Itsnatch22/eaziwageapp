@@ -46,7 +46,7 @@ export function ResetPasswordEmail({
           sessions have been signed out as a security measure.
         </Text>
 
-        {/* Detail card */}
+        
         <Section style={layoutStyles.box}>
           <Text style={{ fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 12px' }}>
             Change Details
@@ -64,7 +64,7 @@ export function ResetPasswordEmail({
           </Text>
         </Section>
 
-        {/* Security notice */}
+        
         <Section style={{ ...layoutStyles.box, backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
           <Text style={{ fontWeight: '600', color: '#991b1b', margin: '0 0 8px' }}>
             Wasn&apos;t you?

@@ -95,7 +95,6 @@ export async function POST() {
     checkSafaricom(),
     checkRedis(),
     checkResend(),
-    checkPusher(),
     getSystemMetrics(),
   ]);
 
@@ -265,16 +264,6 @@ async function checkResend() {
   } catch {
     return { name: 'Resend Email', provider: 'Resend', status: 'down' as const, latency_ms: Date.now() - start };
   }
-}
-
-async function checkPusher() {
- return {
-    name: 'Pusher WebSocket',
-    provider: 'Pusher',
-    status: 'down' as const,
-    latency_ms: 0,
-    metadata: { note: 'Pusher removed; using Supabase Realtime' }
-  };
 }
 
 async function getSystemMetrics() {

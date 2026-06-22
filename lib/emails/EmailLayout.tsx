@@ -17,7 +17,7 @@ interface EmailLayoutProps {
   previewText: string;
   recipientEmail?: string;
   children: React.ReactNode;
-  /** Badge colour variant — controls the top accent bar */
+  
   accentColor?: string;
 }
 
@@ -41,15 +41,15 @@ export default function EmailLayout({
       <Preview>{previewText}</Preview>
 
       <Body style={styles.body}>
-        {/* ── Top accent bar ── */}
+        
         <div style={{ ...styles.accentBar, backgroundColor: accentColor }} />
 
         <Container style={styles.container}>
-          {/* ── Header ── */}
+          
           <Section style={styles.header}>
             <Row>
               <Column>
-                {/* Logo wordmark — swap Img src once hosted */}
+                
                 <div style={styles.logoContainer}>
                   <div style={{ ...styles.logoMark, backgroundColor: accentColor }}>
                     <span style={styles.logoMarkText}>EW</span>
@@ -65,12 +65,12 @@ export default function EmailLayout({
 
           <Hr style={styles.headerDivider} />
 
-          {/* ── Main content ── */}
+          
           <Section style={styles.content}>
             {children}
           </Section>
 
-          {/* ── Footer ── */}
+          
           <Hr style={styles.footerDivider} />
           <Section style={styles.footer}>
             <Text style={styles.footerText}>
@@ -98,7 +98,6 @@ export default function EmailLayout({
   );
 }
 
-// ─── Reusable component helpers exported for templates ────────────────────────
 
 interface AlertBannerProps {
   variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral';
@@ -179,8 +178,6 @@ export function InfoBox({ title, children, variant = 'default' }: InfoBoxProps) 
     </Section>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 export const styles = {
   body: {
@@ -285,7 +282,6 @@ export const styles = {
     textDecoration: 'underline',
   } as React.CSSProperties,
 
-  // ── Content helpers ──
   heading: {
     fontSize: '22px',
     fontWeight: 800,
@@ -417,7 +413,6 @@ export const styles = {
     fontWeight: 700,
   } as React.CSSProperties,
 
-  // badge (legacy compat)
   badge: {
     display: 'inline-block',
     backgroundColor: '#f0fdf4',

@@ -227,7 +227,6 @@ ID,Amount,Fee,Status,Type,Created At,Employee ID,Employer ID`;
 
 async function generateOperationalReport(supabase: SupabaseClient, dateRange: DateRange, report: AdminReport): Promise<string> {
   try {
-    // Get employee onboarding data
     const { data: employees, error: employeesError } = await supabase
       .from('employee_onboarding')
       .select('*')

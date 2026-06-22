@@ -23,7 +23,7 @@ export async function createSupabaseServerClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Ignored in contexts where setting cookies is not supported.
+
           }
         },
       },
@@ -98,7 +98,7 @@ export async function requireOrganization() {
   return organization;
 }
 
-// Country-specific withdrawal caps
+
 export const COUNTRY_CAPS: Record<string, number> = {
   Kenya: 60,
   Uganda: 60,

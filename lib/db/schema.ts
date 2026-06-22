@@ -66,7 +66,7 @@ export const policies = pgTable('policies', {
   frequency_period: text('frequency_period').$type<'week' | 'month'>().default('month').notNull(),
   auto_approval_enabled: numeric('auto_approval_enabled', { precision: 1, scale: 0 })
     .default('0')
-    .notNull(), // 0 or 1 (boolean)
+    .notNull(), 
   auto_approval_threshold: numeric('auto_approval_threshold', { precision: 12, scale: 2 })
     .default('500')
     .notNull(),
@@ -78,7 +78,6 @@ export const policies = pgTable('policies', {
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Payroll integrations table
 export const payrollIntegrations = pgTable('payroll_integrations', {
   id: uuid('id').primaryKey().defaultRandom(),
   organization_id: uuid('organization_id')
@@ -86,11 +85,11 @@ export const payrollIntegrations = pgTable('payroll_integrations', {
     .references(() => organizations.id, { onDelete: 'cascade' })
     .unique(),
   
-  provider: text('provider').notNull(), // 'ADP Workforce Now', 'Gusto', etc.
+  provider: text('provider').notNull(), 
   status: text('status').$type<'active' | 'inactive'>().default('inactive').notNull(),
   last_synced_at: timestamp('last_synced_at'),
   
-  credentials: jsonb('credentials').$type<Record<string, unknown>>(), // Encrypted in production
+  credentials: jsonb('credentials').$type<Record<string, unknown>>(), 
   
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
@@ -109,8 +108,8 @@ export const advances = pgTable('advances', {
   reason: text('reason'),
   
   status: text('status').default('pending').notNull(),
-  reference: text('reference').unique(), // Merchant Reference (EWA-XXX)
-  internal_reference: text('internal_reference'), // Dusupay Reference
+  reference: text('reference').unique(), 
+  internal_reference: text('internal_reference'),
   
   requested_at: timestamp('requested_at').defaultNow(),
   approved_at: timestamp('approved_at'),

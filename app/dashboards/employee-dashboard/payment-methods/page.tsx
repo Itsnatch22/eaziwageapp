@@ -32,7 +32,7 @@ const PaymentMethods = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [adding, setAdding] = useState(false);
 
-  // OTP verification UI state
+
   const [verifyingMethodId, setVerifyingMethodId] = useState<string | null>(null);
   const [otpInput, setOtpInput] = useState('');
   const [otpSending, setOtpSending] = useState(false);
@@ -92,7 +92,7 @@ const PaymentMethods = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     void fetchMethods({ silent: true });
   }, []);
 
@@ -211,7 +211,7 @@ const PaymentMethods = () => {
     <EmployeePortalLayout title="Payment Methods">
       <div className="max-w-4xl mx-auto space-y-8">
 
-        {/* Header */}
+        
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Withdrawal Targets</h1>
@@ -225,7 +225,7 @@ const PaymentMethods = () => {
           </Button>
         </div>
 
-        {/* Methods List */}
+        
         <div className="grid gap-4">
           {loading ? (
             <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>
@@ -270,7 +270,7 @@ const PaymentMethods = () => {
                     </div>
                   </div>
 
-                  {/* Actions: always visible, no hover-gated controls (mobile-first) */}
+                  
                   <div className="flex items-center gap-2 self-end sm:self-auto">
                     {!m.is_verified && (
                       <button
@@ -305,7 +305,7 @@ const PaymentMethods = () => {
           </div>
         </div>
 
-        {/* Add Modal */}
+        
         {showAddModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -377,7 +377,7 @@ const PaymentMethods = () => {
           </div>
         )}
 
-        {/* Verification Modal */}
+        
         {verifyingMethodId && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeVerifyModal}>
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden p-8" onClick={e => e.stopPropagation()}>

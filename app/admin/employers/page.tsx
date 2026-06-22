@@ -271,7 +271,7 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
         : 'bg-white/40 dark:bg-slate-800/40 hover:bg-white/60 dark:hover:bg-slate-800/60',
     )}
   >
-    {/* Checkbox */}
+    
     <input
       type="checkbox"
       checked={isSelected}
@@ -279,14 +279,14 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
       className="w-4 h-4 rounded border-slate-300 text-green-600 focus:ring-green-500 cursor-pointer shrink-0"
     />
     
-    {/* Avatar */}
+    
     <div className="w-11 h-11 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center shadow-md shrink-0">
       <span className="text-white font-bold text-sm">
         {employer.company_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
       </span>
     </div>
     
-    {/* Info */}
+    
     <div className="flex-1 min-w-0">
       <p className="font-semibold text-slate-900 dark:text-white truncate">
         {employer.company_name}
@@ -296,19 +296,19 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
       </p>
     </div>
     
-    {/* Employee Count */}
+    
     <div className="text-right hidden sm:block w-20 shrink-0">
       <p className="font-bold text-slate-900 dark:text-white">{employer.employee_count}</p>
       <p className="text-xs text-slate-500">Employees</p>
     </div>
     
-    {/* Monthly Advances */}
+    
     <div className="text-right hidden md:block w-28 shrink-0">
       <p className="font-bold text-green-600">{formatCurrency(employer.total_advances, 'USD')}</p>
       <p className="text-xs text-slate-500">Advances</p>
     </div>
     
-    {/* Risk Score */}
+    
     <div className="hidden lg:block w-28">
       {employer.risk_score ? (
         <RiskBadge score={employer.risk_score} />
@@ -317,12 +317,12 @@ const EmployerRow: React.FC<EmployerRowProps> = ({
       )}
     </div>
     
-    {/* Status */}
+    
     <div className="w-24">
       <StatusBadge status={employer.status} />
     </div>
     
-    {/* Actions */}
+    
     <div className="flex items-center gap-1 w-20 justify-end">
       <button 
         onClick={() => onViewDetails(employer)}
@@ -435,7 +435,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
         className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
+        
         <div className="bg-linear-to-r from-green-600 to-green-700 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -462,7 +462,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Tabs */}
+        
         <div className="flex border-b border-slate-200 dark:border-slate-700">
           {(['overview', 'employees', 'advances', 'actions'] as const).map(tab => (
             <button
@@ -480,7 +480,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
           ))}
         </div>
 
-        {/* Content */}
+        
         <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 250px)' }}>
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -488,7 +488,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
             </div>
           ) : activeTab === 'overview' ? (
             <div className="space-y-6">
-              {/* Stats */}
+              
               <div className="grid sm:grid-cols-4 gap-4">
                 <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl text-center">
                   <p className="text-2xl font-bold text-green-600">{data.employee_count}</p>
@@ -523,7 +523,7 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Details */}
+              
               <div className="grid sm:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1093,7 +1093,7 @@ export default function AdminEmployers() {
     return (
     <>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-employers-page">
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1
@@ -1120,7 +1120,7 @@ export default function AdminEmployers() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={Building2} label="Total Employers" value={stats.total} variant="green" />
           <MetricCard icon={CheckCircle2} label="Active Employers" value={stats.active} variant="green" />
@@ -1128,7 +1128,7 @@ export default function AdminEmployers() {
           <MetricCard icon={Users} label="Total Employees" value={stats.total_employees} variant="slate" />
         </div>
 
-        {/* Search & Filters */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex flex-col gap-4">
             <div className="relative flex-1">
@@ -1181,7 +1181,7 @@ export default function AdminEmployers() {
           </div>
         </div>
 
-        {/* Bulk Actions Bar */}
+        
         {selectedIds.size > 0 && (
           <div
             className="bg-green-600 rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-green-500/25"
@@ -1220,7 +1220,7 @@ export default function AdminEmployers() {
           </div>
         )}
 
-        {/* Employers List */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -1236,7 +1236,7 @@ export default function AdminEmployers() {
             />
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
-              {/* Header */}
+              
               <div className="hidden lg:flex items-center gap-4 px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 <input
                   type="checkbox"
@@ -1273,7 +1273,7 @@ export default function AdminEmployers() {
           )}
         </div>
 
-        {/* Summary */}
+        
         {employers.length > 0 && (
           <div className="text-sm text-slate-500 dark:text-slate-400">
             Showing {employers.length} of {stats.total} employers
@@ -1281,7 +1281,7 @@ export default function AdminEmployers() {
         )}
       </div>
 
-      {/* Modals */}
+      
       <EmployerDetailModal 
         employer={selectedEmployer}
         rates={rates}

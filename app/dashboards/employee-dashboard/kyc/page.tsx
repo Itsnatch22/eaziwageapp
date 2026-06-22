@@ -26,7 +26,7 @@ interface Document {
     reviewer_notes?: string;
 }
 
-// ─── Status Components ──────────────────────────────────────────────────────
+
 
 const DocumentStatusBadge = ({ status }: { status: Document['status'] }) => {
   const configs = {
@@ -45,7 +45,7 @@ const DocumentStatusBadge = ({ status }: { status: Document['status'] }) => {
   );
 };
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+
 
 export default function EmployeeKYC() {
     const [documents, setDocuments] = useState<Document[]>([]);
@@ -137,7 +137,7 @@ export default function EmployeeKYC() {
     <EmployeePortalLayout title="Verification Hub">
       <div className="max-w-5xl mx-auto space-y-8">
         
-        {/* Header Section */}
+        
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary w-fit border border-primary/20">
@@ -168,7 +168,7 @@ export default function EmployeeKYC() {
           </div>
         </div>
 
-        {/* Action Alerts */}
+        
         {missingDocs.length > 0 && (
           <div className="bg-linear-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-3xl p-6 flex flex-col md:flex-row items-center gap-6 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl -mr-16 -mt-16 group-hover:bg-amber-500/10 transition-colors" />
@@ -192,7 +192,7 @@ export default function EmployeeKYC() {
 
         <div className="grid lg:grid-cols-12 gap-8">
           
-          {/* Left Column: Upload Form */}
+          
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-sm">
               <div className="p-6 border-b border-slate-100 dark:border-slate-800">
@@ -298,7 +298,7 @@ export default function EmployeeKYC() {
               </div>
             </div>
 
-            {/* Quick Info */}
+            
             <div className="p-6 bg-linear-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-3xl text-white shadow-xl">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-primary">
@@ -322,7 +322,7 @@ export default function EmployeeKYC() {
             </div>
           </div>
 
-          {/* Right Column: Documents List */}
+          
           <div className="lg:col-span-7 space-y-6">
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-slate-200/50 dark:border-slate-700/30 min-h-100 flex flex-col shadow-sm">
               <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -415,7 +415,7 @@ export default function EmployeeKYC() {
               </div>
             </div>
 
-            {/* Document Types Info Grid */}
+            
             <div className="grid sm:grid-cols-2 gap-4">
               {[
                 { type: 'national_id', icon: ScanFace, title: 'ID Verification', desc: 'National ID or Passport copy' },

@@ -67,7 +67,7 @@ function TestimonialsPanel() {
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-400/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-green-800/20 rounded-full blur-[150px] pointer-events-none" />
 
-      {/* Logo */}
+      
       <div className="flex items-center gap-3 relative z-10">
         <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/30">
           <Wallet className="w-6 h-6 text-white" strokeWidth={2} />
@@ -75,7 +75,7 @@ function TestimonialsPanel() {
         <span className="font-bold text-xl text-white tracking-tight">EaziWage</span>
       </div>
 
-      {/* Middle */}
+      
       <div className="relative z-10 flex flex-col gap-8">
         <div>
           <h2 className="text-4xl font-serif font-bold text-white leading-snug mb-3">
@@ -86,7 +86,7 @@ function TestimonialsPanel() {
           </p>
         </div>
 
-        {/* Testimonial card */}
+        
         <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-xl transition-all duration-500">
           <Quote className="w-8 h-8 text-green-200 mb-4 opacity-80" />
           <p className="text-white text-base leading-relaxed mb-6 min-h-20">
@@ -103,7 +103,7 @@ function TestimonialsPanel() {
           </div>
         </div>
 
-        {/* Dots */}
+        
         <div className="flex items-center gap-2">
           {testimonials.map((_, i) => (
             <button
@@ -121,7 +121,7 @@ function TestimonialsPanel() {
         </div>
       </div>
 
-      {/* Bottom stats */}
+      
       <div className="relative z-10 grid grid-cols-3 gap-4">
         {[
           { value: stats.employeesServed, label: 'Active Users' },
@@ -279,12 +279,12 @@ export default function LoginPage() {
 
       <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden lg:flex">
 
-        {/* Left — Testimonials panel (desktop only) */}
+        
         <div className="lg:w-[45%] lg:shrink-0">
           <TestimonialsPanel />
         </div>
 
-        {/* Right — Form panel */}
+        
         <div className="flex-1 relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] pointer-events-none" />

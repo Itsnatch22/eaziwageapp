@@ -433,11 +433,11 @@ export default function EmployerDashboard() {
   }, [router]);
 
   useEffect(() => {
-    // Calling load once on mount is safe. 
-    // The previous implementation had a comment about synchronous setState in useEffect,
-    // which usually refers to calling setState immediately after mount.
-    // By consolidating state, we reduce the number of updates.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
+
+
+
+
     void load({ silent: true });
   }, [load]);
 
@@ -515,7 +515,7 @@ export default function EmployerDashboard() {
     <EmployerPortalLayout employer={data.employer}>
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Rejection Recovery Alert */}
+        
         {data.employer?.status === 'rejected' && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-[2rem] p-6 flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500 shadow-lg shadow-red-500/5">
             <div className="flex items-start gap-4 text-left">

@@ -26,7 +26,7 @@ function createAdminClient() {
   );
 }
 
-// resolves employees.id (live table) from auth user id
+
 async function resolveEmployeeId(adminSupabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data, error } = await adminSupabase
     .from('employees')
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createRouteHandlerClient();
   const adminSupabase = createAdminClient();
 
-  // contextual variables for logging
+
   let userId: string | null = null;
   let employeeId: string | null = null;
   let employerId: string | null = null;
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     userId = user.id;
     console.info('[request-advance] Request started', { userId, url: req.url });
 
-    // ✅ resolve employees.id early — used for payment_methods FK
+
     employeeId = await resolveEmployeeId(adminSupabase, user.id);
     if (!employeeId) {
       return errorResponse(404, 'Employee record not found.', { note: 'resolveEmployeeId returned null' });
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       return errorResponse(422, 'Validation failed', { issues: parsed.error.issues });
     }
 
-    // employee_onboarding.id — used for EWA settings, advances, fraud checks
+
     const { data: employee, error: employeeError } = await supabase
       .from('employee_onboarding')
       .select('id, employer_id, monthly_salary, status')
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
         cooldown_period: Number(employeeEwa.cooldown_period ?? effectiveSettings.cooldown_period),
       };
     } else {
-      // ✅ employer_onboarding has no max_advance_amount column — removed
+
       const { data: employerOnboarding, error: employerOnboardingError } = await supabase
         .from('employer_onboarding')
         .select('max_advance_percentage, min_advance_amount, cooldown_period, risk_score')
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
           max_advance_percentage: employerOnboarding.max_advance_percentage ?? effectiveSettings.max_advance_percentage,
           min_advance_amount: Number(employerOnboarding.min_advance_amount ?? effectiveSettings.min_advance_amount),
           cooldown_period: Number(employerOnboarding.cooldown_period ?? effectiveSettings.cooldown_period),
-          // max_advance_amount stays as hardcoded default — no column on employer_onboarding
+
         };
       }
     }
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
       .eq('id', employee.employer_id)
       .maybeSingle();
 
-    // Resolve live employers.id from onboarding employer_id
+
     const { data: employerRecord, error: employerLookupError } = await supabase
       .from('employers')
       .select('id')
@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
     const random = Math.random().toString(36).substring(2, 7).toUpperCase();
     const reference = `EWA-${timestamp}-${random}`;
 
-    // ✅ payment method lookups now use employeeId (employees.id), not employee.id (onboarding)
+
     paymentMethodId = parsed.data.payment_method_id || null;
 
     if (!paymentMethodId) {
@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
 
     if (pmError) return errorResponse(500, 'Payment method lookup failed', { pmError });
     if (!pm) return errorResponse(404, 'Payment method not found');
-    // ✅ ownership check now uses employeeId
+
     if (pm.employee_id !== employeeId) return errorResponse(403, 'Payment method does not belong to you');
     if (!pm.is_active) return errorResponse(422, 'Payment method is inactive');
     if (!pm.is_verified) return errorResponse(422, 'Payment method is not verified');

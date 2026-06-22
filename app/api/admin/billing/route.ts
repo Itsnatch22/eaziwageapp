@@ -154,13 +154,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const employer    = (employers || []).find(e => e.id === w.employer_id);
   const metadata    = employer?.metadata as EmployerMetadata | undefined;
   const creditLimit = Number(metadata?.credit_limit ?? 1000000);
-  const balance     = Number(w.outstanding_liability || 0);  // was w.balance
+  const balance     = Number(w.outstanding_liability || 0);  
   const utilization = creditLimit > 0 ? Math.round((balance / creditLimit) * 100) : 0;
   const currency    = w.currency || 'KES';
 
   return {
     ...w,
-    balance,                                               // expose as balance for frontend compat
+    balance,                                               
     arrears_balance: Number(w.total_advanced || 0) - Number(w.total_repaid || 0),
     company_name:        employer?.company_name || 'Unknown Employer',
     utilization,

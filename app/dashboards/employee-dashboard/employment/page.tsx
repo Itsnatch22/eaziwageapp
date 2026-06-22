@@ -111,7 +111,7 @@ const EmploymentDetails = () => {
     <EmployeePortalLayout title="Employment Details">
       <div className="max-w-4xl mx-auto space-y-8">
         
-        {/* Header Profile */}
+        
         <div className="bg-linear-to-br from-slate-900 to-slate-800 dark:from-emerald-600 dark:to-emerald-700 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
            <div className="absolute top-0 right-0 p-12 opacity-10">
               <Landmark className="w-48 h-48" />
@@ -126,7 +126,7 @@ const EmploymentDetails = () => {
                       height={96}
                       className="w-full h-full object-cover"
                       onError={() => {
-                        // Image component will fallback to initials if load fails.
+
                       }}
                     />
                   ) : null}
@@ -153,7 +153,7 @@ const EmploymentDetails = () => {
            </div>
         </div>
 
-        {/* Info Grid */}
+        
         <div className="grid md:grid-cols-2 gap-6">
            <DetailCard 
               icon={Briefcase} 
@@ -185,7 +185,7 @@ const EmploymentDetails = () => {
            />
         </div>
 
-        {/* Policy Section */}
+        
         <div className="bg-white/50 dark:bg-white/5 backdrop-blur-xl rounded-[2rem] p-8 border border-white/60 dark:border-white/10">
            <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">

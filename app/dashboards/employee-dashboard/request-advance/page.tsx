@@ -77,7 +77,7 @@ const MetricCard = ({
   accent?: string;
 }) => (
   <div className="relative bg-white/50 dark:bg-white/4 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 overflow-hidden group transition-all duration-300 hover:border-white/80 dark:hover:border-white/20">
-    {/* Subtle ambient glow */}
+    
     <div
       className="absolute -top-6 -right-6 w-20 h-20 rounded-full blur-2xl opacity-20 group-hover:opacity-30 transition-opacity"
       style={{ background: accent }}
@@ -119,7 +119,7 @@ const CircularAmountSelector = ({
 
   return (
     <div className="relative w-56 h-56 mx-auto">
-      {/* Ambient */}
+      
       <div
         className="absolute inset-4 rounded-full blur-2xl opacity-10"
         style={{ background: "radial-gradient(circle, #10b981, transparent)" }}
@@ -223,7 +223,7 @@ export default function RequestAdvance() {
           setAmount(Math.min(500, available));
         }
 
-        // load payment methods
+
         try {
           const pmRes = await fetch('/api/employee-dashboard/payment-methods');
           if (pmRes.ok) {
@@ -321,7 +321,7 @@ export default function RequestAdvance() {
   const isPending =
     employee?.kyc_status === "submitted" || employee?.kyc_status === "pending";
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
+
   if (loading)
     return (
       <EmployeePortalLayout title="Withdrawal">
@@ -334,7 +334,7 @@ export default function RequestAdvance() {
       </EmployeePortalLayout>
     );
 
-  // ── KYC Gate ────────────────────────────────────────────────────────────────
+
   if (!isVerified)
     return (
       <EmployeePortalLayout title="Access Restricted">
@@ -405,11 +405,11 @@ export default function RequestAdvance() {
       </EmployeePortalLayout>
     );
 
-  // ── Active Flow ─────────────────────────────────────────────────────────────
+
   return (
     <EmployeePortalLayout title="Wage Advance">
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Metrics */}
+        
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <MetricCard
             icon={TrendingUp}
@@ -435,7 +435,7 @@ export default function RequestAdvance() {
         </div>
 
         <div className="grid lg:grid-cols-5 gap-6">
-          {/* Amount Selector */}
+          
           <div className="lg:col-span-3">
             <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 p-8 space-y-8">
               <CircularAmountSelector
@@ -445,7 +445,7 @@ export default function RequestAdvance() {
               />
 
               <div className="space-y-5">
-                {/* Slider */}
+                
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
@@ -473,7 +473,7 @@ export default function RequestAdvance() {
                   </div>
                 </div>
 
-                {/* Quick Amounts */}
+                
                 <div className="grid grid-cols-4 gap-2">
                   {[...quickAmounts.filter((a) => a < maxAmount), maxAmount]
                     .slice(-4)
@@ -501,9 +501,9 @@ export default function RequestAdvance() {
             </div>
           </div>
 
-          {/* Right Panel */}
+          
           <div className="lg:col-span-2 space-y-4">
-            {/* Summary */}
+            
             <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 p-6 space-y-4">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <Info className="w-3.5 h-3.5" /> Payout Summary
@@ -551,9 +551,9 @@ export default function RequestAdvance() {
               </div>
             </div>
 
-            {/* Disbursement Method */}
+            
             <div className="relative bg-slate-900 dark:bg-white/4 backdrop-blur-xl rounded-3xl border border-white/10 p-6 overflow-hidden">
-              {/* Background icon */}
+              
               <div className="absolute bottom-4 right-4 opacity-[0.06]">
                 {disbursementMethod === "mobile_money" ? (
                   <Smartphone className="w-24 h-24 text-white" />
@@ -590,7 +590,7 @@ export default function RequestAdvance() {
                 </Button>
               </div>
 
-              {/* Method Selector Overlay */}
+              
               {showMethodSelector && (
                 <div className="absolute inset-0 bg-white dark:bg-slate-900 z-50 rounded-3xl p-5 animate-in fade-in zoom-in-95 duration-200">
                   <div className="flex justify-between items-center mb-4">
@@ -644,7 +644,7 @@ export default function RequestAdvance() {
                   </div>
                 </div>
               )}
-            {/* CTA */}
+            
             <SubmitButton
               onClick={handleSubmit}
               isLoading={submitting}

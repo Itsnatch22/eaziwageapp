@@ -150,7 +150,7 @@ const EmployerReconRow = ({ employer, onExpand, expanded }: EmployerReconRowProp
             </div>
           </div>
 
-          {/* Recent Advances */}
+          
           <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Recent Advances</p>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {employer.advances?.slice(0, 5).map((adv) => (
@@ -241,7 +241,7 @@ export default function AdminReconciliation() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Reconciliation</h1>
@@ -259,7 +259,7 @@ export default function AdminReconciliation() {
           </div>
         </div>
 
-        {/* Summary Cards */}
+        
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryCard 
             icon={Building2}
@@ -288,7 +288,7 @@ export default function AdminReconciliation() {
           />
         </div>
 
-        {/* Info Banner */}
+        
         <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-4 border border-purple-200/50 dark:border-purple-700/30">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/20 rounded-xl flex items-center justify-center shrink-0">
@@ -304,7 +304,7 @@ export default function AdminReconciliation() {
           </div>
         </div>
 
-        {/* Search */}
+        
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <Input
@@ -315,7 +315,7 @@ export default function AdminReconciliation() {
           />
         </div>
 
-        {/* Employer List */}
+        
         <div className="space-y-3">
           {filteredEmployers.map((employer) => (
             <EmployerReconRow 

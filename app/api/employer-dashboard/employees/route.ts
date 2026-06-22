@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const allEmployees = (rawEmployees ?? []).map((e) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const record = e as any;
     const lookupId = record.user_id?.toLowerCase() || '';
     const full_name: string =

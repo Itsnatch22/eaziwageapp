@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-// Tracks user inactivity and navigates to /session-expired after timeout
+
 export default function SessionTimeout() {
   const router = useRouter();
   const timerRef = useRef<number | null>(null);
@@ -15,16 +15,16 @@ export default function SessionTimeout() {
         window.clearTimeout(timerRef.current);
       }
       timerRef.current = window.setTimeout(() => {
-        // Navigate to session-expired page when user is inactive
+
         router.push('/session-expired');
       }, TIMEOUT_MS);
     };
 
-    // activity events
+
     const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
     events.forEach((e) => window.addEventListener(e, reset));
 
-    // start timer
+
     reset();
 
     return () => {

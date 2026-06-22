@@ -2,7 +2,7 @@ import AfricasTalking from 'africastalking';
 
 const credentials = {
   apiKey: process.env.AT_API_KEY!,
-  username: process.env.AT_USERNAME!, // 'sandbox' for sandbox apps
+  username: process.env.AT_USERNAME!, 
 };
 
 const at = AfricasTalking(credentials);
@@ -13,10 +13,10 @@ const sms = at.SMS;
  * Covers Kenya, Uganda, Tanzania, Rwanda.
  */
 const COUNTRY_DIAL_CODES: Record<string, { dialCode: string; localLength: number }> = {
-  KE: { dialCode: '254', localLength: 9 }, // 07XXXXXXXX → +2547XXXXXXXX
-  UG: { dialCode: '256', localLength: 9 }, // 07XXXXXXXX → +2567XXXXXXXX
-  TZ: { dialCode: '255', localLength: 9 }, // 07XXXXXXXX → +2557XXXXXXXX
-  RW: { dialCode: '250', localLength: 9 }, // 07XXXXXXXX → +2507XXXXXXXX
+  KE: { dialCode: '254', localLength: 9 },
+  UG: { dialCode: '256', localLength: 9 },
+  TZ: { dialCode: '255', localLength: 9 },
+  RW: { dialCode: '250', localLength: 9 },
 };
 
 /**
@@ -25,26 +25,22 @@ const COUNTRY_DIAL_CODES: Record<string, { dialCode: string; localLength: number
  * Falls back to KE if no country code is provided.
  */
 export function normalizeToE164(phone: string, countryCode = 'KE'): string {
-  const digits = phone.replace(/\D/g, ''); // strip everything non-numeric
+  const digits = phone.replace(/\D/g, ''); 
   const country = COUNTRY_DIAL_CODES[countryCode.toUpperCase()] ?? COUNTRY_DIAL_CODES['KE'];
   const { dialCode, localLength } = country;
 
-  // already in full E.164 format: +254XXXXXXXXX
   if (phone.startsWith('+') && digits.startsWith(dialCode)) {
     return `+${digits}`;
   }
-
-  // prefixed without +: 254XXXXXXXXX
+  
   if (digits.startsWith(dialCode) && digits.length === dialCode.length + localLength) {
     return `+${digits}`;
   }
 
-  // local format starting with 0: 07XXXXXXXX
   if (digits.startsWith('0') && digits.length === localLength + 1) {
     return `+${dialCode}${digits.slice(1)}`;
   }
 
-  // bare local digits without leading 0: 7XXXXXXXX
   if (digits.length === localLength) {
     return `+${dialCode}${digits}`;
   }
@@ -73,7 +69,6 @@ export async function sendOtpSms(phoneNumber: string, otp: string, countryCode =
 
   const response = await sms.send(options);
 
-  // AT returns 200 even on per-recipient failures — check the recipient status
   const recipients = response?.SMSMessageData?.Recipients ?? [];
   const failed = recipients.find((r: { status: string }) => r.status !== 'Success');
 

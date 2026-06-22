@@ -769,7 +769,7 @@ const EWASettingsModal: React.FC<{
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Enable/Disable */}
+          
           <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
             <div>
               <p className="font-medium text-slate-900 dark:text-white">
@@ -789,7 +789,7 @@ const EWASettingsModal: React.FC<{
 
           {settings.ewa_enabled && (
             <>
-              {/* Max Percentage */}
+              
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-slate-700 dark:text-slate-300">
@@ -813,7 +813,7 @@ const EWASettingsModal: React.FC<{
                 />
               </div>
 
-              {/* Amount Limits */}
+              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-slate-700 dark:text-slate-300">
@@ -849,7 +849,7 @@ const EWASettingsModal: React.FC<{
                 </div>
               </div>
 
-              {/* Cooldown */}
+              
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-slate-300">
                   Cooldown Period (Days)
@@ -1044,7 +1044,7 @@ const Skeleton: React.FC<{ className?: string }> = ({ className }) => (
   />
 );
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+
 
 const EmployerEmployees: React.FC = () => {
   const { currency } = useCurrency();
@@ -1058,7 +1058,7 @@ const EmployerEmployees: React.FC = () => {
     Record<string, number>
   >({});
 
-  // Filters
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
@@ -1073,9 +1073,9 @@ const EmployerEmployees: React.FC = () => {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+
   const fetchData = useCallback(async (options?: { silent?: boolean }) => {
-    // defer state updates to avoid synchronous setState inside useEffect
+
     await Promise.resolve();
     if (!options?.silent) setLoading(true);
     setFetchError("");
@@ -1117,7 +1117,7 @@ const EmployerEmployees: React.FC = () => {
       setEmployees(employeesData.employees ?? []);
       setStats(employeesData.stats ?? null);
 
-      // Calculate pending advances by employee
+
       const pendingByEmployee: Record<string, number> = {};
       (Array.isArray(advancesData) ? advancesData : []).forEach(
         (advance: DashboardAdvance) => {
@@ -1138,7 +1138,7 @@ const EmployerEmployees: React.FC = () => {
   }, [dateRange]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     void fetchData({ silent: true });
   }, [fetchData]);
 
@@ -1166,15 +1166,15 @@ const EmployerEmployees: React.FC = () => {
       })
       .subscribe();
 
-    // legacy event bindings removed - Supabase realtime handlers above will trigger fetches
+
 
     return () => {
-      // clean up realtime channel
+
       (supabase as unknown as SupabaseWithChannel).removeChannel(channel);
     };
   }, [employer?.id, fetchData]);
 
-  // ── Seed ──────────────────────────────────────────────────────────────────
+
   const handleSeedEmployees = async () => {
     setSeeding(true);
     try {
@@ -1196,7 +1196,7 @@ const EmployerEmployees: React.FC = () => {
     }
   };
 
-  // ── EWA save (optimistic update) ──────────────────────────────────────────
+
   const handleEWASave = (employeeId: string, newSettings: EWASettings) => {
     setEmployees((prev) =>
       prev.map((e) =>
@@ -1205,7 +1205,7 @@ const EmployerEmployees: React.FC = () => {
     );
   };
 
-  // ── Client-side filtering ─────────────────────────────────────────────────
+
   const departments = [
     ...new Set(employees.map((e) => e.department).filter(Boolean)),
   ] as string[];
@@ -1226,7 +1226,7 @@ const EmployerEmployees: React.FC = () => {
     return true;
   });
 
-  // ── Computed stats (fall back to local computation if API stats absent) ───
+
   const displayStats: ExtendedStats = stats ?? {
     total_employees: employees.length,
     active_employees: employees.filter((e) => e.status === "approved").length,
@@ -1243,11 +1243,11 @@ const EmployerEmployees: React.FC = () => {
     new_hires_30_days: 0,
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1
@@ -1281,7 +1281,7 @@ const EmployerEmployees: React.FC = () => {
           </div>
         </div>
 
-        {/* Error banner */}
+        
         {fetchError && !loading && (
           <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-200 dark:border-red-800/30">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
@@ -1299,7 +1299,7 @@ const EmployerEmployees: React.FC = () => {
           </div>
         )}
 
-        {/* Stats Grid */}
+        
         {loading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
@@ -1337,7 +1337,7 @@ const EmployerEmployees: React.FC = () => {
           </div>
         )}
 
-        {/* Department Pie Chart */}
+        
         {!loading &&
           displayStats.department_breakdown &&
           Object.keys(displayStats.department_breakdown).length > 0 && (
@@ -1360,10 +1360,10 @@ const EmployerEmployees: React.FC = () => {
             </div>
           )}
 
-        {/* Search & Filters */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex flex-col gap-4">
-            {/* Row 1: Search + Date Range */}
+            
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -1406,7 +1406,7 @@ const EmployerEmployees: React.FC = () => {
               </div>
             </div>
 
-            {/* Row 2: Filters */}
+            
             <div className="flex items-center gap-2 flex-wrap">
               <FilterButton
                 active={statusFilter === ""}
@@ -1485,7 +1485,7 @@ const EmployerEmployees: React.FC = () => {
           </div>
         </div>
 
-        {/* Employee List */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -1516,7 +1516,7 @@ const EmployerEmployees: React.FC = () => {
             </div>
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
-              {/* Table header */}
+              
               <div className="hidden lg:flex items-center gap-4 px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <div className="w-11" />
                 <div className="flex-1">Employee</div>
@@ -1550,7 +1550,7 @@ const EmployerEmployees: React.FC = () => {
           )}
         </div>
 
-        {/* Footer */}
+        
         {filteredEmployees.length > 0 && (
           <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
             <span>
@@ -1584,7 +1584,7 @@ const EmployerEmployees: React.FC = () => {
         )}
       </div>
 
-      {/* Modals */}
+      
       {showEWAModal && selectedEmployee && (
         <EWASettingsModal
           key={selectedEmployee.id}

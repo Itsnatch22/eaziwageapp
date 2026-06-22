@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     if (ticketError) throw ticketError;
 
-    // Create an in-app admin notification
+
     const env = getEnv();
     try {
       const notification = {
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       console.error('[Support Notification Error]', err);
     }
 
-    // Send email alerts to env ADMIN_EMAILS using Resend (sendEmail helper)
+
     (async () => {
       try {
         const adminEmails = (env.ADMIN_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean);

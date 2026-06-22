@@ -18,7 +18,6 @@ export async function PATCH(
     const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
     if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    // Load the pending wallet transaction
     const { data: tx, error: txError } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id, wallet_id, amount, type, status, reference, description, metadata')
@@ -32,7 +31,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Transaction is not a pending deposit request' }, { status: 422 });
     }
 
-    // Determine employer id from metadata or wallet
     let employerId: string | undefined = undefined;
     try {
       if (tx.metadata && typeof tx.metadata === 'object' && 'employer_id' in tx.metadata) {
@@ -40,11 +38,10 @@ export async function PATCH(
         if (typeof rawEmployerId === 'string') employerId = rawEmployerId;
       }
     } catch {
-      // ignore
+
     }
 
     if (!employerId) {
-      // Fallback: read employer_id from employer_wallets via wallet_id
       const { data: walletRow, error: walletErr } = await supabaseAdmin
         .from('employer_wallets')
         .select('employer_id')
@@ -56,7 +53,6 @@ export async function PATCH(
 
     if (!employerId) return NextResponse.json({ error: 'Unable to resolve employer for this top-up request' }, { status: 500 });
 
-    // Find main admin wallet
     const { data: adminWallet, error: adminWalletErr } = await supabaseAdmin
       .from('admin_wallets')
       .select('id, balance')
@@ -64,8 +60,7 @@ export async function PATCH(
       .maybeSingle();
     if (adminWalletErr || !adminWallet) throw adminWalletErr || new Error('Admin wallet not found');
 
-    // Call RPC to move funds from admin -> employer (this will also create the employer deposit tx)
-    const { error: rpcError } = await supabaseAdmin.rpc('fund_employer_from_admin', {
+     const { error: rpcError } = await supabaseAdmin.rpc('fund_employer_from_admin', {
       p_employer_id: employerId,
       p_admin_wallet_id: adminWallet.id,
       p_amount: tx.amount,
@@ -78,7 +73,6 @@ export async function PATCH(
       return NextResponse.json({ error: `Funding failed: ${rpcError.message}` }, { status: 500 });
     }
 
-    // Mark the original request as completed and annotate metadata
     const updatedMetadata = Object.assign({}, tx.metadata ?? {}, { approved_by: user.id, approved_at: new Date().toISOString() });
     const { error: updateError } = await supabaseAdmin
       .from('wallet_transactions')
@@ -90,7 +84,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Funding succeeded but failed to update request record' }, { status: 500 });
     }
 
-    // Notify employer
     try {
       const { notifyEmployer } = await import('@/lib/notifications');
       await notifyEmployer({

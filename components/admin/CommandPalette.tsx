@@ -13,7 +13,7 @@ import { useDebounce } from 'use-debounce';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-// Navigation items for admin dashboard
+
 const adminNavItems = [
   { id: 'dashboard', title: 'Dashboard', href: '/admin', icon: BarChart3 },
   { id: 'advances', title: 'Advances', href: '/admin/advances', icon: CreditCard },
@@ -55,7 +55,7 @@ export function CommandPalette() {
     setIsOpen(true);
   }, []);
 
-  // Handle Cmd+K
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -74,7 +74,7 @@ export function CommandPalette() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, openPalette]);
 
-  // Focus input when opened
+
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -164,7 +164,7 @@ export function CommandPalette() {
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-100 flex items-start justify-center pt-[15vh] px-4">
-          {/* Backdrop */}
+          
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -173,14 +173,14 @@ export function CommandPalette() {
             className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm"
           />
 
-          {/* Dialog */}
+          
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: -20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
             className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
           >
-            {/* Search Input */}
+            
             <div className="flex items-center px-4 py-4 border-b border-slate-200 dark:border-slate-800">
               <Search className="w-5 h-5 text-slate-400 mr-3" />
               <input
@@ -197,7 +197,7 @@ export function CommandPalette() {
               </div>
             </div>
 
-            {/* Results */}
+            
             <div className="max-h-100 overflow-y-auto p-2 custom-scrollbar">
               {loading ? (
                 <div className="flex flex-col items-center py-12 gap-3">
@@ -267,7 +267,7 @@ export function CommandPalette() {
               )}
             </div>
 
-            {/* Footer */}
+            
             <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
               <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1">

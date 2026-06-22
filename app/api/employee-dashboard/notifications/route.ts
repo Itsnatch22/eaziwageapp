@@ -117,7 +117,7 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Failed to delete notification", details: error.message }, { status: 500 });
         }
 
-        // Supabase Realtime handles notification-deleted events via DB changes; no Pusher trigger needed.
+
 
         return NextResponse.json({ success: true });
     } catch (err: unknown) {

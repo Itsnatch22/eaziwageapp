@@ -28,7 +28,7 @@ export async function runFraudChecks(params: {
   let isBlocked = false;
 
   try {
-    // 1. Fetch enabled rules
+
     const { data: rules } = await supabaseAdmin
       .from('fraud_rules')
       .select('*')
@@ -36,7 +36,7 @@ export async function runFraudChecks(params: {
 
     if (!rules) return { isBlocked: false, alerts: [] };
 
-    // 2. Fetch context data (recent history)
+
     const { data: recentAdvances } = await supabaseAdmin
       .from('advances')
       .select('amount, created_at, status')
@@ -48,7 +48,7 @@ export async function runFraudChecks(params: {
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // 3. Process Rules
+
     for (const rule of rules) {
       let triggered = false;
       let reason = '';
@@ -83,7 +83,7 @@ export async function runFraudChecks(params: {
       }
 
       if (triggered) {
-        // Create Alert
+
         const { data: alert } = await supabaseAdmin
           .from('fraud_alerts')
           .insert({
@@ -102,7 +102,7 @@ export async function runFraudChecks(params: {
           .select()
           .single();
 
-        // Increment trigger count
+
         await supabaseAdmin.rpc('increment_rule_trigger', { rule_id: rule.id });
 
         if (alert) alerts.push(alert);

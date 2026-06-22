@@ -15,7 +15,6 @@ function getClientIp(req: NextRequest): string {
 }
 
 function buildRateLimitResponseHeaders(rate: RateLimitResult) {
-  // checkRateLimit returns headers and reset timestamp
   const headers = { ...(rate?.headers || {}) } as Record<string, string>;
   try {
     const reset = typeof rate?.reset === 'number' ? rate.reset : undefined;
@@ -24,7 +23,7 @@ function buildRateLimitResponseHeaders(rate: RateLimitResult) {
       headers['Retry-After'] = String(retryAfterSec);
     }
   } catch {
-    // ignore
+
   }
   return headers;
 }
@@ -148,7 +147,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to unenroll factor' }, { status: 400, headers: actionHeaders });
       }
 
-      // Record an audit-like entry in system_audit_logs (use user id as actor to preserve trace)
       try {
         const adminSupabase = (await import('@supabase/supabase-js')).createClient(
           getEnv().NEXT_PUBLIC_SUPABASE_URL,
@@ -179,7 +177,6 @@ export async function POST(req: NextRequest) {
       const actionHeaders = buildRateLimitResponseHeaders(actionRate);
       if (!actionRate.success) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: actionHeaders });
 
-      // Generate user backup codes (not reversible) and attempt to persist them using service role
       try {
         const { randomBytes, createHash } = await import('crypto');
         const codes = Array.from({ length: 10 }).map(() => randomBytes(5).toString('hex').toUpperCase());
@@ -198,12 +195,11 @@ export async function POST(req: NextRequest) {
             { auth: { autoRefreshToken: false, persistSession: false } }
           );
 
-          // Remove any previous codes then insert new ones
           await adminSupabase.from('system_mfa_backup_codes').delete().eq('user_id', user.id);
           await adminSupabase.from('system_mfa_backup_codes').insert(rows);
         } catch (persistErr) {
           console.error('[MFA][backup] failed to persist backup codes:', { userId: user.id, ip, error: persistErr });
-          // Do not fail the request; return codes but log persistence failure for operators
+          return NextResponse.json({ error: 'Failed to generate backup codes' }, { status: 500, headers: actionHeaders });
         }
 
         return NextResponse.json({ success: true, backupCodes: codes }, { headers: actionHeaders });
@@ -223,7 +219,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Factor ID and verification code are required" }, { status: 400, headers: verifyHeaders });
       }
 
-      // Ensure factor belongs to user
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
       if (factorsError) {
         console.error('[MFA][verify] listFactors error during verify:', { userId: user.id, ip, error: factorsError });
@@ -244,7 +239,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid verification code" }, { status: 400, headers: verifyHeaders });
       }
 
-      // audit enroll
       try {
         const adminSupabase = (await import('@supabase/supabase-js')).createClient(
           getEnv().NEXT_PUBLIC_SUPABASE_URL,

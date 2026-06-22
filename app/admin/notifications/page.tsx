@@ -135,7 +135,7 @@ export default function AdminNotificationsPage() {
   return (
     <>
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link 
@@ -175,7 +175,7 @@ export default function AdminNotificationsPage() {
           </div>
         </div>
 
-        {/* Filters & Search */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30 flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -208,7 +208,7 @@ export default function AdminNotificationsPage() {
           </div>
         </div>
 
-        {/* Notifications List */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-3xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-20">

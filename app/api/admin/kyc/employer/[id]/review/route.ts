@@ -115,9 +115,7 @@ export async function PATCH(
         : `Your onboarding submission was rejected.${notes ? ` Reason: ${notes}` : ''}`,
   });
 
-  // NOTE: Pusher removed. Supabase Realtime is expected to broadcast employer KYC updates via Postgres changes. Verify RLS/select policies and triggers before relying on realtime delivery.
-
-  return NextResponse.json({
+   return NextResponse.json({
     message: 'Employer review submitted successfully',
     data: {
       employer_id: employer.id,

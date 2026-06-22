@@ -281,7 +281,7 @@ export default function AdminReports() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
-      {/* Header */}
+      
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Reports & Analytics</h1>
@@ -300,7 +300,7 @@ export default function AdminReports() {
         </div>
       </div>
 
-      {/* Quick Stats */}
+      
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
@@ -348,7 +348,7 @@ export default function AdminReports() {
         </div>
       </div>
 
-      {/* Filters */}
+      
       <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
@@ -390,7 +390,7 @@ export default function AdminReports() {
         </div>
       </div>
 
-      {/* Reports List */}
+      
       <div className="space-y-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -542,7 +542,7 @@ export default function AdminReports() {
         )}
       </div>
 
-      {/* New Report Modal */}
+      
       {showNewReportModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-700">

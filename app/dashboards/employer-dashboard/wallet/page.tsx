@@ -45,7 +45,7 @@ const WalletPage = () => {
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
 
   const fetchData = useCallback(async () => {
-    // Defer the initial loading state to avoid synchronous setState in useEffect
+
     await Promise.resolve();
     setLoading(true);
     try {
@@ -96,7 +96,7 @@ const WalletPage = () => {
   return (
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
+        
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Wallet & Funding</h1>
@@ -115,7 +115,7 @@ const WalletPage = () => {
           </div>
         </div>
 
-        {/* Stats Row */}
+        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-linear-to-br from-primary to-emerald-600 rounded-3xl p-6 text-white shadow-xl shadow-primary/20 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
@@ -156,7 +156,7 @@ const WalletPage = () => {
           </div>
         </div>
 
-        {/* Transactions Table */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-3xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/30 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -230,7 +230,7 @@ const WalletPage = () => {
           )}
         </div>
 
-        {/* Top-up Modal: collect amount and create a pending top-up request (pending admin approval) */}
+        
         {showTopUpModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowTopUpModal(false)}>
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -269,7 +269,7 @@ const WalletPage = () => {
 
                 <div className="grid grid-cols-1 gap-2">
                   <Button onClick={async () => {
-                    // submit top-up request
+
                     if (!topUpAmount || topUpAmount <= 0) {
                       toast.error('Please enter a valid amount');
                       return;

@@ -43,7 +43,7 @@ export async function subscribeToPush() {
       applicationServerKey: urlBase64ToUint8Array(publicKey)
     });
 
-    // send to server
+
     await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub }) });
 
     return { success: true };
@@ -67,7 +67,7 @@ export async function unsubscribeFromPush() {
   }
 }
 
-// helper
+
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -81,7 +81,7 @@ function urlBase64ToUint8Array(base64String: string) {
 
 export default function PushClient() {
   useEffect(() => {
-    // lazy: register service worker if available
+
     registerServiceWorker().catch(() => {});
   }, []);
 

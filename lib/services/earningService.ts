@@ -8,7 +8,7 @@ export class EarningsService {
    * This should be called daily via cron job
    */
   async recomputeEmployeeEarnings(employeeId: string): Promise<void> {
-    // Get current payroll entry
+
     const { data: payrollEntry } = await this.supabase
       .from('payroll_entries')
       .select('*, employees(organization_id)')
@@ -19,7 +19,6 @@ export class EarningsService {
 
     if (!payrollEntry) return;
 
-    // Call database function for computation
     const { data: computedData } = await this.supabase.rpc(
       'compute_earnings_for_employee',
       {
@@ -36,9 +35,6 @@ export class EarningsService {
       earnings_percentage: number;
     };
 
-
-
-    // Update earnings snapshot
     await this.supabase
       .from('earnings_snapshots')
       .insert({
@@ -57,7 +53,6 @@ export class EarningsService {
         earnings_percentage: computed.earnings_percentage
       });
 
-    // Notify via realtime
     this.supabase.channel('earnings-updates')
       .send({
         type: 'broadcast',
@@ -99,10 +94,10 @@ export class EarningsService {
       return { valid: false, reason: 'Insufficient earned wages', available };
     }
 
-    // Additional business rules can be added here
-    // - Minimum withdrawal amount
-    // - Daily limits
-    // - Frequency limits
+
+
+
+
 
     return { valid: true, available };
   }

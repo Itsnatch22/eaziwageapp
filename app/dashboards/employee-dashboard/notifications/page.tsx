@@ -143,7 +143,7 @@ export default function EmployeeNotificationsPage() {
         <EmployeePortalLayout title="Notifications">
             <div className="max-w-4xl mx-auto space-y-8">
                 
-                {/* Header Actions */}
+                
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                     <div className="space-y-2">
                         <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary w-fit border border-primary/20">
@@ -178,7 +178,7 @@ export default function EmployeeNotificationsPage() {
                     </div>
                 </div>
 
-                {/* Notifications List */}
+                
                 <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-sm min-h-100">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-24 space-y-4">
@@ -204,12 +204,12 @@ export default function EmployeeNotificationsPage() {
                                     )}
                                     onClick={() => !notif.read && markAsRead(notif.id)}
                                 >
-                                    {/* Status Indicator */}
+                                    
                                     {!notif.read && (
                                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full" />
                                     )}
 
-                                    {/* Icon */}
+                                    
                                     <div className={cn(
                                         "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-all",
                                         !notif.read 
@@ -219,7 +219,7 @@ export default function EmployeeNotificationsPage() {
                                         {getIcon(notif.type)}
                                     </div>
 
-                                    {/* Content */}
+                                    
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-4">
                                             <div>
@@ -275,7 +275,7 @@ export default function EmployeeNotificationsPage() {
                     )}
                 </div>
 
-                {/* Settings Card */}
+                
                 <div className="bg-linear-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-32 -mt-32 group-hover:bg-primary/20 transition-colors" />
                     <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">

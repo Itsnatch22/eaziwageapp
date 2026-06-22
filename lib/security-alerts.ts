@@ -5,9 +5,9 @@ const env = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
 
 const FROM_EMAIL = "EaziWage Security <security@eaziwage.com>";
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://eaziwage.com";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.eaziwage.com";
 
-const newYear = new Date().getFullYear(); // Always show next year for future-proofing
+const newYear = new Date().getFullYear(); 
 
 /**
  * Security notification utilities

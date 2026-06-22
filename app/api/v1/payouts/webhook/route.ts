@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const payload = body.payload as DusupayWebhookPayload;
 
   const hmacHeader = req.headers.get('hmac-signature') || req.headers.get('x-dusupay-signature');
-  // Require a signature header and verify it. If missing or invalid, reject.
+
   if (!hmacHeader || !dusupayWebhook.verifyHmac(rawBody, hmacHeader)) {
     console.error('[DusuPay Webhook] Invalid or missing HMAC signature');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,8 +1,8 @@
-// Shared gradient icon components for Employer Portal
-// Matches the website's "Get Started" button gradient: from-primary to-emerald-600
+
+
 import { cn } from '../../lib/utils';
 
-// Gradient Icon Box - matches website button gradient
+
 interface GradientIconBoxProps {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -34,7 +34,7 @@ export const GradientIconBox = ({ icon: Icon, size = 'md', className }: Gradient
   );
 };
 
-// Gradient Avatar - for employee initials
+
 interface GradientAvatarProps {
   initials: string;
   size?: 'sm' | 'md' | 'lg';
@@ -59,7 +59,7 @@ export const GradientAvatar = ({ initials, size = 'md', className }: GradientAva
   );
 };
 
-// Gradient Button - matches website CTA buttons
+
 interface GradientButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
   className?: string;
@@ -79,7 +79,7 @@ export const GradientButton = ({ children, className, ...props }: GradientButton
   </button>
 );
 
-// Currency options for multi-country support
+
 export const currencies = [
   { code: 'KES', symbol: 'Ksh', name: 'Kenyan Shilling', country: 'Kenya' },
   { code: 'UGX', symbol: 'UGX', name: 'Ugandan Shilling', country: 'Uganda' },
@@ -87,7 +87,7 @@ export const currencies = [
   { code: 'RWF', symbol: 'RWF', name: 'Rwandan Franc', country: 'Rwanda' },
 ];
 
-// Country options
+
 export const countries = [
   { code: 'KE', name: 'Kenya', flag: '🇰🇪' },
   { code: 'UG', name: 'Uganda', flag: '🇺🇬' },
@@ -116,7 +116,7 @@ export const CurrencySelector = ({ selectedCurrency, onCurrencyChange }: Currenc
     );
 };
 
-// Format currency with symbol
+
 interface FormatCurrencyProps {
     amount: number;
     currencyCode?: string;

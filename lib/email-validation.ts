@@ -7,7 +7,6 @@ const resolveMx = promisify(dns.resolveMx);
  * Email domain validation utilities
  */
 
-// Broad set of known disposable / temporary email providers
 const DISPOSABLE_DOMAINS = new Set([
   "tempmail.com",
   "10minutemail.com",
@@ -98,9 +97,7 @@ const DISPOSABLE_DOMAINS = new Set([
   "teleworm.us",
 ]);
 
-// Common typos for popular email domains
 const DOMAIN_CORRECTIONS: Record<string, string> = {
-  // Gmail
   "gmial.com": "gmail.com",
   "gmai.com": "gmail.com",
   "gmil.com": "gmail.com",
@@ -115,7 +112,7 @@ const DOMAIN_CORRECTIONS: Record<string, string> = {
   "gmailcom": "gmail.com",
   "gmail.comm": "gmail.com",
 
-  // Yahoo
+
   "yahooo.com": "yahoo.com",
   "yaho.com": "yahoo.com",
   "yahoo.co": "yahoo.com",
@@ -124,7 +121,7 @@ const DOMAIN_CORRECTIONS: Record<string, string> = {
   "yhaoo.com": "yahoo.com",
   "yahoo.con": "yahoo.com",
 
-  // Outlook
+
   "outlok.com": "outlook.com",
   "outloo.com": "outlook.com",
   "outlook.co": "outlook.com",
@@ -132,7 +129,7 @@ const DOMAIN_CORRECTIONS: Record<string, string> = {
   "outllok.com": "outlook.com",
   "outlook.con": "outlook.com",
 
-  // Hotmail
+
   "hotmial.com": "hotmail.com",
   "hotmal.com": "hotmail.com",
   "hotmai.com": "hotmail.com",
@@ -141,13 +138,13 @@ const DOMAIN_CORRECTIONS: Record<string, string> = {
   "hotmail.co": "hotmail.com",
   "hotmail.con": "hotmail.com",
 
-  // iCloud
+
   "iclud.com": "icloud.com",
   "icoud.com": "icloud.com",
   "icloud.co": "icloud.com",
   "iclould.com": "icloud.com",
 
-  // Others
+
   "protonmai.com": "protonmail.com",
   "protomail.com": "protonmail.com",
   "live.co": "live.com",
@@ -169,8 +166,8 @@ export function isDisposableDomain(domain: string): boolean {
     return true;
   }
 
-  // Check if domain is a subdomain of a known disposable provider
-  // e.g. "sub.mailinator.com" should match "mailinator.com"
+
+
   const parts = normalized.split(".");
   for (let i = 1; i < parts.length - 1; i++) {
     const parentDomain = parts.slice(i).join(".");
@@ -193,7 +190,7 @@ export function suggestDomainCorrection(domain: string): string | null {
  * Validates domain format (without DNS check)
  */
 export function isValidDomainFormat(domain: string): boolean {
-  // Domain must have at least one dot and valid characters
+
   const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.([a-zA-Z]{2,}\.?)+$/;
   return domainRegex.test(domain);
 }
@@ -209,7 +206,7 @@ export async function hasMxRecords(domain: string): Promise<boolean> {
     const addresses = await resolveMx(domain);
     return addresses && addresses.length > 0;
   } catch {
-    // DNS lookup failed - domain doesn't exist or no MX records
+
     return false;
   }
 }
@@ -251,7 +248,7 @@ export async function validateEmail(
     };
   }
 
-  // Typo suggestion
+
   const suggestion = suggestDomainCorrection(domain);
   if (suggestion) {
     const correctedEmail = email.replace(domain, suggestion);
@@ -262,7 +259,7 @@ export async function validateEmail(
     };
   }
 
-  // DNS MX record check (optional, slower)
+
   if (checkDns) {
     const hasValidMx = await hasMxRecords(domain);
     if (!hasValidMx) {

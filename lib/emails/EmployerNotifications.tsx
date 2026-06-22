@@ -16,11 +16,6 @@ import EmailLayout, {
   styles,
 } from './EmailLayout';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. NEW EMPLOYEE LINKED
-// Triggered: employee_onboarding insert with employer_id populated
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface NewEmployeeLinkedEmailProps {
   companyName: string;
   employeeName: string;
@@ -87,12 +82,6 @@ export function NewEmployeeLinkedEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. EMPLOYEE KYC SUBMITTED
-// Triggered: employee submits KYC documents — employer visibility
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface EmployeeKYCSubmittedEmailProps {
   companyName: string;
   employeeName: string;
@@ -152,11 +141,6 @@ export function EmployeeKYCSubmittedEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. KYC APPROVED
-// Triggered: admin sets employee status → 'approved'
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface EmployeeKYCApprovedEmailProps {
   companyName: string;
   employeeName: string;
@@ -215,11 +199,6 @@ export function EmployeeKYCApprovedEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. KYC REJECTED
-// Triggered: admin sets employee status → 'rejected'
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface EmployeeKYCRejectedEmailProps {
   companyName: string;
@@ -285,12 +264,6 @@ export function EmployeeKYCRejectedEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. RISK PROFILE UPDATED
-// Triggered: admin updates employer_risk_factors → risk_score/risk_rating changes
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type RiskRating = 'A' | 'B' | 'C' | 'D';
 
 export interface RiskProfileUpdatedEmailProps {
@@ -338,7 +311,7 @@ export function RiskProfileUpdatedEmail({
         risk profile. Your updated score and rating are shown below.
       </Text>
 
-      {/* Score highlight */}
+      
       <Section style={{ backgroundColor: '#f5f3ff', borderRadius: '12px', padding: '24px', margin: '20px 0', textAlign: 'center' as const }}>
         <Text style={{ fontSize: '13px', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>
           Composite Risk Score
@@ -385,11 +358,6 @@ export function RiskProfileUpdatedEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. EMPLOYER STATUS CHANGE
-// Triggered: admin updates employers.status (approved / suspended / rejected)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type EmployerStatus = 'approved' | 'suspended' | 'rejected' | 'pending' | 'under_review';
 
@@ -519,11 +487,6 @@ export function EmployerStatusChangeEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 7. BANK DETAILS CHANGE OUTCOME
-// Triggered: admin approves or rejects a bank_change_requests row
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface BankDetailsChangeOutcomeEmailProps {
   companyName: string;
   contactPerson?: string;
@@ -609,12 +572,6 @@ export function BankDetailsChangeOutcomeEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 8. RISK REVIEW COMPLETED
-// Triggered: admin resolves a risk_review_requests row
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface RiskReviewCompletedEmailProps {
   companyName: string;
   contactPerson?: string;
@@ -664,7 +621,7 @@ export function RiskReviewCompletedEmail({
         reflected below.
       </Text>
 
-      {/* Score display */}
+      
       <Section style={{ backgroundColor: '#f8fafc', borderRadius: '12px', padding: '24px', margin: '20px 0', textAlign: 'center' as const }}>
         <Text style={{ fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>
           Updated Risk Score
@@ -710,12 +667,6 @@ export function RiskReviewCompletedEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 9. WALLET TOP-UP APPROVED
-// Triggered: admin approves a wallet_transactions pending deposit
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface WalletTopUpApprovedEmailProps {
   companyName: string;
   contactPerson?: string;
@@ -752,7 +703,7 @@ export function WalletTopUpApprovedEmail({
         for employee advance disbursements.
       </Text>
 
-      {/* Amount highlight */}
+      
       <Section style={{ backgroundColor: '#f0fdf4', borderRadius: '12px', padding: '24px', margin: '20px 0', textAlign: 'center' as const }}>
         <Text style={{ fontSize: '13px', fontWeight: 700, color: '#16a34a', textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>
           Amount Added
@@ -795,12 +746,6 @@ export function WalletTopUpApprovedEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 10. ADVANCE REQUEST RECEIVED
-// Triggered: employee submits advance → employer notified via notifyEmployer
-// Route: advances/[id]/route.ts (PATCH action = 'approve' | 'deny')
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface AdvanceRequestReceivedEmailProps {
   companyName: string;
   contactPerson?: string;
@@ -841,7 +786,7 @@ export function AdvanceRequestReceivedEmail({
         Review and action it from your advances dashboard.
       </Text>
 
-      {/* Amount highlight */}
+      
       <Section style={{ backgroundColor: '#eff6ff', borderRadius: '12px', padding: '24px', margin: '20px 0', textAlign: 'center' as const }}>
         <Text style={{ fontSize: '13px', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>
           Requested Amount
@@ -882,12 +827,6 @@ export function AdvanceRequestReceivedEmail({
     </EmailLayout>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 11. WALLET FUNDED (balance updated after approved disbursements / reconciliation)
-// Triggered: wallet_transactions status → 'completed' (deposit confirmed)
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface WalletFundedEmailProps {
   companyName: string;
   contactPerson?: string;
@@ -928,7 +867,7 @@ export function WalletFundedEmail({
         Your employees' advance requests can now be processed immediately.
       </Text>
 
-      {/* Balance card */}
+      
       <Section style={{ backgroundColor: '#f0fdf4', borderRadius: '12px', padding: '24px', margin: '20px 0' }}>
         <Row>
           <Column style={{ textAlign: 'center' as const, borderRight: '1px solid #bbf7d0', paddingRight: '20px' }}>

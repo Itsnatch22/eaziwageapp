@@ -39,7 +39,7 @@ export default function EmployeeKycConfirmation({
           Our compliance team will review your documents within 2-3 business days.
         </Text>
 
-        {/* What's next */}
+        
         <Section style={{ ...layoutStyles.box, backgroundColor: '#f0fdf4' }}>
           <Text style={{ fontWeight: '600', color: '#166534', margin: '0 0 12px' }}>What happens next?</Text>
           <ul style={{ color: '#166534', fontSize: '14px', lineHeight: '24px', margin: 0, paddingLeft: '20px' }}>

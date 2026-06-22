@@ -191,7 +191,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (empErr) {
       console.error('[reports] Error fetching employees:', empErr);
-      // Continue with empty employees
+
       employeeRows = [];
     } else {
       employeeRows = (employees ?? []) as { id: string; status: string }[];
@@ -276,7 +276,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .in('status', ['disbursed', 'approved'])
         .gte('created_at', trendFrom.toISOString());
 
-      // Bucket by month
+
       const buckets = new Map<string, { amount: number; count: number }>();
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -300,7 +300,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         monthlyTrend.push({ label, amount: b.amount, count: b.count });
       }
     } else {
-      // No employees — return 6 empty buckets
+
       for (let i = 5; i >= 0; i--) {
         const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const label = d.toLocaleString('en', { month: 'short', year: '2-digit' });
@@ -309,7 +309,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error('[reports] Error fetching monthly trend:', err);
-    // Return empty trend on error
+
     for (let i = 5; i >= 0; i--) {
       const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const label = d.toLocaleString('en', { month: 'short', year: '2-digit' });

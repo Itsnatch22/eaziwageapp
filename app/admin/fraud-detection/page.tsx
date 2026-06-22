@@ -263,7 +263,7 @@ const RiskScoringSection: React.FC = () => {
 
   return (
     <div className="grid lg:grid-cols-2 gap-6">
-      {/* Employer Risk Score */}
+      
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-purple-500/10 to-violet-500/10">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -288,7 +288,7 @@ const RiskScoringSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Employee Risk Score */}
+      
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-emerald-500/10 to-green-500/10">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -313,7 +313,7 @@ const RiskScoringSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Risk Bands */}
+      
       <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Risk Score Bands & Actions</h3>
@@ -386,7 +386,7 @@ const SuspensionTriggersSection: React.FC = () => {
         </h3>
       </div>
 
-      {/* Tabs */}
+      
       <div className="flex border-b border-slate-200 dark:border-slate-700">
         <button
           onClick={() => setActiveTab('immediate')}
@@ -806,7 +806,7 @@ const ManualRulesSection: React.FC<ManualRulesSectionProps> = ({ rules, onToggle
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Manual Fraud Rules</h3>
@@ -822,7 +822,7 @@ const ManualRulesSection: React.FC<ManualRulesSectionProps> = ({ rules, onToggle
         </Button>
       </div>
 
-      {/* Rules List */}
+      
       <div className="grid gap-4">
         {rules.length === 0 ? (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 text-center">
@@ -895,7 +895,7 @@ const ManualRulesSection: React.FC<ManualRulesSectionProps> = ({ rules, onToggle
         )}
       </div>
 
-      {/* Create Modal */}
+      
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
@@ -979,7 +979,7 @@ const ManualRulesSection: React.FC<ManualRulesSectionProps> = ({ rules, onToggle
         </div>
       )}
 
-      {/* Edit Modal */}
+      
       {editingRule && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
@@ -1213,7 +1213,7 @@ export default function FraudDetection(): React.ReactElement {
 
   return (
     <div className="space-y-6">
-        {/* Header */}
+        
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
@@ -1238,7 +1238,7 @@ export default function FraudDetection(): React.ReactElement {
           </div>
         </div>
 
-        {/* Section Navigation */}
+        
         <div className="flex overflow-x-auto pb-2 gap-2 scrollbar-thin">
           {sections.map((section) => (
             <button
@@ -1257,7 +1257,7 @@ export default function FraudDetection(): React.ReactElement {
           ))}
         </div>
 
-        {/* Content */}
+        
         {activeSection === 'overview' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

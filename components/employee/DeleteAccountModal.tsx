@@ -131,7 +131,7 @@ export function DeleteAccountModal({ isOpen, onClose, onDeleteAccount, loading }
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Warning Message */}
+          
           <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
@@ -146,7 +146,7 @@ export function DeleteAccountModal({ isOpen, onClose, onDeleteAccount, loading }
             </div>
           </div>
 
-          {/* Category Selection */}
+          
           {!selectedCategory ? (
             <div className="space-y-4">
               <h3 className="font-semibold text-slate-900 dark:text-white">What category best describes your reason?</h3>
@@ -175,7 +175,7 @@ export function DeleteAccountModal({ isOpen, onClose, onDeleteAccount, loading }
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Selected Category Header */}
+              
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setSelectedCategory('')}
@@ -190,7 +190,7 @@ export function DeleteAccountModal({ isOpen, onClose, onDeleteAccount, loading }
                 </div>
               </div>
 
-              {/* Specific Reasons */}
+              
               <div className="space-y-3">
                 <h4 className="font-medium text-slate-900 dark:text-white">Please select a specific reason:</h4>
                 <div className="grid gap-2">
@@ -211,7 +211,7 @@ export function DeleteAccountModal({ isOpen, onClose, onDeleteAccount, loading }
                 </div>
               </div>
 
-              {/* Additional Feedback */}
+              
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-900 dark:text-white">
                   Additional feedback (optional)
@@ -225,7 +225,7 @@ export function DeleteAccountModal({ isOpen, onClose, onDeleteAccount, loading }
                 />
               </div>
 
-              {/* Action Buttons */}
+              
               <div className="flex gap-3 pt-4">
                 <Button
                   variant="outline"

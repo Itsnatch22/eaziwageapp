@@ -3,7 +3,7 @@
  * Uses the Web Crypto API available in Edge runtime instead of Node's 'crypto' module.
  */
 
-/** Helper: convert ArrayBuffer to hex string */
+
 function bufferToHex(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');

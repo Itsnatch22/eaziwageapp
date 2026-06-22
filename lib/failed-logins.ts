@@ -27,7 +27,7 @@ export interface AccountLockStatus {
   remainingTime?: number; // seconds
 }
 
-// Configuration
+
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 15;
 const ATTEMPT_WINDOW_MINUTES = 15;
@@ -51,7 +51,7 @@ export async function recordFailedLogin(
     });
   } catch (error) {
     console.error("Failed to record login attempt:", error);
-    // Don't throw - logging failure shouldn't block login flow
+
   }
 }
 
@@ -74,7 +74,7 @@ export async function recordSuccessfulLogin(
       logged_in_at: new Date().toISOString(),
     });
 
-    // Clear failed attempts for this email after successful login
+
     await clearFailedAttempts(email);
   } catch (error) {
     console.error("Failed to record successful login:", error);
@@ -89,7 +89,7 @@ export async function checkAccountLock(email: string): Promise<AccountLockStatus
     const windowStart = new Date();
     windowStart.setMinutes(windowStart.getMinutes() - ATTEMPT_WINDOW_MINUTES);
 
-    // Get failed attempts in the time window
+
     const { data: attempts, error } = await supabase
       .from("failed_login_attempts")
       .select("*")
@@ -105,14 +105,14 @@ export async function checkAccountLock(email: string): Promise<AccountLockStatus
     const failedAttempts = attempts?.length || 0;
 
     if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
-      // Account is locked
+
       const mostRecentAttempt = new Date(attempts[0].attempted_at);
       const lockedUntil = new Date(mostRecentAttempt);
       lockedUntil.setMinutes(lockedUntil.getMinutes() + LOCKOUT_DURATION_MINUTES);
 
       const now = new Date();
       if (now < lockedUntil) {
-        // Still locked
+
         const remainingTime = Math.ceil((lockedUntil.getTime() - now.getTime()) / 1000);
         return {
           isLocked: true,
@@ -121,7 +121,7 @@ export async function checkAccountLock(email: string): Promise<AccountLockStatus
           remainingTime,
         };
       } else {
-        // Lock expired, clear old attempts
+
         await clearFailedAttempts(email);
         return { isLocked: false, failedAttempts: 0 };
       }
@@ -130,7 +130,7 @@ export async function checkAccountLock(email: string): Promise<AccountLockStatus
     return { isLocked: false, failedAttempts };
   } catch (error) {
     console.error("Error in checkAccountLock:", error);
-    // Fail open - don't lock account if check fails
+
     return { isLocked: false, failedAttempts: 0 };
   }
 }

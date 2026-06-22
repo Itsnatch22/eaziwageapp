@@ -50,7 +50,6 @@ export async function POST(req: NextRequest) {
       admin_id: user.id, admin_name: user.email, target_id: data.id, target_type: 'blackout', action: 'create_blackout',
       new_value: data, created_at: new Date().toISOString()
     });
-    // NOTE: Pusher removed. Supabase Realtime is expected to broadcast DB changes via Postgres. Verify RLS/select policies and triggers before relying on realtime delivery.
     return NextResponse.json(data);
   } catch (error) {
     console.error('[POST /api/admin/settings/blackouts] Error:', error);

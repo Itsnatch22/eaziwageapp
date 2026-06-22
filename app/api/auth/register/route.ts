@@ -294,10 +294,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         : null;
 
       if (!approvedOnboarding) {
-        // Employer exists but hasn't completed onboarding yet (no row,
-        // or a row exists but isn't 'approved'). Employees may only link
-        // to employers who have finished onboarding — reject rather than
-        // silently registering with no employer link.
+
+
+
+
         if (latestOnboarding?.status === 'rejected' || latestOnboarding?.status === 'suspended') {
           return NextResponse.json(
             { error: `This company is currently ${latestOnboarding.status} on EaziWage. Please contact support.` },
@@ -361,7 +361,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (input.role === 'employer') {
     generatedEmployerCode = generateEmployerCode();
     
-    // Fix 1: Atomic creation of employer_onboarding row
+
     const { data: onboarding, error: onboardingError } = await supabase
       .from('employer_onboarding')
       .insert({
@@ -411,7 +411,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
   } else if (input.role === 'employee') {
-    // Fix 1: Atomic creation of employee_onboarding row
+
     const { error: onboardingError } = await supabase
       .from('employee_onboarding')
       .insert({
@@ -570,7 +570,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   } catch (notifErr) {
     console.error('[register/notifications]', notifErr);
-    // Non-fatal
+
   }
 
   return successResponse;

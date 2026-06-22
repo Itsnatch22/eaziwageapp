@@ -320,7 +320,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
         : 'bg-white/40 dark:bg-slate-800/40 hover:bg-white/60 dark:hover:bg-slate-800/60',
     )}
   >
-    {/* Checkbox */}
+    
     <input
       type="checkbox"
       checked={isSelected}
@@ -329,7 +329,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
       data-testid={`select-employee-${employee.id}`}
     />
     
-    {/* Avatar */}
+    
     <div className="w-11 h-11 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center shadow-md shrink-0">
       <span className="text-white font-bold text-sm">
         {employee.full_name.split(' ').map(n => n[0]).join('').toUpperCase() || 
@@ -337,7 +337,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
       </span>
     </div>
     
-    {/* Info */}
+    
     <div className="flex-1 min-w-0">
       <p className="font-semibold text-slate-900 dark:text-white truncate">
         {employee.full_name || `Employee ${employee.employee_code}`}
@@ -347,7 +347,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
       </p>
     </div>
     
-    {/* Salary */}
+    
     <div className="text-right hidden sm:block w-24 shrink-0">
       <p className="font-bold text-slate-900 dark:text-white">
         {formatCurrency(convertToUSD(employee.monthly_salary, employee.currency || 'KES', rates), 'USD')}
@@ -355,17 +355,17 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
       <p className="text-xs text-slate-500 dark:text-slate-400">Monthly</p>
     </div>
     
-    {/* KYC Status */}
+    
     <div className="hidden md:block w-28 shrink-0">
       <KYCBadge status={employee.kyc_status} />
     </div>
     
-    {/* Status */}
+    
     <div className="w-24 shrink-0">
       <StatusBadge status={employee.status} />
     </div>
     
-    {/* Risk Score */}
+    
     <div className="hidden lg:block text-center w-16 shrink-0">
       <p
         className={cn(
@@ -382,7 +382,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
       <p className="text-xs text-slate-500">Risk</p>
     </div>
     
-    {/* Actions */}
+    
     <div className="flex items-center gap-1 w-20 justify-end shrink-0">
       <button 
         onClick={() => onViewDetails(employee)}
@@ -592,7 +592,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
         className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
+        
         <div className="bg-linear-to-r from-green-600 to-green-700 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -621,7 +621,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Tabs */}
+        
         <div className="flex border-b border-slate-200 dark:border-slate-700">
           {(['overview', 'advances', 'kyc', 'actions'] as const).map(tab => (
             <button
@@ -639,7 +639,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
           ))}
         </div>
 
-        {/* Content */}
+        
         <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 250px)' }}>
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -647,7 +647,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
             </div>
           ) : activeTab === 'overview' ? (
             <div className="space-y-6">
-              {/* Advance Stats */}
+              
               {employeeDetail?.advance_stats && (
                 <div className="grid sm:grid-cols-4 gap-4">
                   <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl text-center">
@@ -677,7 +677,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                 </div>
               )}
 
-              {/* Edit Mode */}
+              
               {editMode ? (
                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-6 space-y-4">
                   <h3 className="font-semibold text-slate-900 dark:text-white mb-4">
@@ -742,7 +742,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                   </div>
                 </div>
               ) : (
-                /* Info Grid */
+                
                 <div className="grid sm:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -838,7 +838,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                 </div>
               )}
 
-              {/* Risk Score Section */}
+              
               <div className="bg-linear-to-r from-green-50 to-green-50 dark:from-green-900/20 dark:to-green-900/20 rounded-xl p-5 border border-green-200/50 dark:border-green-700/30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1101,7 +1101,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
           ) : null}
         </div>
 
-        {/* Risk Override Modal */}
+        
         {showRiskModal && (
           <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-60 flex items-center justify-center p-4"
@@ -1384,7 +1384,7 @@ export default function AdminEmployees() {
   return (
     <>
       <div className="max-w-7xl mx-auto space-y-6" data-testid="admin-employees-page">
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1
@@ -1411,7 +1411,7 @@ export default function AdminEmployees() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard 
             icon={Users}
@@ -1443,7 +1443,7 @@ export default function AdminEmployees() {
           />
         </div>
 
-        {/* Search & Filters */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex flex-col gap-4">
             <div className="relative flex-1">
@@ -1492,7 +1492,7 @@ export default function AdminEmployees() {
           </div>
         </div>
 
-        {/* Bulk Actions Bar */}
+        
         {selectedIds.size > 0 && (
           <div
             className="bg-green-600 rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-green-500/25"
@@ -1550,7 +1550,7 @@ export default function AdminEmployees() {
           </div>
         )}
 
-        {/* Employees List */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -1566,7 +1566,7 @@ export default function AdminEmployees() {
             />
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">
-              {/* Header */}
+              
               <div className="hidden lg:flex items-center gap-4 px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <input
                   type="checkbox"
@@ -1605,7 +1605,7 @@ export default function AdminEmployees() {
           )}
         </div>
 
-        {/* Summary Footer */}
+        
         {filteredEmployees.length > 0 && (
           <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
             <span>Showing {filteredEmployees.length} of {employees.length} employees</span>
@@ -1613,7 +1613,7 @@ export default function AdminEmployees() {
         )}
       </div>
 
-      {/* Detail Modal */}
+      
       <EmployeeDetailModal 
         employee={selectedEmployee}
         rates={rates}
@@ -1625,7 +1625,7 @@ export default function AdminEmployees() {
         onRefresh={fetchEmployees}
       />
 
-      {/* Quick Actions Modal */}
+      
       <QuickActionsModal
         employee={selectedEmployee}
         isOpen={showQuickActions}

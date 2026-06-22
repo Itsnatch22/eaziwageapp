@@ -23,7 +23,7 @@ export function useAdminNotifications({
   onUpdate,
 }: UseAdminNotificationsOptions) {
   const supabase = createClient();
-  // Stable refs so the channel callback never goes stale
+
   const onInsertRef = useRef(onInsert);
   const onDeleteRef = useRef(onDelete);
   const onUpdateRef = useRef(onUpdate);

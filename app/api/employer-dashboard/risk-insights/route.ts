@@ -93,38 +93,38 @@ function calculateCompositeRiskScore(
   let totalWeightedScore = 0;
   let totalWeight = 0;
 
-  // Legal & Compliance (20%)
+
   totalWeightedScore += riskFactors.legal_compliance.registration_status * SUB_FACTOR_WEIGHTS.legal_compliance.registration_status;
   totalWeightedScore += riskFactors.legal_compliance.tax_compliance * SUB_FACTOR_WEIGHTS.legal_compliance.tax_compliance;
   totalWeightedScore += riskFactors.legal_compliance.ewa_agreement * SUB_FACTOR_WEIGHTS.legal_compliance.ewa_agreement;
   totalWeight += CATEGORY_WEIGHTS.legal_compliance;
 
-  // Financial Health (35% - core risk driver)
+
   totalWeightedScore += riskFactors.financial_health.audited_financials * SUB_FACTOR_WEIGHTS.financial_health.audited_financials;
   totalWeightedScore += riskFactors.financial_health.liquidity_ratio * SUB_FACTOR_WEIGHTS.financial_health.liquidity_ratio;
   totalWeightedScore += riskFactors.financial_health.payroll_sustainability * SUB_FACTOR_WEIGHTS.financial_health.payroll_sustainability;
   totalWeight += CATEGORY_WEIGHTS.financial_health;
 
-  // Operational Dynamics (20%)
+
   totalWeightedScore += riskFactors.operational.employee_count * SUB_FACTOR_WEIGHTS.operational.employee_count;
   totalWeightedScore += riskFactors.operational.churn_rate * SUB_FACTOR_WEIGHTS.operational.churn_rate;
   totalWeightedScore += riskFactors.operational.payroll_integration * SUB_FACTOR_WEIGHTS.operational.payroll_integration;
   totalWeight += CATEGORY_WEIGHTS.operational;
 
-  // Sector & Regulatory (15%)
+
   totalWeightedScore += riskFactors.sector_exposure.industry_risk * SUB_FACTOR_WEIGHTS.sector_exposure.industry_risk;
   totalWeightedScore += riskFactors.sector_exposure.regulatory_exposure * SUB_FACTOR_WEIGHTS.sector_exposure.regulatory_exposure;
   totalWeight += CATEGORY_WEIGHTS.sector_exposure;
 
-  // AML / Ownership (10%)
+
   totalWeightedScore += riskFactors.aml_transparency.beneficial_ownership * SUB_FACTOR_WEIGHTS.aml_transparency.beneficial_ownership;
   totalWeightedScore += riskFactors.aml_transparency.pep_screening * SUB_FACTOR_WEIGHTS.aml_transparency.pep_screening;
   totalWeight += CATEGORY_WEIGHTS.aml_transparency;
 
-  // Final CRS = weighted sum / total weight (should equal 1.0)
+
   const crs = totalWeightedScore / totalWeight;
   
-  // Ensure score is within valid range [0, 5]
+
   return Math.max(0, Math.min(5, crs));
 }
 
@@ -284,24 +284,24 @@ export async function GET() {
     annual_revenue_range: onboarding?.annual_revenue_range,
     submitted_at:         onboarding?.submitted_at,
 
-    // Risk Scoring (Framework Compliant)
+
     risk_score:  computedCRS,
     risk_rating: computedRating ?? 'B',
     application_fee: applicationFee,
     risk_factors,
 
 
-    // Category Weights (for client-side display)
+
     category_weights: CATEGORY_WEIGHTS,
     sub_factor_weights: SUB_FACTOR_WEIGHTS,
 
-    // Metadata
+
     risk_scored_at:     rf?.scored_at ?? null,
     risk_notes:         rf?.notes     ?? null,
     has_pending_review: !!pendingReviewPayload || employer.status === 'risk_review_in_progress',
     pending_review:     pendingReviewPayload,
 
-    // Framework Version
+
     framework_version: 'REV1',
     framework_date: '2025-10-25',
   });

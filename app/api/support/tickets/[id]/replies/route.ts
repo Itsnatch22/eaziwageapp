@@ -38,7 +38,7 @@ export async function GET(
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
 
-    // Allow admins or the ticket owner to view replies
+
     if (!access.isAdmin && ticket.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -92,7 +92,7 @@ export async function POST(
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
 
-    // Allow admins or the ticket owner to post replies
+
     if (!access.isAdmin && ticket.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -112,7 +112,7 @@ export async function POST(
 
     if (error) throw error;
 
-    // Optionally bump ticket status to 'pending' if it was closed
+
     if (ticket.status === 'closed') {
       await adminSupabase.from('support_tickets').update({ status: 'pending' }).eq('id', id);
     }

@@ -160,7 +160,7 @@ export default function BillingPage() {
             <Calendar className="w-4 h-4 mr-2" />
             Last 6 Months
           </Button>
-          {/*Report button functionality to be implemented*/}
+          
           <Button className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-lg shadow-purple-600/20">
             <Download className="w-4 h-4 mr-2" />
             Export Report
@@ -346,7 +346,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Top Revenue Generators */}
+      
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
         <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/30">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Top Revenue Generators</h3>

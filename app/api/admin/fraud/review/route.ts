@@ -67,8 +67,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Verify the flag exists and is still open
-    const { data: existingFlag, error: flagFetchError } = await supabaseAdmin
+     const { data: existingFlag, error: flagFetchError } = await supabaseAdmin
       .from('fraud_flags')
       .select('id, status, advance_id')
       .eq('id', flagId)
@@ -84,7 +83,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 409 }
       );
     }
-    // Guard: ensure the advanceId in the request matches the flag's advance
     if (existingFlag.advance_id !== advanceId) {
       return NextResponse.json(
         { error: 'advanceId does not match the fraud flag record' },
@@ -95,7 +93,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const nowIso = new Date().toISOString();
 
     if (action === 'clear') {
-      // Update fraud flag → cleared
+    
       const { error: flagUpdateError } = await supabaseAdmin
         .from('fraud_flags')
         .update({
@@ -109,7 +107,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       if (flagUpdateError) throw flagUpdateError;
 
-      // Reset advance → pending so disbursement pipeline re-evaluates it
       const { error: advanceUpdateError } = await supabaseAdmin
         .from('advances')
         .update({
@@ -133,7 +130,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     if (action === 'confirm_fraud') {
-      // Update fraud flag → confirmed_fraud
       const { error: flagUpdateError } = await supabaseAdmin
         .from('fraud_flags')
         .update({
@@ -147,7 +143,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       if (flagUpdateError) throw flagUpdateError;
 
-      // Permanently reject the advance
       const { error: advanceUpdateError } = await supabaseAdmin
         .from('advances')
         .update({
@@ -157,11 +152,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .eq('id', advanceId);
 
       if (advanceUpdateError) throw advanceUpdateError;
-
-      // Deliberately NOT freezing the employee here —
-      // admin manages that separately via the employee management page.
-      // Reason: confirmed fraud on one advance does not automatically
-      // mean the employee should be locked out (could be a system false positive).
 
       const response: ReviewResponse = {
         success: true,
@@ -173,7 +163,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json(response);
     }
 
-    // TypeScript exhaustiveness guard
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
   } catch (err: unknown) {

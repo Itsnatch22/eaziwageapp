@@ -335,7 +335,7 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* EWA Limits */}
+      
       <SectionCard title="EWA Advance Limits" icon={Percent} description="Default limits for all employers and employees">
         <div className="grid md:grid-cols-2 gap-6">
           <RangeSlider
@@ -379,7 +379,7 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
         </div>
       </SectionCard>
 
-      {/* Fee Structure */}
+      
       <SectionCard title="Fee Structure" icon={DollarSign} description="Platform-wide fee configuration">
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-4">
@@ -448,7 +448,7 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
         </div>
       </SectionCard>
 
-      {/* Cooldown & Frequency */}
+      
       <SectionCard title="Cooldown & Frequency" icon={Clock} description="Time-based restrictions">
         <div className="grid md:grid-cols-2 gap-6">
           <RangeSlider
@@ -490,7 +490,7 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
         </div>
       </SectionCard>
 
-      {/* Platform Toggles */}
+      
       <SectionCard title="Platform Features" icon={Settings} description="Enable or disable platform features">
         <div className="space-y-3">
           <Toggle
@@ -520,7 +520,7 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
         </div>
       </SectionCard>
 
-      {/* Enabled Countries */}
+      
       <SectionCard title="Enabled Countries" icon={Globe} description="Countries where EWA service is available">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
@@ -658,7 +658,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
-      {/* Employer List */}
+      
       <div className="lg:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700">
           <h3 className="font-bold text-slate-900 dark:text-white mb-3">Select Employer</h3>
@@ -703,11 +703,11 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
         </div>
       </div>
 
-      {/* Employer Settings */}
+      
       <div className="lg:col-span-2 space-y-6">
         {selectedEmployer && employerSettings ? (
           <>
-            {/* Employer Header */}
+            
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
@@ -721,7 +721,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
                 </div>
               </div>
 
-              {/* Quick Stats */}
+              
               <div className="grid grid-cols-4 gap-4">
                 <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 text-center">
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{employerSettings.advance_limit_percent || 60}%</p>
@@ -742,7 +742,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
               </div>
             </div>
 
-            {/* EWA Settings */}
+            
             <SectionCard title="EWA Configuration" icon={Sliders} description="Custom settings for this employer">
               <div className="grid md:grid-cols-2 gap-6">
                 <RangeSlider
@@ -781,7 +781,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
               </div>
             </SectionCard>
 
-            {/* Employee Limits (Employer-Imposed) */}
+            
             <SectionCard title="Employee Limit Constraints" icon={Users} description="Limits this employer can set on their employees">
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -834,7 +834,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
               </div>
             </SectionCard>
 
-            {/* Funding & Risk */}
+            
             <SectionCard title="Funding & Risk Settings" icon={Shield} description="Financial controls">
               <div className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
@@ -889,7 +889,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
               </div>
             </SectionCard>
 
-            {/* Toggles */}
+            
             <SectionCard title="Feature Access" icon={Lock} description="Enable/disable features for this employer">
               <div className="space-y-3">
                 <Toggle
@@ -1037,7 +1037,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
-      {/* Employee List */}
+      
       <div className="lg:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700">
           <h3 className="font-bold text-slate-900 dark:text-white mb-3">Select Employee</h3>
@@ -1082,11 +1082,11 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
         </div>
       </div>
 
-      {/* Employee Settings */}
+      
       <div className="lg:col-span-2 space-y-6">
         {selectedEmployee && employeeSettings ? (
           <>
-            {/* Employee Header */}
+            
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
@@ -1110,7 +1110,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
                 </div>
               </div>
 
-              {/* Quick Stats */}
+              
               <div className="grid grid-cols-4 gap-4">
                 <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 text-center">
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{employeeSettings.advance_limit_percent || 60}%</p>
@@ -1131,7 +1131,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
               </div>
             </div>
 
-            {/* Individual Settings */}
+            
             <SectionCard title="Individual EWA Settings" icon={Sliders} description="Override default settings for this employee">
               <div className="space-y-6">
                 <Toggle
@@ -1182,7 +1182,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
               </div>
             </SectionCard>
 
-            {/* Access & Restrictions */}
+            
             <SectionCard title="Access & Restrictions" icon={Shield} description="Control employee access">
               <div className="space-y-3">
                 <Toggle
@@ -1212,7 +1212,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
               </div>
             </SectionCard>
 
-            {/* Notes */}
+            
             <SectionCard title="Admin Notes" icon={FileText} description="Internal notes about this employee">
               <textarea
                 value={employeeSettings.admin_notes || ''}
@@ -1257,7 +1257,7 @@ const RiskComplianceTab: React.FC<RiskComplianceTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Risk Thresholds */}
+      
       <SectionCard title="Risk Score Thresholds" icon={TrendingUp} description="Define risk level boundaries (tied to Fraud Detection)">
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-4">
@@ -1323,7 +1323,7 @@ const RiskComplianceTab: React.FC<RiskComplianceTabProps> = ({
         </div>
       </SectionCard>
 
-      {/* Auto-Actions */}
+      
       <SectionCard title="Automatic Actions" icon={Zap} description="Configure automatic risk responses">
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
@@ -1369,7 +1369,7 @@ const RiskComplianceTab: React.FC<RiskComplianceTabProps> = ({
         </div>
       </SectionCard>
 
-      {/* Verification Requirements */}
+      
       <SectionCard title="Verification Requirements" icon={UserCheck} description="KYC and verification settings">
         <div className="space-y-4">
           <Toggle
@@ -1437,7 +1437,7 @@ const NotificationSettingsTab: React.FC<NotificationSettingsTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Email Notifications */}
+      
       <SectionCard title="Email Notifications" icon={Mail} description="Configure email alert settings">
         <div className="space-y-3">
           <Toggle
@@ -1473,7 +1473,7 @@ const NotificationSettingsTab: React.FC<NotificationSettingsTabProps> = ({
         </div>
       </SectionCard>
 
-      {/* SMS Notifications */}
+      
       <SectionCard title="SMS Notifications" icon={Smartphone} description="Configure SMS alert settings">
         <div className="space-y-3">
           <Toggle
@@ -1497,7 +1497,7 @@ const NotificationSettingsTab: React.FC<NotificationSettingsTabProps> = ({
         </div>
       </SectionCard>
 
-      {/* Alert Thresholds */}
+      
       <SectionCard title="Alert Thresholds" icon={AlertTriangle} description="Define when alerts are triggered">
         <div className="grid md:grid-cols-2 gap-6">
           <div>
@@ -1646,7 +1646,7 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Blackout Periods</h3>
@@ -1662,7 +1662,7 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
         </Button>
       </div>
 
-      {/* Blackouts List */}
+      
       <div className="grid gap-4">
         {blackouts.length === 0 ? (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 text-center">
@@ -1726,7 +1726,7 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
         )}
       </div>
 
-      {/* Modal */}
+      
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
@@ -1917,7 +1917,7 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
-      {/* Document List */}
+      
       <div className="lg:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700">
           <h3 className="font-bold text-slate-900 dark:text-white">Legal Documents</h3>
@@ -1956,7 +1956,7 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
         </div>
       </div>
 
-      {/* Document Editor */}
+      
       <div className="lg:col-span-2">
         {selectedDoc ? (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -2139,7 +2139,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
 
   return (
     <div className="space-y-6">
-      {/* Stats Overview */}
+      
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
@@ -2189,7 +2189,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
         </div>
       )}
 
-      {/* Filters Panel */}
+      
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
         <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Search className="w-5 h-5 text-purple-500" />
@@ -2286,7 +2286,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
         )}
       </div>
 
-      {/* Table Viewer */}
+      
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -2377,7 +2377,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
           </div>
         )}
 
-        {/* Pagination Controls */}
+        
         {!loading && logs.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-slate-50 dark:bg-slate-900/30 border-t border-slate-200 dark:border-slate-700">
             <p className="text-xs text-slate-500">
@@ -2478,10 +2478,10 @@ const AdminProfileTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Profile Section */}
+      
       <SectionCard title="Profile Information" icon={User} description="Your personal details">
         <div className="space-y-6">
-          {/* Avatar Upload */}
+          
           <div className="flex items-center gap-6">
             <AvatarUpload
               currentAvatarUrl={profile.avatar_url ?? undefined}
@@ -2498,7 +2498,7 @@ const AdminProfileTab: React.FC = () => {
             </div>
           </div>
 
-          {/* Name and Email Fields */}
+          
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
@@ -2547,12 +2547,12 @@ const AdminProfileTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Modals (conditionally rendered) */}
+        
         {showPasswordModal && (
           <PasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
         )}
         {showMfaModal && (
-          <MfaManagerModal isOpen={showMfaModal} onClose={async () => { setShowMfaModal(false); /* refresh status */ try { const res = await fetch('/api/admin/security/mfa'); if (res.ok) { const js = await res.json(); setMfaEnabledLocal(Boolean(js?.enabled)); } } catch {} }} />
+          <MfaManagerModal isOpen={showMfaModal} onClose={async () => { setShowMfaModal(false);  try { const res = await fetch('/api/admin/security/mfa'); if (res.ok) { const js = await res.json(); setMfaEnabledLocal(Boolean(js?.enabled)); } } catch {} }} />
         )}
       </SectionCard>
     </div>
@@ -2964,7 +2964,7 @@ const AdminSettings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-        {/* Header */}
+        
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
@@ -3007,7 +3007,7 @@ const AdminSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* Tabs */}
+        
         <div className="flex overflow-x-auto pb-2 gap-2 scrollbar-thin">
           {tabs.map((tab) => (
             <button
@@ -3026,7 +3026,7 @@ const AdminSettings: React.FC = () => {
           ))}
         </div>
 
-        {/* Tab Content */}
+        
         {activeTab === 'account' && <AdminProfileTab />}
         {activeTab === 'global' && (
           <GlobalSettingsTab 

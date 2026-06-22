@@ -48,7 +48,7 @@ export function DocTooltip({ content, className }: DocTooltipProps) {
             "absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2",
             "w-56 rounded-xl bg-slate-900 dark:bg-slate-700 px-3 py-2.5 shadow-xl",
             "text-xs text-white leading-relaxed",
-            // Arrow
+
             "after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2",
             "after:border-4 after:border-transparent after:border-t-slate-900 dark:after:border-t-slate-700"
           )}

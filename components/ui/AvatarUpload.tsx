@@ -34,13 +34,13 @@ export function AvatarUpload({
         return;
       }
 
-      // Validate file type
+
       if (!file.type.startsWith('image/')) {
         toast.error('Please upload an image file');
         return;
       }
 
-      // Validate file size (max 2MB)
+
       if (file.size > 2 * 1024 * 1024) {
         toast.error('File size must be less than 2MB');
         return;
@@ -48,11 +48,11 @@ export function AvatarUpload({
 
       setUploading(true);
 
-      // 1. Upload to Supabase Storage
+
       const fileExt = file.name.split('.').pop();
       const filePath = `${userId}.${fileExt}`;
 
-      // Use upsert: true to overwrite if it exists
+
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file, { 
@@ -65,15 +65,15 @@ export function AvatarUpload({
         throw new Error('Failed to upload image');
       }
 
-      // 2. Get Public URL
+
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
 
-      // Add a timestamp to bypass browser cache
+
       const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`;
 
-      // 3. Update Profile in Database
+
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
@@ -87,10 +87,10 @@ export function AvatarUpload({
         throw new Error('Failed to update profile');
       }
 
-      // 4. Update Global Auth Store for immediate sync
+
       updateUserAvatar(cacheBustedUrl);
 
-      // 5. Notify Parent
+
       if (onUploadSuccess) {
         onUploadSuccess(cacheBustedUrl);
       }

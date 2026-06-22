@@ -2,7 +2,6 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { getEnv } from "../env";
 
-// Validate environment on module load
 const env = getEnv();
 
 const redis = new Redis({

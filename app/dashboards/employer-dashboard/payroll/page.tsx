@@ -95,7 +95,7 @@ interface SyncResult {
   warning_summary?: { row: number; field: string; message: string }[];
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 
 const PROVIDERS = ['SAP', 'Oracle', 'Sage', 'QuickBooks', 'Workday', 'Paychex', 'BambooHR', 'Gusto', 'Custom'];
 const FREQUENCIES = [
@@ -117,7 +117,7 @@ function relativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+
 
 interface MetricCardProps {
   icon: React.ElementType;
@@ -164,7 +164,7 @@ const CopyButton = ({ text }: { text: string }) => {
   );
 };
 
-// ─── NEW: Sync Results Panel ──────────────────────────────────────────────────
+
 
 const SyncResultsPanel = ({
   result,
@@ -195,7 +195,7 @@ const SyncResultsPanel = ({
       'border-slate-200 dark:border-slate-700/30'
     )}>
 
-      {/* Header row */}
+      
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <StatusIcon className={cn('w-5 h-5 shrink-0', cfg.text)} />
@@ -209,7 +209,7 @@ const SyncResultsPanel = ({
         </button>
       </div>
 
-      {/* Summary stats — only when there's actual data */}
+      
       {result.status !== 'no_data' && (
         <div className="grid grid-cols-3 gap-3 mt-4">
           <div className="p-3 bg-white/60 dark:bg-slate-900/40 rounded-xl text-center">
@@ -229,7 +229,7 @@ const SyncResultsPanel = ({
         </div>
       )}
 
-      {/* Totals row */}
+      
       {result.status !== 'no_data' && result.totals && (
         <div className="grid grid-cols-3 gap-3 mt-3">
           {[
@@ -245,7 +245,7 @@ const SyncResultsPanel = ({
         </div>
       )}
 
-      {/* Employee rows — collapsible */}
+      
       {result.employees && result.employees.length > 0 && (
         <div className="mt-4">
           <button
@@ -291,7 +291,7 @@ const SyncResultsPanel = ({
                 </table>
               </div>
 
-              {/* Inline errors */}
+              
               {result.error_summary && result.error_summary.length > 0 && (
                 <div className="border-t border-slate-200/50 dark:border-slate-700/30 p-3 space-y-1">
                   <p className="text-xs font-semibold text-red-600 mb-2">Validation errors</p>
@@ -303,7 +303,7 @@ const SyncResultsPanel = ({
                 </div>
               )}
 
-              {/* Inline warnings */}
+              
               {result.warning_summary && result.warning_summary.length > 0 && (
                 <div className="border-t border-slate-200/50 dark:border-slate-700/30 p-3 space-y-1">
                   <p className="text-xs font-semibold text-amber-600 mb-2">Warnings</p>
@@ -319,7 +319,7 @@ const SyncResultsPanel = ({
         </div>
       )}
 
-      {/* Footer meta */}
+      
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-black/5 dark:border-white/5">
         <p className="text-xs text-slate-400">{result.provider} · {result.month}</p>
         <p className="text-xs text-slate-400">{result.duration_ms}ms</p>
@@ -328,7 +328,7 @@ const SyncResultsPanel = ({
   );
 };
 
-// ─── Connect Payroll Modal ────────────────────────────────────────────────────
+
 
 const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration, onDelete }: {
   isOpen: boolean;
@@ -513,7 +513,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
             <div className="space-y-1">
               <Label className="text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider">Webhook Secret <span className="text-amber-500">(keep private)</span></Label>
               <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                {/* Masked by default — reveal requires an explicit audited action */}
+                
                 <code className="flex-1 font-mono text-xs text-slate-600 dark:text-slate-300 truncate">{revealedSecret ?? '••••••••••••••••••••••••••••••'}</code>
                 {!revealed && (
                   <Button
@@ -522,7 +522,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
                     onClick={async () => {
                       try {
                         setRevealing(true);
-                        // One-time fetch to reveal webhook secret — server endpoint must authorize and audit this action.
+
                         const resp = await fetch('/api/employer-dashboard/payroll/reveal', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -534,7 +534,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
                         setRevealed(true);
                       } catch (err) {
                         console.error('Reveal failed', err);
-                        // show toast or inline error as needed
+
                       } finally {
                         setRevealing(false);
                       }
@@ -568,7 +568,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
   );
 };
 
-// ─── Payroll History Item ─────────────────────────────────────────────────────
+
 
 const PayrollHistoryItem = ({
   record,
@@ -614,7 +614,7 @@ const PayrollHistoryItem = ({
   );
 };
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+
 
 export default function EmployerPayroll() {
   const { currency } = useCurrency();
@@ -627,7 +627,7 @@ export default function EmployerPayroll() {
   const [selectedMonth, setSelectedMonth]     = useState(new Date().toISOString().slice(0, 7));
   const [showConnectModal, setShowConnectModal] = useState(false);
 
-  // ── NEW: sync result state ─────────────────────────────────────────────────
+
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -704,7 +704,7 @@ export default function EmployerPayroll() {
     }
   };
 
-  // ── UPDATED: handleSync ────────────────────────────────────────────────────
+
   const handleSync = async () => {
     if (!integration?.id) return;
     setSyncing(true);
@@ -740,7 +740,7 @@ export default function EmployerPayroll() {
         status:           data.status === 'failed' ? 'error' : 'active',
       } : prev);
 
-      // Refresh history to pick up any new upload records
+
       if (data.status !== 'no_data') {
         await fetchData();
       }
@@ -767,7 +767,7 @@ export default function EmployerPayroll() {
     }
   };
 
-  // ── Derived stats ─────────────────────────────────────────────────────────
+
   const activeEmployeesList  = employees.filter(e => e.status === 'approved');
   const totalPayroll         = activeEmployeesList.reduce((s, e) => s + (e.monthly_salary || 0), 0);
   const activeEmployees      = activeEmployeesList.length;
@@ -792,7 +792,7 @@ export default function EmployerPayroll() {
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white" data-testid="payroll-title">
@@ -826,7 +826,7 @@ export default function EmployerPayroll() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={DollarSign} label="Monthly Payroll" value={formatCurrency(totalPayroll, currency)} subtext={`${activeEmployees} active employees`} trend="+8.2%" trendUp />
           <MetricCard icon={Users} label="Employees" value={employees.length} subtext={`${activeEmployees} eligible for EWA`} />
@@ -839,10 +839,10 @@ export default function EmployerPayroll() {
           <MetricCard icon={BarChart3} label="Upload History" value={payrollHistory.length} subtext="Total payroll cycles" />
         </div>
 
-        {/* API Connection + Monthly Deduction */}
+        
         <div className="grid lg:grid-cols-2 gap-6">
 
-          {/* API Connection Card */}
+          
           <div className={cn(
             "backdrop-blur-sm rounded-2xl p-6 border",
             apiConnectionStatus
@@ -941,7 +941,7 @@ export default function EmployerPayroll() {
                   </Button>
                 </div>
 
-                {/* ── NEW: Sync result panel renders here ── */}
+                
                 {syncResult && (
                   <SyncResultsPanel
                     result={syncResult}
@@ -962,7 +962,7 @@ export default function EmployerPayroll() {
             )}
           </div>
 
-          {/* Monthly EWA Deduction */}
+          
           <div className="bg-linear-to-br from-primary/5 to-emerald-500/5 dark:from-primary/10 dark:to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-primary/20">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center">
@@ -993,7 +993,7 @@ export default function EmployerPayroll() {
           </div>
         </div>
 
-        {/* Payroll History */}
+        
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/30 flex items-center justify-between">
             <div>
@@ -1061,7 +1061,7 @@ export default function EmployerPayroll() {
           )}
         </div>
 
-        {/* Bottom CTA — only when no integration */}
+        
         {!integration && (
           <div className="bg-linear-to-r from-primary/10 to-emerald-500/10 dark:from-primary/20 dark:to-emerald-500/20 backdrop-blur-sm rounded-2xl p-6 border border-primary/20">
             <div className="flex items-start gap-4">

@@ -33,7 +33,7 @@ export default function AdminWalletGlimpse() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     void fetchWallet({ silent: true });
   }, []);
 

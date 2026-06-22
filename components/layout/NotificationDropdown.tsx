@@ -46,12 +46,12 @@ export const NotificationDropdown = ({
     return () => window.clearTimeout(mountTimer);
   }, []);
 
-  // Use reusable hook for fetching + realtime subscription
+
   const { notifications, loading, unreadCount, markAsRead, deleteNotification, refresh } = useNotifications({ userId, apiPath, onToast: (n: Notification) => {
     toast(n.title, { description: n.message, icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} /> });
   } });
 
-  // Expose refresh as a local function used by callers if needed
+
   const fetchNotifications = refresh;
 
 
@@ -173,7 +173,7 @@ export const NotificationDropdown = ({
                       </div>
                     </div>
                     
-                    {/* Hover Actions */}
+                    
                     <button 
                       onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"

@@ -46,7 +46,7 @@ export const AdminVerificationEmail = ({
         To activate your admin account and gain full access to the platform, please verify your email address by clicking the button below:
       </Text>
 
-      {/* Verification Button */}
+      
       <Section style={layoutStyles.buttonContainer}>
         <Button style={layoutStyles.button} href={verificationUrl}>
           Verify Admin Account
@@ -63,7 +63,7 @@ export const AdminVerificationEmail = ({
 
       <Hr style={layoutStyles.divider} />
 
-      {/* Security Notice */}
+      
       <Section style={{ ...layoutStyles.box, backgroundColor: '#fef3c7' }}>
         <Text style={{ color: '#92400e', fontSize: '16px', fontWeight: '600', margin: '0 0 12px' }}>
           🔒 Security Notice

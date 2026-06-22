@@ -80,7 +80,7 @@ export async function GET() {
     }, { status: 404 });
   }
 
-  // Resolve employees.id from user_id for correct FK references
+
   const { data: employeeRecord, error: employeeRecordError } = await supabase
     .from('employees')
     .select('id')
@@ -118,7 +118,7 @@ export async function GET() {
   const daysPassed = today.getDate();
   const earnedWages = (monthlySalary / daysInMonth) * daysPassed;
 
-  // Determine effective EWA settings (employee-specific -> employer onboarding)
+
   const { data: employeeEwa } = await supabase
     .from('employee_ewa_settings')
     .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
@@ -156,7 +156,7 @@ export async function GET() {
     }
   }
 
-  // compute limit percentage
+
   const maxAccessPct = (Number(effective.max_advance_percentage) || 50) / 100;
   const totalAdvances = (advances || [])
     .filter(a => ['approved', 'disbursed'].includes(a.status))
@@ -164,7 +164,7 @@ export async function GET() {
 
   let advanceLimit = Math.max(0, (earnedWages * maxAccessPct) - totalAdvances);
 
-  // enforce global min/max
+
   if (advanceLimit < effective.min_advance_amount) advanceLimit = 0;
   if (effective.max_advance_amount && advanceLimit > effective.max_advance_amount) {
     advanceLimit = effective.max_advance_amount - totalAdvances;

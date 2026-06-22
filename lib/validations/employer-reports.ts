@@ -13,9 +13,9 @@ export type ReportPeriod = z.infer<typeof ReportPeriodEnum>;
 
 export const ReportsQuerySchema = z.object({
   period: ReportPeriodEnum.optional().default('this_month'),
-  /** ISO month string: 'YYYY-MM'. Overrides period when supplied. */
+  
   month:  z.string().regex(/^\d{4}-\d{2}$/).optional(),
-  /** Explicit date range — only used when period = 'custom' */
+  
   from:   z.string().datetime({ offset: true }).optional(),
   to:     z.string().datetime({ offset: true }).optional(),
 });
@@ -61,7 +61,7 @@ export const ReportsResponseSchema = z.object({
   employees: EmployeeSummarySchema,
   risk_score:   z.number().nullable(),
   risk_rating:  z.string().nullable(),
-  /** Previous-period amounts for computing % change badges */
+  
   previous_period: z.object({
     total_amount: z.number(),
     total_fees:   z.number(),

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const subscription = body?.subscription;
     if (!subscription) return NextResponse.json({ error: 'Missing subscription' }, { status: 400 });
 
-    // Persist using service role to avoid auth issues
+
     try {
       const { createClient } = await import('@supabase/supabase-js');
       const env = getEnv();
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       await admin.from('system_push_subscriptions').upsert({ user_id: user.id, subscription_payload: subscription, active: true }, { onConflict: 'user_id,endpoint' });
     } catch (persistErr) {
       console.error('[push][subscribe] persist error:', { userId: user?.id, err: persistErr });
-      // return success to avoid breaking UX; operator will be alerted in logs
+
     }
 
     return NextResponse.json({ success: true });

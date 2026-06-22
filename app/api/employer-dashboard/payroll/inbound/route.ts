@@ -1,11 +1,11 @@
-// app/api/payroll/inbound/route.ts
+
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 
 export const runtime = 'nodejs';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
 
 type SyncStatus = 'success' | 'failed' | 'partial';
 
@@ -56,7 +56,7 @@ interface RowResult {
   source_row: number;
 }
 
-// ─── HMAC verification ────────────────────────────────────────────────────────
+
 
 function verifyHmacSignature(
   rawBody: string,
@@ -75,19 +75,19 @@ function verifyHmacSignature(
   return timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
-// ─── Month validation ─────────────────────────────────────────────────────────
+
 
 function isValidMonth(month: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
 }
 
-// ─── POST handler ─────────────────────────────────────────────────────────────
+
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const syncStart = Date.now();
 
-  // 1. Extract integration code from Authorization header
-  // Expected: "Authorization: Bearer <integration_code>"
+
+
   const authHeader = req.headers.get('authorization') ?? '';
   const integrationCode = authHeader.startsWith('Bearer ')
     ? authHeader.slice(7).trim()
@@ -100,14 +100,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // 2. Read raw body (needed for HMAC verification before JSON parse)
+
   const rawBody = await req.text();
 
-  // 3. Extract HMAC signature from header
-  // Expected: "X-EWA-Signature: sha256=<hmac_hex>"
+
+
   const receivedSignature = req.headers.get('x-ewa-signature') ?? '';
 
-  // 4. Bootstrap Supabase with service role (no user session on inbound webhooks)
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // 5. Look up integration by code
+
   const { data: integration, error: intgErr } = await supabase
     .from('payroll_integrations')
     .select('id, employer_id, webhook_secret, status')
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!integration) {
-    // Intentionally vague — don't confirm code existence to an unknown caller
+
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // 6. Verify HMAC signature
+
   if (!intg.webhook_secret) {
     return NextResponse.json({ error: 'Integration has no webhook secret configured' }, { status: 403 });
   }
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Signature verification failed' }, { status: 401 });
   }
 
-  // 7. Parse JSON body
+
   let payload: InboundPayload;
   try {
     payload = JSON.parse(rawBody) as InboundPayload;
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // 8. Basic payload validation
+
   if (!payload.month || !isValidMonth(payload.month)) {
     return NextResponse.json(
       { error: 'Invalid or missing "month" field. Expected format: YYYY-MM' },
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { month, employees: rows } = payload;
   const employerId = intg.employer_id;
 
-  // 9. Upsert payroll_upload record (source = 'api_push')
+
   const { data: uploadData, error: uploadErr } = await supabase
     .from('payroll_uploads')
     .upsert(
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const uploadId = (uploadData as UploadRow).id;
 
-  // 10. Fetch known employees for this employer from employee_onboarding
+
   const { data: knownEmployees, error: empErr } = await supabase
     .from('employee_onboarding')
     .select('id, employee_code, monthly_salary, status')
@@ -228,7 +228,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     (knownEmployees ?? []).map((e) => [e.employee_code ?? '', e as EmployeeOnboardingRow]),
   );
 
-  // 11. Validate and shape each row
+
   const rowResults: RowResult[] = [];
   let processedCount = 0;
   let failedCount = 0;
@@ -329,7 +329,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // 12. Insert row results (delete existing first to allow re-push idempotency)
+
   await supabase.from('payroll_upload_rows').delete().eq('upload_id', uploadId);
 
   if (rowResults.length > 0) {
@@ -342,7 +342,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // 13. Compute totals from valid rows only
+
   const validRows = rowResults.filter((r) => r.row_status !== 'invalid');
   const totalGross = validRows.reduce((s, r) => s + r.gross_salary, 0);
   const totalNet   = validRows.reduce((s, r) => s + r.net_salary, 0);
@@ -351,7 +351,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const finalStatus: 'processed' | 'failed' | 'partial' =
     failedCount === rows.length ? 'failed' : failedCount > 0 ? 'partial' : 'processed';
 
-  // 14. Update payroll_uploads record
+
   await supabase
     .from('payroll_uploads')
     .update({
@@ -400,7 +400,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
     .eq('id', intg.id);
 
-  // 17. Respond
+
   return NextResponse.json(
     {
       message:          finalStatus === 'processed' ? 'Payroll data received and processed.' : `Payroll data received with ${failedCount} failed row(s).`,

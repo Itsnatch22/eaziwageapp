@@ -12,7 +12,7 @@ import { cn }                  from '@/lib/utils';
 import { Input }                   from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
 
 type ResetState =
   | 'idle'       // Form ready — user enters new password
@@ -20,7 +20,7 @@ type ResetState =
   | 'success'    // Password changed — countdown to login
   | 'invalid';   // Token missing / expired / already used
 
-// ─── Global reCAPTCHA ─────────────────────────────────────────────────────────
+
 
 declare global {
   interface Window {
@@ -33,12 +33,12 @@ declare global {
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+
 
 const RECAPTCHA_SITE_KEY  = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
 const AUTO_REDIRECT_SECS  = 5;
 
-// ─── Password strength ────────────────────────────────────────────────────────
+
 
 interface StrengthResult {
   score: number;     // 0–4
@@ -56,7 +56,7 @@ function getPasswordStrength(password: string): StrengthResult {
   if (/\d/.test(password))                         score++;
   if (/[^A-Za-z0-9]/.test(password))              score++;
 
-  // Clamp to 4
+
   score = Math.min(score, 4);
 
   const map: Record<number, Omit<StrengthResult, 'score'>> = {
@@ -70,7 +70,7 @@ function getPasswordStrength(password: string): StrengthResult {
   return { score, ...map[score] };
 }
 
-// ─── Countdown sub-component ──────────────────────────────────────────────────
+
 
 interface CountdownProps {
   seconds: number;
@@ -93,7 +93,7 @@ function Countdown({ seconds, onComplete }: CountdownProps) {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+
 
 export default function ResetPasswordPage() {
   const router       = useRouter();
@@ -111,7 +111,7 @@ export default function ResetPasswordPage() {
 
   const strength = getPasswordStrength(password);
 
-  // ── reCAPTCHA v3 helper ─────────────────────────────────────────────────────
+
   const getReCaptchaToken = useCallback(
     (action: string): Promise<string> =>
       new Promise((resolve, reject) => {
@@ -131,7 +131,7 @@ export default function ResetPasswordPage() {
     [recaptchaReady],
   );
 
-  // ── Validate client-side before hitting the API ─────────────────────────────
+
   const validate = useCallback((): string | null => {
     if (password.length < 8)
       return 'Password must be at least 8 characters.';
@@ -144,7 +144,7 @@ export default function ResetPasswordPage() {
     return null;
   }, [password, confirm]);
 
-  // ── Submit handler ──────────────────────────────────────────────────────────
+
   const handleSubmit = useCallback(async () => {
     setFormError('');
 
@@ -193,12 +193,12 @@ export default function ResetPasswordPage() {
     if (e.key === 'Enter') handleSubmit();
   };
 
-  // ─── Render states ────────────────────────────────────────────────────────
+
 
   const renderContent = () => {
     switch (state) {
 
-      // ── Idle / Submitting — main form ────────────────────────────────────────
+
       case 'idle':
       case 'submitting':
         return (
@@ -233,7 +233,7 @@ export default function ResetPasswordPage() {
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-8 shadow-xl shadow-slate-900/5">
               <div className="flex flex-col gap-5">
 
-                {/* New password */}
+                
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     New Password
@@ -262,7 +262,7 @@ export default function ResetPasswordPage() {
                     </button>
                   </div>
 
-                  {/* Strength meter */}
+                  
                   {password && (
                     <div className="flex items-center gap-2 px-1">
                       <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
@@ -278,7 +278,7 @@ export default function ResetPasswordPage() {
                   )}
                 </div>
 
-                {/* Confirm password */}
+                
                 <div className="flex flex-col gap-2">
                   <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">
                     Confirm Password
@@ -306,7 +306,7 @@ export default function ResetPasswordPage() {
                     </button>
                   </div>
 
-                  {/* Match indicator */}
+                  
                   {confirm && (
                     <p className={`text-xs ml-1 ${password === confirm
                       ? 'text-green-600 dark:text-green-400'
@@ -355,7 +355,7 @@ export default function ResetPasswordPage() {
           </div>
         );
 
-      // ── Success ───────────────────────────────────────────────────────────────
+
       case 'success':
         return (
           <div className="text-center">
@@ -396,7 +396,7 @@ export default function ResetPasswordPage() {
           </div>
         );
 
-      // ── Invalid / expired token ───────────────────────────────────────────────
+
       case 'invalid':
         return (
           <div className="text-center">
@@ -435,11 +435,11 @@ export default function ResetPasswordPage() {
     }
   };
 
-  // ─── Page shell ───────────────────────────────────────────────────────────
+
 
   return (
     <>
-      {/* reCAPTCHA v3 — loaded lazily, badge hidden via CSS per Google policy compliance */}
+      
       <Script
         src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
         strategy="lazyOnload"
@@ -449,7 +449,7 @@ export default function ResetPasswordPage() {
       <style>{`.grecaptcha-badge { visibility: hidden !important; }`}</style>
 
       <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-500 relative overflow-hidden">
-        {/* Background atmosphere — white/green/slate/black palette */}
+        
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.07)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.04)_0%,transparent_50%)] pointer-events-none" />
         <div className="absolute top-24 right-0 w-120 h-120 bg-green-500/5 rounded-full blur-[120px] pointer-events-none" />
@@ -458,7 +458,7 @@ export default function ResetPasswordPage() {
         <main className="relative z-10 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 py-16">
           <div className="w-full max-w-md">
 
-            {/* Logo — shown on the form states */}
+            
             {(state === 'idle' || state === 'submitting') && (
               <div className="flex justify-center mb-6">
                 <Link href="/" className="flex items-center gap-3 group">
@@ -481,7 +481,7 @@ export default function ResetPasswordPage() {
 
             {renderContent()}
 
-            {/* reCAPTCHA disclosure — required by Google ToS when badge is hidden */}
+            
             {(state === 'idle' || state === 'submitting') && (
               <div className="mt-6 flex items-center justify-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />

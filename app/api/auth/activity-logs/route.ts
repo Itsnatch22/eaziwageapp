@@ -30,7 +30,7 @@ export async function GET() {
 
     if (logsError) throw logsError;
 
-    // Transform data to match frontend expectations (created_at -> logged_in_at, action -> login)
+
     const formattedLogs = (logs || []).map((log: LoginHistoryRow) => ({
       action: 'login',
       created_at: log.logged_in_at,

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         sent += 1;
       } catch (err) {
         console.error('[push][send] send error:', err);
-        // Optionally mark subscription inactive on certain errors
+
       }
     }));
 

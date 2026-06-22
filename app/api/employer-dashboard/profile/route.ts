@@ -120,8 +120,6 @@ export async function POST(req: Request) {
 
     if (onboardingError) throw onboardingError;
 
-    // NOTE: Pusher removed. Supabase Realtime is expected to broadcast DB changes via Postgres. Verify RLS/select policies and triggers before relying on realtime delivery.
-
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';

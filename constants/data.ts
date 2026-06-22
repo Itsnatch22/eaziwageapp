@@ -1,4 +1,4 @@
-// Bank and partner data
+
 export const bankingPartners = [
   {
     name: "Equity Bank",

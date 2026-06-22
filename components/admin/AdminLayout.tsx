@@ -41,7 +41,7 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { DashboardBreadcrumbs } from "../layout/DashboardBreadcrumbs";
 import PushClient from '@/components/push/PushClient';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
 
 interface UserProfile {
   id: string;
@@ -51,7 +51,7 @@ interface UserProfile {
   avatar_url?: string | null;
 }
 
-// ─── Background Component ─────────────────────────────────────────────────────
+
 
 export const AdminBackground = () => (
   <>
@@ -63,7 +63,7 @@ export const AdminBackground = () => (
   </>
 );
 
-// ─── Sidebar Component ────────────────────────────────────────────────────────
+
 
 interface SidebarNavProps {
   isOpen: boolean;
@@ -89,12 +89,12 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
     };
   }, []);
 
-  // Cache busting for avatar URL - keep stable per avatar_url value
+
   const userProfileAny = userProfile as UserProfile | null;
 
   const avatarUrl = userProfileAny?.avatar_url
     ? (() => {
-        // Stable cache-buster per mount (prevents render impurities).
+
         const timestamp = 1;
         return userProfileAny.avatar_url.includes("?")
           ? `${userProfileAny.avatar_url}&t=${timestamp}`
@@ -147,7 +147,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
 
   return (
     <>
-      {/* Mobile Overlay */}
+      
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
@@ -155,18 +155,18 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
         />
       )}
 
-      {/* Sidebar */}
+      
       <aside
         className={cn(
           "fixed left-0 top-0 h-screen w-72 z-50 transition-transform duration-300 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        {/* Glass Background */}
+        
         <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50" />
 
         <div className="relative flex flex-col h-full overflow-hidden">
-          {/* Logo Section */}
+          
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <Link href="/admin" className="flex items-center gap-3">
               <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
@@ -186,7 +186,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
               </div>
             </Link>
 
-            {/* Mobile Close Button */}
+            
             <button
               onClick={onClose}
               className="absolute top-6 right-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
@@ -195,7 +195,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
             </button>
           </div>
 
-          {/* Navigation - Scrollable */}
+          
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -228,7 +228,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
               );
             })}
 
-            {/* Support/Help Card */}
+            
             <div className="mt-6 bg-linear-to-br from-green-600/10 to-emerald-500/10 dark:from-green-600/20 dark:to-emerald-500/20 rounded-2xl p-4 border border-green-600/20">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-linear-to-br from-green-600 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
@@ -252,7 +252,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
             </div>
           </nav>
 
-          {/* User Section - Fixed at bottom */}
+          
           <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <div className="flex items-center gap-3 mb-4">
               <Avatar className="w-11 h-11 rounded-xl shadow-md border border-slate-100 dark:border-slate-800">
@@ -286,7 +286,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
   );
 };
 
-// ─── Header Component ─────────────────────────────────────────────────────────
+
 
 interface TopHeaderProps {
   onMenuClick: () => void;
@@ -389,7 +389,7 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
   );
 };
 
-// ─── Main Portal Layout ───────────────────────────────────────────────────────
+
 
 interface AdminPortalLayoutProps {
   children: React.ReactNode;
@@ -409,7 +409,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   useEffect(() => {
     if (globalUser && userProfile && globalUser.id === userProfile.id) {
       if (globalUser.avatar_url !== userProfile.avatar_url) {
-        // Defer update to avoid synchronous setState in effect
+
         Promise.resolve().then(() => {
           setUserProfile((prev) =>
             prev ? { ...prev, avatar_url: globalUser.avatar_url } : null,
@@ -452,10 +452,10 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   }, []);
 
   useEffect(() => {
-    // Wait for hydration before checking auth
+
     if (!isHydrated) return;
 
-    // If already authorized or check in progress, skip
+
     if (isAuthorized !== null || fetchInProgress.current) return;
 
     async function fetchProfile() {
@@ -498,7 +498,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
           "employer_admin",
         ];
 
-        // Check if user has an admin role
+
         const hasAdminRole =
           data.is_admin ||
           (data.role_candidates &&
@@ -513,7 +513,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
           );
           setIsAuthorized(false);
 
-          // Try to determine where to redirect based on role
+
           const role =
             data.profiles_role ||
             data.app_metadata_role ||

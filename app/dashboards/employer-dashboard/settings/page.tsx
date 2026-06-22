@@ -532,7 +532,7 @@ export default function EmployerSettings() {
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
   const [showBankModal, setShowBankModal] = useState(false);
 
-  // MFA states
+
   const [mfaStatus, setMfaStatus] = useState({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
   const [verificationCode, setVerificationCode] = useState('');
   const [mfaFactors, setMfaFactors] = useState<MFAFactor[]>([]);
@@ -643,11 +643,11 @@ export default function EmployerSettings() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     void fetchData({ silent: true });
   }, []);
 
-  // Supabase Realtime subscription
+
   useEffect(() => {
     if (!employer?.id) return;
 
@@ -665,7 +665,7 @@ export default function EmployerSettings() {
     };
   }, [employer?.id]);
 
-  // Security data fetching
+
   useEffect(() => {
     if (activeTab !== 'security') return;
     
@@ -698,7 +698,7 @@ export default function EmployerSettings() {
     void fetchSecurityData();
   }, [activeTab]);
 
-  // ─── Handlers ────────────────────────────────────────────────────────────
+
 
   const handleMfaToggle = async (enable: boolean) => {
     setMfaStatus(prev => ({ ...prev, loading: true }));
@@ -937,7 +937,7 @@ export default function EmployerSettings() {
       if (res.ok) {
         toast.success("Your account has been terminated.");
         
-        // Sign out and redirect to login (NOT onboarding)
+
         await logout();
         router.push('/login');
       } else {
@@ -956,7 +956,7 @@ export default function EmployerSettings() {
 ) => {
   setNotifLoading(true);
   try {
-    // Handle push subscription separately
+
     if (key === 'pushNotifications') {
       if (value) await subscribe();
       else await unsubscribe();
@@ -992,7 +992,7 @@ export default function EmployerSettings() {
   }
 };
 
-  // ─── Config ───────────────────────────────────────────────────────────────
+
 
   const tabs = [
     { id: 'account', label: 'Profile', icon: User },
@@ -1018,7 +1018,7 @@ export default function EmployerSettings() {
     { key: 'employment_contract_template', label: 'Employment Contract Template' },
   ];
 
-  // ─── Loading state ────────────────────────────────────────────────────────
+
 
   if (loading) {
     return (
@@ -1033,12 +1033,12 @@ export default function EmployerSettings() {
   const currencySymbol = getCurrencySymbol(getCurrencyFromCountry(employer?.country));
   const advanceLimit = getAdvanceLimit(employer?.country);
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+
 
   return (
     <EmployerPortalLayout employer={employer}>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white" data-testid="settings-title">
@@ -1059,9 +1059,9 @@ export default function EmployerSettings() {
           </Button>
         </div>
 
-        {/* Main grid */}
+        
         <div className="grid lg:grid-cols-4 gap-6">
-          {/* Sidebar */}
+          
           <div className="lg:col-span-1">
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-3 border border-slate-200/50 dark:border-slate-700/30 space-y-2">
               {tabs.map((tab) => (
@@ -1076,10 +1076,10 @@ export default function EmployerSettings() {
             </div>
           </div>
 
-          {/* Content */}
+          
           <div className="lg:col-span-3 space-y-6">
 
-            {/* ── Account ── */}
+            
             {activeTab === 'account' && (
               <EmployerProfileTab
                 employerId={employer?.id}
@@ -1089,7 +1089,7 @@ export default function EmployerSettings() {
               />
             )}
 
-            {/* ── Company ── */}
+            
             {activeTab === 'company' && (
               <>
                 <SettingsCard icon={Building2} title="Company Information" description="Update your company details">
@@ -1181,7 +1181,7 @@ export default function EmployerSettings() {
                   <p className="text-xs text-slate-500 mt-4">Contact support to change your primary contact information</p>
                 </SettingsCard>
 
-                {/* Verification status banner */}
+                
                 <div className={cn(
                   "rounded-2xl p-6 border",
                   employer?.status === 'approved'
@@ -1216,7 +1216,7 @@ export default function EmployerSettings() {
               </>
             )}
 
-            {/* ── KYC ── */}
+            
             {activeTab === 'kyc' && (
               <>
                 <SettingsCard icon={FileText} title="Company Documents" description="View and manage your uploaded KYC documents">
@@ -1299,7 +1299,7 @@ export default function EmployerSettings() {
               </>
             )}
 
-            {/* ── EWA ── */}
+            
             {activeTab === 'ewa' && (
               <>
                 <SettingsCard icon={Percent} title="Advance Limits" description="Control how much employees can advance">
@@ -1437,7 +1437,7 @@ export default function EmployerSettings() {
               </>
             )}
 
-            {/* ── Notifications ── */}
+            
             {activeTab === 'notifications' && (
   <SettingsCard icon={Bell} title="Notification Preferences" description="Choose what updates you want to receive">
     <div className="space-y-4">
@@ -1483,7 +1483,7 @@ export default function EmployerSettings() {
   </SettingsCard>
 )}
 
-            {/* ── Help ── */}
+            
             {activeTab === 'help' && (
               <>
                 <SettingsCard icon={HelpCircle} title="Frequently Asked Questions" description="Quick answers to common questions">
@@ -1549,7 +1549,7 @@ export default function EmployerSettings() {
               </>
             )}
 
-            {/* ── Terms ── */}
+            
             {activeTab === 'terms' && (
               <>
                 <SettingsCard icon={FileText} title="Terms of Service" description="Your agreement with EaziWage">
@@ -1616,7 +1616,7 @@ export default function EmployerSettings() {
               </>
             )}
 
-            {/* ── Security ── */}
+            
             {activeTab === 'security' && (
               <>
                 <SettingsCard icon={Shield} title="Multi-Factor Authentication" description="Add an extra layer of security to your account">
@@ -1767,7 +1767,7 @@ export default function EmployerSettings() {
                   </div>
                 </SettingsCard>
 
-                {/* Danger Zone */}
+                
                 <div className="pt-8 mt-8 border-t border-red-500/20">
                   <div className="bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-900/30 p-8 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex-1 space-y-2 text-center md:text-left">
@@ -1799,7 +1799,7 @@ export default function EmployerSettings() {
         isSubmitting={saving}
       />
 
-      {/* MFA Manager Modal */}
+      
       {showMfaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">

@@ -16,7 +16,6 @@ async function run() {
 
   const key = Buffer.from(keyHex, 'hex');
 
-  // Fetch integrations with a plaintext secret
   const { data: rows, error } = await supabaseAdmin
     .from('payroll_integrations')
     .select('id, webhook_secret')
@@ -37,7 +36,6 @@ async function run() {
     const secret = r.webhook_secret as string;
     if (!secret) continue;
 
-    // Encrypt with AES-256-GCM
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
     const ct = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
@@ -54,7 +52,6 @@ async function run() {
       console.error('Failed to update integration', id, upErr);
     } else {
       console.log('Migrated integration', id);
-      // NULL the plaintext secret to avoid duplication. Comment this out if you want to keep until verified.
       const { error: nullErr } = await supabaseAdmin
         .from('payroll_integrations')
         .update({ webhook_secret: null })

@@ -51,7 +51,7 @@ export default function RiskRequest({
           update your score if warranted.
         </Text>
 
-        {/* Current score summary */}
+        
         <Section style={layoutStyles.box}>
           <Text style={{ fontWeight: '600', color: '#0f172a', margin: '0 0 12px' }}>Current Risk Profile</Text>
           <Hr style={{ ...layoutStyles.divider, margin: '12px 0' }} />
@@ -92,7 +92,7 @@ export default function RiskRequest({
           </table>
         </Section>
 
-        {/* Timeline */}
+        
         <Section style={{ ...layoutStyles.box, backgroundColor: '#f0fdf4' }}>
           <Text style={{ fontWeight: '600', color: '#166534', margin: '0 0 12px' }}>What happens next?</Text>
           <ul style={{ color: '#166534', fontSize: '14px', lineHeight: '24px', margin: 0, paddingLeft: '20px' }}>

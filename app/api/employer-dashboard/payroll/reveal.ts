@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 
 function decryptSecret(encrypted: string, key: string): string | null {
   try {
-    // Format: base64(iv):base64(tag):base64(ciphertext)
+
     const [b64iv, b64tag, b64ct] = encrypted.split(':');
     if (!b64iv || !b64tag || !b64ct) return null;
     const iv = Buffer.from(b64iv, 'base64');
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const integrationCode = body?.integration_code;
     if (!integrationCode) return NextResponse.json({ error: 'Missing integration_code' }, { status: 400 });
 
-    // Resolve employer for current user
+
     const { data: employer, error: employerError } = await supabase
       .from('employers')
       .select('id, onboarding_id')
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     if (!employer) return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
 
-    // Fetch integration using service role to read secret
+
     const { data: integration, error: intErr } = await supabaseAdmin
       .from('payroll_integrations')
       .select('id, employer_id, integration_code, webhook_secret, webhook_secret_encrypted')
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     if (!integration) return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
 
-    // Only reveal if secret exists
+
     const encrypted = integration.webhook_secret_encrypted as string | null;
     const plain = integration.webhook_secret as string | null;
     let secret: string | null = null;
@@ -77,14 +77,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to decrypt secret' }, { status: 500 });
       }
     } else if (plain) {
-      // Fallback: return plain secret but audit and recommend migration
+
       secret = plain;
       console.warn('[reveal] returning plaintext webhook_secret; migrate to encrypted storage ASAP');
     } else {
       return NextResponse.json({ error: 'No webhook secret configured for this integration' }, { status: 404 });
     }
 
-    // Audit the reveal action
+
     try {
       await supabaseAdmin.from('system_audit_logs').insert([{ 
         admin_id: user.id,
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       }]);
     } catch (auditErr) {
       console.error('[reveal] audit insert failed', auditErr);
-      // continue — do not block reveal on audit failure
+
     }
 
     return NextResponse.json({ secret }, { status: 200 });

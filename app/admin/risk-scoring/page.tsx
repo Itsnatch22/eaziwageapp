@@ -532,7 +532,7 @@ export default function AdminEmployersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
@@ -560,7 +560,7 @@ export default function AdminEmployersPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
@@ -594,7 +594,7 @@ export default function AdminEmployersPage() {
         </div>
       )}
 
-      {/* Risk Distribution */}
+      
       {stats && (
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-center gap-3 mb-6">
@@ -664,7 +664,7 @@ export default function AdminEmployersPage() {
         </div>
       )}
 
-      {/* Filters and Search */}
+      
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
@@ -722,7 +722,7 @@ export default function AdminEmployersPage() {
         </div>
       </div>
 
-      {/* Employers Table */}
+      
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <Table>
@@ -852,7 +852,7 @@ export default function AdminEmployersPage() {
         </div>
       </div>
 
-      {/* Framework Info Footer */}
+      
       {framework && (
         <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-start gap-4">

@@ -52,13 +52,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const syncStart = Date.now();
   const supabase = await createClient();
 
-  // 1. Auth check
+
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 2. Resolve employer
+
   const { data: employer, error: employerError } = await supabase
     .from('employers')
     .select('id, onboarding_id')
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Employer onboarding record not linked.' }, { status: 403 });
   }
 
-  // 3. Validate request body
+
   const raw = await req.json().catch(() => null);
   if (!raw) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { integration_id } = parsed.data;
 
-  // 4. Verify integration belongs to this employer
+
 const { data: integration, error: intgErr } = await supabase
      .from('payroll_integrations')
      .select('id, provider, status, sync_mode, sync_frequency, sync_time')
@@ -183,7 +183,7 @@ await supabase
 
   const upload = latestUpload as UploadRow;
 
-  // 7. Fetch the employee rows for this upload
+
   const { data: employeeRows, error: rowsErr } = await supabase
     .from('payroll_upload_rows')
     .select(`
@@ -200,7 +200,7 @@ await supabase
 
   const rows = (employeeRows ?? []) as UploadRowRecord[];
 
-  // 8. Derive sync status from upload status
+
   const syncStatus: UploadSyncStatus =
     upload.status === 'processed' ? 'success' :
     upload.status === 'partial'   ? 'partial'  :
@@ -209,7 +209,7 @@ await supabase
   const durationMs = Date.now() - syncStart;
   const now = new Date().toISOString();
 
-  // 9. Write sync log
+
 const { data: syncLog, error: logErr } = await supabase
      .from('payroll_sync_logs')
      .insert({
@@ -233,7 +233,7 @@ const { data: syncLog, error: logErr } = await supabase
     console.error('[payroll/sync] log insert error', logErr.message);
   }
 
-  // 10. Update integration last_sync metadata
+
   await supabase
     .from('payroll_integrations')
     .update({
@@ -246,7 +246,7 @@ const { data: syncLog, error: logErr } = await supabase
     })
     .eq('id', integration_id);
 
-  // 11. Respond with real data
+
   return NextResponse.json({
     message:          syncStatus === 'success'
       ? `Sync complete — ${upload.processed_rows} records loaded.`

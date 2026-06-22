@@ -169,19 +169,14 @@ export async function PUT(req: NextRequest, { params }: IdRouteContext) {
       return NextResponse.json({ success: true, settings: validated });
     }
 
-    // Fetch the employee's linked onboarding record
-    // employees.employer_id -> employers (live). We need employer_onboarding separately.
     const { data: onboardingRecord } = await adminSupabase
       .from('employee_onboarding')
       .select('id, employer_id')
-      .eq('user_id', employee.user_id)  // employee_onboarding links via user_id
+      .eq('user_id', employee.user_id) 
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    // If no onboarding record exists, we cannot safely insert a new ewa_settings row.
-    // We can only update an existing one via employee_id conflict.
-    // Log this case — it means the employee bypassed the onboarding flow.
     if (!onboardingRecord && !current) {
       console.error(`[PUT employee EWA settings] No onboarding record found for employee ${id}. Cannot insert.`);
       return NextResponse.json(
@@ -192,11 +187,9 @@ export async function PUT(req: NextRequest, { params }: IdRouteContext) {
 
     const upsertPayload = {
       employee_id:            id,
-      // Only include employee_onboarding_id if we have it — on UPDATE (conflict) Postgres won't touch it
-      ...(onboardingRecord && { employee_onboarding_id: onboardingRecord.id }),
-      // employer_id points to employer_onboarding; employer_live_id points to employers
+       ...(onboardingRecord && { employee_onboarding_id: onboardingRecord.id }),
       ...(onboardingRecord && { employer_id: onboardingRecord.employer_id }),
-      employer_live_id:       employee.employer_id,  // this is the live employers FK
+      employer_live_id:       employee.employer_id, 
       ewa_enabled:            validated.ewa_enabled ?? true,
       max_advance_percentage: validated.advance_limit_percent ?? 50,
       min_advance_amount:     500,

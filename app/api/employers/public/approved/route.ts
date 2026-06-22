@@ -46,7 +46,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
-    // Collect user IDs only from onboarding records (employer rows no longer return user_id here).
+
     const userIds = new Set<string>();
     onboardingData?.forEach(e => { if (e.user_id) userIds.add(e.user_id); });
     const { data: profilesData } = await supabase

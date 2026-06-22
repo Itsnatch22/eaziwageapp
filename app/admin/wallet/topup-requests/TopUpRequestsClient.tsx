@@ -192,7 +192,7 @@ export default function TopUpRequestsClient({
 
   return (
     <div className="space-y-8">
-      {/* Admin Wallet Balance Panel */}
+      
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -245,7 +245,7 @@ export default function TopUpRequestsClient({
         )}
       </div>
 
-      {/* Error Banner */}
+      
       {error && (
         <Alert className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
           <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
@@ -253,7 +253,7 @@ export default function TopUpRequestsClient({
         </Alert>
       )}
 
-      {/* Top-Up Requests Table */}
+      
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">

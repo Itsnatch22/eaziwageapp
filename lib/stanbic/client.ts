@@ -23,7 +23,7 @@ const TOKEN_CACHE_KEY = 'stanbic:access_token';
 
 export function getStanbicBaseUrl(): string {
   return (
-    env.STANBIC_SANDBOX_URL_ENDPOINT ?? env.STANBIC_SANDBOX_BASE_URL ?? env.STANBIC_BASE_URL ?? 'https://sandbox.stanbicbank.example'
+    env.STANBIC_SANDBOX_URL_ENDPOINT ?? env.STANBIC_SANDBOX_BASE_URL ?? env.STANBIC_BASE_URL ?? 'https://sandbox.stanbicbank.co.ke/'
   );
 }
 
@@ -32,7 +32,6 @@ export async function getCachedStanbicToken(): Promise<string | null> {
     const cached = await redis.get<string>(TOKEN_CACHE_KEY);
     if (cached) return cached;
   } catch (err) {
-    // Non-fatal: log and continue to fetch live token
     console.error('[Stanbic Client] Redis GET error:', err instanceof Error ? err.message : String(err));
   }
   return null;
@@ -96,8 +95,7 @@ export async function fetchStanbicToken(): Promise<{ token: string; expiresIn: n
   const data = (dataRaw && typeof dataRaw === 'object') ? (dataRaw as Record<string, unknown>) : null;
   if (!data) throw new Error('Stanbic token endpoint returned invalid JSON');
 
-  // Common shapes: { access_token, expires_in } or { token, expires_in }
-  const token = typeof data['access_token'] === 'string' ? data['access_token']
+   const token = typeof data['access_token'] === 'string' ? data['access_token']
     : typeof data['token'] === 'string' ? data['token']
     : typeof data['accessToken'] === 'string' ? data['accessToken']
     : typeof data['access'] === 'string' ? data['access']
@@ -117,13 +115,11 @@ export async function fetchStanbicToken(): Promise<{ token: string; expiresIn: n
  * - otherwise fetches fresh token and caches it in Upstash Redis
  */
 export async function getStanbicToken(): Promise<string> {
-  // Try cache first
-  const cached = await getCachedStanbicToken();
+   const cached = await getCachedStanbicToken();
   if (cached) return cached;
 
   const { token, expiresIn } = await fetchStanbicToken();
 
-  // Cache with a safety margin (60s)
   const ttl = Math.max(60, expiresIn - 60);
   await cacheStanbicToken(token, ttl);
 

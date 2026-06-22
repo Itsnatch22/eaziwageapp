@@ -307,7 +307,7 @@ async function apiUpdateStep(step: number) {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ step }),
-  }).catch(() => {/* non-critical */});
+  }).catch(() => {});
 }
 
 export default function EmployerOnboarding() {
@@ -319,7 +319,7 @@ export default function EmployerOnboarding() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsContent, setShowTermsContent] = useState(false);
 
-  // File upload states
+
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, { name: string; url: string; path?: string } | null>>({
     certificate_of_incorporation: null,
@@ -406,7 +406,7 @@ export default function EmployerOnboarding() {
           }));
         });
       } catch {
-        // Non-fatal fallback only.
+
       }
     };
     fetchProfileFallback();
@@ -457,7 +457,7 @@ export default function EmployerOnboarding() {
               setBeneficialOwners(profile.beneficial_owners);
             }
 
-            // Map documents back to uploadedFiles state
+
             if (profile.documents) {
               const docs: Record<string, { name: string; url: string } | null> = {};
               Object.entries(profile.documents).forEach(([key, url]) => {
@@ -894,7 +894,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                 </div>
               </div>
 
-              {/* Countries of Operation */}
+              
               <div className="flex flex-col gap-2">
                 <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Countries of Operation *</Label>
                 <div className="flex flex-wrap gap-2 p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/50 min-h-14">
@@ -1117,7 +1117,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
       </header>
 
       <main className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Progress */}
+        
         <div className="mb-8 overflow-x-auto pb-2">
           <div className="flex items-center justify-between min-w-max px-2">
             {STEPS.map((step, index) => (

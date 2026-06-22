@@ -143,7 +143,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setMounted(true);
   }, []);
 
@@ -176,7 +176,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
 
   return (
     <>
-      {/* Mobile Overlay */}
+      
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
@@ -184,16 +184,16 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
         />
       )}
 
-      {/* Sidebar */}
+      
       <aside className={cn(
         "fixed left-0 top-0 h-screen w-72 z-50 transition-transform duration-300 lg:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        {/* Glass Background */}
+        
         <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50" />
         
         <div className="relative flex flex-col h-full overflow-hidden">
-          {/* Logo Section */}
+          
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <Link href="/" className="flex items-center gap-3" data-testid="sidebar-logo">
               <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/10 border border-slate-100 dark:border-slate-800">
@@ -211,7 +211,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
               </div>
             </Link>
 
-            {/* Mobile Close Button */}
+            
             <button 
               onClick={onClose}
               className="absolute top-6 right-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
@@ -220,7 +220,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
             </button>
           </div>
 
-          {/* Navigation - Scrollable */}
+          
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -252,7 +252,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
               );
             })}
 
-            {/* Help Card */}
+            
             <div className="mt-6 bg-linear-to-br from-primary/10 to-emerald-500/10 dark:from-primary/20 dark:to-emerald-500/20 rounded-2xl p-4 border border-primary/20">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-linear-to-br from-primary to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
@@ -273,7 +273,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
             </div>
           </nav>
 
-          {/* User Section - Fixed at bottom */}
+          
           <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <div className="flex items-center gap-3 mb-4">
               <Avatar className="w-11 h-11 rounded-xl shadow-md border border-slate-100 dark:border-slate-800">
@@ -305,7 +305,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
         </div>
       </aside>
 
-      {/* Contact Support Modal */}
+      
       <ContactSupportModal isOpen={showContactModal} onClose={() => setShowContactModal(false)} />
     </>
   );
@@ -322,7 +322,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setMounted(true);
   }, []);
 
@@ -351,7 +351,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Messaging */}
+            
             <button
               onClick={() => setActiveChat({ id: 'admin-support', name: 'EaziWage Support' })}
               className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
@@ -405,11 +405,11 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
       if (pathname === '/dashboards/employer-dashboard/onboarding') return;
 
       try {
-        // Use dedicated status endpoint to check employer status including termination
+
         const res = await fetch('/api/employer-dashboard/status');
         
         if (!res.ok) {
-          // Error - redirect to onboarding as fallback
+
           router.push('/dashboards/employer-dashboard/onboarding');
           return;
         }
@@ -418,11 +418,11 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
         
         switch (data.status) {
           case 'active':
-            // User has access - stay on current page
+
             return;
             
           case 'terminated':
-            // Employer was terminated - redirect to login (not onboarding or terminated page)
+
             router.push('/');
             return;
             
@@ -437,7 +437,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
 
           case 'draft':
           default:
-            // Not yet onboarded - go to onboarding
+
             router.push('/dashboards/employer-dashboard/onboarding');
             return;
         }

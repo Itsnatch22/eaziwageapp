@@ -35,7 +35,7 @@ export default function ContactNotification({
       <Preview>New Contact Form Submission Received</Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header */}
+          
           <Section style={header}>
             <Img
               src={`${baseUrl}/logo.png`}
@@ -46,7 +46,7 @@ export default function ContactNotification({
             />
           </Section>
 
-          {/* Content */}
+          
           <Section style={content}>
             <Heading style={h1}>New Contact Submission</Heading>
 
@@ -87,7 +87,7 @@ export default function ContactNotification({
             </Button>
           </Section>
 
-          {/* Footer */}
+          
           <Section style={footer}>
             <Text style={footerText}>
               © 2026 EaziWage. Empowering Africa&apos;s workforce.
@@ -116,7 +116,7 @@ export default function ContactNotification({
   );
 }
 
-/* ----------------------------- styles ----------------------------- */
+
 
 const main = {
   backgroundColor: "#f6f9fc",

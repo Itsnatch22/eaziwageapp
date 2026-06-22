@@ -54,7 +54,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
     }
 
-    // Resolve live employees.id from user_id for correct FK references
+
     const { data: employeeRecord, error: employeeRecordError } = await adminSupabase
      .from('employees')
      .select('id')
@@ -89,7 +89,7 @@ export async function GET() {
   max_advance_percentage: number;
 };
 
-// Determine effective EWA percentage to show on UI (employee override -> employer)
+
 const { data: employeeEwa } = await adminSupabase
    .from('employee_ewa_settings')
    .select('max_advance_percentage')

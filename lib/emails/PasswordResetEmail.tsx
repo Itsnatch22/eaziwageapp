@@ -34,7 +34,7 @@ export default function PasswordResetEmail({ fullName, email, resetUrl }: Passwo
         </Text>
       </Section>
 
-      {/* CTA */}
+      
       <Section style={layoutStyles.buttonContainer}>
         <Button href={resetUrl} style={layoutStyles.button}>
           Reset My Password →
@@ -46,7 +46,7 @@ export default function PasswordResetEmail({ fullName, email, resetUrl }: Passwo
 
       <Hr style={layoutStyles.divider} />
 
-      {/* Security info */}
+      
       <Section style={{ padding: '28px 0' }}>
         <Text style={{ ...layoutStyles.heading, fontSize: '16px', marginBottom: '8px' }}>
           ⚠️ Didn&apos;t request this?
@@ -60,7 +60,7 @@ export default function PasswordResetEmail({ fullName, email, resetUrl }: Passwo
 
       <Hr style={layoutStyles.divider} />
 
-      {/* Fallback */}
+      
       <Section style={{ padding: '24px 0' }}>
         <Text style={{ color: '#64748b', fontSize: '13px', margin: '0 0 6px' }}>
           Button not working? Copy this URL into your browser:

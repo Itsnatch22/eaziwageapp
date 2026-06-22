@@ -197,7 +197,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  // Return with default values for fields that weren't saved
+
   const finalCountryLimit = getAdvanceLimit(updated.country);
   const updatedOnboarding = Array.isArray(updated.employer_onboarding)
     ? updated.employer_onboarding[0]

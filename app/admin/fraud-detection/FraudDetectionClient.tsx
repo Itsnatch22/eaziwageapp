@@ -95,14 +95,14 @@ export default function FraudDetectionClient({ initialCases }: { initialCases: F
 
   return (
     <div className="space-y-4 mt-6">
-      {/* Header stats */}
+      
       <div className="flex items-center gap-4">
         <div className="px-3 py-2 bg-red-100 text-red-700 rounded">🚨 {cases.length} Open Flags</div>
         <div className="px-3 py-2 bg-orange-100 text-orange-700 rounded">⚠️ {cases.filter(c => c.severity === 'critical').length} Critical</div>
         <div className="px-3 py-2 bg-emerald-100 text-emerald-700 rounded">✅ Cleared Today: 0</div>
       </div>
 
-      {/* Filters */}
+      
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <button onClick={() => setFilterStatus('all')} className={`px-3 py-1 rounded ${filterStatus === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100'}`}>All</button>
@@ -123,7 +123,7 @@ export default function FraudDetectionClient({ initialCases }: { initialCases: F
         </div>
       </div>
 
-      {/* Cards */}
+      
       <div className="grid gap-4">
         {filtered.map((c) => (
           <div key={c.flagId} className={`p-4 rounded-lg border ${c.severity === 'critical' ? 'border-red-400' : c.severity === 'high' ? 'border-orange-400' : c.severity === 'medium' ? 'border-amber-400' : 'border-blue-300'}` }>

@@ -52,12 +52,12 @@ export function DashboardBreadcrumbs() {
 
   const segments = pathname.split("/").filter(Boolean);
 
-  // Skip breadcrumbs on main dashboard pages if desired, 
-  // but usually it's fine to show them.
-  // For EaziWage, let's skip 'dashboards' segment.
+
+
+
   const filteredSegments = segments.filter(s => s !== "dashboards");
 
-  // If we're at the root of a portal, maybe don't show breadcrumbs or just show 'Home'
+
   if (filteredSegments.length <= 1 && (filteredSegments[0] === "admin" || filteredSegments[0] === "employee-dashboard" || filteredSegments[0] === "employer-dashboard")) {
     return null;
   }
@@ -78,7 +78,7 @@ export function DashboardBreadcrumbs() {
           const isLast = index === filteredSegments.length - 1;
           const label = routeLabels[segment] || segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
           
-          // Construct the actual href from the original segments
+
           const originalIndex = segments.indexOf(segment);
           const href = "/" + segments.slice(0, originalIndex + 1).join("/");
 

@@ -97,9 +97,8 @@ export class GenericHttpProvider implements PayoutProvider {
   }
 
   async validateDestination(payload: Record<string, unknown>) {
-    // Best-effort: ensure required fields exist according to provider config
     if (!payload) return { valid: false, reason: 'Empty payload' };
-    // example check: phone or account present
+
     if (!payload.phone_number && !payload.account_number) return { valid: false, reason: 'Missing phone_number or account_number' };
     return { valid: true };
   }
@@ -117,7 +116,6 @@ export class GenericHttpProvider implements PayoutProvider {
 
       const json = (await this.fetchWithRetry(init.url, { method, headers: { 'Content-Type': 'application/json', ...headers }, body }, this.config.retry?.retries ?? 2, this.config.retry?.backoff_ms ?? 500) as Record<string, unknown>);
 
-      // try to extract reference from response
       const reference = (json['reference'] || json['transaction_id'] || json['id'] || null) as string | null;
       const success = !!(json && (json['success'] === true || reference));
       return { success, reference: reference ?? undefined, error: success ? undefined : JSON.stringify(json) };
@@ -137,7 +135,7 @@ export class GenericHttpProvider implements PayoutProvider {
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const method = (st.method || 'GET').toUpperCase();
       const json = (await this.fetchWithRetry(url, { method, headers }, this.config.retry?.retries ?? 1, this.config.retry?.backoff_ms ?? 300) as Record<string, unknown>);
-      // map common status fields
+
       const status = (json['status'] || json['transaction_status'] || 'unknown') as string;
       return { status, detail: json };
     } catch (err: unknown) {

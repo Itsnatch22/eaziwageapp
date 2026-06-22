@@ -33,8 +33,8 @@ export async function GET() {
 
     if (employerError) throw employerError;
 
-    // Satisfaction rate = % of all satisfaction_feedback responses that were positive (4-5★).
-    // Honest number: includes negative responses too (they're also routed to support_tickets).
+
+
     const { count: totalFeedback, error: feedbackTotalError } = await supabaseAdmin
       .from('satisfaction_feedback')
       .select('*', { count: 'exact', head: true });

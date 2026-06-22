@@ -52,7 +52,7 @@ export default function RiskReviewRequestEmail({
           profile and update your score if the new information warrants it.
         </Text>
 
-        {/* Current profile summary */}
+        
         <Section style={layoutStyles.box}>
           <Text style={{ fontWeight: '600', color: '#0f172a', margin: '0 0 12px' }}>Your current risk profile</Text>
           <Hr style={{ ...layoutStyles.divider, margin: '12px 0' }} />
@@ -86,7 +86,7 @@ export default function RiskReviewRequestEmail({
           </table>
         </Section>
 
-        {/* What happens next */}
+        
         <Section style={{ ...layoutStyles.box, backgroundColor: '#f0fdf4' }}>
           <Text style={{ fontWeight: '600', color: '#166534', margin: '0 0 12px' }}>What happens next?</Text>
           <ul style={{ color: '#166534', fontSize: '14px', lineHeight: '24px', margin: 0, paddingLeft: '20px' }}>

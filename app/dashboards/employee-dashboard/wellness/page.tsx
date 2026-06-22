@@ -12,7 +12,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 
 const WellnessPage = () => {
   const { currency, symbol } = useCurrency();
-  // Budgeting state
+
   const [income, setIncome] = useState<number>(0);
   const [rent, setRent] = useState<number>(0);
   const [food, setFood] = useState<number>(0);
@@ -26,7 +26,7 @@ const WellnessPage = () => {
     <EmployeePortalLayout title="Financial Wellness">
       <div className="max-w-5xl mx-auto space-y-12">
         
-        {/* Hero Section */}
+        
         <div className="relative bg-linear-to-br from-emerald-500 to-teal-600 rounded-[2.5rem] p-8 md:p-12 text-white overflow-hidden shadow-2xl shadow-emerald-500/20">
            <div className="absolute top-0 right-0 p-12 opacity-10">
               <TrendingUp className="w-64 h-64" />
@@ -45,7 +45,7 @@ const WellnessPage = () => {
 
         <div className="grid lg:grid-cols-12 gap-8">
            
-           {/* Budgeting Calculator */}
+           
            <div className="lg:col-span-7 space-y-6">
               <div className="flex items-center gap-3 px-1">
                  <Calculator className="w-5 h-5 text-emerald-500" />
@@ -121,7 +121,7 @@ const WellnessPage = () => {
               </div>
            </div>
 
-           {/* Education Section */}
+           
            <div className="lg:col-span-5 space-y-6">
               <div className="flex items-center gap-3 px-1">
                  <BookOpen className="w-5 h-5 text-emerald-500" />

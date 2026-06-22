@@ -575,7 +575,7 @@ export default function Onboarding() {
   const [showTermsContent, setShowTermsContent] = useState(false);
   const [showPrivacyContent, setShowPrivacyContent] = useState(false);
 
-  // Face ID State
+
   const [capturingFaceId, setCapturingFaceId] = useState(false);
   const [faceIdCaptured, setFaceIdCaptured] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -702,7 +702,7 @@ export default function Onboarding() {
           }
         }
       } catch {
-        /* silent */
+        
       }
     };
     checkStatus();
@@ -785,7 +785,7 @@ export default function Onboarding() {
     }
   };
 
-  // Face ID Logic
+
   const startFaceCapture = async () => {
     try {
       setCapturingFaceId(true);
@@ -844,9 +844,9 @@ export default function Onboarding() {
         finalStartDate = `${formData.joining_year}-${formData.joining_month}-01`;
       }
 
-      // Explicit payload — never spread formData directly. It carries
-      // UI-only fields (joining_month, joining_year) and DB timestamps
-      // (created_at, updated_at) that break Zod validation.
+
+
+
       const payload = {
         employer_id: formData.employer_id || undefined,
         company_code: formData.company_code || undefined,
@@ -1330,7 +1330,7 @@ export default function Onboarding() {
                 </div>
               </div>
 
-              {/* Address Proof Upload - Required */}
+              
               <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20 space-y-3">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
@@ -1401,7 +1401,7 @@ export default function Onboarding() {
                 </p>
               </div>
 
-              {/* Tax Certificate Upload */}
+              
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />

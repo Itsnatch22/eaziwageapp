@@ -61,7 +61,6 @@ export async function GET(): Promise<NextResponse<TopUpRequestsResponse | { erro
     const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
     if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    // Fetch pending top-up requests with employer data
     const { data: rows, error } = await supabaseAdmin
       .from('wallet_transactions')
       .select(`
@@ -101,7 +100,6 @@ export async function GET(): Promise<NextResponse<TopUpRequestsResponse | { erro
 
     if (error) throw error;
 
-    // Enrich rows with employer data
     interface EnrichedRow {
       id: string;
       wallet_id: string;
@@ -152,7 +150,6 @@ export async function GET(): Promise<NextResponse<TopUpRequestsResponse | { erro
       wallet_currency: row.employer_wallets?.[0]?.currency ?? 'KES',
     }));
 
-    // Fetch admin wallet
     const { data: adminWalletRow, error: walletError } = await supabaseAdmin
       .from('admin_wallets')
       .select('id, name, balance, currency, last_reconciled_at')

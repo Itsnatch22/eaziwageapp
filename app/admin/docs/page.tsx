@@ -1121,7 +1121,7 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
         className="relative w-full max-w-2xl max-h-[90vh] bg-white dark:bg-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Modal Header */}
+        
         <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-200 dark:border-slate-700 shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -1145,16 +1145,16 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
           </button>
         </div>
 
-        {/* Modal Body */}
+        
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* Overview */}
+          
           <div className="p-4 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-700/30 rounded-xl">
             <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
               {article.content.overview}
             </p>
           </div>
 
-          {/* Sections */}
+          
           {article.content.sections.map((section, index) => {
             const isOpen = openSections.includes(index);
             return (
@@ -1241,7 +1241,7 @@ export default function AdminDocs() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
-      {/* Header */}
+      
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Admin Documentation</h1>
@@ -1251,7 +1251,7 @@ export default function AdminDocs() {
         </div>
       </div>
 
-      {/* Search */}
+      
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
         <input
@@ -1263,7 +1263,7 @@ export default function AdminDocs() {
         />
       </div>
 
-      {/* Quick Stats */}
+      
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
@@ -1313,7 +1313,7 @@ export default function AdminDocs() {
         </div>
       </div>
 
-      {/* Documentation Sections */}
+      
       <div className="space-y-6">
         {filteredSections.map((section) => {
           const Icon = section.icon;
@@ -1384,7 +1384,7 @@ export default function AdminDocs() {
         })}
       </div>
 
-      {/* Quick Links */}
+      
       <div className="bg-linear-to-br from-green-50 to-emerald-50 dark:from-green-500/10 dark:to-emerald-500/10 rounded-xl p-6 border border-green-200 dark:border-green-700/30">
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Quick Links</h3>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1403,7 +1403,7 @@ export default function AdminDocs() {
         </div>
       </div>
 
-      {/* Article Modal */}
+      
       {selectedArticle && (
         <ArticleModal
           article={selectedArticle}

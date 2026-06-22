@@ -106,7 +106,7 @@ export default function ContactPage() {
         setIsSuccess(true);
         toast.success("Message sent successfully!");
         reset();
-        // Reset success state after 10 seconds
+
         setTimeout(() => setIsSuccess(false), 10000);
       } else {
         toast.error(
@@ -123,7 +123,7 @@ export default function ContactPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-white dark:bg-slate-950 transition-colors duration-500">
-      {/* Background Elements */}
+      
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,163,74,0.08)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.06)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.06)_0%,transparent_60%)] pointer-events-none" />
@@ -133,7 +133,7 @@ export default function ContactPage() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 py-24 lg:px-8 lg:py-32">
         <div className="grid gap-16 lg:grid-cols-2 lg:items-start">
-          {/* Left Side: Copy */}
+          
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -196,7 +196,7 @@ export default function ContactPage() {
             </div>
           </motion.div>
 
-          {/* Right Side: Form */}
+          
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -364,7 +364,7 @@ export default function ContactPage() {
               </AnimatePresence>
             </div>
 
-            {/* Decoration */}
+            
             <div className="absolute -bottom-6 -right-6 -z-10 h-64 w-64 rounded-full bg-green-500/8 blur-3xl" />
           </motion.div>
         </div>

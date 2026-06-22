@@ -75,7 +75,7 @@ export default function TerminatedPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Background decoration */}
+      
       <div className="absolute top-0 right-0 p-20 opacity-5 dark:opacity-10 pointer-events-none">
          <Heart className="w-96 h-96 text-red-500" />
       </div>
