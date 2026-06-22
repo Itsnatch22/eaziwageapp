@@ -490,7 +490,25 @@ export async function notifyAdmin(params: {
       params.metadata ?? {}
     );
 
-    // Send to all admins or a notification email group
+    // Inside notifyAdmin, before sending email:
+const { data: globalSettings } = await supabaseAdmin
+  .from('global_settings')
+  .select('notification_settings')
+  .eq('id', 'default')
+  .single();
+
+const ns = globalSettings?.notification_settings || {};
+
+const emailEnabledByType: Record<AdminNotificationType, boolean> = {
+  new_employer:    ns.email_new_employer  !== false,
+  employer_kyc:    ns.email_new_employer  !== false,
+  flagged_advance: ns.email_fraud_alert   !== false,
+  system_alert:    ns.email_daily_summary !== false,
+  review_request:  ns.email_large_advance !== false,
+  bank_change:     ns.email_fraud_alert   !== false,
+};
+
+if (!emailEnabledByType[params.type]) return { success: true };
     await sendEmail({
       to: env.ADMIN_NOTIFICATION_EMAIL ?? 'admin@eaziwage.com',
       subject: `[Admin] ${params.title}`,
