@@ -138,7 +138,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { data: wallets, error: walletError } = await supabase
       .from('employer_wallets')
-      .select('id, balance, arrears_balance, currency, employer_id');
+      .select('id, outstanding_liability, total_advanced, total_repaid, currency, employer_id')
 
     if (walletError) throw walletError;
 
@@ -151,20 +151,27 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (empError) throw empError;
 
     const walletHealth = (wallets || []).map(w => {
-      const employer    = (employers || []).find(e => e.id === w.employer_id);
-      const metadata    = employer?.metadata as EmployerMetadata | undefined;
-      const creditLimit = Number(metadata?.credit_limit ?? 1000000);
-      const utilization = creditLimit > 0 ? Math.round((Number(w.balance) / creditLimit) * 100) : 0;
-      const currency    = w.currency || 'KES';
+  const employer    = (employers || []).find(e => e.id === w.employer_id);
+  const metadata    = employer?.metadata as EmployerMetadata | undefined;
+  const creditLimit = Number(metadata?.credit_limit ?? 1000000);
+  const balance     = Number(w.outstanding_liability || 0);  // was w.balance
+  const utilization = creditLimit > 0 ? Math.round((balance / creditLimit) * 100) : 0;
+  const currency    = w.currency || 'KES';
 
-      return {
-        ...w,
-        company_name:        employer?.company_name || 'Unknown Employer',
-        utilization,
-        balance_usd:         convertToUSD(Number(w.balance         || 0), currency, rates),
-        arrears_balance_usd: convertToUSD(Number(w.arrears_balance || 0), currency, rates),
-      };
-    });
+  return {
+    ...w,
+    balance,                                               // expose as balance for frontend compat
+    arrears_balance: Number(w.total_advanced || 0) - Number(w.total_repaid || 0),
+    company_name:        employer?.company_name || 'Unknown Employer',
+    utilization,
+    balance_usd:         convertToUSD(balance, currency, rates),
+    arrears_balance_usd: convertToUSD(
+      Math.max(0, Number(w.total_advanced || 0) - Number(w.total_repaid || 0)),
+      currency,
+      rates
+    ),
+  };
+});
 
     const totalWalletBalance = walletHealth.reduce((sum, w) => sum + Number(w.balance_usd         || 0), 0);
     const totalArrears       = walletHealth.reduce((sum, w) => sum + Number(w.arrears_balance_usd || 0), 0);
