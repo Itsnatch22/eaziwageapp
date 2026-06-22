@@ -4,7 +4,7 @@ import { calculateFeePercentage } from '@/lib/utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runFraudChecks } from '@/lib/fraud-engine';
-import { notifyEmployer, notifyAdmins } from '@/lib/notifications';
+import { notifyEmployer, notifyAdmin } from '@/lib/notifications';
 import { getEnv } from '@/env';
 
 export const runtime = 'nodejs';
@@ -350,7 +350,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (fraudResult.alerts.length > 0) {
-        await notifyAdmins({
+        await notifyAdmin({
           type: 'flagged_advance',
           title: 'Fraud Alert: Flagged Advance',
           message: `A new advance request (ID: ${inserted.id}) has been flagged with ${fraudResult.alerts.length} alerts.`,

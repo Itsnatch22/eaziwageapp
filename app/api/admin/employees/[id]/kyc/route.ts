@@ -92,8 +92,6 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
-    // Pusher triggers removed; Supabase Realtime handles KYC update notifications via DB changes.
-
     return NextResponse.json({ success: true, message: `KYC status updated to ${kyc_status}` });
   } catch (error) {
     console.error('[PATCH /api/admin/employees/[id]/kyc] Error:', error);

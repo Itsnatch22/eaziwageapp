@@ -11,7 +11,7 @@ import { validateEmail }             from '@/lib/email-validation';
 import { createToken }               from '@/lib/token';
 import { getCurrencyFromCountry }     from '@/lib/utils';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
-import { notifyAdmins, notifyEmployer } from '@/lib/notifications';
+import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
 
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
@@ -549,7 +549,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   try {
-    await notifyAdmins({
+    await notifyAdmin({
       type: input.role === 'employer' ? 'employer_kyc' : 'system_alert',
       title: `New ${input.role.charAt(0).toUpperCase() + input.role.slice(1)} Registration`,
       message: `${input.full_name} has registered as a ${input.role}.`,

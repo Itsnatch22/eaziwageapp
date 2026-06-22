@@ -71,7 +71,9 @@ export type EmployerNotificationType =
   | 'wallet_topup_approved'
   | 'advance_request_received'
   | 'wallet_funded'
-  | 'system';
+  | 'system'
+  | 'employee'
+  | 'advance'| 'kyc_update';
 
 export type EmployeeNotificationType =
   | 'advance_approval'

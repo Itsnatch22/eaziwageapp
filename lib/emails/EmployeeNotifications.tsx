@@ -1,22 +1,9 @@
-/**
- * EmployeeNotifications.tsx
- * ─────────────────────────────────────────────────────────────────────────────
- * All employee-facing transactional email templates for EaziWage.
- *
- * Matches structure, components, and style of AdminNotifications.tsx / EmployerNotifications.tsx
- * Focus: personal financial impact, clear action steps, payroll correctness.
- *
- * Exports components for each EmployeeNotificationType.
- */
-
 import {
   Button,
   Heading,
   Hr,
   Section,
   Text,
-  Row,
-  Column,
 } from '@react-email/components';
 import * as React from 'react';
 import EmailLayout, {
@@ -27,9 +14,6 @@ import EmailLayout, {
   styles,
 } from './EmailLayout';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types matching EmployeeNotificationType in notifications.ts
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type EmployeeNotificationType =
   | 'advance_approval'
@@ -38,9 +22,6 @@ export type EmployeeNotificationType =
   | 'repayment_reminder'
   | 'balance_update';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. ADVANCE APPROVED
-// ─────────────────────────────────────────────────────────────────────────────
 export interface AdvanceApprovedEmailProps {
   employeeName: string;
   advanceAmount: number;
@@ -119,9 +100,6 @@ export function AdvanceApprovedEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. ADVANCE REJECTED
-// ─────────────────────────────────────────────────────────────────────────────
 export interface AdvanceRejectedEmailProps {
   employeeName: string;
   requestedAmount: number;
@@ -187,9 +165,6 @@ export function AdvanceRejectedEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. KYC UPDATE
-// ─────────────────────────────────────────────────────────────────────────────
 export interface KYCUpdateEmailProps {
   employeeName: string;
   status: 'approved' | 'rejected' | 'pending' | 'under_review';
@@ -254,9 +229,6 @@ export function KYCUpdateEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. REPAYMENT REMINDER
-// ─────────────────────────────────────────────────────────────────────────────
 export interface RepaymentReminderEmailProps {
   employeeName: string;
   outstandingAmount: number;
@@ -320,9 +292,6 @@ export function RepaymentReminderEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. BALANCE UPDATE
-// ─────────────────────────────────────────────────────────────────────────────
 export interface BalanceUpdateEmailProps {
   employeeName: string;
   newBalance: number;
@@ -382,9 +351,6 @@ export function BalanceUpdateEmail({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. SYSTEM ALERT (fallback)
-// ─────────────────────────────────────────────────────────────────────────────
 export interface SystemAlertEmailProps {
   employeeName: string;
   title: string;
@@ -424,13 +390,3 @@ export function SystemAlertEmail({
   );
 }
 
-// Re-exports for easy import
-
-export {
-  AdvanceApprovedEmail,
-  AdvanceRejectedEmail,
-  KYCUpdateEmail,
-  RepaymentReminderEmail,
-  BalanceUpdateEmail,
-  SystemAlertEmail,
-};

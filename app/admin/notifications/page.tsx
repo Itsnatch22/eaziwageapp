@@ -61,7 +61,6 @@ export default function AdminNotificationsPage() {
 });
 
   const fetchNotifications = useCallback(async () => {
-    // Defer to avoid synchronous setState in effect
     await Promise.resolve();
     setLoading(true);
     try {

@@ -60,7 +60,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { flagId, advanceId, action, notes } = body;
 
-    // Server-side notes enforcement — never skip this
     if (notes.trim().length < 5) {
       return NextResponse.json(
         { error: 'Review notes are required (minimum 5 characters)' },

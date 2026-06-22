@@ -82,7 +82,6 @@ export default function FraudDetectionClient({ initialCases }: { initialCases: F
       const payload = await res.json();
       if (!res.ok) throw new Error(payload?.error || 'Review failed');
 
-      // remove card from list
       setCases((prev) => prev.filter((p) => p.flagId !== fc.flagId));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed';

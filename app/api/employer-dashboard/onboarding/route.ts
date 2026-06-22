@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 import { onboardingSubmitSchema, stepUpdateSchema } from '@/lib/validations/employer-onboarding';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployerOnboardingConfirmation from '@/lib/emails/EmployerOnboardingConfirmation';
-import { notifyAdmins } from '@/lib/notifications';
+import { notifyAdmin } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
       }),
     });
 
-    await notifyAdmins({
+    await notifyAdmin({
       type: 'employer_kyc',
       title: 'Employer Onboarding Submitted',
       message: `${fields.company_name} has submitted their onboarding application for review.`,

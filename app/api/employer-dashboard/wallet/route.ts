@@ -210,15 +210,15 @@ export async function POST(req: Request) {
 
     // Notify admins for review
     try {
-      const { notifyAdmins } = await import('@/lib/notifications');
-      await notifyAdmins({
+      const { notifyAdmin } = await import('@/lib/notifications');
+      await notifyAdmin({
         type: 'review_request',
         title: 'Employer Wallet Top-up Request',
         message: `Employer ${employer.id} requested a top-up of ${amount}. Review in admin dashboard.`,
         metadata: { wallet_transaction_id: inserted.id, employer_id: employer.id, amount }
       });
     } catch (notifyErr) {
-      console.error('[Wallet POST] notifyAdmins failed:', notifyErr);
+      console.error('[Wallet POST] notifyAdmin failed:', notifyErr);
     }
 
     return NextResponse.json({ success: true, request: inserted }, { status: 201 });

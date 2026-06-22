@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { notifyAdmins } from '@/lib/notifications';
+import { notifyAdmin } from '@/lib/notifications';
 import { z } from 'zod';
 
 const bankChangeSchema = z.object({
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
     }
 
-    const { success: notifSuccess, error: notifError } = await notifyAdmins({
+    const { success: notifSuccess, error: notifError } = await notifyAdmin({
       type: 'bank_change',
       title: 'Bank Details Change Request',
       message: `${employer.company_name} is requesting to change their bank details.`,

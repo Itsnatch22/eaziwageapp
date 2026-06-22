@@ -63,7 +63,6 @@ async function fetchTopUpData() {
       throw new Error('Not authorized');
     }
 
-    // Fetch pending top-up requests with employer data
     const { data: rows, error } = await supabaseAdmin
       .from('wallet_transactions')
       .select(`
@@ -103,7 +102,6 @@ async function fetchTopUpData() {
 
     if (error) throw error;
 
-    // Enrich rows with employer data
     interface EnrichedRow {
       id: string;
       wallet_id: string;
@@ -154,7 +152,6 @@ async function fetchTopUpData() {
       wallet_currency: row.employer_wallets?.[0]?.currency ?? 'KES',
     }));
 
-    // Fetch admin wallet
     const { data: adminWalletRow, error: walletError } = await supabaseAdmin
       .from('admin_wallets')
       .select('id, name, balance, currency, last_reconciled_at')

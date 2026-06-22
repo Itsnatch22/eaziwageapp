@@ -62,7 +62,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     sixMonthsAgo.setDate(1);
 
-    // ── 1. Exchange rates ───────────────────────────────────────────────────
     const { data: exchangeRates } = await supabase
       .from('exchange_rates')
       .select('currency_code, rate_to_usd');
@@ -72,9 +71,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return acc;
     }, {} as Record<string, number>);
 
-    // ── 2. Monthly trend advances (last 6 months) ───────────────────────────
-    //    Fix: employees!advances_employee_id_fkey replaces broken
-    //    employee_onboarding(currency) — currency derived from employees.country
     const { data: advancesData, error: advancesError } = await supabase
       .from('advances')
       .select(`
@@ -117,7 +113,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const monthlyTrends = Array.from(trendMap.values()).reverse();
 
-    // ── 3. Cumulative totals (all-time disbursed) ───────────────────────────
     const { data: totalStats, error: totalError } = await supabase
       .from('advances')
       .select(`
@@ -141,7 +136,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return sum + convertToUSD(Number(a.amount || 0), currency, rates);
     }, 0);
 
-    // ── 4. Wallet health ────────────────────────────────────────────────────
     const { data: wallets, error: walletError } = await supabase
       .from('employer_wallets')
       .select('id, balance, arrears_balance, currency, employer_id');
@@ -175,7 +169,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const totalWalletBalance = walletHealth.reduce((sum, w) => sum + Number(w.balance_usd         || 0), 0);
     const totalArrears       = walletHealth.reduce((sum, w) => sum + Number(w.arrears_balance_usd || 0), 0);
 
-    // ── 5. Top revenue generators ───────────────────────────────────────────
     const employerRevenueMap = new Map<string, number>();
     (advancesData as BillingAdvanceRow[] || []).forEach(adv => {
       const employerId = adv.employer_id;
@@ -195,7 +188,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
-    // ── 6. Response ─────────────────────────────────────────────────────────
     return NextResponse.json({
       summary: {
         total_revenue:           cumulativeRevenue,

@@ -5,7 +5,7 @@ import { Resend } from 'resend';
 import { employeeOnboardingSchema } from '@/lib/validations/employee-validation';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
-import { notifyAdmins, notifyEmployer } from '@/lib/notifications';
+import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
 import { getEnv } from '@/env';
 
 export const runtime = 'nodejs';
@@ -331,7 +331,7 @@ if (upsertError) {
       }
     }
 
-    await notifyAdmins({
+    await notifyAdmin({
       type: 'review_request',
       title: 'New KYC Application',
       message: `${employeeName} from ${employer.company_name} has submitted a new KYC application for review.`,

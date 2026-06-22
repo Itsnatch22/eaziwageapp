@@ -431,7 +431,6 @@ export default function ReviewRequests() {
         { event: 'INSERT', schema: 'public', table: 'admin_notifications' },
         (payload: RealtimePostgresChangesPayload<AdminNotificationRow>) => {
           const newReq = payload.new as unknown as ReviewRequest;
-          // admin_notifications used for admin-facing alerts; if it maps to review requests, prepend
           setRequests(prev => [newReq, ...prev]);
           toast.info('New review request received!');
         }

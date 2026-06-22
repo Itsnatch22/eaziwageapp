@@ -8,7 +8,7 @@ import {
   KYCDocumentSchema,
   MAX_FILE_SIZE,
 } from '@/lib/validations/kyc-validation';
-import { notifyAdmins, notifyEmployer } from '@/lib/notifications';
+import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
 import { getSafeFileExtension, isDocumentFile, isImageFile } from '@/lib/upload-file-types';
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
 
@@ -279,7 +279,7 @@ export async function POST(req: NextRequest) {
             message: `${profile?.full_name || 'An employee'} has uploaded a new ${documentType}.`,
           });
 
-          await notifyAdmins({
+          await notifyAdmin({
             type: 'review_request',
             title: 'New KYC Document',
             message: `${profile?.full_name || 'An employee'} from ${employer.company_name} uploaded a ${documentType}.`,

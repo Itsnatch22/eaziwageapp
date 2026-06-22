@@ -151,7 +151,6 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL("/", req.url));
     }
 
-    // Fix 3: Server-side onboarding gate
     if (role !== 'admin' && isDashboard) {
       const isActive = profileRow?.is_active ?? false;
       const employerOnboardingPath = '/dashboards/employer-dashboard/onboarding';

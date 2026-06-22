@@ -202,7 +202,7 @@ export async function PATCH(
       risk_score: employer.risk_score ?? null,
       risk_rating: employer.risk_rating || null,
       is_verified: primaryStatus === 'approved',
-      // Explicit remap of EWA config columns (P2 Fix)
+
       advance_limit_percent: (employer as { max_advance_percentage?: number | null }).max_advance_percentage ?? 50,
       cooldown_days:         (employer as { cooldown_period?: number | null }).cooldown_period ?? 7,
       min_advance_amount:    (updatePayload.min_advance_amount as number | undefined) ?? employer.min_advance_amount ?? 500,

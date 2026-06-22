@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-// Pusher removed; Supabase Realtime in use. Health checks will report Pusher as removed/disabled.
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
@@ -269,8 +268,7 @@ async function checkResend() {
 }
 
 async function checkPusher() {
-  // Pusher service has been removed from the codebase; Supabase Realtime is in use instead.
-  return {
+ return {
     name: 'Pusher WebSocket',
     provider: 'Pusher',
     status: 'down' as const,

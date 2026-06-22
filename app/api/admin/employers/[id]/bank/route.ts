@@ -58,7 +58,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Bank name and account number are required' }, { status: 400 });
   }
 
-  // Fetch employer to get user_id for notification
   const { data: employer, error: fetchError } = await adminSupabase
     .from('employer_onboarding')
     .select('user_id')
@@ -75,7 +74,6 @@ export async function PATCH(
     updated_at: new Date().toISOString(),
   };
 
-  // Update onboarding
   const { error: onboardingError } = await adminSupabase
     .from('employer_onboarding')
     .update(updateData)
@@ -85,13 +83,11 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update onboarding record' }, { status: 500 });
   }
 
-  // Update live employer record
   await adminSupabase
     .from('employers')
     .update(updateData)
     .eq('onboarding_id', id);
 
-  // Send notification to employer
   await adminSupabase.from('notifications').insert({
     user_id: employer.user_id,
     type: 'system',

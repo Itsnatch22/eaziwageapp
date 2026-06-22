@@ -103,7 +103,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const statusParam = searchParams.get('status');
     const severityParam = searchParams.get('severity');
 
-    // Validate query params against known values
     const statusFilter: FraudFlagStatus | null =
       statusParam && isFraudFlagStatus(statusParam) ? statusParam : null;
     const severityFilter: FraudSeverity | null =
@@ -155,7 +154,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { data: rows, error: queryError } = await query;
     if (queryError) throw queryError;
 
-    // Count totals (separate queries — cheap on this volume)
     const { count: totalOpen } = await supabaseAdmin
       .from('fraud_flags')
       .select('id', { count: 'exact', head: true })

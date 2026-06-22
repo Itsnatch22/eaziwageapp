@@ -1255,7 +1255,6 @@ export default function AdminEmployees() {
   }, []);
 
   useEffect(() => {
-    // Defer invocation to avoid synchronous setState in effect
     Promise.resolve().then(() => void fetchEmployees({ silent: true }));
   }, [fetchEmployees]);
 

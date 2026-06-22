@@ -309,7 +309,7 @@ export async function PATCH(
 
     await notifyEmployee({
       userId,
-      type: 'kyc_update', // Closest type in EmployeeNotificationType
+      type: 'kyc_update', 
       title: titleMap[status] || 'Account Status Update',
       message: messageMap[status] || `Your account status is now ${status}.`,
     });
@@ -331,7 +331,6 @@ export async function PATCH(
       created_at: new Date().toISOString(),
     });
 
-    // Supabase Realtime will handle user notifications from DB changes; Pusher triggers removed.
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });
   } catch (error) {

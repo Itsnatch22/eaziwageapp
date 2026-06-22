@@ -2440,7 +2440,6 @@ const AdminProfileTab: React.FC = () => {
               avatar_url: data.avatar_url,
             });
 
-            // Also fetch MFA status for this admin user
             try {
               const mfaRes = await fetch('/api/admin/security/mfa');
               if (mfaRes.ok) {
@@ -2700,7 +2699,6 @@ const MfaManagerModal: React.FC<{ isOpen: boolean; onClose: () => Promise<void> 
       const js = await res.json();
       if (res.ok && js.success) {
         toast.success('MFA disabled');
-        // refresh list
         const r = await fetch('/api/admin/security/mfa'); const j = await r.json(); setFactors(j?.factors || []);
       } else {
         toast.error(js.error || 'Failed to disable MFA');
@@ -2720,9 +2718,7 @@ const MfaManagerModal: React.FC<{ isOpen: boolean; onClose: () => Promise<void> 
       const js = await res.json();
       if (res.ok && js.success) {
         const codes = js.backupCodes || js.backupCodes || [];
-        // show codes to admin
         toast.success('Backup codes generated — copy and store them safely');
-        // quick modal fallback: prompt for copy
         alert('Backup codes:\n' + (codes.join('\n')));
       } else {
         toast.error(js.error || 'Failed to generate backup codes');

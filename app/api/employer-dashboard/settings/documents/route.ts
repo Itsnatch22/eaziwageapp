@@ -99,8 +99,8 @@ export async function POST(req: NextRequest) {
       throw updateError;
     }
 
-    const { notifyAdmins } = await import('@/lib/notifications');
-    await notifyAdmins({
+    const { notifyAdmin } = await import('@/lib/notifications');
+    await notifyAdmin({
         type: 'employer_kyc',
         title: 'New KYC Document Uploaded',
         message: `${documentType.replace(/_/g, ' ')} uploaded by employer.`,

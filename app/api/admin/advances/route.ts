@@ -85,7 +85,6 @@ export async function GET() {
     let profilesByUserId = new Map<string, ProfileRow>();
 
     if (employeeIds.length > 0) {
-      // First, try to resolve advances.employee_id as employees.id
       const { data: employees } = await supabaseAdmin
         .from('employees')
         .select('id, user_id, employee_code')
@@ -93,7 +92,6 @@ export async function GET() {
 
       employeeById = new Map<string, EmployeeRow>(((employees ?? []) as EmployeeRow[]).map((e) => [e.id, e]));
 
-      // Collect user_ids from resolved employees to fetch profiles
       const profileIds = (employees ?? []).map((e) => e.user_id).filter((id): id is string => Boolean(id));
       if (profileIds.length > 0) {
         const { data: profiles } = await supabaseAdmin
@@ -104,7 +102,6 @@ export async function GET() {
         profilesByUserId = new Map<string, ProfileRow>(((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p]));
       }
 
-      // If some advances reference employee_onboarding.id instead of employees.id, resolve those too
       const missingIds = employeeIds.filter((id) => !employeeById.has(id));
       if (missingIds.length > 0) {
         const { data: onboardings } = await supabaseAdmin
@@ -122,12 +119,10 @@ export async function GET() {
 
           const byUser = new Map<string, EmployeeRow>(((employeesByUser ?? []) as EmployeeRow[]).map((e) => [e.user_id as string, e]));
 
-          // Map onboarding.id -> corresponding employees row (if found by user_id)
           (onboardings ?? []).forEach((o: OnboardingRow) => {
             const matched = o && o.user_id ? byUser.get(o.user_id) : undefined;
             if (matched) {
               employeeById.set(o.id, matched);
-              // ensure profile mapping exists for the matched user
               if (matched.user_id) profilesByUserId.set(matched.user_id, profilesByUserId.get(matched.user_id) || { id: matched.user_id, full_name: null });
             }
           });

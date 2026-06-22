@@ -477,7 +477,6 @@ export default function AdminAdvances(){
       const res = await fetch('/api/admin/advances');
       if(res.ok) {
         const data = await res.json();
-        // Defensively ensure advances is an array to avoid runtime errors
         setAdvances(Array.isArray(data?.advances) ? data.advances : []);
       } else {
         toast.error('Failed to fetch advances');
@@ -490,7 +489,6 @@ export default function AdminAdvances(){
   }, []);
 
   useEffect(() => {
-    // Defer invocation to avoid synchronous setState within the effect
     Promise.resolve().then(() => void fetchAdvances({ silent: true }));
   }, [fetchAdvances]);
 

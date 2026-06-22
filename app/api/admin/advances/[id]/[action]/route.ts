@@ -55,7 +55,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    // Enforce EWA settings for admin approvals/disburse actions
     const { data: employeeEwa } = await supabase
       .from('employee_ewa_settings')
       .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount')

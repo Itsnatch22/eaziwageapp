@@ -23,13 +23,12 @@ interface EnvConfig {
   VAPID_PRIVATE_KEY?: string;
   SUPABASE_PRIVATE_VAPID_KEY?: string;
 
-  // Stanbic API credentials and endpoints
   STANBIC_API_KEY?: string;
   STANBIC_CLIENT_SECRET?: string;
   STANBIC_SANDBOX_API_KEY?: string;
   STANBIC_SANDBOX_BASE_URL?: string;
   STANBIC_BASE_URL?: string;
-  // New: optional explicit endpoint and token URL used by Stanbic integrations
+
   STANBIC_SANDBOX_URL_ENDPOINT?: string;
   STANBIC_TOKEN_URL?: string;
 }
@@ -104,12 +103,10 @@ export function validateEnv(): EnvConfig {
       errors.push('RESEND_API_KEY is not defined');
     }
 
-    // Stanbic: require at least one API key (production or sandbox)
     if (!process.env.STANBIC_API_KEY && !process.env.STANBIC_SANDBOX_API_KEY) {
       errors.push('STANBIC_API_KEY or STANBIC_SANDBOX_API_KEY is not defined');
     }
 
-    // Stanbic: client secret required for OAuth client_credentials token requests
     if (process.env.STANBIC_TOKEN_URL && !process.env.STANBIC_CLIENT_SECRET) {
       errors.push('STANBIC_CLIENT_SECRET is not defined (required when STANBIC_TOKEN_URL is set)');
     }
@@ -122,7 +119,6 @@ export function validateEnv(): EnvConfig {
       errors.push('STANBIC_BASE_URL is not a valid URL');
     }
 
-    // Optional Stanbic endpoint and token URL
     if (process.env.STANBIC_SANDBOX_URL_ENDPOINT && !isValidUrl(process.env.STANBIC_SANDBOX_URL_ENDPOINT)) {
       errors.push('STANBIC_SANDBOX_URL_ENDPOINT is not a valid URL');
     }
@@ -157,13 +153,12 @@ export function validateEnv(): EnvConfig {
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     SUPABASE_PRIVATE_VAPID_KEY: process.env.SUPABASE_PRIVATE_VAPID_KEY,
 
-    // Stanbic
     STANBIC_API_KEY: process.env.STANBIC_API_KEY,
     STANBIC_CLIENT_SECRET: process.env.STANBIC_CLIENT_SECRET,
     STANBIC_SANDBOX_API_KEY: process.env.STANBIC_SANDBOX_API_KEY,
     STANBIC_SANDBOX_BASE_URL: process.env.STANBIC_SANDBOX_BASE_URL,
     STANBIC_BASE_URL: process.env.STANBIC_BASE_URL,
-    // New endpoints (optional)
+
     STANBIC_SANDBOX_URL_ENDPOINT: process.env.STANBIC_SANDBOX_URL_ENDPOINT,
     STANBIC_TOKEN_URL: process.env.STANBIC_TOKEN_URL,
   };
