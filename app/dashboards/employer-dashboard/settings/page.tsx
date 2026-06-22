@@ -23,8 +23,7 @@ import { toast } from "sonner";
 import { cn, getAdvanceLimit, getCurrencySymbol, getCurrencyFromCountry } from "@/lib/utils";
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { createClient } from '@/lib/supabase/client';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface EmployerProfile {
   id: string;
@@ -115,7 +114,6 @@ interface Profile {
   country: string;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface TabButtonProps {
   icon: LucideIcon;
@@ -379,8 +377,6 @@ const BankChangeModal = ({ isOpen, onClose, onSubmit, isSubmitting }: BankChange
   );
 };
 
-// ─── Profile Tab ──────────────────────────────────────────────────────────────
-
 interface EmployerProfileTabProps {
   employerId?: string;
   fullName?: string | null;
@@ -443,7 +439,6 @@ const EmployerProfileTab = ({ employerId, fullName, email, avatarUrl }: Employer
   </div>
 );
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getResponseErrorMessage = async (res: Response, fallback: string): Promise<string> => {
   try {
@@ -524,10 +519,11 @@ interface Profile {
   country: string;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function EmployerSettings() {
   const router = useRouter();
+  const [notifLoading, setNotifLoading] = useState(false);
+  const { subscribe, unsubscribe } = usePushNotifications();
 
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -584,7 +580,6 @@ export default function EmployerSettings() {
     country: 'KE',
   });
 
-  // ─── Data fetching ───────────────────────────────────────────────────────
 
   const fetchData = async (options?: { silent?: boolean }) => {
     await Promise.resolve();
@@ -636,6 +631,7 @@ export default function EmployerSettings() {
           payrollReminders: Boolean(settingsEmployer.payroll_reminders ?? prev.payrollReminders),
           weeklyReports: Boolean(settingsEmployer.weekly_reports ?? prev.weeklyReports),
           payrollCycle: String(settingsEmployer.payroll_cycle ?? prev.payrollCycle),
+          pushNotifications: Boolean((settingsEmployer.notification_preferences as Record<string, boolean> | null)?.pushNotifications ?? false),
         }));
       }
     } catch (err) {
@@ -953,6 +949,48 @@ export default function EmployerSettings() {
       setSaving(false);
     }
   };
+
+  const handleNotificationUpdate = async (
+  key: keyof Pick<Settings, 'emailNotifications' | 'advanceAlerts' | 'payrollReminders' | 'weeklyReports'> | 'pushNotifications',
+  value: boolean
+) => {
+  setNotifLoading(true);
+  try {
+    // Handle push subscription separately
+    if (key === 'pushNotifications') {
+      if (value) await subscribe();
+      else await unsubscribe();
+    }
+
+    const newPrefs = {
+      emailNotifications: key === 'emailNotifications' ? value : settings.emailNotifications,
+      advanceAlerts: key === 'advanceAlerts' ? value : settings.advanceAlerts,
+      payrollReminders: key === 'payrollReminders' ? value : settings.payrollReminders,
+      weeklyReports: key === 'weeklyReports' ? value : settings.weeklyReports,
+      pushNotifications: key === 'pushNotifications' ? value : (settings as Settings & { pushNotifications?: boolean }).pushNotifications ?? false,
+    };
+
+    const res = await fetch('/api/employer-dashboard/notifications/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newPrefs),
+    });
+
+    if (res.ok) {
+      if (key !== 'pushNotifications') {
+        setSettings((prev) => ({ ...prev, [key]: value }));
+      }
+      toast.success(value ? 'Enabled' : 'Disabled');
+    } else {
+      const err = await res.json();
+      toast.error(err.error || 'Failed to update preferences');
+    }
+  } catch {
+    toast.error('An error occurred');
+  } finally {
+    setNotifLoading(false);
+  }
+};
 
   // ─── Config ───────────────────────────────────────────────────────────────
 
@@ -1401,51 +1439,49 @@ export default function EmployerSettings() {
 
             {/* ── Notifications ── */}
             {activeTab === 'notifications' && (
-              <SettingsCard icon={Bell} title="Notification Preferences" description="Choose what updates you want to receive">
-                <div className="space-y-4">
-                  <ToggleItem
-                    icon={Mail}
-                    label="Email Notifications"
-                    description="Receive important updates via email"
-                    checked={settings.emailNotifications}
-                    onToggle={(v) => {
-                      setSettings((prev) => ({ ...prev, emailNotifications: v }));
-                      toast.success(v ? 'Email notifications enabled' : 'Email notifications disabled');
-                    }}
-                  />
-                  <ToggleItem
-                    icon={CreditCard}
-                    label="Advance Alerts"
-                    description="Get notified when employees request advances"
-                    checked={settings.advanceAlerts}
-                    onToggle={(v) => {
-                      setSettings((prev) => ({ ...prev, advanceAlerts: v }));
-                      toast.success(v ? 'Advance alerts enabled' : 'Advance alerts disabled');
-                    }}
-                  />
-                  <ToggleItem
-                    icon={Calendar}
-                    label="Payroll Reminders"
-                    description="Reminders to upload monthly payroll data"
-                    checked={settings.payrollReminders}
-                    onToggle={(v) => {
-                      setSettings((prev) => ({ ...prev, payrollReminders: v }));
-                      toast.success(v ? 'Payroll reminders enabled' : 'Payroll reminders disabled');
-                    }}
-                  />
-                  <ToggleItem
-                    icon={BarChart3}
-                    label="Weekly Reports"
-                    description="Receive weekly summary reports via email"
-                    checked={settings.weeklyReports}
-                    onToggle={(v) => {
-                      setSettings((prev) => ({ ...prev, weeklyReports: v }));
-                      toast.success(v ? 'Weekly reports enabled' : 'Weekly reports disabled');
-                    }}
-                  />
-                </div>
-              </SettingsCard>
-            )}
+  <SettingsCard icon={Bell} title="Notification Preferences" description="Choose what updates you want to receive">
+    <div className="space-y-4">
+      <ToggleItem
+        icon={Mail}
+        label="Email Notifications"
+        description="Receive important updates via email"
+        checked={settings.emailNotifications}
+        onToggle={(v) => void handleNotificationUpdate('emailNotifications', v)}
+      />
+      <ToggleItem
+        icon={CreditCard}
+        label="Advance Alerts"
+        description="Get notified when employees request advances"
+        checked={settings.advanceAlerts}
+        onToggle={(v) => void handleNotificationUpdate('advanceAlerts', v)}
+      />
+      <ToggleItem
+        icon={Calendar}
+        label="Payroll Reminders"
+        description="Reminders to upload monthly payroll data"
+        checked={settings.payrollReminders}
+        onToggle={(v) => void handleNotificationUpdate('payrollReminders', v)}
+      />
+      <ToggleItem
+        icon={BarChart3}
+        label="Weekly Reports"
+        description="Receive weekly summary reports via email"
+        checked={settings.weeklyReports}
+        onToggle={(v) => void handleNotificationUpdate('weeklyReports', v)}
+      />
+      <ToggleItem
+        icon={Smartphone}
+        label="Push Notifications"
+        description="Real-time alerts directly in your browser"
+        checked={(settings as Settings & { pushNotifications?: boolean }).pushNotifications ?? false}
+        onToggle={(v) => void handleNotificationUpdate('pushNotifications', v)}
+      />
+      {notifLoading && (
+        <p className="text-xs text-slate-400 text-center animate-pulse">Saving...</p>
+      )}
+    </div>
+  </SettingsCard>
+)}
 
             {/* ── Help ── */}
             {activeTab === 'help' && (

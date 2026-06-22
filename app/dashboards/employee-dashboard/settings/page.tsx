@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { DeleteAccountModal } from '@/components/employee/DeleteAccountModal';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 type ActivityLog = {
   action?: string;
@@ -160,6 +161,7 @@ export default function EmployeeSettings() {
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [mfaStatus, setMfaStatus] = useState({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
   const [verificationCode, setVerificationCode] = useState('');
+  const { subscribe, unsubscribe, status } = usePushNotifications();
 
   // MFA management UI state
   const [mfaFactors, setMfaFactors] = useState<MFAFactor[]>([]);
@@ -400,36 +402,43 @@ export default function EmployeeSettings() {
   };
 
   const handleNotificationUpdate = async (key: 'emailAlerts' | 'pushNotifications', value: boolean) => {
-    setNotificationLoading(true);
-    try {
-      const newPrefs = { ...notificationPrefs, [key]: value };
-      
-      const res = await fetch('/api/employee-dashboard/notifications/preferences', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          emailAlerts: newPrefs.emailAlerts,
-          pushNotifications: newPrefs.pushNotifications
-        }),
-      });
-      
-      if (res.ok) {
-        setNotificationPrefs(newPrefs);
-        toast.success('Notification preferences updated successfully');
+  setNotificationLoading(true);
+  try {
+    // If toggling push, handle browser subscription first
+    if (key === 'pushNotifications') {
+      if (value) {
+        await subscribe(); // registers sw + saves to system_push_subscriptions
       } else {
-        const error = await res.json();
-        toast.error(error.error || 'Failed to update preferences');
-        // Revert on error
-        setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
+        await unsubscribe(); // deactivates in system_push_subscriptions
       }
-    } catch {
-      toast.error('An error occurred while updating your preferences');
-      // Revert on error
-      setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
-    } finally {
-      setNotificationLoading(false);
     }
-  };
+
+    // Then save preference flag to profiles
+    const newPrefs = { ...notificationPrefs, [key]: value };
+    const res = await fetch('/api/employee-dashboard/notifications/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        emailAlerts: newPrefs.emailAlerts,
+        pushNotifications: newPrefs.pushNotifications
+      }),
+    });
+
+    if (res.ok) {
+      setNotificationPrefs(newPrefs);
+      toast.success('Notification preferences updated successfully');
+    } else {
+      const error = await res.json();
+      toast.error(error.error || 'Failed to update preferences');
+      setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
+    }
+  } catch {
+    toast.error('An error occurred while updating your preferences');
+    setNotificationPrefs(prev => ({ ...prev, [key]: !value }));
+  } finally {
+    setNotificationLoading(false);
+  }
+};
 
   const handlePasswordUpdate = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {

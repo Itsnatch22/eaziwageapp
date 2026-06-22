@@ -8,8 +8,6 @@ interface EnvConfig {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: string;
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: string;
   NEXT_PUBLIC_APP_URL?: string;
-  NEXT_PUBLIC_PUSHER_APP_KEY: string;
-  NEXT_PUBLIC_PUSHER_CLUSTER: string;
   
   SUPABASE_SERVICE_ROLE_KEY: string;
   RECAPTCHA_SECRET_KEY: string;
@@ -18,8 +16,6 @@ interface EnvConfig {
   RESEND_API_KEY: string;
   ADMIN_EMAILS?: string;
   ADMIN_PASSWORD?: string;
-  PUSHER_APP_ID: string;
-  PUSHER_APP_SECRET: string;
   PUSH_VAPID_CONTACT?: string;
   VAPID_PUBLIC_KEY?: string;
   NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string;
@@ -67,14 +63,6 @@ export function validateEnv(): EnvConfig {
     errors.push('NEXT_PUBLIC_RECAPTCHA_SITE_KEY is not defined');
   }
 
-  if (!process.env.NEXT_PUBLIC_PUSHER_APP_KEY) {
-    errors.push('NEXT_PUBLIC_PUSHER_APP_KEY is not defined');
-  }
-
-  if (!process.env.NEXT_PUBLIC_PUSHER_CLUSTER) {
-    errors.push('NEXT_PUBLIC_PUSHER_CLUSTER is not defined');
-  }
-
   if (typeof window === 'undefined') {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       errors.push('SUPABASE_SERVICE_ROLE_KEY is not defined');
@@ -109,14 +97,6 @@ export function validateEnv(): EnvConfig {
 
     if (!process.env.RESEND_API_KEY) {
       errors.push('RESEND_API_KEY is not defined');
-    }
-
-    if (!process.env.PUSHER_APP_ID) {
-      errors.push('PUSHER_APP_ID is not defined');
-    }
-
-    if (!process.env.PUSHER_APP_SECRET) {
-      errors.push('PUSHER_APP_SECRET is not defined');
     }
 
     // Stanbic: require at least one API key (production or sandbox)
@@ -158,8 +138,6 @@ export function validateEnv(): EnvConfig {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    NEXT_PUBLIC_PUSHER_APP_KEY: process.env.NEXT_PUBLIC_PUSHER_APP_KEY!,
-    NEXT_PUBLIC_PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
     RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY!,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL!,
@@ -167,8 +145,6 @@ export function validateEnv(): EnvConfig {
     RESEND_API_KEY: process.env.RESEND_API_KEY!,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
-    PUSHER_APP_ID: process.env.PUSHER_APP_ID!,
-    PUSHER_APP_SECRET: process.env.PUSHER_APP_SECRET!,
     PUSH_VAPID_CONTACT: process.env.PUSH_VAPID_CONTACT,
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,

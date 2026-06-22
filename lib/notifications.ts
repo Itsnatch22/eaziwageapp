@@ -52,28 +52,61 @@ export async function notifyAdmins(params: {
 
     if (error) throw error;
 
-    // ── Email Notification for Admins ──
-    const { data: adminEmails } = await supabaseAdmin
-      .from('system_admins')
-      .select('email');
-    
-    if (adminEmails && adminEmails.length > 0) {
-      for (const admin of adminEmails) {
-        if (admin.email) {
-          await sendEmail({
-            to: admin.email,
-            subject: `[ADMIN ALERT] ${params.title}`,
-            react: React.createElement(DocumentApprovedEmail, {
-              employeeName: 'Admin',
-              documentType: params.type.replace('_', ' '),
-              approvedDate: new Date().toLocaleDateString(),
-              dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin`,
-            })
-          }).catch(e => console.error(`[notifyAdmins] Email failed for ${admin.email}:`, e));
-        }
+    // ── Read global notification settings ──
+    const { data: globalSettings } = await supabaseAdmin
+      .from('global_settings')
+      .select('notification_settings')
+      .eq('id', 'default')
+      .single();
+
+    const ns = globalSettings?.notification_settings || {};
+
+    // Map notification type → the relevant email toggle
+    const emailEnabledByType: Record<AdminNotificationType, boolean> = {
+      new_employer:    ns.email_new_employer  !== false,
+      employer_kyc:    ns.email_new_employer  !== false,
+      flagged_advance: ns.email_fraud_alert   !== false,
+      system_alert:    ns.email_daily_summary !== false,
+      review_request:  ns.email_large_advance !== false,
+      bank_change:     ns.email_fraud_alert   !== false,
+    };
+
+    const shouldEmail = emailEnabledByType[params.type] ?? true;
+
+    if (shouldEmail) {
+      // Use fraud_alert_emails for fraud/flagged types, otherwise all admins
+      const isFraudType = params.type === 'flagged_advance' || params.type === 'bank_change';
+      
+      let recipients: string[] = [];
+
+      if (isFraudType && ns.fraud_alert_emails) {
+        recipients = (ns.fraud_alert_emails as string)
+          .split(',')
+          .map((e: string) => e.trim())
+          .filter(Boolean);
+      } else {
+        const { data: adminEmails } = await supabaseAdmin
+          .from('system_admins')
+          .select('email');
+        recipients = (adminEmails || [])
+          .map((a: { email: string }) => a.email)
+          .filter(Boolean);
+      }
+
+      for (const to of recipients) {
+        await sendEmail({
+          to,
+          subject: `[ADMIN ALERT] ${params.title}`,
+          react: React.createElement(DocumentApprovedEmail, {
+            employeeName: 'Admin',
+            documentType: params.type.replace('_', ' '),
+            approvedDate: new Date().toLocaleDateString(),
+            dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin`,
+          })
+        }).catch(e => console.error(`[notifyAdmins] Email failed for ${to}:`, e));
       }
     }
-    
+
     return { success: true, data };
   } catch (err) {
     console.error('[notifyAdmins] Error:', err);
@@ -108,18 +141,22 @@ export async function notifyEmployer(params: {
 
     if (error) throw error;
 
-    // Supabase Realtime will deliver notifications via postgres_changes; no pusher trigger needed.
-
     // ── Fetch profile and preferences ──
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('email, full_name, notification_preferences')
-      .eq('id', params.userId)
-      .single();
+const { data: employer } = await supabaseAdmin
+  .from('employers')
+  .select('notification_preferences')
+  .eq('user_id', params.userId)
+  .single();
 
-    const prefs = profile?.notification_preferences || {};
-    const emailAlerts = prefs.emailAlerts !== false;
-    const pushNotifications = prefs.pushNotifications !== false;
+const { data: profile } = await supabaseAdmin
+  .from('profiles')
+  .select('email, full_name')
+  .eq('id', params.userId)
+  .single();
+
+const prefs = employer?.notification_preferences || {};
+const emailAlerts = prefs.emailNotifications !== false;
+const pushNotifications = prefs.pushNotifications === true;
 
     if (emailAlerts && profile?.email) {
       await sendEmail({
@@ -201,7 +238,7 @@ export async function notifyEmployee(params: {
 
     const prefs = profile?.notification_preferences || {};
     const emailAlerts = prefs.emailAlerts !== false;
-    const pushNotifications = prefs.pushNotifications !== false;
+    const pushNotifications = prefs.pushNotifications !== true;
 
     if (emailAlerts && profile?.email) {
       await sendEmail({
