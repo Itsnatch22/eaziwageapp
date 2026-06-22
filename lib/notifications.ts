@@ -1,19 +1,31 @@
-import { createClient } from "@supabase/supabase-js";
-import { getEnv } from "@/env";
-import { sendEmail } from "./email-service";
+/**
+ * notifications.ts
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Central notification service for EaziWage.
+ * Handles in-app notifications, email (React Email), and web push.
+ */
 
-// ── Admin templates ──────────────────────────────────────────────────────────
+import { createClient } from '@supabase/supabase-js';
+import React from 'react';
+import webpush from 'web-push';
+
+import { getEnv } from '@/env';
+import { sendEmail } from './email-service';
+
+// ── Email Templates ─────────────────────────────────────────────────────────
+
 import {
+  // Admin
   NewEmployerRegistrationEmail,
   EmployerOnboardingSubmittedEmail,
   NewKYCDocumentEmail,
   BankChangeRequestEmail,
   FraudAlertEmail,
   DocumentUploadNotificationEmail,
-} from "./emails/AdminNotifications";
+} from './emails/AdminNotifications';
 
-// ── Employer templates ───────────────────────────────────────────────────────
 import {
+  // Employer
   NewEmployeeLinkedEmail,
   EmployeeKYCSubmittedEmail,
   EmployeeKYCApprovedEmail,
@@ -25,54 +37,29 @@ import {
   WalletTopUpApprovedEmail,
   AdvanceRequestReceivedEmail,
   WalletFundedEmail,
-} from "./emails/EmployerNotifications";
+} from './emails/EmployerNotifications';
 
-// ── Employee templates ───────────────────────────────────────────────────────
 import {
+  // Employee
   AdvanceApprovedEmail,
   AdvanceRejectedEmail,
   KYCUpdateEmail,
   RepaymentReminderEmail,
   BalanceUpdateEmail,
   SystemAlertEmail,
-} from "./emails/EmployeeNotifications";
+} from './emails/EmployeeNotifications';
 
-import React from 'react';
-import webpush from 'web-push';
-
-const env = getEnv();
-const supabaseAdmin = createClient(
-  env.NEXT_PUBLIC_SUPABASE_URL,
-  env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
-if (env.VAPID_PRIVATE_KEY && env.PUSH_VAPID_CONTACT) {
-  try {
-    webpush.setVapidDetails(
-      env.PUSH_VAPID_CONTACT,
-      env.VAPID_PUBLIC_KEY || '',
-      env.VAPID_PRIVATE_KEY
-    );
-  } catch (e) {
-    console.error('[notifications] Failed to set VAPID details:', e);
-  }
-}
+// ── Types ───────────────────────────────────────────────────────────────────
 
 export type AdminNotificationType =
-  | 'review_request'
+  | 'new_employer'
   | 'employer_kyc'
   | 'flagged_advance'
-  | 'system_alert'
-  | 'new_employer'
-  | 'bank_change';
+  | 'bank_change'
+  | 'review_request'
+  | 'system_alert';
 
 export type EmployerNotificationType =
-  | 'advance'
-  | 'system'
-  | 'employee'
-  | 'repayment'
-  | 'kyc_update'
   | 'employee_linked'
   | 'employee_kyc_submitted'
   | 'employee_kyc_approved'
@@ -82,101 +69,125 @@ export type EmployerNotificationType =
   | 'bank_change_outcome'
   | 'risk_review_completed'
   | 'wallet_topup_approved'
-  | 'wallet_funded';
+  | 'advance_request_received'
+  | 'wallet_funded'
+  | 'system';
 
 export type EmployeeNotificationType =
   | 'advance_approval'
+  | 'advance_rejected'
   | 'kyc_update'
-  | 'system_alert'
-  | 'repayment_reminder';
+  | 'repayment_reminder'
+  | 'balance_update'
+  | 'system_alert';
 
 type NotificationMetadata = Record<string, unknown>;
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? '';
+// ── Setup ───────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Admin email factory
-// [existing buildAdminEmailElement unchanged]
-// ─────────────────────────────────────────────────────────────────────────────
+const env = getEnv();
+const APP_URL = env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com';
+
+const supabaseAdmin = createClient(
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
+
+// Web Push Setup
+if (env.VAPID_PRIVATE_KEY && env.PUSH_VAPID_CONTACT) {
+  try {
+    webpush.setVapidDetails(
+      env.PUSH_VAPID_CONTACT,
+      env.VAPID_PUBLIC_KEY ?? '',
+      env.VAPID_PRIVATE_KEY
+    );
+  } catch (e) {
+    console.error('[notifications] Failed to set VAPID details:', e);
+  }
+}
+
+// ── Email Builders ──────────────────────────────────────────────────────────
+
 function buildAdminEmailElement(
   type: AdminNotificationType,
   title: string,
   message: string,
   metadata: NotificationMetadata = {}
 ): React.ReactElement {
-  const m = metadata as Record<string, string | number | boolean | string[] | undefined>;
+  const m = metadata as Record<string, any>;
   const adminDashboard = `${APP_URL}/admin`;
 
   switch (type) {
     case 'new_employer':
       return React.createElement(NewEmployerRegistrationEmail, {
-        companyName:    (m.companyName   as string)  ?? title,
-        contactPerson:  (m.contactPerson as string)  ?? 'Unknown',
-        contactEmail:   (m.contactEmail  as string)  ?? '',
-        contactPhone:   m.contactPhone   as string | undefined,
-        country:        (m.country       as string)  ?? 'Kenya',
-        industry:       m.industry       as string | undefined,
-        registeredAt:   (m.registeredAt  as string)  ?? new Date().toLocaleString(),
-        dashboardUrl:   `${adminDashboard}/employers`,
+        companyName: m.companyName ?? title,
+        contactPerson: m.contactPerson ?? 'Unknown',
+        contactEmail: m.contactEmail ?? '',
+        contactPhone: m.contactPhone,
+        country: m.country ?? 'Kenya',
+        industry: m.industry,
+        registeredAt: m.registeredAt ?? new Date().toLocaleString(),
+        dashboardUrl: `${adminDashboard}/employers`,
       });
 
     case 'employer_kyc':
       return React.createElement(EmployerOnboardingSubmittedEmail, {
-        companyName:         (m.companyName   as string) ?? title,
-        contactPerson:       (m.contactPerson as string) ?? 'Unknown',
-        contactEmail:        (m.contactEmail  as string) ?? '',
-        country:             (m.country       as string) ?? 'Kenya',
-        industry:            m.industry              as string | undefined,
-        registrationNumber:  m.registrationNumber   as string | undefined,
-        payrollCycle:        m.payrollCycle          as string | undefined,
-        submittedAt:         (m.submittedAt   as string) ?? new Date().toLocaleString(),
-        onboardingId:        m.onboardingId          as string | undefined,
-        dashboardUrl:        `${adminDashboard}/employers`,
+        companyName: m.companyName ?? title,
+        contactPerson: m.contactPerson ?? 'Unknown',
+        contactEmail: m.contactEmail ?? '',
+        country: m.country ?? 'Kenya',
+        industry: m.industry,
+        registrationNumber: m.registrationNumber,
+        payrollCycle: m.payrollCycle,
+        submittedAt: m.submittedAt ?? new Date().toLocaleString(),
+        onboardingId: m.onboardingId,
+        dashboardUrl: `${adminDashboard}/employers`,
       });
 
     case 'flagged_advance':
       return React.createElement(FraudAlertEmail, {
-        employeeName:   (m.employeeName  as string)  ?? 'Unknown Employee',
-        employeeEmail:  m.employeeEmail  as string | undefined,
-        employeeCode:   m.employeeCode   as string | undefined,
-        companyName:    (m.companyName   as string)  ?? 'Unknown Employer',
-        advanceAmount:  (m.advanceAmount as number)  ?? 0,
-        currency:       (m.currency      as string)  ?? 'KES',
-        flagType:       (m.flagType      as string)  ?? 'unknown',
-        severity:       (m.severity as 'low' | 'medium' | 'high' | 'critical') ?? 'high',
-        description:    message,
-        flags:          m.flags          as string[] | undefined,
-        triggeredAt:    (m.triggeredAt   as string)  ?? new Date().toLocaleString(),
-        advanceId:      m.advanceId      as string | undefined,
-        dashboardUrl:   `${adminDashboard}/fraud`,
+        employeeName: m.employeeName ?? 'Unknown',
+        employeeEmail: m.employeeEmail,
+        employeeCode: m.employeeCode,
+        companyName: m.companyName ?? 'Unknown',
+        advanceAmount: m.advanceAmount ?? 0,
+        currency: m.currency ?? 'KES',
+        flagType: m.flagType ?? 'unknown',
+        severity: (m.severity as any) ?? 'high',
+        description: message,
+        flags: m.flags as string[] | undefined,
+        triggeredAt: m.triggeredAt ?? new Date().toLocaleString(),
+        advanceId: m.advanceId,
+        dashboardUrl: `${adminDashboard}/fraud`,
       });
 
     case 'bank_change':
       return React.createElement(BankChangeRequestEmail, {
-        companyName:            (m.companyName           as string) ?? title,
-        contactPerson:          m.contactPerson          as string | undefined,
-        contactEmail:           m.contactEmail           as string | undefined,
-        currentBankName:        m.currentBankName        as string | undefined,
-        currentAccountNumber:   m.currentAccountNumber   as string | undefined,
-        requestedBankName:      (m.requestedBankName     as string) ?? 'Unknown Bank',
-        requestedAccountNumber: (m.requestedAccountNumber as string) ?? '—',
-        reason:                 m.reason                 as string | undefined,
-        requestedAt:            (m.requestedAt           as string) ?? new Date().toLocaleString(),
-        requestId:              m.requestId              as string | undefined,
-        dashboardUrl:           `${adminDashboard}/review-requests`,
+        companyName: m.companyName ?? title,
+        contactPerson: m.contactPerson,
+        contactEmail: m.contactEmail,
+        currentBankName: m.currentBankName,
+        currentAccountNumber: m.currentAccountNumber,
+        requestedBankName: m.requestedBankName ?? 'Unknown',
+        requestedAccountNumber: m.requestedAccountNumber ?? '—',
+        reason: m.reason,
+        requestedAt: m.requestedAt ?? new Date().toLocaleString(),
+        requestId: m.requestId,
+        dashboardUrl: `${adminDashboard}/review-requests`,
       });
 
     case 'review_request':
       return React.createElement(NewKYCDocumentEmail, {
-        employeeName:     (m.employeeName  as string) ?? 'Unknown',
-        employeeEmail:    m.employeeEmail  as string | undefined,
-        companyName:      m.companyName    as string | undefined,
-        documentType:     (m.documentType  as string) ?? 'document',
-        documentNumber:   m.documentNumber as string | undefined,
-        submittedAt:      (m.submittedAt   as string) ?? new Date().toLocaleString(),
-        totalDocuments:   m.totalDocuments as number | undefined,
-        allDocsSubmitted: m.allDocsSubmitted as boolean | undefined,
-        dashboardUrl:     `${adminDashboard}/kyc`,
+        employeeName: m.employeeName ?? 'Unknown',
+        employeeEmail: m.employeeEmail,
+        companyName: m.companyName,
+        documentType: m.documentType ?? 'document',
+        documentNumber: m.documentNumber,
+        submittedAt: m.submittedAt ?? new Date().toLocaleString(),
+        totalDocuments: m.totalDocuments,
+        allDocsSubmitted: m.allDocsSubmitted,
+        dashboardUrl: `${adminDashboard}/kyc`,
       });
 
     case 'system_alert':
@@ -184,115 +195,237 @@ function buildAdminEmailElement(
       return React.createElement(DocumentUploadNotificationEmail, {
         uploaderName: 'System',
         uploaderRole: 'employee',
-        documentType: type,
-        uploadedAt:   new Date().toLocaleString(),
+        documentType: 'system',
+        uploadedAt: new Date().toLocaleString(),
         dashboardUrl: adminDashboard,
       });
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Employer email factory
-// [existing buildEmployerEmailElement unchanged]
-// ─────────────────────────────────────────────────────────────────────────────
 function buildEmployerEmailElement(
   type: EmployerNotificationType,
   title: string,
   message: string,
-  metadata: NotificationMetadata = {},
-  profile?: { full_name?: string | null; email?: string | null }
+  metadata: NotificationMetadata = {}
 ): React.ReactElement {
-  const m = metadata as Record<string, unknown>;
+  const m = metadata as Record<string, any>;
   const employerDashboard = `${APP_URL}/dashboards/employer-dashboard`;
-  const companyName = (m.company_name as string) ?? (profile?.full_name as string) ?? 'Your Company';
+  const companyName = m.companyName ?? 'Your Company';
 
-  const resolved = (m.subType as string | undefined) ?? type;
-
-  switch (resolved) {
+  switch (type) {
     case 'employee_linked':
       return React.createElement(NewEmployeeLinkedEmail, {
         companyName,
-        employeeName:   (m.employee_name  as string) ?? 'New Employee',
-        employeeCode:   m.employee_code   as string | undefined,
-        employeeEmail:  m.employee_email  as string | undefined,
-        department:     m.department      as string | undefined,
-        jobTitle:       m.job_title       as string | undefined,
-        linkedAt:       (m.linked_at      as string) ?? new Date().toLocaleString(),
-        dashboardUrl:   `${employerDashboard}/employees`,
+        employeeName: m.employeeName ?? 'New Employee',
+        employeeCode: m.employeeCode,
+        employeeEmail: m.employeeEmail,
+        department: m.department,
+        jobTitle: m.jobTitle,
+        linkedAt: m.linkedAt ?? new Date().toLocaleString(),
+        dashboardUrl: `${employerDashboard}/employees`,
       });
 
-    // ... (all other cases remain the same as before - omitted for brevity in this update)
+    case 'employee_kyc_submitted':
+      return React.createElement(EmployeeKYCSubmittedEmail, {
+        companyName,
+        employeeName: m.employeeName ?? 'Employee',
+        employeeCode: m.employeeCode,
+        documentTypes: m.documentTypes ?? ['Identity Document'],
+        submittedAt: m.submittedAt ?? new Date().toLocaleString(),
+        dashboardUrl: `${employerDashboard}/employees`,
+      });
+
+    case 'employee_kyc_approved':
+      return React.createElement(EmployeeKYCApprovedEmail, {
+        companyName,
+        employeeName: m.employeeName ?? 'Employee',
+        employeeCode: m.employeeCode,
+        approvedAt: m.approvedAt ?? new Date().toLocaleString(),
+        maxAdvancePercentage: m.maxAdvancePercentage ?? 50,
+        currency: m.currency ?? 'KES',
+        dashboardUrl: `${employerDashboard}/employees`,
+      });
+
+    case 'employee_kyc_rejected':
+      return React.createElement(EmployeeKYCRejectedEmail, {
+        companyName,
+        employeeName: m.employeeName ?? 'Employee',
+        employeeCode: m.employeeCode,
+        rejectedAt: m.rejectedAt ?? new Date().toLocaleString(),
+        reason: m.reason,
+        canResubmit: m.canResubmit !== false,
+        dashboardUrl: `${employerDashboard}/employees`,
+      });
+
+    case 'risk_profile_updated':
+      return React.createElement(RiskProfileUpdatedEmail, {
+        companyName,
+        contactPerson: m.contactPerson,
+        previousScore: m.previousScore,
+        newScore: m.newScore ?? 3.5,
+        previousRating: m.previousRating,
+        newRating: m.newRating ?? 'B',
+        applicationFee: m.applicationFee,
+        updatedAt: m.updatedAt ?? new Date().toLocaleString(),
+        dashboardUrl: `${employerDashboard}/risk-insights`,
+      });
+
+    case 'status_change':
+      return React.createElement(EmployerStatusChangeEmail, {
+        companyName,
+        contactPerson: m.contactPerson,
+        previousStatus: m.previousStatus,
+        newStatus: (m.newStatus as any) ?? 'pending',
+        reason: m.reason ?? message,
+        effectiveAt: m.effectiveAt ?? new Date().toLocaleString(),
+        dashboardUrl: employerDashboard,
+      });
+
+    case 'bank_change_outcome':
+      return React.createElement(BankDetailsChangeOutcomeEmail, {
+        companyName,
+        contactPerson: m.contactPerson,
+        outcome: (m.outcome as any) ?? 'approved',
+        requestedBankName: m.requestedBankName ?? 'New Bank',
+        requestedAccountNumber: m.requestedAccountNumber ?? '••••••••',
+        currentBankName: m.currentBankName,
+        reason: m.reason,
+        effectiveAt: m.effectiveAt,
+        dashboardUrl: `${employerDashboard}/settings`,
+      });
+
+    case 'risk_review_completed':
+      return React.createElement(RiskReviewCompletedEmail, {
+        companyName,
+        contactPerson: m.contactPerson,
+        outcome: (m.outcome as any) ?? 'unchanged',
+        newScore: m.newScore ?? 3.5,
+        newRating: (m.newRating as any) ?? 'B',
+        newApplicationFee: m.newApplicationFee,
+        reviewNotes: m.reviewNotes,
+        completedAt: m.completedAt ?? new Date().toLocaleString(),
+        dashboardUrl: `${employerDashboard}/risk-insights`,
+      });
+
+    case 'wallet_topup_approved':
+      return React.createElement(WalletTopUpApprovedEmail, {
+        companyName,
+        contactPerson: m.contactPerson,
+        approvedAmount: m.approvedAmount ?? 0,
+        currency: m.currency ?? 'KES',
+        newBalance: m.newBalance,
+        reference: m.reference,
+        approvedAt: m.approvedAt ?? new Date().toLocaleString(),
+        dashboardUrl: `${employerDashboard}/wallet`,
+      });
+
+    case 'advance_request_received':
+      return React.createElement(AdvanceRequestReceivedEmail, {
+        companyName,
+        contactPerson: m.contactPerson,
+        employeeName: m.employeeName ?? 'Employee',
+        employeeCode: m.employeeCode,
+        requestedAmount: m.requestedAmount ?? 0,
+        currency: m.currency ?? 'KES',
+        disbursementMethod: m.disbursementMethod ?? 'M-PESA',
+        requestedAt: m.requestedAt ?? new Date().toLocaleString(),
+        advanceId: m.advanceId,
+        dashboardUrl: `${employerDashboard}/advances`,
+      });
+
+    case 'wallet_funded':
+      return React.createElement(WalletFundedEmail, {
+        companyName,
+        contactPerson: m.contactPerson,
+        fundedAmount: m.fundedAmount ?? 0,
+        currency: m.currency ?? 'KES',
+        newBalance: m.newBalance ?? 0,
+        previousBalance: m.previousBalance,
+        fundingSource: m.fundingSource,
+        reference: m.reference,
+        fundedAt: m.fundedAt ?? new Date().toLocaleString(),
+        dashboardUrl: `${employerDashboard}/wallet`,
+      });
+
     case 'system':
     default:
       return React.createElement(EmployerStatusChangeEmail, {
         companyName,
-        newStatus:   'pending',
-        reason:      message,
+        newStatus: 'pending',
+        reason: message,
         effectiveAt: new Date().toLocaleString(),
         dashboardUrl: employerDashboard,
       });
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Employee email factory (new)
-// ─────────────────────────────────────────────────────────────────────────────
 function buildEmployeeEmailElement(
   type: EmployeeNotificationType,
   title: string,
   message: string,
   metadata: NotificationMetadata = {}
 ): React.ReactElement {
-  const m = metadata as Record<string, string | number | boolean | undefined>;
+  const m = metadata as Record<string, any>;
   const employeeDashboard = `${APP_URL}/dashboards/employee-dashboard`;
 
   switch (type) {
     case 'advance_approval':
       return React.createElement(AdvanceApprovedEmail, {
-        employeeName: (m.employeeName as string) ?? 'Employee',
-        advanceAmount: (m.advanceAmount as number) ?? 0,
-        currency: (m.currency as string) ?? 'KES',
-        approvedAt: (m.approvedAt as string) ?? new Date().toLocaleString(),
-        repaymentDate: m.repaymentDate as string | undefined,
-        interestRate: m.interestRate as number | undefined,
-        advanceId: m.advanceId as string | undefined,
+        employeeName: m.employeeName ?? 'Employee',
+        advanceAmount: m.advanceAmount ?? 0,
+        currency: m.currency ?? 'KES',
+        approvedAt: m.approvedAt ?? new Date().toLocaleString(),
+        repaymentDate: m.repaymentDate,
+        interestRate: m.interestRate,
+        advanceId: m.advanceId,
+        dashboardUrl: employeeDashboard,
+      });
+
+    case 'advance_rejected':
+      return React.createElement(AdvanceRejectedEmail, {
+        employeeName: m.employeeName ?? 'Employee',
+        requestedAmount: m.requestedAmount ?? 0,
+        currency: m.currency ?? 'KES',
+        rejectedAt: m.rejectedAt ?? new Date().toLocaleString(),
+        reason: m.reason,
+        advanceId: m.advanceId,
         dashboardUrl: employeeDashboard,
       });
 
     case 'kyc_update':
       return React.createElement(KYCUpdateEmail, {
-        employeeName: (m.employeeName as string) ?? 'Employee',
+        employeeName: m.employeeName ?? 'Employee',
         status: (m.status as any) ?? 'approved',
-        updatedAt: (m.updatedAt as string) ?? new Date().toLocaleString(),
-        reason: m.reason as string | undefined,
+        updatedAt: m.updatedAt ?? new Date().toLocaleString(),
+        reason: m.reason,
         dashboardUrl: employeeDashboard,
       });
 
     case 'repayment_reminder':
       return React.createElement(RepaymentReminderEmail, {
-        employeeName: (m.employeeName as string) ?? 'Employee',
-        outstandingAmount: (m.outstandingAmount as number) ?? 0,
-        currency: (m.currency as string) ?? 'KES',
-        dueDate: m.dueDate as string | undefined,
-        advanceId: m.advanceId as string | undefined,
+        employeeName: m.employeeName ?? 'Employee',
+        outstandingAmount: m.outstandingAmount ?? 0,
+        currency: m.currency ?? 'KES',
+        dueDate: m.dueDate,
+        advanceId: m.advanceId,
         dashboardUrl: employeeDashboard,
       });
 
     case 'balance_update':
       return React.createElement(BalanceUpdateEmail, {
-        employeeName: (m.employeeName as string) ?? 'Employee',
-        newBalance: (m.newBalance as number) ?? 0,
-        currency: (m.currency as string) ?? 'KES',
-        changeAmount: m.changeAmount as number | undefined,
-        changeType: m.changeType as any,
-        updatedAt: (m.updatedAt as string) ?? new Date().toLocaleString(),
+        employeeName: m.employeeName ?? 'Employee',
+        newBalance: m.newBalance ?? 0,
+        currency: m.currency ?? 'KES',
+        changeAmount: m.changeAmount,
+        changeType: m.changeType,
+        updatedAt: m.updatedAt ?? new Date().toLocaleString(),
         dashboardUrl: employeeDashboard,
       });
 
     case 'system_alert':
     default:
       return React.createElement(SystemAlertEmail, {
-        employeeName: (m.employeeName as string) ?? 'Employee',
+        employeeName: m.employeeName ?? 'Employee',
         title,
         message,
         dashboardUrl: employeeDashboard,
@@ -300,13 +433,12 @@ function buildEmployeeEmailElement(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared push helper (unchanged)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Push Notifications ──────────────────────────────────────────────────────
+
 async function sendPushNotifications(
   userId: string,
   title: string,
-  message: string,
+  body: string,
   metadata?: NotificationMetadata
 ) {
   const { data: subs } = await supabaseAdmin
@@ -318,25 +450,61 @@ async function sendPushNotifications(
   if (!subs?.length) return;
 
   await Promise.allSettled(
-    subs.map((s) =>
+    subs.map((sub) =>
       webpush
         .sendNotification(
-          s.subscription_payload,
-          JSON.stringify({ title, body: message, data: metadata })
+          sub.subscription_payload as any,
+          JSON.stringify({ title, body, data: metadata })
         )
         .catch((e) => console.error(`[push] Failed for user ${userId}:`, e))
     )
   );
 }
 
-// notifyAdmins and notifyEmployer remain unchanged...
+// ── Main Notification Functions ─────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// notifyEmployee (updated)
-// ─────────────────────────────────────────────────────────────────────────────
-export async function notifyEmployee(params: {
+export async function notifyAdmin(params: {
+  type: AdminNotificationType;
+  title: string;
+  message: string;
+  metadata?: NotificationMetadata;
+}) {
+  try {
+    // Insert notification record (optional - if you have an admin notifications table)
+    await supabaseAdmin
+      .from('admin_notifications')
+      .insert({
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        metadata: params.metadata,
+        created_at: new Date().toISOString(),
+      });
+
+    const emailElement = buildAdminEmailElement(
+      params.type,
+      params.title,
+      params.message,
+      params.metadata ?? {}
+    );
+
+    // Send to all admins or a notification email group
+    await sendEmail({
+      to: env.ADMIN_NOTIFICATION_EMAIL ?? 'admin@eaziwage.com',
+      subject: `[Admin] ${params.title}`,
+      react: emailElement,
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error('[notifyAdmin] Error:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function notifyEmployer(params: {
   userId: string;
-  type: EmployeeNotificationType;
+  type: EmployerNotificationType;
   title: string;
   message: string;
   metadata?: NotificationMetadata;
@@ -345,12 +513,12 @@ export async function notifyEmployee(params: {
     const { data, error } = await supabaseAdmin
       .from('notifications')
       .insert({
-        user_id:    params.userId,
-        type:       params.type,
-        title:      params.title,
-        message:    params.message,
-        metadata:   params.metadata,
-        read:       false,
+        user_id: params.userId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        metadata: params.metadata,
+        read: false,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -364,26 +532,84 @@ export async function notifyEmployee(params: {
       .eq('id', params.userId)
       .single();
 
-    const prefs             = profile?.notification_preferences || {};
-    const emailAlerts       = prefs.emailAlerts       !== false;
-    const pushNotifications = prefs.pushNotifications === true;
+    const prefs = profile?.notification_preferences || {};
+    const shouldSendEmail = prefs.emailAlerts !== false;
 
-    if (emailAlerts && profile?.email) {
+    if (shouldSendEmail && profile?.email) {
+      const emailElement = buildEmployerEmailElement(
+        params.type,
+        params.title,
+        params.message,
+        params.metadata ?? {}
+      );
+
+      await sendEmail({
+        to: profile.email,
+        subject: params.title,
+        react: emailElement,
+      }).catch((e) => console.error('[notifyEmployer] Email failed:', e));
+    }
+
+    if (prefs.pushNotifications === true) {
+      await sendPushNotifications(params.userId, params.title, params.message, params.metadata);
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    console.error('[notifyEmployer] Error:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function notifyEmployee(params: {
+  userId: string;
+  type: EmployeeNotificationType;
+  title: string;
+  message: string;
+  metadata?: NotificationMetadata;
+}) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .insert({
+        user_id: params.userId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        metadata: params.metadata,
+        read: false,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('email, full_name, notification_preferences')
+      .eq('id', params.userId)
+      .single();
+
+    const prefs = profile?.notification_preferences || {};
+    const shouldSendEmail = prefs.emailAlerts !== false;
+
+    if (shouldSendEmail && profile?.email) {
       const emailElement = buildEmployeeEmailElement(
         params.type,
         params.title,
         params.message,
-        params.metadata || {}
+        params.metadata ?? {}
       );
 
       await sendEmail({
-        to:      profile.email,
+        to: profile.email,
         subject: params.title,
-        react:   emailElement,
-      }).catch((e) => console.error(`[notifyEmployee] Email failed:`, e));
+        react: emailElement,
+      }).catch((e) => console.error('[notifyEmployee] Email failed:', e));
     }
 
-    if (pushNotifications) {
+    if (prefs.pushNotifications === true) {
       await sendPushNotifications(params.userId, params.title, params.message, params.metadata);
     }
 
@@ -394,12 +620,21 @@ export async function notifyEmployee(params: {
   }
 }
 
-// triggerMessageEvent unchanged
-export async function triggerMessageEvent() {
-  try {
-    return { success: true };
-  } catch (err) {
-    console.error('[triggerMessageEvent] Error:', err);
-    return { success: false, error: err };
+// Convenience wrapper
+export async function triggerNotification(params: {
+  target: 'admin' | 'employer' | 'employee';
+  userId?: string;
+  type: any;
+  title: string;
+  message: string;
+  metadata?: NotificationMetadata;
+}) {
+  if (params.target === 'admin') {
+    return notifyAdmin({ type: params.type, title: params.title, message: params.message, metadata: params.metadata });
+  } else if (params.target === 'employer' && params.userId) {
+    return notifyEmployer({ userId: params.userId, type: params.type, title: params.title, message: params.message, metadata: params.metadata });
+  } else if (params.target === 'employee' && params.userId) {
+    return notifyEmployee({ userId: params.userId, type: params.type, title: params.title, message: params.message, metadata: params.metadata });
   }
+  throw new Error('Invalid notification target');
 }

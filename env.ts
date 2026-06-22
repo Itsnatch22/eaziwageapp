@@ -16,6 +16,7 @@ interface EnvConfig {
   RESEND_API_KEY: string;
   ADMIN_EMAILS?: string;
   ADMIN_PASSWORD?: string;
+  ADMIN_NOTIFICATION_EMAIL?: string;
   PUSH_VAPID_CONTACT?: string;
   VAPID_PUBLIC_KEY?: string;
   NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string;
@@ -91,6 +92,10 @@ export function validateEnv(): EnvConfig {
       }
     }
 
+    if (process.env.ADMIN_NOTIFICATION_EMAIL && !/\S+@\S+\.\S+/.test(process.env.ADMIN_NOTIFICATION_EMAIL)) {
+      errors.push('ADMIN_NOTIFICATION_EMAIL is not a valid email address');
+    }
+
     if (!process.env.ADMIN_PASSWORD) {
       errors.push('ADMIN_PASSWORD is not defined');
     }
@@ -144,6 +149,7 @@ export function validateEnv(): EnvConfig {
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN!,
     RESEND_API_KEY: process.env.RESEND_API_KEY!,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
+    ADMIN_NOTIFICATION_EMAIL: process.env.ADMIN_NOTIFICATION_EMAIL,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     PUSH_VAPID_CONTACT: process.env.PUSH_VAPID_CONTACT,
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
