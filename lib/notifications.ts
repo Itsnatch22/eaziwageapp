@@ -489,8 +489,7 @@ export async function notifyAdmin(params: {
       params.message,
       params.metadata ?? {}
     );
-
-    // Inside notifyAdmin, before sending email:
+// Read global notification settings
 const { data: globalSettings } = await supabaseAdmin
   .from('global_settings')
   .select('notification_settings')
@@ -508,12 +507,20 @@ const emailEnabledByType: Record<AdminNotificationType, boolean> = {
   bank_change:     ns.email_fraud_alert   !== false,
 };
 
-if (!emailEnabledByType[params.type]) return { success: true };
-    await sendEmail({
-      to: env.ADMIN_NOTIFICATION_EMAIL ?? 'admin@eaziwage.com',
-      subject: `[Admin] ${params.title}`,
-      react: emailElement,
-    });
+if (emailEnabledByType[params.type]) {
+  const emailElement = buildAdminEmailElement(
+    params.type,
+    params.title,
+    params.message,
+    params.metadata ?? {}
+  );
+
+  await sendEmail({
+    to: env.ADMIN_NOTIFICATION_EMAIL ?? 'admin@eaziwage.com',
+    subject: `[Admin] ${params.title}`,
+    react: emailElement,
+  });
+}
 
     return { success: true };
   } catch (err) {
@@ -658,3 +665,5 @@ export async function triggerNotification(params: {
   }
   throw new Error('Invalid notification target');
 }
+
+export const notifyAdmins = notifyAdmin;
