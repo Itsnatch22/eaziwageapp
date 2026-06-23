@@ -208,16 +208,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const adminEmails  = (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const isEnvAdmin   = adminEmails.includes(input.email.toLowerCase());
-  
-  console.log('[login] Admin check:', {
-    email: input.email.toLowerCase(),
-    adminEmailsCount: adminEmails.length,
-    isEnvAdmin,
-    firstAdminEmail: adminEmails[0] || 'none'
-  });
-
   type AdminRecord = {
     id:                    string;
     full_name:             string | null;
@@ -240,19 +230,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let adminRecord:   AdminRecord   | null = null;
   let profileRecord: ProfileRecord | null = null;
 
-  if (isEnvAdmin) {
-    console.log('[login] Querying system_admins for:', input.email);
-    const { data, error } = await supabaseAdmin
-      .from('system_admins')
-      .select('id, full_name, email, locked_until, failed_login_attempts')
-      .eq('email', input.email)
-      .maybeSingle<AdminRecord>();
+  // system_admins is the sole source of truth for admin access — no env var shortcut
+  const { data: adminLookup, error: adminLookupError } = await supabaseAdmin
+    .from('system_admins')
+    .select('id, full_name, email, locked_until, failed_login_attempts')
+    .eq('email', input.email)
+    .eq('is_admin', true)
+    .maybeSingle<AdminRecord>();
 
-    if (error) {
-      console.error('[login] system_admins query error:', error);
-    }
-    adminRecord = data ?? null;
-    console.log('[login] system_admins result:', adminRecord ? 'Found' : 'Not found', adminRecord?.id);
+  if (adminLookupError) {
+    console.error('[login] system_admins query error:', adminLookupError);
+  }
+
+  const isAdmin = !!adminLookup;
+
+  if (isAdmin) {
+    adminRecord = adminLookup;
+    console.log('[login] Admin found in system_admins:', adminRecord?.id);
   } else {
     console.log('[login] Querying profiles for:', input.email);
     const { data, error } = await supabaseAdmin
@@ -268,7 +262,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     console.log('[login] profiles result:', profileRecord ? 'Found' : 'Not found', profileRecord?.id);
   }
 
-  const lockedUntilStr = isEnvAdmin ? adminRecord?.locked_until : profileRecord?.locked_until;
+  const lockedUntilStr = isAdmin ? adminRecord?.locked_until : profileRecord?.locked_until;
   if (lockedUntilStr) {
     const lockExpiry = new Date(lockedUntilStr);
     if (lockExpiry > new Date()) {
@@ -319,12 +313,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       timestamp: new Date(),
       fingerprintVisitorId: input.fingerprint_visitor_id,
     };
-    const recordId   = isEnvAdmin ? adminRecord?.id   : profileRecord?.id;
-    const recordName = isEnvAdmin ? (adminRecord?.full_name ?? input.email) : (profileRecord?.full_name ?? input.email);
+    const recordId   = isAdmin ? adminRecord?.id   : profileRecord?.id;
+    const recordName = isAdmin ? (adminRecord?.full_name ?? input.email) : (profileRecord?.full_name ?? input.email);
 
     if (recordId) {
       console.log('[login] Recording failed attempt for:', recordId);
-      await recordFailedAttempt(recordId, recordName, input.email, isEnvAdmin, loginCtx);
+      await recordFailedAttempt(recordId, recordName, input.email, isAdmin, loginCtx);
     } else {
       console.log('[login] No record ID found, cannot track failed attempts');
     }
@@ -338,31 +332,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { user } = authData;
   console.log('[login] Auth SUCCESS for user:', user.id, user.email);
 
-  if (isEnvAdmin && !adminRecord) {
-    console.log('[login] Auto-provisioning system_admins for:', user.email);
-    const { error: insertError } = await supabaseAdmin
-      .from('system_admins')
-      .insert({
-        id:        user.id,
-        email:     input.email,
-        full_name: user.user_metadata?.full_name ?? 'System Admin',
-      });
-
-    if (insertError && insertError.code !== '23505') {
-      console.error('[login] Failed to auto-provision system_admins row:', insertError);
-    } else {
-      console.log('[login] system_admins row created successfully');
-    }
-
-    const { data } = await supabaseAdmin
-      .from('system_admins')
-      .select('id, full_name, email, locked_until, failed_login_attempts')
-      .eq('email', input.email)
-      .maybeSingle<AdminRecord>();
-    adminRecord = data ?? null;
-  }
-
-  if (!isEnvAdmin && profileRecord && !profileRecord.email_verified) {
+  if (!isAdmin && profileRecord && !profileRecord.email_verified) {
     const authEmailVerified = Boolean(user.email_confirmed_at);
     if (authEmailVerified) {
       const { error: verifySyncError } = await supabaseAdmin
@@ -378,7 +348,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  if (!isEnvAdmin && profileRecord && !profileRecord.email_verified) {
+  if (!isAdmin && profileRecord && !profileRecord.email_verified) {
     console.log('[login] BLOCKED: Email not verified for', input.email);
     return NextResponse.json(
       {
@@ -389,13 +359,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const successId = isEnvAdmin ? (adminRecord?.id ?? user.id) : profileRecord?.id;
+  const successId = isAdmin ? (adminRecord?.id ?? user.id) : profileRecord?.id;
   if (successId) {
     console.log('[login] Clearing failed attempts for:', successId);
-    await clearFailedAttempts(successId, isEnvAdmin);
+    await clearFailedAttempts(successId, isAdmin);
   }
 
-  const successName = isEnvAdmin ? (adminRecord?.full_name ?? 'System Admin') : (profileRecord?.full_name ?? input.email);
+  const successName = isAdmin ? (adminRecord?.full_name ?? 'System Admin') : (profileRecord?.full_name ?? input.email);
   if (successId) {
     const loginCtx: LoginContext = {
       ip,
@@ -411,7 +381,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let responseRole: string;
 
-  if (isEnvAdmin) {
+  if (isAdmin) {
     responseRole = 'admin';
     console.log('[login] Role set to: admin (env admin)');
   } else if (profileRecord) {

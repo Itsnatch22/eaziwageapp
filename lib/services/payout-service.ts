@@ -164,6 +164,19 @@ export class PayoutService {
       throw new Error(`Advance not in pending status: ${advance.status}`);
     }
 
+    // Atomically claim this advance before any async work to prevent concurrent disbursements
+    const { data: locked } = await supabaseAdmin
+      .from('advances')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .eq('id', advanceId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
+
+    if (!locked) {
+      throw new Error(`Advance ${advanceId} already claimed by another process`);
+    }
+
     if (employer?.disbursements_frozen) {
       await supabaseAdmin.from('advances').update({ status: 'rejected', reason: `Employer disbursements frozen: ${employer.freeze_reason}` }).eq('id', advanceId);
       throw new Error(`Employer disbursements frozen: ${employer.freeze_reason}`);

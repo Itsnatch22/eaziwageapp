@@ -77,6 +77,18 @@ export const mfaVerifyLimiter = new Ratelimit({
 });
 
 /**
+ * Advance request limiter — 5 requests per 6 hours per user.
+ * Complements the DB-level cooldown period by blocking burst attempts
+ * before they hit business logic.
+ */
+export const advanceLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "6 h"),
+  analytics: true,
+  prefix: "ratelimit:advance",
+});
+
+/**
  * Admin API limiter — shared bucket across all admin routes that don't have
  * their own per-resource limiter. 300 req/min per IP provides abuse protection
  * while being generous enough for normal admin dashboard usage.

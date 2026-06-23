@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
-import { toast } from 'sonner';
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,7 +60,6 @@ export async function POST(request: NextRequest) {
 
     if (deletionEventError) {
       console.error('Error recording deletion event:', deletionEventError);
-      toast.error('Failed to record account deletion reason. Please try again.');
     }
 
     const { error: profileUpdateError } = await supabase
@@ -90,7 +88,6 @@ export async function POST(request: NextRequest) {
 
     if (employeeUpdateError) {
       console.error('Error soft deleting employee record:', employeeUpdateError);
-      toast.error('Failed to fully delete account. Please contact support if you have issues.');
     }
 
     await supabase.auth.signOut();

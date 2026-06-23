@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { runFraudChecks } from '@/lib/fraud-engine';
 import { notifyEmployer, notifyAdmin } from '@/lib/notifications';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { advanceLimiter, checkRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -56,6 +57,14 @@ export async function POST(req: NextRequest) {
     }
     userId = user.id;
     console.info('[request-advance] Request started', { userId, url: req.url });
+
+    const rateLimit = await checkRateLimit(advanceLimiter, `advance:${user.id}`);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { message: 'Too many advance requests. Please wait before trying again.' },
+        { status: 429, headers: rateLimit.headers }
+      );
+    }
 
 
     const employeeRecord = await resolveEmployee(adminSupabase, user.id);

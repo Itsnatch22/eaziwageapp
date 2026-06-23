@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     .from('employer_onboarding')
     .select('id, company_name, status, user_id')
     .eq('id', employerId)
-    .in('status', ['approved', 'submitted', 'under_review', 'pending'])
+    .eq('status', 'approved')
     .maybeSingle();
 
   let employer = onboardingEmp;
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       .from('employers')
       .select('id, company_name, status, user_id')
       .eq('id', employerId)
-      .in('status', ['approved', 'pending'])
+      .eq('status', 'approved')
       .maybeSingle();
 
     if (syncedEmp) {
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
   if (!employer) {
     console.error('[Onboarding] Employer verification failed for ID:', employerId);
     return NextResponse.json(
-      { error: 'Selected employer is not registered on EaziWage.' },
+      { error: 'This employer is not yet approved on EaziWage. Please contact your employer or try again once they are fully onboarded.' },
       { status: 422 },
     );
   }

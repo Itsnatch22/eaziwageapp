@@ -33,6 +33,20 @@ export async function PATCH(
       return NextResponse.json({ error: 'Advance not found' }, { status: 404 });
     }
 
+    const VALID_TRANSITIONS: Record<string, string[]> = {
+      approve:  ['pending'],
+      reject:   ['pending', 'approved'],
+      disburse: ['approved'],
+    };
+
+    const allowed = VALID_TRANSITIONS[action] ?? [];
+    if (!allowed.includes(advance.status)) {
+      return NextResponse.json(
+        { error: `Cannot ${action} an advance with status '${advance.status}'` },
+        { status: 409 }
+      );
+    }
+
     let newStatus: string;
     if (action === 'approve') {
       newStatus = 'approved';
