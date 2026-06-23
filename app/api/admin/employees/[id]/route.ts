@@ -77,13 +77,15 @@ export async function GET(
     if (onboarding?.national_id) {
       try {
         const { PII_ENCRYPTION_KEY } = getEnv();
-        const { data: dec } = await adminSupabase.rpc('admin_get_employee_national_id', {
-          p_user_id: userId,
-          p_key: PII_ENCRYPTION_KEY,
-        });
-        decryptedNationalId = dec ?? null;
+        if (PII_ENCRYPTION_KEY) {
+          const { data: dec } = await adminSupabase.rpc('admin_get_employee_national_id', {
+            p_user_id: userId,
+            p_key: PII_ENCRYPTION_KEY,
+          });
+          decryptedNationalId = dec ?? null;
+        }
       } catch {
-        // decryption failure is non-fatal — admin sees null rather than encrypted bytes
+        // non-fatal — admin sees null rather than encrypted bytes
       }
     }
 

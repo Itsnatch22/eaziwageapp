@@ -83,11 +83,13 @@ export async function GET(
   if (employer.bank_account_number) {
     try {
       const { PII_ENCRYPTION_KEY } = getEnv();
-      const { data: dec } = await adminSupabase.rpc('admin_get_employer_bank_account', {
-        p_onboarding_id: id,
-        p_key: PII_ENCRYPTION_KEY,
-      });
-      decryptedBankAccount = dec ?? null;
+      if (PII_ENCRYPTION_KEY) {
+        const { data: dec } = await adminSupabase.rpc('admin_get_employer_bank_account', {
+          p_onboarding_id: id,
+          p_key: PII_ENCRYPTION_KEY,
+        });
+        decryptedBankAccount = dec ?? null;
+      }
     } catch {
       // non-fatal — admin sees null rather than encrypted bytes
     }
