@@ -9,6 +9,32 @@ import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 
+function AvatarWithFallback({ avatarUrl, fullName }: { avatarUrl: string | null; fullName: string }) {
+  const [imgError, setImgError] = useState(false);
+  const initials = fullName
+    ? fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : '?';
+
+  return (
+    <div className="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-3xl font-bold overflow-hidden">
+      {avatarUrl && !imgError ? (
+        <Image
+          src={avatarUrl}
+          alt={fullName}
+          width={96}
+          height={96}
+          className="w-full h-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">
+          {initials}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface EmploymentData {
   employment: {
     full_name: string;
@@ -117,25 +143,10 @@ const EmploymentDetails = () => {
               <Landmark className="w-48 h-48" />
            </div>
            <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-              <div className="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-3xl font-bold overflow-hidden">
-                 {employment.avatar_url ? (
-                    <Image
-                      src={employment.avatar_url}
-                      alt={employment.full_name}
-                      width={96}
-                      height={96}
-                      className="w-full h-full object-cover"
-                      onError={() => {
-
-                      }}
-                    />
-                  ) : null}
-                  {!employment.avatar_url ? (
-                    <div className="flex h-full w-full items-center justify-center">
-                      {employment.full_name?.charAt(0)}
-                    </div>
-                  ) : null}
-              </div>
+              <AvatarWithFallback
+                avatarUrl={employment.avatar_url}
+                fullName={employment.full_name}
+              />
               <div className="text-center md:text-left">
                  <h2 className="text-3xl font-bold tracking-tight">{employment.full_name}</h2>
                  <p className="text-white/70 font-medium mt-1 flex items-center justify-center md:justify-start gap-2">

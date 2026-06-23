@@ -50,12 +50,13 @@ export function AvatarUpload({
 
 
       const fileExt = file.name.split('.').pop();
-      const filePath = `${userId}.${fileExt}`;
+      // Must be stored under a folder named after userId to satisfy RLS foldername() policy
+      const filePath = `${userId}/avatar.${fileExt}`;
 
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { 
+        .upload(filePath, file, {
           upsert: true,
           contentType: file.type
         });

@@ -149,23 +149,22 @@ export async function POST(req: NextRequest) {
       };
     } else {
 
-      const { data: employerOnboarding, error: employerOnboardingError } = await supabase
-        .from('employer_onboarding')
-        .select('max_advance_percentage, min_advance_amount, cooldown_period, risk_score')
-        .eq('id', employee.employer_id)
+      const { data: employerSettings, error: employerSettingsError } = await supabase
+        .from('employers')
+        .select('advance_limit_percent, min_advance_amount, cooldown_days')
+        .eq('onboarding_id', employee.employer_id)
         .maybeSingle();
 
-      if (employerOnboardingError) {
-        return errorResponse(500, 'Employer onboarding lookup failed', { employerOnboardingError });
+      if (employerSettingsError) {
+        return errorResponse(500, 'Employer settings lookup failed', { employerSettingsError });
       }
 
-      if (employerOnboarding) {
+      if (employerSettings) {
         effectiveSettings = {
           ...effectiveSettings,
-          max_advance_percentage: employerOnboarding.max_advance_percentage ?? effectiveSettings.max_advance_percentage,
-          min_advance_amount: Number(employerOnboarding.min_advance_amount ?? effectiveSettings.min_advance_amount),
-          cooldown_period: Number(employerOnboarding.cooldown_period ?? effectiveSettings.cooldown_period),
-
+          max_advance_percentage: employerSettings.advance_limit_percent ?? effectiveSettings.max_advance_percentage,
+          min_advance_amount: Number(employerSettings.min_advance_amount ?? effectiveSettings.min_advance_amount),
+          cooldown_period: Number(employerSettings.cooldown_days ?? effectiveSettings.cooldown_period),
         };
       }
     }

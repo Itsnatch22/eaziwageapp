@@ -24,6 +24,14 @@ export async function POST() {
 
     const now = new Date().toISOString();
 
+    // Fetch all employee user_ids before marking them inactive
+    const { data: activeEmployees } = await adminSupabase
+      .from('employees')
+      .select('user_id')
+      .eq('employer_id', employer.id)
+      .is('deleted_at', null);
+
+    // Soft-delete employer_onboarding
     const { error: deleteEmployerError } = await adminSupabase
       .from('employer_onboarding')
       .update({ deleted_at: now })
@@ -31,22 +39,25 @@ export async function POST() {
 
     if (deleteEmployerError) throw deleteEmployerError;
 
-    const { error: deleteEmployeesError } = await adminSupabase
+    // Reject all pending employee KYC applications
+    await adminSupabase
       .from('employee_onboarding')
-      .update({ status: 'rejected' }) 
+      .update({ status: 'rejected' })
       .eq('employer_id', employer.onboarding_id);
-    
-    if (deleteEmployeesError) {
-      console.error('[Termination] Failed to update employee_onboarding:', deleteEmployeesError);
-    }
-    
-    const { error: deleteEmployeesTableError } = await adminSupabase
+
+    // Soft-delete all employees
+    await adminSupabase
       .from('employees')
       .update({ deleted_at: now, status: 'Inactive' })
       .eq('employer_id', employer.id);
 
-    if (deleteEmployeesTableError) {
-      console.error('[Termination] Failed to update employees table (may not exist):', deleteEmployeesTableError);
+    // Revoke Supabase sessions for every employee — they get logged out immediately
+    if (activeEmployees && activeEmployees.length > 0) {
+      await Promise.allSettled(
+        activeEmployees.map(({ user_id }) =>
+          adminSupabase.auth.admin.signOut(user_id, 'global'),
+        ),
+      );
     }
 
     await adminSupabase.from('system_audit_logs').insert({
@@ -55,11 +66,18 @@ export async function POST() {
       target_id: employer.id,
       target_type: 'employer',
       action: 'account_termination_initiated',
-      reason: 'User requested account deletion',
-      metadata: { initiated_at: now }
+      reason: 'Employer requested account deletion',
+      metadata: {
+        initiated_at: now,
+        employees_signed_out: activeEmployees?.length ?? 0,
+        company_name: employer.company_name,
+      },
     });
 
-    return NextResponse.json({ success: true, message: 'Account termination initiated' });
+    // Sign out the employer themselves last
+    await supabase.auth.signOut();
+
+    return NextResponse.json({ success: true, message: 'Account terminated. All employees have been logged out.' });
 
   } catch (error: unknown) {
     console.error('[Termination API Error]', error);

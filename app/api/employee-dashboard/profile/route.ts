@@ -134,7 +134,9 @@ export async function POST(req: NextRequest) {
             return Response.json({ error: 'File too large (max 2MB)' }, { status: 400 });
         }
 
-        const filePath = `${user.id}`;
+        const fileExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+        // Must be stored under a folder named after userId to satisfy RLS foldername() policy
+        const filePath = `${user.id}/avatar.${fileExt}`;
         const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file, { upsert: true, contentType: file.type });
