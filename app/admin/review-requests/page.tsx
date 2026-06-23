@@ -19,14 +19,38 @@ import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
 
 type IconType = React.ComponentType<{ className?: string }>;
 
-type RequestStatus = 'pending' | 'approved' | 'disbursed' | 'resolved' | 'rejected' | 'in_review';
+type RequestStatus = 'pending' | 'approved' | 'rejected' | 'resolved' | 'dismissed' | 'under_review' | 'in_progress';
 type RequestPriority = 'high' | 'medium' | 'low';
 type RequestType = 'risk_score' | 'kyc_review' | 'bank_change' | 'general';
 
-const requestStatuses = ['pending', 'approved', 'disbursed', 'resolved', 'rejected', 'in_review'] as const;
+const requestStatuses = ['pending', 'approved', 'rejected', 'resolved', 'dismissed', 'under_review', 'in_progress'] as const;
 
 const isRequestStatus = (status: unknown): status is RequestStatus =>
   typeof status === 'string' && requestStatuses.includes(status as RequestStatus);
+
+const STATUS_OPTIONS: Record<RequestType, { value: string; label: string }[]> = {
+  kyc_review: [
+    { value: 'pending', label: 'Pending' },
+    { value: 'under_review', label: 'Under Review' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+  ],
+  risk_score: [
+    { value: 'pending', label: 'Pending' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'resolved', label: 'Resolved' },
+    { value: 'dismissed', label: 'Dismissed' },
+  ],
+  bank_change: [
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+  ],
+  general: [
+    { value: 'pending', label: 'Pending' },
+    { value: 'resolved', label: 'Resolved' },
+  ],
+};
 
 interface RawData {
   // bank_change fields
@@ -123,12 +147,13 @@ interface StatusBadgeProps {
 
 const StatusBadge = ({ status }: StatusBadgeProps) => {
   const config: Record<RequestStatus, { bg: string; text: string; label: string }> = {
-    pending: { bg: 'bg-amber-100 dark:bg-amber-500/20', text: 'text-amber-700 dark:text-amber-300', label: 'Pending' },
-    approved: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Approved' },
-    disbursed: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Disbursed' },
-    resolved: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Resolved' },
-    rejected: { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300', label: 'Rejected' },
-    in_review: { bg: 'bg-blue-100 dark:bg-blue-500/20', text: 'text-blue-700 dark:text-blue-300', label: 'In Review' },
+    pending:      { bg: 'bg-amber-100 dark:bg-amber-500/20',   text: 'text-amber-700 dark:text-amber-300',   label: 'Pending' },
+    under_review: { bg: 'bg-blue-100 dark:bg-blue-500/20',     text: 'text-blue-700 dark:text-blue-300',     label: 'Under Review' },
+    in_progress:  { bg: 'bg-blue-100 dark:bg-blue-500/20',     text: 'text-blue-700 dark:text-blue-300',     label: 'In Progress' },
+    approved:     { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Approved' },
+    resolved:     { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-700 dark:text-emerald-300', label: 'Resolved' },
+    rejected:     { bg: 'bg-red-100 dark:bg-red-500/20',       text: 'text-red-700 dark:text-red-300',       label: 'Rejected' },
+    dismissed:    { bg: 'bg-slate-100 dark:bg-slate-500/20',   text: 'text-slate-600 dark:text-slate-300',   label: 'Dismissed' },
   };
   const { bg, text, label } = config[status];
   return <span className={cn("px-3 py-1 rounded-full text-xs font-semibold", bg, text)}>{label}</span>;
@@ -383,10 +408,9 @@ const ReviewDetailModal = ({ request, isOpen, onClose, onSubmitResponse }: Revie
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_review">In Review</SelectItem>
-                  <SelectItem value="approved">Approved/Resolved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
+                  {(STATUS_OPTIONS[request.type] ?? STATUS_OPTIONS.general).map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -543,7 +567,7 @@ export default function ReviewRequests() {
   const stats = {
     total: requests.length,
     pending: requests.filter(r => r.status === 'pending').length,
-    in_review: requests.filter(r => r.status === 'in_review').length,
+    in_review: requests.filter(r => r.status === 'under_review' || r.status === 'in_progress').length,
     resolved: requests.filter(r => r.status === 'resolved' || r.status === 'approved').length,
   };
 
@@ -572,7 +596,8 @@ export default function ReviewRequests() {
             <span className="text-sm font-medium text-slate-500">Status:</span>
             <FilterButton active={statusFilter === ''} onClick={() => setStatusFilter('')}>All</FilterButton>
             <FilterButton active={statusFilter === 'pending'} onClick={() => setStatusFilter('pending')} count={stats.pending}>Pending</FilterButton>
-            <FilterButton active={statusFilter === 'in_review'} onClick={() => setStatusFilter('in_review')}>In Review</FilterButton>
+            <FilterButton active={statusFilter === 'under_review'} onClick={() => setStatusFilter('under_review')}>Under Review</FilterButton>
+            <FilterButton active={statusFilter === 'in_progress'} onClick={() => setStatusFilter('in_progress')}>In Progress</FilterButton>
             
             <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2" />
             <span className="text-sm font-medium text-slate-500">Type:</span>
