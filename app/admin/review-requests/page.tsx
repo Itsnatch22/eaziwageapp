@@ -567,7 +567,7 @@ export default function ReviewRequests() {
   const stats = {
     total: requests.length,
     pending: requests.filter(r => r.status === 'pending').length,
-    in_review: requests.filter(r => r.status === 'under_review' || r.status === 'in_progress').length,
+    under_review: requests.filter(r => r.status === 'under_review' || r.status === 'in_progress').length,
     resolved: requests.filter(r => r.status === 'resolved' || r.status === 'approved').length,
   };
 
@@ -587,7 +587,7 @@ export default function ReviewRequests() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard icon={FileSearch} label="Total Requests" value={stats.total} variant="purple" />
           <MetricCard icon={Clock} label="Pending" value={stats.pending} variant="amber" />
-          <MetricCard icon={Eye} label="In Review" value={stats.in_review} variant="blue" />
+          <MetricCard icon={Eye} label="In Review" value={stats.under_review} variant="blue" />
           <MetricCard icon={CheckCircle2} label="Resolved" value={stats.resolved} variant="green" />
         </div>
 
