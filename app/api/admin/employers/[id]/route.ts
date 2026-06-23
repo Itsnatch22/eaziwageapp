@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { getEnv } from '@/env';
 
 type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
 
@@ -78,6 +79,20 @@ export async function GET(
     );
   }
 
+  let decryptedBankAccount: string | null = null;
+  if (employer.bank_account_number) {
+    try {
+      const { PII_ENCRYPTION_KEY } = getEnv();
+      const { data: dec } = await adminSupabase.rpc('admin_get_employer_bank_account', {
+        p_onboarding_id: id,
+        p_key: PII_ENCRYPTION_KEY,
+      });
+      decryptedBankAccount = dec ?? null;
+    } catch {
+      // non-fatal — admin sees null rather than encrypted bytes
+    }
+  }
+
   const { data: profileRow } = await adminSupabase
     .from('profiles')
     .select('company_code')
@@ -129,7 +144,7 @@ export async function GET(
       status: toAdminStatus(employer.status),
       risk_score: employer.risk_score ?? null,
       bank_name: employer.bank_name || null,
-      bank_account_number: employer.bank_account_number || null,
+      bank_account_number: decryptedBankAccount,
       created_at: employer.created_at,
       updated_at: employer.updated_at ?? employer.created_at,
       employee_count: employeeCount,

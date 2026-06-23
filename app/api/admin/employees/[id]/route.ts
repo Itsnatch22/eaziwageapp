@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { getEnv } from '@/env';
 
 interface EmployeeAdvanceRow {
   id: string;
@@ -72,6 +73,20 @@ export async function GET(
       .eq('user_id', userId)
       .maybeSingle();
 
+    let decryptedNationalId: string | null = null;
+    if (onboarding?.national_id) {
+      try {
+        const { PII_ENCRYPTION_KEY } = getEnv();
+        const { data: dec } = await adminSupabase.rpc('admin_get_employee_national_id', {
+          p_user_id: userId,
+          p_key: PII_ENCRYPTION_KEY,
+        });
+        decryptedNationalId = dec ?? null;
+      } catch {
+        // decryption failure is non-fatal — admin sees null rather than encrypted bytes
+      }
+    }
+
     const [advancesResult, kycDocumentsResult] = await Promise.all([
       adminSupabase
         .from('advances')
@@ -111,7 +126,7 @@ export async function GET(
       full_name: liveEmployee?.full_name || onboarding?.full_name || empProfile?.full_name || 'Anonymous',
       email: liveEmployee?.email || empProfile?.email || null,
       phone: liveEmployee?.phone || empProfile?.phone || null,
-      national_id: onboarding?.national_id || null,
+      national_id: decryptedNationalId,
       country: liveEmployee?.country || onboarding?.country || null,
       job_title: liveEmployee?.job_title || onboarding?.job_title || 'Not Set',
       department: liveEmployee?.department || onboarding?.department || 'Not Set',
