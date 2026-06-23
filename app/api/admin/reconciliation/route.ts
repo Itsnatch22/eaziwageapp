@@ -29,13 +29,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .select('id, company_name, status'),
       supabase
         .from('employers')
-        .select('id, company_name, status')
+        .select('id, onboarding_id')
     ]);
 
-    const allEmployers = [
-      ...(onboardingRes.data || []),
-      ...(liveRes.data || [])
-    ];
+    // Map: employers.id → employer_onboarding.id (for advances that reference the live employers table)
+    const liveToOnboardingId: Record<string, string> = {};
+    (liveRes.data || []).forEach(e => {
+      if (e.id && e.onboarding_id) liveToOnboardingId[e.id] = e.onboarding_id;
+    });
 
     const byEmployer: Record<string, {
       employer_id: string;
@@ -56,7 +57,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }>;
     }> = {};
 
-    allEmployers.forEach(emp => {
+    // Seed from employer_onboarding only — single source of truth per company
+    (onboardingRes.data || []).forEach(emp => {
       byEmployer[emp.id] = {
         employer_id: emp.id,
         employer_name: emp.company_name || 'Unknown Employer',
@@ -135,7 +137,9 @@ if (advError) throw advError;
     }
 
     advancesRows.forEach((advRow) => {
-      const employerId = (advRow.employer_id || '') as string;
+      const rawEmployerId = (advRow.employer_id || '') as string;
+      // Resolve live employers.id → employer_onboarding.id if needed
+      const employerId = liveToOnboardingId[rawEmployerId] ?? rawEmployerId;
       if (!byEmployer[employerId]) {
         byEmployer[employerId] = {
           employer_id: employerId,
