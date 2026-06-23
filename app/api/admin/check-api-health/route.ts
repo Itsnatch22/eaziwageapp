@@ -4,6 +4,10 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 type APIStatus = 'healthy' | 'degraded' | 'down';
 
 interface HealthCheckResult {
@@ -18,19 +22,24 @@ interface HealthCheckResult {
   metadata: Record<string, unknown>;
 }
 
+// ---------------------------------------------------------------------------
+// Supabase service-role client
+// ---------------------------------------------------------------------------
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-async function requireAdminOrCron(req: Request): Promise<{ error: string; status: 401 | 403 } | null> {
-  const authHeader = req.headers.get('authorization');
-  const bearerToken = authHeader?.replace('Bearer ', '').trim();
+// ---------------------------------------------------------------------------
+// Auth — admin session OR CRON_SECRET bearer
+// ---------------------------------------------------------------------------
 
-  if (bearerToken && bearerToken === process.env.CRON_SECRET) {
-    return null; 
-  }
+async function requireAdminOrCron(
+  req: Request
+): Promise<{ error: string; status: 401 | 403 } | null> {
+  const bearer = req.headers.get('authorization')?.replace('Bearer ', '').trim();
+  if (bearer && bearer === process.env.CRON_SECRET) return null;
 
   const routeSupabase = await createRouteHandlerClient();
   const { data: { user }, error: authError } = await routeSupabase.auth.getUser();
@@ -42,9 +51,17 @@ async function requireAdminOrCron(req: Request): Promise<{ error: string; status
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// HEAD
+// ---------------------------------------------------------------------------
+
 export async function HEAD() {
   return new NextResponse(null, { status: 200 });
 }
+
+// ---------------------------------------------------------------------------
+// GET — persisted health data (admin only)
+// ---------------------------------------------------------------------------
 
 export async function GET(req: Request) {
   const routeSupabase = await createRouteHandlerClient();
@@ -52,11 +69,14 @@ export async function GET(req: Request) {
   if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-  if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (adminAccess.error || !adminAccess.isAdmin)
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { data, error } = await supabase
     .from('api_health')
-    .select('name, provider, status, latency_ms, uptime_percent, transactions_today, syncs_today, last_check, updated_at')
+    .select(
+      'name, provider, status, latency_ms, uptime_percent, transactions_today, syncs_today, last_check, updated_at'
+    )
     .order('name', { ascending: true });
 
   if (error) {
@@ -69,7 +89,6 @@ export async function GET(req: Request) {
       row.status === 'healthy' || row.status === 'degraded' || row.status === 'down'
         ? row.status
         : 'down';
-
     return {
       name: row.name,
       provider: row.provider ?? 'Unknown',
@@ -86,8 +105,15 @@ export async function GET(req: Request) {
   const hasDegraded = integrations.some((i) => i.status === 'degraded');
   const overall_status: APIStatus = hasDown ? 'down' : hasDegraded ? 'degraded' : 'healthy';
 
-  return NextResponse.json({ overall_status, integrations, last_updated: new Date().toISOString() }, { status: 200 });
+  return NextResponse.json(
+    { overall_status, integrations, last_updated: new Date().toISOString() },
+    { status: 200 }
+  );
 }
+
+// ---------------------------------------------------------------------------
+// POST — run live checks, persist results, write incident_log
+// ---------------------------------------------------------------------------
 
 export async function POST(req: Request) {
   const authError = await requireAdminOrCron(req);
@@ -134,6 +160,7 @@ export async function POST(req: Request) {
 
   const allResults = [...results, systemResult];
 
+  // ── Upsert api_health ──
   const upsertPayload = allResults.map((r) => ({
     name: r.name,
     provider: r.provider,
@@ -151,39 +178,114 @@ export async function POST(req: Request) {
     .from('api_health')
     .upsert(upsertPayload, { onConflict: 'name' });
 
-  if (upsertError) {
-    console.error('[api_health] Upsert failed:', upsertError.message);
+  if (upsertError) console.error('[api_health] Upsert failed:', upsertError.message);
+
+  // ── Write daily incident_log row ──
+  // Worst status across all non-system services wins the day.
+  // If the day already has a row, only upgrade severity (healthy → degraded → down), never downgrade.
+  const serviceResults = results.filter(
+    (r) => r.name !== 'System Health' && r.name !== 'System Metrics'
+  );
+
+  const todayStatus: APIStatus =
+    serviceResults.some((r) => r.status === 'down')
+      ? 'down'
+      : serviceResults.some((r) => r.status === 'degraded')
+      ? 'degraded'
+      : 'healthy';
+
+  const affectedServices = serviceResults
+    .filter((r) => r.status !== 'healthy')
+    .map((r) => r.name);
+
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  // Build an auto note only when something is wrong
+  const note =
+    affectedServices.length > 0
+      ? `Automated check detected issues: ${affectedServices.join(', ')}.`
+      : null;
+
+  // Fetch existing row to enforce severity-only upgrade
+  const { data: existingRow } = await supabase
+    .from('incident_log')
+    .select('status')
+    .eq('date', today)
+    .maybeSingle();
+
+  const SEVERITY: Record<APIStatus, number> = { healthy: 0, degraded: 1, down: 2 };
+
+  const existingStatus = existingRow?.status as APIStatus | undefined;
+  const shouldUpdate =
+    !existingStatus || SEVERITY[todayStatus] > SEVERITY[existingStatus];
+
+  if (shouldUpdate) {
+    const { error: logError } = await supabase.from('incident_log').upsert(
+      {
+        date: today,
+        status: todayStatus,
+        affected_services: affectedServices,
+        ...(note ? { note } : {}),
+      },
+      { onConflict: 'date' }
+    );
+    if (logError) console.error('[incident_log] Upsert failed:', logError.message);
   }
+
+  // ── Prune rows older than 90 days ──
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 90);
+  await supabase
+    .from('incident_log')
+    .delete()
+    .lt('date', cutoff.toISOString().split('T')[0]);
 
   console.log(
     `[Health Check] Done in ${totalCheckTime}ms — Healthy: ${healthyCnt}, Degraded: ${degradedCnt}, Down: ${downCnt}`
   );
 
   return NextResponse.json(
-    { success: true, checked: allResults.length, duration_ms: totalCheckTime, summary: systemResult.metadata },
+    {
+      success: true,
+      checked: allResults.length,
+      duration_ms: totalCheckTime,
+      summary: systemResult.metadata,
+    },
     { status: 200 }
   );
 }
+
+// ---------------------------------------------------------------------------
+// Shared result builder
+// ---------------------------------------------------------------------------
 
 function buildResult(
   name: string,
   provider: string,
   status: APIStatus,
   latency_ms: number,
-  extras: Partial<Pick<HealthCheckResult, 'transactions_today' | 'syncs_today' | 'uptime_percent' | 'metadata'>> = {}
+  extras: Partial<
+    Pick<HealthCheckResult, 'transactions_today' | 'syncs_today' | 'uptime_percent' | 'metadata'>
+  > = {}
 ): HealthCheckResult {
   return {
     name,
     provider,
     status,
     latency_ms,
-    uptime_percent: extras.uptime_percent ?? (status === 'healthy' ? 99.9 : status === 'degraded' ? 98 : 0),
+    uptime_percent:
+      extras.uptime_percent ??
+      (status === 'healthy' ? 99.9 : status === 'degraded' ? 98 : 0),
     transactions_today: extras.transactions_today ?? 0,
     syncs_today: extras.syncs_today ?? 0,
     last_check: new Date().toISOString(),
     metadata: extras.metadata ?? {},
   };
 }
+
+// ---------------------------------------------------------------------------
+// Service checks
+// ---------------------------------------------------------------------------
 
 async function checkSupabaseSelf(): Promise<HealthCheckResult> {
   const start = Date.now();
@@ -201,28 +303,19 @@ async function checkAfricasTalking(): Promise<HealthCheckResult> {
     const res = await fetch('https://status.africastalking.com/api/v2/summary.json', {
       signal: AbortSignal.timeout(8000),
     });
-
     if (!res.ok) {
-      return buildResult('Africa\'s Talking', 'Africa\'s Talking', 'degraded', Date.now() - start, {
+      return buildResult("Africa's Talking", "Africa's Talking", 'degraded', Date.now() - start, {
         metadata: { http_status: res.status },
       });
     }
-
     const data = await res.json();
     const indicator: string = data.status?.indicator ?? 'none';
-
     const status: APIStatus =
-      indicator === 'none' ? 'healthy' :
-      indicator === 'minor' ? 'degraded' :
-      'down';
-
-    const components: Array<{ name: string; status: string }> =
-      (data.components ?? []).map((c: { name: string; status: string }) => ({
-        name: c.name,
-        status: c.status,
-      }));
-
-    return buildResult('Africa\'s Talking', 'Africa\'s Talking', status, Date.now() - start, {
+      indicator === 'none' ? 'healthy' : indicator === 'minor' ? 'degraded' : 'down';
+    const components: Array<{ name: string; status: string }> = (data.components ?? []).map(
+      (c: { name: string; status: string }) => ({ name: c.name, status: c.status })
+    );
+    return buildResult("Africa's Talking", "Africa's Talking", status, Date.now() - start, {
       metadata: {
         indicator,
         description: data.status?.description ?? '',
@@ -231,23 +324,20 @@ async function checkAfricasTalking(): Promise<HealthCheckResult> {
       },
     });
   } catch {
-    return buildResult('Africa\'s Talking', 'Africa\'s Talking', 'down', Date.now() - start);
+    return buildResult("Africa's Talking", "Africa's Talking", 'down', Date.now() - start);
   }
 }
 
 async function checkDusuPay(): Promise<HealthCheckResult> {
   const start = Date.now();
   const publicKey = process.env.DUSUPAY_PUBLIC_KEY;
-
   if (!publicKey) {
-    console.error('[DusuPay] DUSUPAY_PUBLIC_KEY is not set');
+    console.error('[DusuPay] DUSUPAY_PUBLIC_KEY not set');
     return buildResult('DusuPay', 'DusuPay', 'down', 0, {
-      metadata: { error: 'Missing DUSUPAY_PUBLIC_KEY env var' },
+      metadata: { error: 'Missing DUSUPAY_PUBLIC_KEY' },
     });
   }
-
   try {
-    // payment-providers requires only public-key — wallet-balances also needs secret-key
     const res = await fetch(
       'https://sandboxapi.dusupay.com/data/payment-providers?currency=UGX&transaction_type=COLLECTION',
       {
@@ -259,22 +349,14 @@ async function checkDusuPay(): Promise<HealthCheckResult> {
         signal: AbortSignal.timeout(8000),
       }
     );
-
     const data = await res.json();
-
     if (!res.ok || data.code !== 200) {
       return buildResult('DusuPay', 'DusuPay', 'degraded', Date.now() - start, {
         metadata: { http_status: res.status, api_code: data.code, message: data.message },
       });
     }
-
-    const providerCount = data.data?.length ?? 0;
-
     return buildResult('DusuPay', 'DusuPay', 'healthy', Date.now() - start, {
-      metadata: {
-        environment: 'sandbox', // TODO: update when production keys are available
-        active_providers: providerCount,
-      },
+      metadata: { environment: 'sandbox', active_providers: data.data?.length ?? 0 },
     });
   } catch {
     return buildResult('DusuPay', 'DusuPay', 'down', Date.now() - start);
