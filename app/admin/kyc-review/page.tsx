@@ -641,11 +641,14 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
       <div className="h-105 lg:h-140 bg-slate-200/70 dark:bg-slate-950">
         {previewKind === 'image' ? (
 
-          <img
-            src={doc.document_url}
-            alt={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}
-            className="h-full w-full object-contain"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={doc.document_url}
+              alt={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}
+              className="h-full w-full object-contain"
+            />
+          </>
         ) : (
           <iframe
             title={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { notifyEmployee } from '@/lib/notifications';
 import { activateUser, deactivateUser } from '@/lib/activation';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 interface EmployeeUpsertPayload {
   user_id: string;
@@ -24,15 +24,6 @@ interface EmployeeUpsertPayload {
 }
 
 type EmployeeActionStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
-
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
 
 async function isSystemAdmin(userId: string): Promise<boolean> {
   const adminSupabase = createAdminClient();
@@ -65,6 +56,9 @@ export async function PATCH(
   { params }: IdRouteContext
 ) {
   try {
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id } = await params;
     const { status, reason } = await req.json() as { status?: string; reason?: string };
     const supabase = await createRouteHandlerClient();

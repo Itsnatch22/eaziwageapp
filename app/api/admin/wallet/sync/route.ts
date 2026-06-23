@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { getStanbicAuthHeader, getStanbicBaseUrl } from '@/lib/stanbic/client';
 
 interface StanbicBalanceResponse {
@@ -25,21 +24,16 @@ function isStanbicResponse(payload: unknown): payload is StanbicBalanceResponse 
   );
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
-    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-    if (adminAccess.error || !adminAccess.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { data: wallet, error: walletError } = await supabaseAdmin
+    const { data: wallet, error: walletError } = await adminSupabase
       .from('admin_wallets')
       .select('id, name, balance, currency, last_reconciled_at, updated_at')
       .eq('name', 'Main Stanbic Source')
@@ -49,7 +43,7 @@ export async function GET(): Promise<NextResponse> {
 
     let transactions: Array<Record<string, unknown>> = [];
     if (wallet?.id) {
-      const { data: txs, error: txError } = await supabaseAdmin
+      const { data: txs, error: txError } = await adminSupabase
         .from('admin_wallet_transactions')
         .select('id, admin_wallet_id, amount, type, status, reference, description, metadata, created_at')
         .eq('admin_wallet_id', wallet.id)
@@ -66,19 +60,14 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-    if (adminAccess.error || !adminAccess.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
     const stanbicBase = getStanbicBaseUrl();
 
@@ -123,7 +112,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Stanbic returned invalid balance' }, { status: 502 });
     }
 
-    const { data: existingWallet, error: existingError } = await supabaseAdmin
+    const { data: existingWallet, error: existingError } = await adminSupabase
       .from('admin_wallets')
       .select('id, name, balance, currency')
       .eq('name', 'Main Stanbic Source')
@@ -149,7 +138,7 @@ export async function POST() {
 
     const nowIso = new Date().toISOString();
 
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await adminSupabase
       .from('admin_wallets')
       .update({ 
         balance: normalizedBalance, 
@@ -171,7 +160,7 @@ export async function POST() {
       metadata: { raw_response: parsed as Record<string, unknown>, account_number: (parsed as Record<string, unknown>).accountNumber ?? (parsed as Record<string, unknown>).account_number },
     } as Record<string, unknown>;
 
-    const { error: txInsertError } = await supabaseAdmin
+    const { error: txInsertError } = await adminSupabase
       .from('admin_wallet_transactions')
       .insert(txPayload);
 

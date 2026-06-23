@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { NextResponse } from 'next/server';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
@@ -42,26 +42,12 @@ interface ProfileRow {
   full_name: string | null;
 }
 
-export async function GET() {
-  const supabase = await createRouteHandlerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+export async function GET(req: NextRequest) {
+  const rateLimitResponse = await checkAdminRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const adminSupabase = await createRouteHandlerClient();
-  const adminResult = await checkAdminAccess({
-    user,
-    adminSupabase,
-  });
-
-  if (!adminResult.isAdmin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
 
   try {
     const { data: advances, error: advancesError } = await supabaseAdmin
@@ -102,57 +88,31 @@ export async function GET() {
         profilesByUserId = new Map<string, ProfileRow>(((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p]));
       }
 
-      const missingIds = employeeIds.filter((id) => !employeeById.has(id));
-      if (missingIds.length > 0) {
-        const { data: onboardings } = await supabaseAdmin
-          .from('employee_onboarding')
-          .select('id, user_id, employee_code')
-          .in('id', missingIds as string[]);
-
-        interface OnboardingRow { id: string; user_id?: string | null; employee_code?: string | null }
-        const onboardingUserIds = (onboardings ?? []).map((o: OnboardingRow) => o.user_id).filter((id): id is string => Boolean(id));
-        if (onboardingUserIds.length > 0) {
-          const { data: employeesByUser } = await supabaseAdmin
-            .from('employees')
-            .select('id, user_id, employee_code')
-            .in('user_id', onboardingUserIds as string[]);
-
-          const byUser = new Map<string, EmployeeRow>(((employeesByUser ?? []) as EmployeeRow[]).map((e) => [e.user_id as string, e]));
-
-          (onboardings ?? []).forEach((o: OnboardingRow) => {
-            const matched = o && o.user_id ? byUser.get(o.user_id) : undefined;
-            if (matched) {
-              employeeById.set(o.id, matched);
-              if (matched.user_id) profilesByUserId.set(matched.user_id, profilesByUserId.get(matched.user_id) || { id: matched.user_id, full_name: null });
-            }
-          });
-        }
-      }
     }
 
-if (employerIds.length > 0) {
-  const { data: employers } = await supabaseAdmin
-    .from('employers') 
-    .select('id, company_name')
-    .in('id', employerIds);
+    if (employerIds.length > 0) {
+      const { data: employers } = await supabaseAdmin
+        .from('employers')
+        .select('id, company_name')
+        .in('id', employerIds);
 
-  employerById = new Map<string, EmployerRow>(((employers ?? []) as EmployerRow[]).map((e) => [e.id, e]));
-}
+      employerById = new Map<string, EmployerRow>(((employers ?? []) as EmployerRow[]).map((e) => [e.id, e]));
+    }
 
-const payload = typedAdvances.map((a) => {
-  const employee = employeeById.get(a.employee_id);
-  const employer = employerById.get(a.employer_id);
-  const profile = employee?.user_id ? profilesByUserId.get(employee.user_id) : null;
-  const sourceCurrency = getCurrencyFromCountry(a.employees?.country, 'KES');
+    const payload = typedAdvances.map((a) => {
+      const employee = employeeById.get(a.employee_id);
+      const employer = employerById.get(a.employer_id);
+      const profile = employee?.user_id ? profilesByUserId.get(employee.user_id) : null;
+      const sourceCurrency = getCurrencyFromCountry(a.employees?.country, 'KES');
 
-  return {
-    ...a,
-    currency: sourceCurrency,
-    employee_name: profile?.full_name || employee?.employee_code || 'Employee',
-    employee_code: employee?.employee_code || null,
-    employer_name: employer?.company_name || 'Unknown',
-  };
-});
+      return {
+        ...a,
+        currency: sourceCurrency,
+        employee_name: profile?.full_name || employee?.employee_code || 'Employee',
+        employee_code: employee?.employee_code || null,
+        employer_name: employer?.company_name || 'Unknown',
+      };
+    });
 
     return NextResponse.json({ advances: payload });
   } catch (error: unknown) {

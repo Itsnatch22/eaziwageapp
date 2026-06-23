@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-    if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
     const { amount, reference, description } = await req.json();
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing amount' }, { status: 400 });
     }
 
-    const { data: wallet, error: walletError } = await supabaseAdmin
+    const { data: wallet, error: walletError } = await adminSupabase
       .from('admin_wallets')
       .select('id')
       .eq('name', 'Main Stanbic Source')
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       throw new Error('Main Stanbic Source wallet not found');
     }
 
-    const { error: txError } = await supabaseAdmin.rpc('admin_deposit', {
+    const { error: txError } = await adminSupabase.rpc('admin_deposit', {
       p_wallet_id: wallet.id,
       p_amount: amount,
       p_reference: reference || `STANBIC-${Date.now()}`,

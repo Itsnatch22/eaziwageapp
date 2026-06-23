@@ -1,25 +1,15 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { employeeOnboardingSchema } from '@/lib/validations/employee-validation';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
 import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
-import { getEnv } from '@/env';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-function createAdminClient() {
-  const env = getEnv();
-  return createSupabaseClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
-}
 
 function normalizeEmploymentType(value: unknown): 'full-time' | 'part-time' | 'contract' | null {
   if (typeof value !== 'string') return null;

@@ -1,17 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { getEnv } from '@/env';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
-
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
 
 export async function GET(req: NextRequest) {
   const adminSupabase = createAdminClient();

@@ -1,24 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { isAdminRole, UserRole } from '@/lib/validations/kyc-validation';
 import { notifyEmployee } from '@/lib/notifications';
-
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export async function PATCH(
   req: NextRequest,
   { params }: IdRouteContext
 ) {
   try {
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id } = await params;
     const { kyc_status, reason } = await req.json();
     const supabase = await createRouteHandlerClient();

@@ -1,31 +1,15 @@
-import { NextResponse } from 'next/server';
-import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
-async function verifyAdmin(supabase: SupabaseClient, adminSupabase: SupabaseClient): Promise<User | null> {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return null;
-  const access = await checkAdminAccess({ user, adminSupabase });
-  if (!access.isAdmin) return null;
-  return user;
-}
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
-    const user = await verifyAdmin(supabase, adminSupabase);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
     const { data: employers, error } = await adminSupabase
       .from('employers')

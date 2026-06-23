@@ -1,39 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { GlobalPlatformSettingsSchema } from '@/lib/validations/admin-settings';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
-
-async function verifyAdmin(supabase: SupabaseClient, adminSupabase: SupabaseClient): Promise<User | null> {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return null;
-
-  const access = await checkAdminAccess({ user, adminSupabase });
-  if (!access.isAdmin) return null;
-
-  return user;
-}
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
-    const user = await verifyAdmin(supabase, adminSupabase);
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
     const { data, error } = await adminSupabase
       .from('global_settings')
@@ -54,13 +31,12 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
-    const user = await verifyAdmin(supabase, adminSupabase);
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { user, adminSupabase } = auth;
 
     const body = await req.json();
     const validated = GlobalPlatformSettingsSchema.parse(body);
@@ -83,7 +59,7 @@ export async function PUT(req: NextRequest) {
 
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id,
-      admin_name: user.email, 
+      admin_name: user.email,
       target_id: 'platform',
       target_type: 'platform_settings',
       action: 'update_platform_settings',

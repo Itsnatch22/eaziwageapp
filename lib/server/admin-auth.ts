@@ -1,6 +1,31 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 import { getEnv } from '@/env';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { createAdminClient } from '@/lib/supabaseAdmin';
+
+export type AdminContext = {
+  user: User;
+  adminSupabase: SupabaseClient;
+};
+
+export async function requireAdmin(): Promise<AdminContext | NextResponse<{ error: string }>> {
+  const supabase = await createRouteHandlerClient();
+  const adminSupabase = createAdminClient();
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const access = await checkAdminAccess({ user, adminSupabase });
+  if (access.error || !access.isAdmin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  return { user, adminSupabase };
+}
 
 export interface AdminAccessResult {
   isAdmin: boolean;

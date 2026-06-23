@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -88,16 +87,12 @@ function parseMetadata(raw: unknown): FraudFlagMetadata | null {
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-    if (adminAccess.error || !adminAccess.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get('status');
@@ -108,7 +103,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const severityFilter: FraudSeverity | null =
       severityParam && isFraudSeverity(severityParam) ? severityParam : null;
 
-    let query = supabaseAdmin
+    let query = adminSupabase
       .from('fraud_flags')
       .select(`
         id,
@@ -154,12 +149,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { data: rows, error: queryError } = await query;
     if (queryError) throw queryError;
 
-    const { count: totalOpen } = await supabaseAdmin
+    const { count: totalOpen } = await adminSupabase
       .from('fraud_flags')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open');
 
-    const { count: totalCritical } = await supabaseAdmin
+    const { count: totalCritical } = await adminSupabase
       .from('fraud_flags')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open')

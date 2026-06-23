@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export async function GET(req: NextRequest) {
   try {
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+
     const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-    if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');

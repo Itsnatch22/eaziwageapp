@@ -106,6 +106,7 @@ function buildAdminEmailElement(
   message: string,
   metadata: NotificationMetadata = {}
 ): React.ReactElement {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = metadata as Record<string, any>;
   const adminDashboard = `${APP_URL}/admin`;
 
@@ -145,6 +146,7 @@ function buildAdminEmailElement(
         advanceAmount: m.advanceAmount ?? 0,
         currency: m.currency ?? 'KES',
         flagType: m.flagType ?? 'unknown',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         severity: (m.severity as any) ?? 'high',
         description: message,
         flags: m.flags as string[] | undefined,
@@ -199,6 +201,7 @@ function buildEmployerEmailElement(
   message: string,
   metadata: NotificationMetadata = {}
 ): React.ReactElement {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = metadata as Record<string, any>;
   const employerDashboard = `${APP_URL}/dashboards/employer-dashboard`;
   const companyName = m.companyName ?? 'Your Company';
@@ -266,6 +269,7 @@ function buildEmployerEmailElement(
         companyName,
         contactPerson: m.contactPerson,
         previousStatus: m.previousStatus,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         newStatus: (m.newStatus as any) ?? 'pending',
         reason: m.reason ?? message,
         effectiveAt: m.effectiveAt ?? new Date().toLocaleString(),
@@ -276,6 +280,7 @@ function buildEmployerEmailElement(
       return React.createElement(BankDetailsChangeOutcomeEmail, {
         companyName,
         contactPerson: m.contactPerson,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         outcome: (m.outcome as any) ?? 'approved',
         requestedBankName: m.requestedBankName ?? 'New Bank',
         requestedAccountNumber: m.requestedAccountNumber ?? '••••••••',
@@ -289,8 +294,10 @@ function buildEmployerEmailElement(
       return React.createElement(RiskReviewCompletedEmail, {
         companyName,
         contactPerson: m.contactPerson,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         outcome: (m.outcome as any) ?? 'unchanged',
         newScore: m.newScore ?? 3.5,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         newRating: (m.newRating as any) ?? 'B',
         newApplicationFee: m.newApplicationFee,
         reviewNotes: m.reviewNotes,
@@ -356,6 +363,7 @@ function buildEmployeeEmailElement(
   message: string,
   metadata: NotificationMetadata = {}
 ): React.ReactElement {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = metadata as Record<string, any>;
   const employeeDashboard = `${APP_URL}/dashboards/employee-dashboard`;
 
@@ -386,6 +394,7 @@ function buildEmployeeEmailElement(
     case 'kyc_update':
       return React.createElement(KYCUpdateEmail, {
         employeeName: m.employeeName ?? 'Employee',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         status: (m.status as any) ?? 'approved',
         updatedAt: m.updatedAt ?? new Date().toLocaleString(),
         reason: m.reason,
@@ -442,6 +451,7 @@ async function sendPushNotifications(
     subs.map((sub) =>
       webpush
         .sendNotification(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           sub.subscription_payload as any,
           JSON.stringify({ title, body, data: metadata })
         )
@@ -467,12 +477,6 @@ export async function notifyAdmin(params: {
         created_at: new Date().toISOString(),
       });
 
-    const emailElement = buildAdminEmailElement(
-      params.type,
-      params.title,
-      params.message,
-      params.metadata ?? {}
-    );
 const { data: globalSettings } = await supabaseAdmin
   .from('global_settings')
   .select('notification_settings')
@@ -633,17 +637,17 @@ export async function notifyEmployee(params: {
 export async function triggerNotification(params: {
   target: 'admin' | 'employer' | 'employee';
   userId?: string;
-  type: any;
+  type: AdminNotificationType | EmployerNotificationType | EmployeeNotificationType;
   title: string;
   message: string;
   metadata?: NotificationMetadata;
 }) {
   if (params.target === 'admin') {
-    return notifyAdmin({ type: params.type, title: params.title, message: params.message, metadata: params.metadata });
+    return notifyAdmin({ type: params.type as AdminNotificationType, title: params.title, message: params.message, metadata: params.metadata });
   } else if (params.target === 'employer' && params.userId) {
-    return notifyEmployer({ userId: params.userId, type: params.type, title: params.title, message: params.message, metadata: params.metadata });
+    return notifyEmployer({ userId: params.userId, type: params.type as EmployerNotificationType, title: params.title, message: params.message, metadata: params.metadata });
   } else if (params.target === 'employee' && params.userId) {
-    return notifyEmployee({ userId: params.userId, type: params.type, title: params.title, message: params.message, metadata: params.metadata });
+    return notifyEmployee({ userId: params.userId, type: params.type as EmployeeNotificationType, title: params.title, message: params.message, metadata: params.metadata });
   }
   throw new Error('Invalid notification target');
 }

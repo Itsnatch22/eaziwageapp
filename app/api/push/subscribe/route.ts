@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { getEnv } from '@/env';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -15,15 +15,14 @@ export async function POST(req: NextRequest) {
     if (!subscription) return NextResponse.json({ error: 'Missing subscription' }, { status: 400 });
 
 
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const env = getEnv();
-      const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+    const adminSupabase = createAdminClient();
+    const { error: upsertErr } = await adminSupabase
+      .from('system_push_subscriptions')
+      .upsert({ user_id: user.id, subscription_payload: subscription, active: true }, { onConflict: 'user_id,endpoint' });
 
-      await admin.from('system_push_subscriptions').upsert({ user_id: user.id, subscription_payload: subscription, active: true }, { onConflict: 'user_id,endpoint' });
-    } catch (persistErr) {
-      console.error('[push][subscribe] persist error:', { userId: user?.id, err: persistErr });
-
+    if (upsertErr) {
+      console.error('[push][subscribe] persist error:', { userId: user.id, err: upsertErr });
+      return NextResponse.json({ error: 'Failed to save push subscription' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { getEnv } from '@/env';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 const QueryParamsSchema = z.object({
   employer_id: z.string().uuid().optional(),
@@ -20,15 +17,6 @@ function normalizeEmployeeStatus(status: string | null | undefined) {
     : status?.toLowerCase() || 'pending';
 }
 
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -41,36 +29,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-        { status: 401, headers: rateResult.headers }
-      );
-    }
-
-    const adminAccess = await checkAdminAccess({ user, adminSupabase });
-    if (adminAccess.error) {
-      console.error('[GET /api/admin/employees] Role check error:', adminAccess.error);
-      return NextResponse.json(
-        { error: 'Failed to verify admin role.', code: 'ROLE_CHECK_FAILED' },
-        { status: 500, headers: rateResult.headers }
-      );
-    }
-
-    if (!adminAccess.isAdmin) {
-      return NextResponse.json(
-        { error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' },
-        { status: 403, headers: rateResult.headers }
-      );
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
     const { searchParams } = new URL(req.url);
     const queryParams = QueryParamsSchema.safeParse({

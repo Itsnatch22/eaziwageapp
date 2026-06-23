@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
 import { z } from 'zod';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
-
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
-}
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 const ProviderSchema = z.object({
   country_code: z.string().min(2).max(2),
@@ -19,13 +12,13 @@ const ProviderSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
-export async function GET() {
-  const supabase = await createRouteHandlerClient();
-  const adminSupabase = createAdminClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const access = await checkAdminAccess({ user, adminSupabase });
-  if (!access.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+export async function GET(req: NextRequest) {
+  const rateLimitResponse = await checkAdminRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+  const { adminSupabase } = auth;
 
   const { data, error } = await adminSupabase.from('payout_providers').select('*').order('country_code');
   if (error) {
@@ -36,12 +29,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createRouteHandlerClient();
-  const adminSupabase = createAdminClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const access = await checkAdminAccess({ user, adminSupabase });
-  if (!access.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const rateLimitResponse = await checkAdminRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+  const { adminSupabase } = auth;
 
   const body = await req.json().catch(() => ({}));
   const parsed = ProviderSchema.safeParse(body);
@@ -57,12 +50,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const supabase = await createRouteHandlerClient();
-  const adminSupabase = createAdminClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const access = await checkAdminAccess({ user, adminSupabase });
-  if (!access.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const rateLimitResponse = await checkAdminRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+  const { adminSupabase } = auth;
 
   const body = await req.json().catch(() => ({}));
   const id = body.id;
@@ -77,12 +70,12 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const supabase = await createRouteHandlerClient();
-  const adminSupabase = createAdminClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const access = await checkAdminAccess({ user, adminSupabase });
-  if (!access.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const rateLimitResponse = await checkAdminRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+  const { adminSupabase } = auth;
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');

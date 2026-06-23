@@ -438,6 +438,7 @@ export default function EmployerDashboard() {
 
 
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load({ silent: true });
   }, [load]);
 

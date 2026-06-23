@@ -1,39 +1,15 @@
-import { NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
-function createAdminClient() {
-  const env = getEnv();
-  return createSupabaseClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
+export async function GET(req: NextRequest) {
+  const rateLimitResponse = await checkAdminRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
 
-async function verifyAdmin() {
-  const supabase = await createRouteHandlerClient();
-  const adminSupabase = createAdminClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return { error: 'Unauthorized', status: 401 };
-
-  const adminAccess = await checkAdminAccess({ user, adminSupabase });
-  if (adminAccess.error) {
-    return { error: 'Failed to verify admin role.', status: 500 };
-  }
-  if (!adminAccess.isAdmin) {
-    return { error: 'Forbidden. Admin access required.', status: 403 };
-  }
-
-  return { user, adminSupabase };
-}
-
-export async function GET() {
-  const auth = await verifyAdmin();
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
   const { adminSupabase } = auth;
 
   const { data: riskRequests, error: riskError } = await adminSupabase

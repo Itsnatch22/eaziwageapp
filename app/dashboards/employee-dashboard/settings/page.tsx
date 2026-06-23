@@ -161,7 +161,7 @@ export default function EmployeeSettings() {
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [mfaStatus, setMfaStatus] = useState({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
   const [verificationCode, setVerificationCode] = useState('');
-  const { subscribe, unsubscribe, status } = usePushNotifications();
+  const { subscribe, unsubscribe } = usePushNotifications();
 
 
   const [mfaFactors, setMfaFactors] = useState<MFAFactor[]>([]);

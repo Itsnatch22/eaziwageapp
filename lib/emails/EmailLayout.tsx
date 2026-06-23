@@ -3,7 +3,6 @@ import {
   Container,
   Head,
   Html,
-  Img,
   Preview,
   Section,
   Text,

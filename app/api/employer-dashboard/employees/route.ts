@@ -109,16 +109,14 @@ export async function GET(req: NextRequest) {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const allEmployees = (rawEmployees ?? []).map((e) => {
-
-    const record = e as any;
-    const lookupId = record.user_id?.toLowerCase() || '';
+    const lookupId = e.user_id?.toLowerCase() ?? '';
     const full_name: string =
       profilesMap[lookupId]?.full_name ??
-      record.full_name ??
-      record.full_name_placeholder ??
-      ('Employee ' + (record.employee_code || ''));
+      e.full_name ??
+      e.full_name_placeholder ??
+      ('Employee ' + (e.employee_code ?? ''));
 
-    const startDate = record.start_date ? new Date(record.start_date) : null;
+    const startDate = e.start_date ? new Date(e.start_date) : null;
     const tenure_months = startDate
       ? Math.max(
           0,
@@ -126,27 +124,28 @@ export async function GET(req: NextRequest) {
         )
       : 0;
 
-    const ewa = Array.isArray(record.ewa_settings) ? record.ewa_settings[0] : record.ewa_settings;
+    const ewaRaw = e.ewa_settings;
+    const ewa = Array.isArray(ewaRaw) ? ewaRaw[0] : ewaRaw;
 
     return {
-      id: record.id,
-      user_id: record.user_id,
-      employee_code: record.employee_code,
+      id: e.id ?? '',
+      user_id: e.user_id ?? '',
+      employee_code: e.employee_code ?? '',
       full_name,
-      email: record.email ?? record.email_placeholder ?? null,
-      national_id: record.national_id,
-      job_title: record.job_title,
-      department: record.department,
-      employment_type: record.employment_type,
-      start_date: record.start_date,
-      monthly_salary: Number(record.monthly_salary ?? 0),
-      country: record.country,
-      city: record.city,
-      kyc_status: record.status,
-      status: record.status === 'approved' ? 'approved' : record.status === 'rejected' ? 'rejected' : 'pending',
+      email: e.email ?? e.email_placeholder ?? null,
+      national_id: e.national_id ?? '',
+      job_title: e.job_title ?? '',
+      department: e.department ?? '',
+      employment_type: e.employment_type ?? '',
+      start_date: e.start_date ?? null,
+      monthly_salary: Number(e.monthly_salary ?? 0),
+      country: e.country ?? '',
+      city: e.city ?? '',
+      kyc_status: e.status ?? '',
+      status: e.status === 'approved' ? 'approved' : e.status === 'rejected' ? 'rejected' : 'pending',
       tenure_months,
-      submitted_at: record.submitted_at,
-      created_at: record.created_at,
+      submitted_at: e.submitted_at ?? '',
+      created_at: e.created_at ?? '',
       ewa_settings: ewa
         ? {
             ewa_enabled: ewa.ewa_enabled,

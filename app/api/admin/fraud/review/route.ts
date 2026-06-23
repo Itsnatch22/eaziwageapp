@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -42,16 +41,12 @@ function isReviewAction(body: unknown): body is ReviewAction {
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-    if (adminAccess.error || !adminAccess.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { user, adminSupabase } = auth;
 
     const body: unknown = await req.json().catch(() => null);
     if (!isReviewAction(body)) {
@@ -67,7 +62,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-     const { data: existingFlag, error: flagFetchError } = await supabaseAdmin
+     const { data: existingFlag, error: flagFetchError } = await adminSupabase
       .from('fraud_flags')
       .select('id, status, advance_id')
       .eq('id', flagId)
@@ -94,7 +89,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (action === 'clear') {
     
-      const { error: flagUpdateError } = await supabaseAdmin
+      const { error: flagUpdateError } = await adminSupabase
         .from('fraud_flags')
         .update({
           status: 'cleared' satisfies FraudFlagStatus,
@@ -107,7 +102,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       if (flagUpdateError) throw flagUpdateError;
 
-      const { error: advanceUpdateError } = await supabaseAdmin
+      const { error: advanceUpdateError } = await adminSupabase
         .from('advances')
         .update({
           status: 'pending' satisfies AdvanceStatus,
@@ -130,7 +125,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     if (action === 'confirm_fraud') {
-      const { error: flagUpdateError } = await supabaseAdmin
+      const { error: flagUpdateError } = await adminSupabase
         .from('fraud_flags')
         .update({
           status: 'confirmed_fraud' satisfies FraudFlagStatus,
@@ -143,7 +138,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       if (flagUpdateError) throw flagUpdateError;
 
-      const { error: advanceUpdateError } = await supabaseAdmin
+      const { error: advanceUpdateError } = await adminSupabase
         .from('advances')
         .update({
           status: 'rejected' satisfies AdvanceStatus,

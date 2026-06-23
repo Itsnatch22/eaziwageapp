@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 export async function PATCH(
   req: NextRequest,
@@ -20,32 +17,9 @@ export async function PATCH(
     );
   }
 
-  const supabase = await createRouteHandlerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401, headers: rateResult.headers }
-    );
-  }
-
-  const env = getEnv();
-  const adminSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const adminAccess = await checkAdminAccess({ user, adminSupabase });
-  if (adminAccess.error) {
-    return NextResponse.json({ error: 'Failed to verify role.' }, { status: 500 });
-  }
-
-  if (!adminAccess.isAdmin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+  const { adminSupabase } = auth;
 
   const body = await req.json();
   const { bank_name, bank_account_number, reason } = body as {

@@ -92,7 +92,6 @@ export interface EmployeeKYCSubmittedEmailProps {
 }
 
 export function EmployeeKYCSubmittedEmail({
-  companyName = 'Acme Corp Ltd',
   employeeName = 'John Kamau',
   employeeCode,
   documentTypes = ['National ID'],
@@ -187,7 +186,7 @@ export function EmployeeKYCApprovedEmail({
       </InfoBox>
 
       <Text style={styles.text}>
-        You can adjust this employee's EWA settings — including their individual advance
+        You can adjust this employee&apos;s EWA settings — including their individual advance
         cap and cooldown period — from your employee management dashboard.
       </Text>
 
@@ -229,7 +228,7 @@ export function EmployeeKYCRejectedEmail({
       <Heading style={styles.heading}>Employee KYC was not approved</Heading>
 
       <Text style={styles.text}>
-        Unfortunately, <strong>{employeeName}</strong>'s KYC application for{' '}
+        Unfortunately, <strong>{employeeName}</strong>&apos;s KYC application for{' '}
         <strong>{companyName}</strong> did not meet our verification requirements and has
         been rejected. Their advance access remains disabled.
       </Text>
@@ -307,7 +306,7 @@ export function RiskProfileUpdatedEmail({
       <Heading style={styles.heading}>Your risk profile has been updated</Heading>
 
       <Text style={styles.text}>
-        EaziWage's compliance team has completed a review of <strong>{companyName}</strong>'s
+        EaziWage&apos;s compliance team has completed a review of <strong>{companyName}</strong>&apos;s
         risk profile. Your updated score and rating are shown below.
       </Text>
 
@@ -467,7 +466,7 @@ export function EmployerStatusChangeEmail({
         <InfoBox variant="warn" title="Need Help?">
           <Text style={{ ...styles.mutedText, margin: 0 }}>
             If you believe this decision was made in error or you need clarification, please
-            contact our support team. We're here to help resolve any outstanding concerns.
+            contact our support team. We&apos;re here to help resolve any outstanding concerns.
           </Text>
         </InfoBox>
       )}
@@ -813,7 +812,7 @@ export function AdvanceRequestReceivedEmail({
 
       <InfoBox variant="warn" title="Action Required">
         <Text style={{ ...styles.mutedText, margin: 0 }}>
-          This request is awaiting your approval. Log in to review the employee's
+          This request is awaiting your approval. Log in to review the employee&apos;s
           eligibility and approve or deny the advance. Requests not actioned within
           48 hours may expire.
         </Text>
@@ -863,8 +862,8 @@ export function WalletFundedEmail({
 
       <Text style={styles.text}>
         {contactPerson ? `Hi ${contactPerson}, ` : ''}Funds have been successfully
-        received and credited to <strong>{companyName}</strong>'s EaziWage wallet.
-        Your employees' advance requests can now be processed immediately.
+        received and credited to <strong>{companyName}</strong>&apos;s EaziWage wallet.
+        Your employees&apos; advance requests can now be processed immediately.
       </Text>
 
       

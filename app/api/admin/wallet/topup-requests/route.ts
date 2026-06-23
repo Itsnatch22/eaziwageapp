@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -52,16 +51,16 @@ interface TopUpRequestsResponse {
   adminWallet: AdminWallet;
 }
 
-export async function GET(): Promise<NextResponse<TopUpRequestsResponse | { error: string }>> {
+export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsResponse | { error: string }>> {
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-    if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
-    const { data: rows, error } = await supabaseAdmin
+    const { data: rows, error } = await adminSupabase
       .from('wallet_transactions')
       .select(`
         id,
@@ -150,7 +149,7 @@ export async function GET(): Promise<NextResponse<TopUpRequestsResponse | { erro
       wallet_currency: row.employer_wallets?.[0]?.currency ?? 'KES',
     }));
 
-    const { data: adminWalletRow, error: walletError } = await supabaseAdmin
+    const { data: adminWalletRow, error: walletError } = await adminSupabase
       .from('admin_wallets')
       .select('id, name, balance, currency, last_reconciled_at')
       .eq('name', 'Main Stanbic Source')

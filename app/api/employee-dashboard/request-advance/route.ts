@@ -1,11 +1,11 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { calculateFeePercentage } from '@/lib/utils';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runFraudChecks } from '@/lib/fraud-engine';
 import { notifyEmployer, notifyAdmin } from '@/lib/notifications';
-import { getEnv } from '@/env';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -16,15 +16,6 @@ const requestSchema = z.object({
 });
 
 const toMoney = (value: number) => Math.round(value * 100) / 100;
-
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
 
 
 async function resolveEmployeeId(adminSupabase: SupabaseClient, userId: string): Promise<string | null> {

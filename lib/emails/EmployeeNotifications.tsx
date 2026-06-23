@@ -1,7 +1,6 @@
 import {
   Button,
   Heading,
-  Hr,
   Section,
   Text,
 } from '@react-email/components';

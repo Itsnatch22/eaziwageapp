@@ -175,7 +175,11 @@ rowResults.push({
      });
   }
 
-  await supabase.from('payroll_upload_rows').delete().eq('upload_id', uploadId);
+  const { error: deleteErr } = await supabase.from('payroll_upload_rows').delete().eq('upload_id', uploadId);
+  if (deleteErr) {
+    console.error('[payroll/upload] delete rows:', deleteErr.message);
+    return NextResponse.json({ error: 'Failed to reset upload rows' }, { status: 500 });
+  }
 
   if (rowResults.length > 0) {
     const { error: rowsErr } = await supabase
@@ -184,6 +188,7 @@ rowResults.push({
 
     if (rowsErr) {
       console.error('[payroll/upload] insert rows:', rowsErr.message);
+      return NextResponse.json({ error: 'Failed to save payroll rows' }, { status: 500 });
     }
   }
 

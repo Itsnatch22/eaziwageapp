@@ -1,10 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { requireAdmin } from '@/lib/server/admin-auth';
 import { convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
 
 
@@ -122,50 +119,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const supabase = await createRouteHandlerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401, headers: rateResult.headers }
-    );
-  }
-
-  const env = getEnv();
-  const adminSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  
-  const adminAccess = await checkAdminAccess({ user, adminSupabase });
-  if (adminAccess.error) {
-    return NextResponse.json(
-      { error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' },
-      { status: 500, headers: rateResult.headers }
-    );
-  }
-
-  console.log('[DEBUG /api/admin/employers] user.id:', user.id, '| roleCandidates:', adminAccess.roleCandidates);
-  if (!adminAccess.isAdmin) {
-    console.warn('[/api/admin/employers] FORBIDDEN â€” roleCandidates did not pass isAdminRole. Values:', adminAccess.roleCandidates);
-    return NextResponse.json(
-      {
-        error: 'Forbidden. Admin access required.',
-        code: 'FORBIDDEN',
-        ...(process.env.NODE_ENV === 'development' && {
-          debug: {
-            found_roles: adminAccess.roleCandidates,
-            allowed_roles: ['admin', 'super_admin', 'compliance', 'employer_admin'],
-            hint: 'Update the profiles.role column in Supabase for this user to one of the allowed_roles values.',
-          },
-        }),
-      },
-      { status: 403, headers: rateResult.headers }
-    );
-  }
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+  const { adminSupabase } = auth;
 
   
   const searchParams = req.nextUrl.searchParams;

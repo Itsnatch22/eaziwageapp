@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import {
   DocumentTypeEnum,
@@ -11,19 +9,11 @@ import {
 import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
 import { getSafeFileExtension, isDocumentFile, isImageFile } from '@/lib/upload-file-types';
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
 const BUCKET = 'employee-kyc-documents';
-
-function createAdminClient() {
-  const env = getEnv();
-  return createSupabaseClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
 
 export async function GET(req: NextRequest) {
   try {

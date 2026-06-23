@@ -89,16 +89,23 @@ export async function PATCH(
   
   if (action === 'approve') {
 
+    // target.employees.user_id is already fetched in the advance select above
+    const employeeEntry = target.employees;
+    const employeeUserId = Array.isArray(employeeEntry)
+      ? employeeEntry[0]?.user_id
+      : (employeeEntry as { user_id?: string | null } | null)?.user_id;
+
     const { data: empRow } = await supabase
       .from('employee_onboarding')
       .select('monthly_salary')
-      .eq('id', target.employee_id)
+      .eq('user_id', employeeUserId)
       .maybeSingle();
 
+    // employee_ewa_settings.employee_id → employees.id (target.employee_id is advances.employee_id → employees.id)
     const { data: employeeEwa } = await supabase
       .from('employee_ewa_settings')
       .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount')
-      .eq('employee_onboarding_id', target.employee_id)
+      .eq('employee_id', target.employee_id)
       .maybeSingle();
 
     let effective = {

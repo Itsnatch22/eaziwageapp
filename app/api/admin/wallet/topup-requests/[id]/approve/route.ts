@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -11,14 +10,14 @@ export async function PATCH(
 ) {
   const { id } = await context.params;
   try {
-    const supabase = await createRouteHandlerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const rateLimitResponse = await checkAdminRateLimit(_request);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-    if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { user, adminSupabase } = auth;
 
-    const { data: tx, error: txError } = await supabaseAdmin
+    const { data: tx, error: txError } = await adminSupabase
       .from('wallet_transactions')
       .select('id, wallet_id, amount, type, status, reference, description, metadata')
       .eq('id', id)
@@ -32,17 +31,13 @@ export async function PATCH(
     }
 
     let employerId: string | undefined = undefined;
-    try {
-      if (tx.metadata && typeof tx.metadata === 'object' && 'employer_id' in tx.metadata) {
-        const rawEmployerId = (tx.metadata as Record<string, unknown>).employer_id;
-        if (typeof rawEmployerId === 'string') employerId = rawEmployerId;
-      }
-    } catch {
-
+    if (tx.metadata && typeof tx.metadata === 'object' && 'employer_id' in tx.metadata) {
+      const rawEmployerId = (tx.metadata as Record<string, unknown>).employer_id;
+      if (typeof rawEmployerId === 'string') employerId = rawEmployerId;
     }
 
     if (!employerId) {
-      const { data: walletRow, error: walletErr } = await supabaseAdmin
+      const { data: walletRow, error: walletErr } = await adminSupabase
         .from('employer_wallets')
         .select('employer_id')
         .eq('id', tx.wallet_id)
@@ -53,14 +48,14 @@ export async function PATCH(
 
     if (!employerId) return NextResponse.json({ error: 'Unable to resolve employer for this top-up request' }, { status: 500 });
 
-    const { data: adminWallet, error: adminWalletErr } = await supabaseAdmin
+    const { data: adminWallet, error: adminWalletErr } = await adminSupabase
       .from('admin_wallets')
       .select('id, balance')
       .eq('name', 'Main Stanbic Source')
       .maybeSingle();
     if (adminWalletErr || !adminWallet) throw adminWalletErr || new Error('Admin wallet not found');
 
-     const { error: rpcError } = await supabaseAdmin.rpc('fund_employer_from_admin', {
+     const { error: rpcError } = await adminSupabase.rpc('fund_employer_from_admin', {
       p_employer_id: employerId,
       p_admin_wallet_id: adminWallet.id,
       p_amount: tx.amount,
@@ -74,7 +69,7 @@ export async function PATCH(
     }
 
     const updatedMetadata = Object.assign({}, tx.metadata ?? {}, { approved_by: user.id, approved_at: new Date().toISOString() });
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await adminSupabase
       .from('wallet_transactions')
       .update({ status: 'completed', metadata: updatedMetadata })
       .eq('id', id);

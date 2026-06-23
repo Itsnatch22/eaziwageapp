@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { payoutService } from '@/lib/services/payout-service';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
@@ -23,6 +24,9 @@ async function isSystemAdmin(userId: string): Promise<boolean> {
 
 export async function POST(req: NextRequest) {
   try {
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(
       req.headers.get('Authorization')?.split(' ')[1] || ''
     );

@@ -257,7 +257,7 @@ export default function EmployerReports() {
   }, []);
 
   useEffect(() => {
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchReports(selectedPeriod, selectedMonth, { silent: true });
   }, [selectedPeriod, selectedMonth, fetchReports]);
 

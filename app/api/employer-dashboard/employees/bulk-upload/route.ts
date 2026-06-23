@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { z } from 'zod';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 const BulkEmployeeSchema = z.object({
   employees: z.array(z.object({
@@ -15,15 +14,6 @@ const BulkEmployeeSchema = z.object({
     phone: z.string().optional(),
   }))
 });
-
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
 
 export async function POST(req: NextRequest) {
   try {

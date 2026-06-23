@@ -29,7 +29,6 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from '@/lib/supabase/client';
 import { toast } from "sonner";
-import type { RealtimeChannel } from "@supabase/realtime-js";
 import { ChatWindow } from "../layout/ChatWindow";
 import { NotificationDropdown } from "../layout/NotificationDropdown";
 import { logout } from "@/actions/auth";
@@ -423,8 +422,6 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
     if (!userProfile?.id) return;
 
     const supabase = createClient();
-
-    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
     const channel = supabase
       .channel('realtime:global-settings')

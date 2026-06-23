@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-
-import { getEnv } from '@/env';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { DocumentStatusEnum } from '@/lib/validations/kyc-validation';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 const EMPLOYEE_KYC_BUCKET = 'employee-kyc-documents';
 
@@ -44,15 +42,9 @@ type EmployeeKycDocumentRow = {
   updated_at: string;
 };
 
-function createAdminClient() {
-  const env = getEnv();
-  return createSupabaseClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 async function findLatestEmployerDocumentUrl(
-  adminSupabase: ReturnType<typeof createAdminClient>,
+  adminSupabase: SupabaseClient,
   userId: string,
   documentType: (typeof EMPLOYER_DOCUMENT_FIELDS)[number]
 ) {
@@ -83,7 +75,7 @@ async function findLatestEmployerDocumentUrl(
 }
 
 async function hydrateEmployerDocumentUrls(
-  adminSupabase: ReturnType<typeof createAdminClient>,
+  adminSupabase: SupabaseClient,
   employerApps: Record<string, unknown>[]
 ) {
   return Promise.all(
@@ -146,7 +138,7 @@ function recoverEmployeeStoragePath(doc: EmployeeKycDocumentRow) {
 }
 
 async function getFreshEmployeeDocumentUrl(
-  adminSupabase: ReturnType<typeof createAdminClient>,
+  adminSupabase: SupabaseClient,
   doc: EmployeeKycDocumentRow
 ) {
   const storagePath = recoverEmployeeStoragePath(doc);
@@ -169,26 +161,12 @@ async function getFreshEmployeeDocumentUrl(
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-    }
-
-    const adminAccess = await checkAdminAccess({ user, adminSupabase });
-    if (adminAccess.error) {
-      return NextResponse.json({ error: 'Failed to verify role', code: 'ROLE_CHECK_FAILED' }, { status: 500 });
-    }
-
-    if (!adminAccess.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden. Admin access required.', code: 'FORBIDDEN' }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get('status');

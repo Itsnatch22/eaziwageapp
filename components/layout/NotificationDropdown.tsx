@@ -32,7 +32,6 @@ interface NotificationDropdownProps {
 export const NotificationDropdown = ({ 
   role,
   apiPath,
-  pusherChannel,
   viewAllHref,
   primaryColor,
   userId
@@ -47,12 +46,10 @@ export const NotificationDropdown = ({
   }, []);
 
 
-  const { notifications, loading, unreadCount, markAsRead, deleteNotification, refresh } = useNotifications({ userId, apiPath, onToast: (n: Notification) => {
+  const { notifications, loading, unreadCount, markAsRead, deleteNotification } = useNotifications({ userId, apiPath, onToast: (n: Notification) => {
     toast(n.title, { description: n.message, icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} /> });
   } });
 
-
-  const fetchNotifications = refresh;
 
 
   useEffect(() => {

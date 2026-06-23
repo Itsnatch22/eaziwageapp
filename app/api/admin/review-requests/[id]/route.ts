@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { UserRoleEnum, isAdminRole } from '@/lib/validations/kyc-validation';
 import { notifyEmployer, notifyEmployee } from '@/lib/notifications';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 interface ReviewRequestPayload {
   status: string;
@@ -14,13 +14,6 @@ interface ReviewRequestPayload {
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-function createAdminClient() {
-  const env = getEnv();
-  return createSupabaseClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 async function verifyAdmin() {
   const supabase = await createRouteHandlerClient();
@@ -53,6 +46,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: IdRouteContext
 ) {
+  const rateLimitResponse = await checkAdminRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
+
   const { id: requestId } = await params;
   const auth = await verifyAdmin();
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });

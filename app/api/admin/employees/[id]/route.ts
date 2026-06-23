@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
-
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 interface EmployeeAdvanceRow {
   id: string;
@@ -41,20 +30,13 @@ export async function GET(
   { params }: IdRouteContext
 ) {
   try {
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id } = await params;
-    const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const adminAccess = await checkAdminAccess({ user, adminSupabase });
-    if (adminAccess.error) {
-      return NextResponse.json({ error: 'Failed to verify role.', code: 'ROLE_CHECK_FAILED' }, { status: 500 });
-    }
-    if (!adminAccess.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { adminSupabase } = auth;
 
     const { data: liveEmployee } = await adminSupabase
       .from('employees')

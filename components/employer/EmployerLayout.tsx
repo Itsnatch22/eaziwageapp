@@ -16,7 +16,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { RealtimeChannel } from '@supabase/realtime-js';
 import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
@@ -143,7 +142,7 @@ const SidebarNav = ({ isOpen, onClose }: SidebarNavProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -322,7 +321,7 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -452,8 +451,6 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
     if (!user?.id) return;
 
     const supabase = createClient();
-
-    type SupabaseWithChannel = { channel: (name: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
 
     const channel = supabase
       .channel(`realtime:employer-settings:employer-${user.id}`)

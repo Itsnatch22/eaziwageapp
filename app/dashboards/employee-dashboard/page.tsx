@@ -192,7 +192,7 @@ export default function EmployeeDashboardPage() {
   }, []);
 
   useEffect(() => {
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchStats({ silent: true });
   }, [fetchStats]);
 

@@ -43,6 +43,7 @@ export default function NotificationsPage() {
 
     useEffect(() => {
 
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchNotifications({ silent: true });
 
         if (!user?.id) return;

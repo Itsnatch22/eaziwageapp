@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { checkAdminAccess, requireAdmin } from '@/lib/server/admin-auth';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 // ---------------------------------------------------------------------------
@@ -63,14 +63,9 @@ export async function HEAD() {
 // GET — persisted health data (admin only)
 // ---------------------------------------------------------------------------
 
-export async function GET(req: Request) {
-  const routeSupabase = await createRouteHandlerClient();
-  const { data: { user }, error: authError } = await routeSupabase.auth.getUser();
-  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-  if (adminAccess.error || !adminAccess.isAdmin)
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+export async function GET() {
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
 
   const { data, error } = await supabase
     .from('api_health')

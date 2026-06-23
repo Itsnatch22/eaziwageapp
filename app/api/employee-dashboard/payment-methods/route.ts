@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 import {
   createPaymentMethod,
   listPaymentMethods,
@@ -10,15 +10,6 @@ import {
   setDefaultPaymentMethod,
 } from '@/lib/paymentMethodsService';
 import { sendOtpSms } from '@/lib/sendOtp';
-
-function createAdminClient() {
-  const env = getEnv();
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
 
 async function resolveEmployeeId(adminSupabase: SupabaseClient, userId: string) {
   const { data, error } = await adminSupabase

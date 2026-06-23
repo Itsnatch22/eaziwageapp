@@ -1,6 +1,7 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse, NextRequest } from 'next/server';
-import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
+import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -8,26 +9,14 @@ export async function PATCH(
   request: NextRequest,
   context: AppRouteContext<{ id: string; action: string }>
 ) {
+  const rateLimitResponse = await checkAdminRateLimit(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
   const { id, action } = await context.params;
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+
   const supabase = await createRouteHandlerClient();
-  
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const adminResult = await checkAdminAccess({
-    user,
-    adminSupabase: supabase,
-  });
-
-  if (!adminResult.isAdmin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
 
   if (!['approve', 'disburse', 'reject'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
