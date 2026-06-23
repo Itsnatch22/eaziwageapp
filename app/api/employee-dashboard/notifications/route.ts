@@ -36,36 +36,31 @@ export async function GET() {
   }
 }
 
-export async function PUT(req: NextRequest) {
+async function markRead(req: NextRequest) {
     try {
         const supabase = await createRouteHandlerClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-        
+
         if (authError) {
-          console.error('[notifications PUT] Auth error:', authError);
+          console.error('[notifications] Auth error:', authError);
           return NextResponse.json({ error: "Authentication error" }, { status: 401 });
         }
-        
+
         if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        
-        let body: { id?: string };
-        try {
-            body = await req.json();
-        } catch {
-            return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-        }
 
-        const { id } = body;
+        const body = await req.json().catch(() => ({}));
+        // Hook sends { notification_ids: [...] }, legacy callers send { id: string }
+        const ids: string[] = body.notification_ids ?? (body.id ? [body.id] : []);
 
-        if (id) {
+        if (ids.length > 0) {
             const { error: updateError } = await supabase
                 .from('notifications')
                 .update({ read: true })
-                .eq('id', id)
+                .in('id', ids)
                 .eq('user_id', user.id);
-            
+
             if (updateError) {
-                console.error('[notifications PUT] Update error:', updateError);
+                console.error('[notifications] Update error:', updateError);
                 return NextResponse.json({ error: "Failed to update notification", details: updateError.message }, { status: 500 });
             }
         } else {
@@ -74,20 +69,23 @@ export async function PUT(req: NextRequest) {
                 .update({ read: true })
                 .eq('user_id', user.id)
                 .eq('read', false);
-            
+
             if (updateError) {
-                console.error('[notifications PUT] Bulk update error:', updateError);
+                console.error('[notifications] Bulk update error:', updateError);
                 return NextResponse.json({ error: "Failed to mark all as read", details: updateError.message }, { status: 500 });
             }
         }
-        
+
         return NextResponse.json({ success: true });
     } catch(err: unknown) {
-        console.error('[notifications PUT] Unexpected error:', err);
+        console.error('[notifications] Unexpected error:', err);
         const message = err instanceof Error ? err.message : "Internal server error";
         return NextResponse.json({ error: "Error updating notifications", details: message }, { status: 500 });
     }
 }
+
+export const PUT = markRead;
+export const POST = markRead;
 
 export async function DELETE(req: NextRequest) {
     try {

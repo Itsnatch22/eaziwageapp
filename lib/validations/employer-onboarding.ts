@@ -44,6 +44,7 @@ export const onboardingSubmitSchema = z.object({
   monthly_payroll_amount: z.number().min(0).optional(),
   bank_name: z.string().optional(),
   bank_account_number: z.string().optional(),
+  mobile_money_provider: z.string().optional(),
 
   contact_person: nonEmptyString('Contact person'),
   contact_email: z.string().email('Invalid email address'),

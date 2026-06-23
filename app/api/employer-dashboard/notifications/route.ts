@@ -47,27 +47,29 @@ export async function GET() {
   }
 }
 
-export async function PUT(req: NextRequest) {
+async function markRead(req: NextRequest) {
     try {
         const supabase = await createRouteHandlerClient();
-    
+
         const {
           data: { user },
           error: authError,
         } = await supabase.auth.getUser();
-    
+
         if (authError || !user) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-        
-        const { id } = await req.json();
 
-        if (id) {
-            await supabase.from('notifications').update({ read: true }).eq('id', id).eq('user_id', user.id);
+        const body = await req.json().catch(() => ({}));
+        // Hook sends { notification_ids: [...] }, legacy callers send { id: string }
+        const ids: string[] = body.notification_ids ?? (body.id ? [body.id] : []);
+
+        if (ids.length > 0) {
+            await supabase.from('notifications').update({ read: true }).in('id', ids).eq('user_id', user.id);
         } else {
             await supabase.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
         }
-        
+
         return NextResponse.json({ success: true });
     } catch (error: unknown) {
         console.error('Notifications update error:', error);
@@ -75,6 +77,9 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
+
+export const PUT = markRead;
+export const POST = markRead;
 
 export async function DELETE(req: NextRequest) {
     try {

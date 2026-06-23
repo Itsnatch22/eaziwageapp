@@ -336,11 +336,12 @@ export async function POST(req: NextRequest) {
         .eq('id', employee.employer_id);
 
       if (employerAdmins && employerAdmins.length > 0) {
+        const requesterName = (user.user_metadata?.full_name as string | undefined) || user.email || 'An employee';
         await notifyEmployer({
           userId: employerAdmins[0].user_id,
           type: 'advance',
           title: 'New Advance Request',
-          message: `An employee has requested an advance of ${requestedAmount}. Please review it in your dashboard.`,
+          message: `${requesterName} has requested an advance of ${requestedAmount}. Please review it in your dashboard.`,
           metadata: { advance_id: inserted.id, amount: requestedAmount },
         });
       }

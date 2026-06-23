@@ -566,28 +566,38 @@ export default function RequestAdvance() {
                 <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">
                   Disbursement Method
                 </p>
-                <div>
-                  <p className="text-base font-bold text-white tracking-tight">
-                    {disbursementMethod === "mobile_money"
-                      ? employee?.mobile_money_provider || "Mobile Money"
-                      : employee?.bank_name || "Bank Transfer"}
-                  </p>
-                  <p className="text-xs font-semibold text-emerald-400 mt-0.5">
-                    {disbursementMethod === "mobile_money"
-                      ? employee?.mobile_money_number || "••••••••"
-                      : employee?.bank_account
-                        ? `•••• ${employee.bank_account.slice(-4)}`
-                        : "••••••••"}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowMethodSelector(!showMethodSelector)}
-                  className="w-full bg-white/10 border-white/15 text-white/80 hover:bg-white/15 hover:text-white rounded-xl text-xs font-semibold"
-                >
-                  Change <ChevronDown className="ml-1.5 w-3.5 h-3.5" />
-                </Button>
+                {(() => {
+                  const pm = paymentMethods.find(m => m.id === selectedPaymentMethodId);
+                  const isMM = pm ? pm.method_type !== 'bank_account' : disbursementMethod === 'mobile_money';
+                  const providerLabel = pm
+                    ? pm.provider_name || (isMM ? 'Mobile Money' : 'Bank Transfer')
+                    : null;
+                  const accountLabel = pm
+                    ? isMM
+                      ? pm.phone_number || '••••••••'
+                      : pm.account_number ? `•••• ${pm.account_number.slice(-4)}` : '••••••••'
+                    : null;
+                  return (
+                    <>
+                      <div>
+                        <p className="text-base font-bold text-white tracking-tight">
+                          {providerLabel ?? 'Choose your channel'}
+                        </p>
+                        <p className={`text-xs font-semibold mt-0.5 ${pm ? 'text-emerald-400' : 'text-white/40'}`}>
+                          {accountLabel ?? 'Select a payment method below'}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowMethodSelector(!showMethodSelector)}
+                        className="w-full bg-white/10 border-white/15 text-white/80 hover:bg-white/15 hover:text-white rounded-xl text-xs font-semibold"
+                      >
+                        {pm ? 'Change' : 'Select'} <ChevronDown className="ml-1.5 w-3.5 h-3.5" />
+                      </Button>
+                    </>
+                  );
+                })()}
               </div>
 
               

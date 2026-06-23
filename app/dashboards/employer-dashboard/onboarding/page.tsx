@@ -46,6 +46,50 @@ const INDUSTRIES = [
   { code: "other", name: "Other" },
 ];
 
+const EAST_AFRICA_BANKS = [
+  "Absa Bank",
+  "Access Bank",
+  "Bank of Africa",
+  "Bank of Baroda",
+  "Bank of Kigali",
+  "Cairo International Bank",
+  "Centenary Bank",
+  "Co-operative Bank",
+  "Cogebanque",
+  "CRDB Bank",
+  "DFCU Bank",
+  "DTB Bank",
+  "Ecobank",
+  "Equity Bank",
+  "Family Bank",
+  "GT Bank",
+  "HF Group",
+  "Housing Finance Bank",
+  "I&M Bank",
+  "KCB Bank",
+  "Letshego Bank",
+  "NCBA Bank",
+  "NMB Bank",
+  "Post Bank",
+  "Prime Bank",
+  "Stanbic Bank",
+  "Standard Chartered Bank",
+  "Stima Sacco",
+  "United Bank for Africa (UBA)",
+  "Other",
+];
+
+const EAST_AFRICA_MOBILE_MONEY = [
+  "M-PESA",
+  "Airtel Money",
+  "MTN Mobile Money",
+  "Tigo Pesa",
+  "Halotel Pesa",
+  "T-Kash",
+  "Equitel",
+  "Other",
+];
+
 const REVENUE_RANGES = [
   { value: "under_1m", label: "Under $1 Million" },
   { value: "1m_5m", label: "$1M - $5M" },
@@ -369,6 +413,7 @@ export default function EmployerOnboarding() {
     monthly_payroll_amount: "",
     bank_name: "",
     bank_account_number: "",
+    mobile_money_provider: "",
     contact_person: userFullName,
     contact_email: userEmail,
     contact_phone: "",
@@ -443,6 +488,7 @@ export default function EmployerOnboarding() {
               monthly_payroll_amount: profile.monthly_payroll_amount?.toString() || "",
               bank_name: profile.bank_name || "",
               bank_account_number: profile.bank_account_number || "",
+              mobile_money_provider: profile.mobile_money_provider || "",
               contact_person: profile.contact_person || userFullName,
               contact_email: profile.contact_email || userEmail,
               contact_phone: profile.contact_phone || "",
@@ -1009,12 +1055,34 @@ const handleFileUpload = async (file: File, documentType: string) => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
                   <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Bank Name</Label>
-                  <Input placeholder="e.g. KCB Bank" value={formData.bank_name} onChange={(e) => updateField("bank_name", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-bank" />
+                  <Select value={formData.bank_name} onValueChange={(v) => updateField("bank_name", v)}>
+                    <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-bank">
+                      <SelectValue placeholder="Select bank..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EAST_AFRICA_BANKS.map((b) => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Account Number</Label>
                   <Input placeholder="1234567890" value={formData.bank_account_number} onChange={(e) => updateField("bank_account_number", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-account" />
                 </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Mobile Money Provider <span className="text-slate-400 font-normal">(optional)</span></Label>
+                <Select value={formData.mobile_money_provider} onValueChange={(v) => updateField("mobile_money_provider", v)}>
+                  <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50">
+                    <SelectValue placeholder="Select provider..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EAST_AFRICA_MOBILE_MONEY.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Financial Documents</h4>

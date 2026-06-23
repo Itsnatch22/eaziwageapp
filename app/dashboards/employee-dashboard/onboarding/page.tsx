@@ -638,6 +638,7 @@ export default function Onboarding() {
           });
 
           if (status === "rejected" && profile) {
+            setCurrentStep(2);
             setFormData((prev) => ({
               ...prev,
               employer_id: profile.employer_id || "",
@@ -736,9 +737,9 @@ export default function Onboarding() {
     const fetchEmployers = async () => {
       setEmployersLoading(true);
       try {
-        const res = await fetch("/api/employee-dashboard/employers");
+        const res = await fetch("/api/employers/public/approved");
         const data = await res.json();
-        setEmployers(data.employers || []);
+        setEmployers(Array.isArray(data) ? data : (data.employers || []));
       } catch (err) {
         console.error("Failed to fetch employers:", err);
       } finally {

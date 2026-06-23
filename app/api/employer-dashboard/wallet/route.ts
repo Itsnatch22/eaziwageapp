@@ -119,7 +119,7 @@ export async function POST(req: Request) {
 
     const { data: employer, error: employerError } = await adminSupabase
       .from('employers')
-      .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
+      .select('id, status, company_name, onboarding_id, employer_onboarding!onboarding_id(company_name, country, currency, deleted_at)')
       .eq('user_id', user.id)
       .eq('status', 'approved')
       .maybeSingle();
@@ -204,7 +204,7 @@ export async function POST(req: Request) {
       await notifyAdmin({
         type: 'review_request',
         title: 'Employer Wallet Top-up Request',
-        message: `Employer ${employer.id} requested a top-up of ${amount}. Review in admin dashboard.`,
+        message: `${onboarding?.company_name || employer.company_name || 'An employer'} requested a wallet top-up of ${amount}. Review in admin dashboard.`,
         metadata: { wallet_transaction_id: inserted.id, employer_id: employer.id, amount }
       });
     } catch (notifyErr) {
