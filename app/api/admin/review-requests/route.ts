@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
   const { data: kycDocs, error: kycError } = await adminSupabase
     .from('employee_kyc_documents')
     .select('*')
-    .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
   if (kycError) console.error('Error fetching KYC docs:', kycError);
