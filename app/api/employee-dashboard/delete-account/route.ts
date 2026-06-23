@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 import { toast } from 'sonner';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+    const adminSupabase = createAdminClient();
+
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
                'unknown';
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    const { error: deletionEventError } = await supabase
+    const { error: deletionEventError } = await adminSupabase
       .from('account_deletion_events')
       .insert({
         user_id: user.id,

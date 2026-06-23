@@ -18,14 +18,14 @@ const requestSchema = z.object({
 const toMoney = (value: number) => Math.round(value * 100) / 100;
 
 
-async function resolveEmployeeId(adminSupabase: SupabaseClient, userId: string): Promise<string | null> {
+async function resolveEmployee(adminSupabase: SupabaseClient, userId: string): Promise<{ id: string; organization_id: string | null } | null> {
   const { data, error } = await adminSupabase
     .from('employees')
-    .select('id')
+    .select('id, organization_id')
     .eq('user_id', userId)
     .maybeSingle();
   if (error || !data) return null;
-  return data.id;
+  return data;
 }
 
 export async function POST(req: NextRequest) {
@@ -58,20 +58,12 @@ export async function POST(req: NextRequest) {
     console.info('[request-advance] Request started', { userId, url: req.url });
 
 
-    employeeId = await resolveEmployeeId(adminSupabase, user.id);
-    if (!employeeId) {
-      return errorResponse(404, 'Employee record not found.', { note: 'resolveEmployeeId returned null' });
+    const employeeRecord = await resolveEmployee(adminSupabase, user.id);
+    if (!employeeRecord) {
+      return errorResponse(404, 'Employee record not found.', { note: 'resolveEmployee returned null' });
     }
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .select('organization_id')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      return errorResponse(500, 'Profile lookup failed', { profileError });
-    }
+    employeeId = employeeRecord.id;
+    const organizationId = employeeRecord.organization_id;
 
     const raw = await req.json().catch(() => null);
     const parsed = requestSchema.safeParse(raw);
@@ -287,8 +279,13 @@ export async function POST(req: NextRequest) {
       return errorResponse(422, 'Selected payment method type does not match chosen disbursement method');
     }
 
+    if (!organizationId) {
+      return errorResponse(500, 'Employee is not associated with an organization', { employeeId });
+    }
+
     const payload = {
       employee_id: employeeId,
+      organization_id: organizationId,
       amount: requestedAmount,
       fee_percentage: feePercentage,
       fee_amount: feeAmount,

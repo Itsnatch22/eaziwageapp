@@ -53,6 +53,7 @@ type EmployeeSettingsProfile = {
   monthly_salary?: number | string;
   postal_code?: string;
   country?: string;
+  currency?: string;
 };
 
 type Profile = {
@@ -664,7 +665,7 @@ export default function EmployeeSettings() {
                       <Label>Monthly Salary</Label>
                       <div className="relative">
                         <Input value={employee?.monthly_salary ? Number(employee.monthly_salary).toLocaleString() : '---'} readOnly className="bg-slate-50 dark:bg-slate-800/50 pl-12" />
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{profile?.currency || 'KES'}</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{profile?.employee?.currency || 'KES'}</span>
                       </div>
                     </div>
                   </div>

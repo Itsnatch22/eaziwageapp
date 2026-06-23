@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { createHash } from 'crypto';
 import { z } from 'zod';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
@@ -83,11 +84,12 @@ export async function POST(req: NextRequest) {
       if (pm.is_verified) return NextResponse.json({ success: true, message: 'Already verified' });
 
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpHash = createHash('sha256').update(otp).digest('hex');
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
       const { error: insertError } = await adminSupabase
         .from('payment_method_verifications')
-        .insert([{ payment_method_id: id, otp, expires_at: expiresAt }]);
+        .insert([{ payment_method_id: id, otp_hash: otpHash, expires_at: expiresAt }]);
 
       if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
 
@@ -133,7 +135,8 @@ export async function POST(req: NextRequest) {
       if (!verification) return NextResponse.json({ error: 'No verification request found' }, { status: 404 });
       if (new Date(verification.expires_at) < new Date()) return NextResponse.json({ error: 'OTP expired' }, { status: 410 });
 
-      if (verification.otp !== otp) {
+      const submittedHash = createHash('sha256').update(otp).digest('hex');
+      if (verification.otp_hash !== submittedHash) {
         await adminSupabase.from('payment_method_verifications').update({ attempts: (verification.attempts || 0) + 1 }).eq('id', verification.id);
         return NextResponse.json({ error: 'Invalid OTP' }, { status: 400 });
       }
