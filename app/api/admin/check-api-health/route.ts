@@ -1,12 +1,8 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { createClient } from '@supabase/supabase-js';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 type APIStatus = 'healthy' | 'degraded' | 'down';
 
@@ -22,52 +18,45 @@ interface HealthCheckResult {
   metadata: Record<string, unknown>;
 }
 
-interface APIHealthRow extends HealthCheckResult {
-  updated_at?: string | null;
-}
-
-// ---------------------------------------------------------------------------
-// Supabase service-role client (admin ops only — never exposed to client)
-// ---------------------------------------------------------------------------
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ---------------------------------------------------------------------------
-// Auth guard — shared across all methods
-// ---------------------------------------------------------------------------
+async function requireAdminOrCron(req: Request): Promise<{ error: string; status: 401 | 403 } | null> {
+  const authHeader = req.headers.get('authorization');
+  const bearerToken = authHeader?.replace('Bearer ', '').trim();
 
-async function requireAdmin() {
+  if (bearerToken && bearerToken === process.env.CRON_SECRET) {
+    return null; 
+  }
+
   const routeSupabase = await createRouteHandlerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await routeSupabase.auth.getUser();
-
-  if (authError || !user) return { error: 'Unauthorized', status: 401 as const };
+  const { data: { user }, error: authError } = await routeSupabase.auth.getUser();
+  if (authError || !user) return { error: 'Unauthorized', status: 401 };
 
   const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
-  if (adminAccess.error || !adminAccess.isAdmin)
-    return { error: 'Forbidden', status: 403 as const };
+  if (adminAccess.error || !adminAccess.isAdmin) return { error: 'Forbidden', status: 403 };
 
-  return { error: null, status: null };
+  return null;
 }
 
 export async function HEAD() {
   return new NextResponse(null, { status: 200 });
 }
 
-export async function GET() {
-  const auth = await requireAdmin();
-  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+export async function GET(req: Request) {
+  const routeSupabase = await createRouteHandlerClient();
+  const { data: { user }, error: authError } = await routeSupabase.auth.getUser();
+  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const adminAccess = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
+  if (adminAccess.error || !adminAccess.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { data, error } = await supabase
     .from('api_health')
-    .select(
-      'name, provider, status, latency_ms, uptime_percent, transactions_today, syncs_today, last_check, updated_at'
-    )
+    .select('name, provider, status, latency_ms, uptime_percent, transactions_today, syncs_today, last_check, updated_at')
     .order('name', { ascending: true });
 
   if (error) {
@@ -75,7 +64,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch API health.' }, { status: 500 });
   }
 
-  const integrations = (data as APIHealthRow[] | null ?? []).map((row) => {
+  const integrations = (data ?? []).map((row) => {
     const status: APIStatus =
       row.status === 'healthy' || row.status === 'degraded' || row.status === 'down'
         ? row.status
@@ -86,9 +75,7 @@ export async function GET() {
       provider: row.provider ?? 'Unknown',
       status,
       latency_ms: row.latency_ms ?? 0,
-      uptime_percent:
-        row.uptime_percent ??
-        (status === 'healthy' ? 99.9 : status === 'degraded' ? 98 : 0),
+      uptime_percent: row.uptime_percent ?? (status === 'healthy' ? 99.9 : status === 'degraded' ? 98 : 0),
       transactions_today: row.transactions_today ?? 0,
       syncs_today: row.syncs_today ?? 0,
       last_check: row.last_check ?? row.updated_at ?? new Date().toISOString(),
@@ -99,30 +86,22 @@ export async function GET() {
   const hasDegraded = integrations.some((i) => i.status === 'degraded');
   const overall_status: APIStatus = hasDown ? 'down' : hasDegraded ? 'degraded' : 'healthy';
 
-  return NextResponse.json(
-    {
-      overall_status,
-      integrations,
-      last_updated: new Date().toISOString(),
-    },
-    { status: 200 }
-  );
+  return NextResponse.json({ overall_status, integrations, last_updated: new Date().toISOString() }, { status: 200 });
 }
 
-export async function POST() {
-  const auth = await requireAdmin();
-  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+export async function POST(req: Request) {
+  const authError = await requireAdminOrCron(req);
+  if (authError) return NextResponse.json({ error: authError.error }, { status: authError.status });
 
   const startTime = Date.now();
 
   const checks = await Promise.allSettled([
     checkSupabaseSelf(),
-    checkTwilio(),
-    checkVercel(),
-    checkCellulant(),
-    checkSafaricom(),
+    checkAfricasTalking(),
+    checkDusuPay(),
     checkRedis(),
     checkResend(),
+    checkVercel(),
     getSystemMetrics(),
   ]);
 
@@ -155,7 +134,6 @@ export async function POST() {
 
   const allResults = [...results, systemResult];
 
-  // Sanitize to exact column set before upsert — no unknown keys
   const upsertPayload = allResults.map((r) => ({
     name: r.name,
     provider: r.provider,
@@ -175,7 +153,6 @@ export async function POST() {
 
   if (upsertError) {
     console.error('[api_health] Upsert failed:', upsertError.message);
-    return NextResponse.json({ error: 'Failed to update API health.' }, { status: 500 });
   }
 
   console.log(
@@ -183,12 +160,7 @@ export async function POST() {
   );
 
   return NextResponse.json(
-    {
-      success: true,
-      checked: allResults.length,
-      duration_ms: totalCheckTime,
-      summary: systemResult.metadata,
-    },
+    { success: true, checked: allResults.length, duration_ms: totalCheckTime, summary: systemResult.metadata },
     { status: 200 }
   );
 }
@@ -223,83 +195,89 @@ async function checkSupabaseSelf(): Promise<HealthCheckResult> {
   }
 }
 
-async function checkTwilio(): Promise<HealthCheckResult> {
+async function checkAfricasTalking(): Promise<HealthCheckResult> {
   const start = Date.now();
   try {
-    const res = await fetch('https://status.twilio.com/api/v2/summary.json', {
-      signal: AbortSignal.timeout(5000),
+    const res = await fetch('https://status.africastalking.com/api/v2/summary.json', {
+      signal: AbortSignal.timeout(8000),
     });
+
+    if (!res.ok) {
+      return buildResult('Africa\'s Talking', 'Africa\'s Talking', 'degraded', Date.now() - start, {
+        metadata: { http_status: res.status },
+      });
+    }
+
     const data = await res.json();
     const indicator: string = data.status?.indicator ?? 'none';
+
     const status: APIStatus =
-      indicator === 'none' ? 'healthy' : indicator === 'minor' ? 'degraded' : 'down';
-    return buildResult('Twilio SMS', 'Twilio', status, Date.now() - start, {
-      metadata: { indicator, incidents: data.incidents?.length ?? 0 },
+      indicator === 'none' ? 'healthy' :
+      indicator === 'minor' ? 'degraded' :
+      'down';
+
+    const components: Array<{ name: string; status: string }> =
+      (data.components ?? []).map((c: { name: string; status: string }) => ({
+        name: c.name,
+        status: c.status,
+      }));
+
+    return buildResult('Africa\'s Talking', 'Africa\'s Talking', status, Date.now() - start, {
+      metadata: {
+        indicator,
+        description: data.status?.description ?? '',
+        active_incidents: data.incidents?.length ?? 0,
+        components,
+      },
     });
   } catch {
-    return buildResult('Twilio SMS', 'Twilio', 'down', Date.now() - start);
+    return buildResult('Africa\'s Talking', 'Africa\'s Talking', 'down', Date.now() - start);
   }
 }
 
-async function checkVercel(): Promise<HealthCheckResult> {
+async function checkDusuPay(): Promise<HealthCheckResult> {
   const start = Date.now();
-  try {
-    const res = await fetch('https://www.vercel-status.com/api/v2/status.json', {
-      signal: AbortSignal.timeout(5000),
+  const publicKey = process.env.DUSUPAY_PUBLIC_KEY;
+
+  if (!publicKey) {
+    console.error('[DusuPay] DUSUPAY_PUBLIC_KEY is not set');
+    return buildResult('DusuPay', 'DusuPay', 'down', 0, {
+      metadata: { error: 'Missing DUSUPAY_PUBLIC_KEY env var' },
     });
-    const data = await res.json();
-    const indicator: string = data.status?.indicator ?? 'none';
-    const status: APIStatus =
-      indicator === 'none' ? 'healthy' : indicator === 'minor' ? 'degraded' : 'down';
-    return buildResult('Vercel Hosting', 'Vercel', status, Date.now() - start, {
-      metadata: { indicator },
-    });
-  } catch {
-    return buildResult('Vercel Hosting', 'Vercel', 'down', Date.now() - start);
   }
-}
 
-async function checkCellulant(): Promise<HealthCheckResult> {
-  const start = Date.now();
   try {
-    const res = await fetch('https://cellulant-1.freshstatus.io/', {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(5000),
-    });
-    return buildResult(
-      'Cellulant Tingg',
-      'Cellulant',
-      res.ok ? 'healthy' : 'degraded',
-      Date.now() - start
-    );
-  } catch {
-    return buildResult('Cellulant Tingg', 'Cellulant', 'down', Date.now() - start);
-  }
-}
-
-async function checkSafaricom(): Promise<HealthCheckResult> {
-  const start = Date.now();
-  try {
-    const auth = Buffer.from(
-      `${process.env.SAFARICOM_CONSUMER_KEY}:${process.env.SAFARICOM_CONSUMER_SECRET}`
-    ).toString('base64');
-
+    // payment-providers requires only public-key — wallet-balances also needs secret-key
     const res = await fetch(
-      'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
+      'https://sandboxapi.dusupay.com/data/payment-providers?currency=UGX&transaction_type=COLLECTION',
       {
-        headers: { Authorization: `Basic ${auth}` },
+        headers: {
+          Accept: 'application/json',
+          'x-api-version': '1',
+          'public-key': publicKey,
+        },
         signal: AbortSignal.timeout(8000),
       }
     );
 
-    return buildResult(
-      'M-Pesa Daraja',
-      'Safaricom',
-      res.ok ? 'healthy' : 'degraded',
-      Date.now() - start
-    );
+    const data = await res.json();
+
+    if (!res.ok || data.code !== 200) {
+      return buildResult('DusuPay', 'DusuPay', 'degraded', Date.now() - start, {
+        metadata: { http_status: res.status, api_code: data.code, message: data.message },
+      });
+    }
+
+    const providerCount = data.data?.length ?? 0;
+
+    return buildResult('DusuPay', 'DusuPay', 'healthy', Date.now() - start, {
+      metadata: {
+        environment: 'sandbox', // TODO: update when production keys are available
+        active_providers: providerCount,
+      },
+    });
   } catch {
-    return buildResult('M-Pesa Daraja', 'Safaricom', 'down', Date.now() - start);
+    return buildResult('DusuPay', 'DusuPay', 'down', Date.now() - start);
   }
 }
 
@@ -327,6 +305,24 @@ async function checkResend(): Promise<HealthCheckResult> {
     return buildResult('Resend Email', 'Resend', 'healthy', Date.now() - start);
   } catch {
     return buildResult('Resend Email', 'Resend', 'down', Date.now() - start);
+  }
+}
+
+async function checkVercel(): Promise<HealthCheckResult> {
+  const start = Date.now();
+  try {
+    const res = await fetch('https://www.vercel-status.com/api/v2/status.json', {
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = await res.json();
+    const indicator: string = data.status?.indicator ?? 'none';
+    const status: APIStatus =
+      indicator === 'none' ? 'healthy' : indicator === 'minor' ? 'degraded' : 'down';
+    return buildResult('Vercel Hosting', 'Vercel', status, Date.now() - start, {
+      metadata: { indicator },
+    });
+  } catch {
+    return buildResult('Vercel Hosting', 'Vercel', 'down', Date.now() - start);
   }
 }
 
