@@ -29,13 +29,27 @@ const isRequestStatus = (status: unknown): status is RequestStatus =>
   typeof status === 'string' && requestStatuses.includes(status as RequestStatus);
 
 interface RawData {
+  // bank_change fields
   old_bank_name?: string;
   old_account_number?: string;
   new_bank_name?: string;
   new_account_number?: string;
   reason?: string;
+  // kyc_review fields
+  document_type?: string;
+  document_url?: string;
+  document_number?: string;
+  expiry_date?: string;
+  reviewer_notes?: string;
   [key: string]: unknown;
 }
+
+const TYPE_LABELS: Record<RequestType, string> = {
+  risk_score: 'Risk Score Review',
+  kyc_review: 'KYC Review',
+  bank_change: 'Bank Change Request',
+  general: 'General',
+};
 
 interface ReviewRequest {
   id: string;
@@ -296,14 +310,14 @@ const ReviewDetailModal = ({ request, isOpen, onClose, onSubmitResponse }: Revie
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-slate-500">Type</p>
-                <p className="font-medium text-slate-900 dark:text-white capitalize">{request.type?.replace('_', ' ')}</p>
+                <p className="font-medium text-slate-900 dark:text-white">{TYPE_LABELS[request.type] ?? request.type}</p>
               </div>
               <div>
                 <p className="text-slate-500">Priority</p>
                 <PriorityBadge priority={request.priority} />
               </div>
               {request.contact_email && (
-                <div>
+                <div className="col-span-2">
                   <p className="text-slate-500">Contact</p>
                   <p className="font-medium text-slate-900 dark:text-white">{request.contact_email}</p>
                 </div>
@@ -311,12 +325,55 @@ const ReviewDetailModal = ({ request, isOpen, onClose, onSubmitResponse }: Revie
             </div>
           </div>
 
-          <div className="mb-6">
-            <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Message</h4>
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{request.message}</p>
+          {request.type === 'kyc_review' && request.raw_data && (
+            <div className="mb-6">
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-3">Document Details</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Document Type</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">
+                    {request.raw_data.document_type
+                      ? request.raw_data.document_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                      : '—'}
+                  </p>
+                  {request.raw_data.document_number && (
+                    <p className="text-xs text-slate-500 mt-1">Ref: {request.raw_data.document_number}</p>
+                  )}
+                  {request.raw_data.expiry_date && (
+                    <p className="text-xs text-slate-500 mt-1">Expires: {formatDateTime(request.raw_data.expiry_date)}</p>
+                  )}
+                </div>
+                {request.raw_data.document_url && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800/30 flex items-center justify-center">
+                    <a
+                      href={request.raw_data.document_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold text-blue-700 dark:text-blue-400 underline underline-offset-2 hover:text-blue-800"
+                    >
+                      View Document ↗
+                    </a>
+                  </div>
+                )}
+              </div>
+              {request.raw_data.reviewer_notes && (
+                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800/30">
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    <strong>Previous Notes:</strong> {request.raw_data.reviewer_notes}
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
+          )}
+
+          {request.message && (
+            <div className="mb-6">
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Message</h4>
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{request.message}</p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div className="space-y-2">

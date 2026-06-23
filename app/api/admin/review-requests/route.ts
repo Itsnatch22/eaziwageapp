@@ -71,7 +71,10 @@ export async function GET(req: NextRequest) {
     type: 'kyc_review',
     subject: `KYC Review: ${kycProfilesById[k.user_id]?.full_name || 'Unknown'}`,
     employee_name: kycProfilesById[k.user_id]?.full_name,
-    message: `Document Type: ${k.document_type}. Number: ${k.document_number || 'N/A'}`,
+    message: [
+      `Document: ${k.document_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}`,
+      k.document_number ? `Ref: ${k.document_number}` : null,
+    ].filter(Boolean).join(' · '),
     status: k.status,
     priority: 'medium',
     requested_at: k.created_at,
