@@ -11,6 +11,7 @@ import { formatCurrency, cn, formatDateTime } from '@/lib/utils';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import AdminWalletGlimpse from '@/components/admin/AdminWalletGlimpse';
+import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardingGuide';
 
 type VariantColor = 'green' | 'slate' | 'black';
 type IconSize = 'sm' | 'md' | 'lg';
@@ -318,6 +319,8 @@ export default function AdminDashboard() {
   }
 
   return (
+    <>
+    <UserOnboardingGuide role="admin" />
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -490,5 +493,6 @@ export default function AdminDashboard() {
         <AdminWalletGlimpse />
       </div>
     </div>
+    </>
   );
 }

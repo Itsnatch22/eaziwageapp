@@ -17,6 +17,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 import type { RealtimeChannel } from '@supabase/realtime-js';
+import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardingGuide';
 
 interface EmployerProfile {
   id: string;
@@ -514,6 +515,7 @@ export default function EmployerDashboard() {
 
   return (
     <EmployerPortalLayout employer={data.employer}>
+      <UserOnboardingGuide role="employer" show={data.employer?.status === 'approved'} />
       <div className="max-w-7xl mx-auto space-y-6">
 
         

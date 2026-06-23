@@ -16,6 +16,7 @@ import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useAuthStore } from '@/lib/stores/auth';
 import { createClient } from '@/lib/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
+import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardingGuide';
 
 
 
@@ -263,6 +264,7 @@ export default function EmployeeDashboardPage() {
 
   return (
     <EmployeePortalLayout title="Overview">
+      <UserOnboardingGuide role="employee" show={isVerified} />
       <div className="max-w-5xl mx-auto space-y-6">
 
         

@@ -202,30 +202,59 @@ interface ReconciliationData {
 export default function AdminReconciliation() {
   const [data, setData] = useState<ReconciliationData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedEmployer, setExpandedEmployer] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch(`/api/admin/reconciliation`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        if (response.ok) {
-          const result = await response.json();
-          setData(result);
-        }
-      } catch (err) {
-        console.error('Failed to fetch reconciliation data:', err);
-      } finally {
-        setLoading(false);
+  const fetchData = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    try {
+      const response = await fetch('/api/admin/reconciliation');
+      if (response.ok) {
+        const result = await response.json();
+        setData(result);
       }
-    };
-    fetchData();
-  }, []);
+    } catch (err) {
+      console.error('Failed to fetch reconciliation data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleExport = () => {
+    if (!data?.by_employer?.length) return;
+
+    const rows = [
+      ['Employer', 'Advances', 'Principal (USD)', 'Fees (USD)', 'Total Owed (USD)', 'Recouped (USD)', 'Pending (USD)', 'Rate (%)'],
+    ];
+
+    data.by_employer.forEach(e => {
+      const total = e.total_amount + e.total_fees;
+      const rate = total > 0 ? ((e.recouped / total) * 100).toFixed(1) : '0.0';
+      rows.push([
+        e.employer_name,
+        String(e.total_advances),
+        e.total_amount.toFixed(2),
+        e.total_fees.toFixed(2),
+        total.toFixed(2),
+        e.recouped.toFixed(2),
+        e.pending_recoupment.toFixed(2),
+        rate,
+      ]);
+    });
+
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reconciliation-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const filteredEmployers = data?.by_employer?.filter((e) => 
     (e.employer_name || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -250,10 +279,10 @@ export default function AdminReconciliation() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60">
-              <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60" onClick={() => fetchData(true)} disabled={refreshing}>
+              <RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> Refresh
             </Button>
-            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60">
+            <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60" onClick={handleExport} disabled={!data?.by_employer?.length}>
               <Download className="w-4 h-4 mr-2" /> Export
             </Button>
           </div>
