@@ -122,7 +122,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
 
     if (employer_id) {
-      filteredEmployees = filteredEmployees.filter((emp) => emp.employer_id === employer_id);
+      // employer_id may be employers.id (direct) or employer_onboarding.id (from admin modal)
+      const directMatch = filteredEmployees.filter((emp) => emp.employer_id === employer_id);
+      if (directMatch.length > 0) {
+        filteredEmployees = directMatch;
+      } else {
+        // resolve onboarding_id → employers.id
+        const { data: resolvedEmployer } = await adminSupabase
+          .from('employers')
+          .select('id')
+          .eq('onboarding_id', employer_id)
+          .maybeSingle();
+        filteredEmployees = resolvedEmployer
+          ? filteredEmployees.filter((emp) => emp.employer_id === resolvedEmployer.id)
+          : [];
+      }
     }
 
     const total = filteredEmployees.length;

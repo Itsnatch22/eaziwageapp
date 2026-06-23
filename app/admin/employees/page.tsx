@@ -765,7 +765,9 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       </div>
                       <div className="flex items-center gap-3 text-sm">
                         <Phone className="w-4 h-4 text-slate-400" />
-                        <span className="text-slate-600 dark:text-slate-400">{data.phone || '-'}</span>
+                        <span className="text-slate-600 dark:text-slate-400">
+                          {(data.phone && data.phone !== 'N/A') ? data.phone : '-'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-3 text-sm">
                         <FileText className="w-4 h-4 text-slate-400" />
