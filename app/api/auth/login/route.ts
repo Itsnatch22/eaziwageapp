@@ -86,6 +86,10 @@ function getUserAgent(req: NextRequest): string {
 }
 
 async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean> {
+  // Playwright E2E tests set PLAYWRIGHT_TEST=1 in the server process and send this sentinel token.
+  // This bypass must never be active in production — guard on the env var, not just the token.
+  if (process.env.PLAYWRIGHT_TEST === '1' && token === '__PLAYWRIGHT_TEST__') return true;
+
   try {
     const params = new URLSearchParams({
       secret:   env.RECAPTCHA_SECRET_KEY,

@@ -218,7 +218,6 @@ export async function PATCH(
         upsertPayload.employer_id = resolvedEmployerId;
         upsertPayload.employee_code = onboardingRecord.employee_code;
         upsertPayload.full_name = displayName;
-        upsertPayload.name = displayName;
         upsertPayload.email = profileData?.email || onboardingRecord.email;
         upsertPayload.phone = profileData?.phone || onboardingRecord.phone;
         upsertPayload.job_title = onboardingRecord.job_title;

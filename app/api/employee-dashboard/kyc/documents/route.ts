@@ -18,7 +18,6 @@ const BUCKET = 'employee-kyc-documents';
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
 
     const {
       data: { user },
@@ -47,7 +46,7 @@ export async function GET(req: NextRequest) {
       status = parsed.data;
     }
 
-    let query = adminSupabase
+    let query = supabase
       .from('employee_kyc_documents')
       .select(`
         id,
@@ -107,7 +106,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const { data: profile } = await adminSupabase
+    const { data: profile } = await supabase
       .from('profiles')
       .select('full_name, email')
       .eq('id', user.id)

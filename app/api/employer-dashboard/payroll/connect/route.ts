@@ -62,7 +62,7 @@ const { data: integrations, error } = await supabase
 
     if (error) {
       console.error('[payroll/connect] fetch integrations error', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to fetch payroll integrations' }, { status: 500 });
     }
 
     const shaped = (integrations ?? []).map(intg => ({

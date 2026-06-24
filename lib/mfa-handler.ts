@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { apiLimiter, mfaActionLimiter, mfaVerifyLimiter, checkRateLimit, type RateLimitResult } from '@/lib/rate-limit';
+import { getEnv } from '@/env';
 
 function getMfaClientIp(req: NextRequest): string {
   return (
@@ -129,11 +130,16 @@ export async function handleMfaPost(
       if (!actionRate.success) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: actionHeaders });
 
       try {
-        const { randomBytes, createHash } = await import('crypto');
+        const { randomBytes, createHmac } = await import('crypto');
+        const hmacKey = getEnv().PII_ENCRYPTION_KEY;
+        if (!hmacKey) {
+          return NextResponse.json({ error: 'Backup code signing not configured' }, { status: 500, headers: actionHeaders });
+        }
         const codes = Array.from({ length: 10 }).map(() => randomBytes(5).toString('hex').toUpperCase());
         const rows = codes.map(code => ({
           user_id: user.id,
-          code_hash: createHash('sha256').update(code).digest('hex'),
+          // HMAC-SHA256: keyed hash prevents rainbow-table lookup on the finite backup-code space
+          code_hash: createHmac('sha256', hmacKey).update(code).digest('hex'),
           used: false,
           created_at: new Date().toISOString(),
         }));

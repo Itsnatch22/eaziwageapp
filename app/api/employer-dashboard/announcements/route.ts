@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { contactLimiter, checkRateLimit } from '@/lib/rate-limit';
+
+const announcementSchema = z.object({
+  title: z.string().min(1).max(200, 'Title must be 200 characters or fewer'),
+  message: z.string().min(1).max(2000, 'Message must be 2000 characters or fewer'),
+});
 
 interface AnnouncementRow {
   id: string;
@@ -81,6 +88,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const rate = await checkRateLimit(contactLimiter, `announcements:${user.id}`);
+    if (!rate.success) return NextResponse.json({ error: 'Too many announcements. Please wait before sending another.' }, { status: 429 });
+
     const { data: employer } = await adminSupabase
       .from('employers')
       .select('id, onboarding_id, company_name')
@@ -92,11 +102,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Employer not found' }, { status: 403 });
     }
 
-    const { title, message } = await req.json();
-
-    if (!title || !message) {
-      return NextResponse.json({ error: 'Title and message are required' }, { status: 400 });
+    const body = await req.json().catch(() => null);
+    const parsed = announcementSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 });
     }
+    const { title, message } = parsed.data;
 
     const { data: employees } = await adminSupabase
       .from('employee_onboarding')

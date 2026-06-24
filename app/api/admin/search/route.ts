@@ -46,8 +46,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const [employeesRes, onboardingRes] = await Promise.all([
       supabase
         .from('employees')
-        .select('id, name, full_name, employer_id, user_id')
-        .or(`name.ilike.%${query}%,full_name.ilike.%${query}%`)
+        .select('id, full_name, employer_id, user_id')
+        .ilike('full_name', `%${query}%`)
         .limit(5),
       supabase
         .from('employee_onboarding')
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ...uniqueEmployees.map(e => ({ 
         type: 'employee', 
         id: e.user_id || e.id, 
-        title: e.full_name || e.name || 'Unknown Employee', 
+        title: e.full_name || 'Unknown Employee',
         href: `/admin/employees?id=${e.user_id || e.id}` 
       })),
       ...(advances || []).map(a => ({ 

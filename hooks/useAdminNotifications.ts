@@ -22,8 +22,6 @@ export function useAdminNotifications({
   onDelete,
   onUpdate,
 }: UseAdminNotificationsOptions) {
-  const supabase = createClient();
-
   const onInsertRef = useRef(onInsert);
   const onDeleteRef = useRef(onDelete);
   const onUpdateRef = useRef(onUpdate);
@@ -33,6 +31,9 @@ export function useAdminNotifications({
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
   useEffect(() => {
+    // Client created inside the effect so it has a stable reference for the channel lifetime
+    const supabase = createClient();
+
     const channel = supabase
       .channel('admin_notifications_changes')
       .on(
@@ -69,5 +70,5 @@ export function useAdminNotifications({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, []); // empty deps — client is stable inside the effect, callbacks use refs
 }

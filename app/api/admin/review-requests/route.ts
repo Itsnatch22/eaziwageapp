@@ -15,14 +15,16 @@ export async function GET(req: NextRequest) {
   const { data: riskRequests, error: riskError } = await adminSupabase
     .from('risk_review_requests')
     .select('*, employer_onboarding(company_name, contact_email)')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (riskError) console.error('Error fetching risk requests:', riskError);
 
   const { data: kycDocs, error: kycError } = await adminSupabase
     .from('employee_kyc_documents')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select('id, user_id, document_type, document_number, status, created_at')
+    .order('created_at', { ascending: false })
+    .limit(200);
 
   if (kycError) console.error('Error fetching KYC docs:', kycError);
 
@@ -48,7 +50,8 @@ export async function GET(req: NextRequest) {
   const { data: bankRequests, error: bankError } = await adminSupabase
     .from('bank_change_requests')
     .select('*, employer_onboarding(company_name)')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (bankError) console.error('Error fetching bank change requests:', bankError);
 

@@ -200,11 +200,13 @@ export class PayoutService {
         return { eligible: false, rejectionReason: 'EWA disabled for this employee', fraudFlags: [] };
       }
 
-      const riskThreshold = 7.5;
+      // DB risk_score is on a 0–5 scale (constraint: 0 <= score <= 5).
+      // Thresholds below are the 0–5 equivalents of the original 0–10 intent (÷2).
+      const riskThreshold = 3.75;
       if (typeof employee.risk_score === 'number' && employee.risk_score > riskThreshold) {
         flags.push({
           flagType: 'risk_score_threshold',
-          severity: employee.risk_score > 9 ? 'critical' : 'high',
+          severity: employee.risk_score >= 4.5 ? 'critical' : 'high',
           description: `Employee risk score ${employee.risk_score} exceeds threshold ${riskThreshold}`,
         });
       }

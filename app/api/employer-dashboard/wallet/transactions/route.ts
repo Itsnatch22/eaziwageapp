@@ -36,9 +36,10 @@ export async function GET() {
 
   const { data: transactions, error } = await supabase
     .from('wallet_transactions')
-    .select('*')
+    .select('id, wallet_id, amount, transaction_type, status, description, reference, created_at')
     .eq('wallet_id', wallet.id)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (error) {
     console.error('[employer-wallet-transactions] DB error:', error);

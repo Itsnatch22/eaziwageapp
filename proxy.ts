@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { randomBytes } from "crypto";
 
 type AppRole = "admin" | "employer" | "employee";
 
@@ -13,7 +14,29 @@ function normalizeAppRole(value: unknown): AppRole | null {
 }
 
 export async function proxy(req: NextRequest) {
-  let res = NextResponse.next();
+  // Per-request nonce for CSP — prevents inline script injection attacks.
+  // Removes the need for 'unsafe-inline' in script-src.
+  const nonce = randomBytes(16).toString('base64');
+  const isDev = process.env.NODE_ENV === 'development';
+  const cspValue = [
+    "default-src 'self'",
+    // React dev mode uses eval() for call stack reconstruction; strip in production.
+    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''} https://www.google.com https://www.gstatic.com`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://etfytrhduspebpvybljq.supabase.co",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.pusher.com wss://*.pusher.com",
+    "frame-src 'self' https://www.google.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+
+  // Forward nonce to server components via request headers (readable via headers() API)
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-nonce', nonce);
+
+  let res = NextResponse.next({ request: { headers: requestHeaders } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,7 +50,10 @@ export async function proxy(req: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             req.cookies.set(name, value)
           );
-          res = NextResponse.next({ request: req });
+          // Re-create requestHeaders to preserve x-nonce when Supabase refreshes session cookies
+          const refreshedHeaders = new Headers(req.headers);
+          refreshedHeaders.set('x-nonce', nonce);
+          res = NextResponse.next({ request: { headers: refreshedHeaders } });
           cookiesToSet.forEach(({ name, value, options }) =>
             res.cookies.set(name, value, options)
           );
@@ -207,6 +233,7 @@ export async function proxy(req: NextRequest) {
     }
   }
 
+  res.headers.set('Content-Security-Policy', cspValue);
   return res;
 }
 

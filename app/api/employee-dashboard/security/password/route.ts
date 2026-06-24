@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
+import { mfaActionLimiter, checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,9 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const rate = await checkRateLimit(mfaActionLimiter, `password-change:${user.id}`);
+    if (!rate.success) return NextResponse.json({ error: "Too many password change attempts. Please wait." }, { status: 429 });
+
     const { newPassword } = await req.json();
 
     if (!newPassword || newPassword.length < 8) {
@@ -27,7 +31,8 @@ export async function PUT(req: NextRequest) {
     });
 
     if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 400 });
+        console.error("[password-change] updateUser error:", { userId: user.id, message: updateError.message });
+        return NextResponse.json({ error: "Failed to update password" }, { status: 400 });
     }
 
     return NextResponse.json({ success: true, message: "Password updated successfully" });

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { createHash } from 'crypto';
+import { createHmac } from 'crypto';
 import { z } from 'zod';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { checkRateLimit, advanceLimiter } from '@/lib/rate-limit';
+import { getEnv } from '@/env';
 import {
   createPaymentMethod,
   listPaymentMethods,
@@ -11,6 +13,14 @@ import {
   setDefaultPaymentMethod,
 } from '@/lib/paymentMethodsService';
 import { sendOtpSms } from '@/lib/sendOtp';
+
+const MAX_OTP_ATTEMPTS = 5;
+
+function hashOtp(otp: string): string {
+  const key = getEnv().PII_ENCRYPTION_KEY;
+  if (!key) throw new Error('PII_ENCRYPTION_KEY not configured');
+  return createHmac('sha256', key).update(otp).digest('hex');
+}
 
 async function resolveEmployeeId(adminSupabase: SupabaseClient, userId: string) {
   const { data, error } = await adminSupabase
@@ -75,7 +85,7 @@ export async function POST(req: NextRequest) {
       const id = body.id as string | undefined;
       if (!id) return NextResponse.json({ error: 'Missing id for request_verification' }, { status: 400 });
 
-      const { data: pm, error: pmError } = await adminSupabase.from('payment_methods').select('*').eq('id', id).maybeSingle();
+      const { data: pm, error: pmError } = await adminSupabase.from('payment_methods').select('id, employee_id, is_verified, phone_number, account_number').eq('id', id).maybeSingle();
       if (pmError) return NextResponse.json({ error: pmError.message }, { status: 500 });
       if (!pm) return NextResponse.json({ error: 'Payment method not found' }, { status: 404 });
 
@@ -84,7 +94,12 @@ export async function POST(req: NextRequest) {
       if (pm.is_verified) return NextResponse.json({ success: true, message: 'Already verified' });
 
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpHash = createHash('sha256').update(otp).digest('hex');
+      let otpHash: string;
+      try {
+        otpHash = hashOtp(otp);
+      } catch {
+        return NextResponse.json({ error: 'OTP signing not configured' }, { status: 500 });
+      }
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
       const { error: insertError } = await adminSupabase
@@ -116,10 +131,24 @@ export async function POST(req: NextRequest) {
       const otp = body.otp as string | undefined;
       if (!id || !otp) return NextResponse.json({ error: 'Missing id or otp for confirm_verification' }, { status: 400 });
 
-      const { data: pmRow, error: pmRowError } = await adminSupabase.from('payment_methods').select('*').eq('id', id).maybeSingle();
+      // Rate limit OTP confirm attempts per user — hard cap regardless of what the DB says
+      const otpRateResult = await checkRateLimit(advanceLimiter, `otp-confirm:${user.id}`);
+      if (!otpRateResult.success) {
+        return NextResponse.json(
+          { error: 'Too many verification attempts. Please wait before trying again.' },
+          { status: 429, headers: otpRateResult.headers },
+        );
+      }
+
+      // Include employee_id in the query — ownership DB-enforced
+      const { data: pmRow, error: pmRowError } = await adminSupabase
+        .from('payment_methods')
+        .select('*')
+        .eq('id', id)
+        .eq('employee_id', employee.id)
+        .maybeSingle();
       if (pmRowError) return NextResponse.json({ error: pmRowError.message }, { status: 500 });
       if (!pmRow) return NextResponse.json({ error: 'Payment method not found' }, { status: 404 });
-      if (pmRow.employee_id !== employee.id) return NextResponse.json({ error: 'Payment method does not belong to you' }, { status: 403 });
       if (!pmRow.is_active) return NextResponse.json({ error: 'Payment method is inactive' }, { status: 422 });
       if (pmRow.is_verified) return NextResponse.json({ success: true, message: 'Already verified' });
 
@@ -135,15 +164,37 @@ export async function POST(req: NextRequest) {
       if (!verification) return NextResponse.json({ error: 'No verification request found' }, { status: 404 });
       if (new Date(verification.expires_at) < new Date()) return NextResponse.json({ error: 'OTP expired' }, { status: 410 });
 
-      const submittedHash = createHash('sha256').update(otp).digest('hex');
+      // Enforce hard attempt cap — burn the OTP if exceeded so the attacker can't retry
+      const currentAttempts = verification.attempts || 0;
+      if (currentAttempts >= MAX_OTP_ATTEMPTS) {
+        await adminSupabase
+          .from('payment_method_verifications')
+          .update({ is_used: true })
+          .eq('id', verification.id);
+        return NextResponse.json(
+          { error: 'Too many incorrect attempts. Please request a new verification code.' },
+          { status: 429 },
+        );
+      }
+
+      let submittedHash: string;
+      try {
+        submittedHash = hashOtp(otp);
+      } catch {
+        return NextResponse.json({ error: 'OTP signing not configured' }, { status: 500 });
+      }
+
       if (verification.otp_hash !== submittedHash) {
-        await adminSupabase.from('payment_method_verifications').update({ attempts: (verification.attempts || 0) + 1 }).eq('id', verification.id);
+        await adminSupabase
+          .from('payment_method_verifications')
+          .update({ attempts: currentAttempts + 1 })
+          .eq('id', verification.id);
         return NextResponse.json({ error: 'Invalid OTP' }, { status: 400 });
       }
 
       await adminSupabase.from('payment_method_verifications').update({ is_used: true, used_at: new Date().toISOString() }).eq('id', verification.id);
 
-      const { data: before } = await adminSupabase.from('payment_methods').select('*').eq('id', id).maybeSingle();
+      const { data: before } = await adminSupabase.from('payment_methods').select('id, employee_id, is_verified').eq('id', id).maybeSingle();
       const { data: updated, error: updateError } = await adminSupabase
         .from('payment_methods')
         .update({ is_verified: true })

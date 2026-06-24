@@ -20,20 +20,14 @@ export async function GET() {
     
     const { data: notifications, error } = await supabase
         .from('notifications')
-        .select('*')
+        .select('id, user_id, title, message, type, read, created_at, metadata')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
     if (error) {
-        console.error('Notifications fetch error:', error);
-        return NextResponse.json({
-            notifications: [
-              { id: 1, type: 'advance', title: 'New Advance Request', message: 'John Kamau requested KES 15,000 advance', time: '2 hours ago', read: false },
-              { id: 2, type: 'system', title: 'Payroll Due', message: 'Monthly payroll submission is due in 3 days', time: '5 hours ago', read: false },
-              { id: 3, type: 'employee', title: 'KYC Completed', message: 'Sarah Mwangi completed KYC verification', time: '1 day ago', read: true },
-              { id: 4, type: 'advance', title: 'Advance Disbursed', message: '45 advances disbursed successfully', time: '2 days ago', read: true },
-            ]
-        });
+        console.error('[employer/notifications] Fetch error:', error);
+        return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
     }
 
     return NextResponse.json({ notifications: notifications || [] });

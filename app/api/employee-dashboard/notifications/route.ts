@@ -19,13 +19,14 @@ export async function GET() {
 
     const { data: notifications, error } = await supabase
         .from('notifications')
-        .select('*')
+        .select('id, user_id, title, message, type, read, created_at, metadata')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
     if (error) {
       console.error('[notifications GET] Database error:', error);
-      return NextResponse.json({ error: "Failed to fetch notifications", details: error.message }, { status: 500 });
+      return NextResponse.json({ error: "Failed to fetch notifications", details: undefined }, { status: 500 });
     }
 
     return NextResponse.json({ notifications: notifications || [] });
@@ -112,7 +113,7 @@ export async function DELETE(req: NextRequest) {
 
         if (error) {
             console.error('[notifications DELETE] Delete error:', error);
-            return NextResponse.json({ error: "Failed to delete notification", details: error.message }, { status: 500 });
+            return NextResponse.json({ error: "Failed to delete notification", details: undefined }, { status: 500 });
         }
 
 

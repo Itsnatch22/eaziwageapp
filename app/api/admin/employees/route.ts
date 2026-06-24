@@ -148,7 +148,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       employer_id:      emp.employer_id,
       employee_code:    emp.employee_code || 'N/A',
       full_name:        emp.full_name || emp.name || 'Anonymous User',
-      name:             emp.name || emp.full_name || 'Anonymous User',
+      name:             emp.full_name || emp.name || 'Anonymous User',
       email:            emp.email,
       phone:            emp.phone,
       country:          emp.country || null,

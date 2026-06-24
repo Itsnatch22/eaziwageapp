@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Playfair_Display, Geist } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { cn } from "@/lib/utils";
@@ -26,11 +27,15 @@ export const metadata: Metadata = {
     "A system designed to enable employees to get access to an advance before payday.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the per-request nonce injected by proxy.ts so Next.js applies it
+  // to its own hydration <script> tags, enabling strict nonce-based CSP.
+  const nonce = (await headers()).get('x-nonce') ?? '';
+  void nonce; // used implicitly by Next.js RSC streaming — kept for future <Script nonce={nonce}>
   return (
     <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body

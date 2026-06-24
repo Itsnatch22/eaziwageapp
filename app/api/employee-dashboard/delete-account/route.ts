@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { createAdminClient } from '@/lib/supabaseAdmin';
+import { contactLimiter, checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
@@ -15,6 +14,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const rate = await checkRateLimit(contactLimiter, `delete-account:${user.id}`);
+    if (!rate.success) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
 
     const body = await request.json();
     const { reason, category, additionalFeedback } = body;
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
                'unknown';
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    const { error: deletionEventError } = await adminSupabase
+    const { error: deletionEventError } = await supabase
       .from('account_deletion_events')
       .insert({
         user_id: user.id,
@@ -80,11 +82,11 @@ export async function POST(request: NextRequest) {
 
     const { error: employeeUpdateError } = await supabase
       .from('employees')
-      .update({ 
+      .update({
         deleted_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('id', user.id);
+      .eq('user_id', user.id);
 
     if (employeeUpdateError) {
       console.error('Error soft deleting employee record:', employeeUpdateError);

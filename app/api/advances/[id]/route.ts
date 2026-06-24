@@ -1,35 +1,22 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+
+const patchSchema = z.object({
+  action: z.enum(['approve', 'deny']),
+});
 
 export async function PATCH(request: Request, { params }: IdRouteContext) {
   const { id } = await params;
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
+  const supabase = await createRouteHandlerClient();
 
-
-
-          }
-        },
-      },
-    }
-  );
+  const ip = (request.headers.get('x-forwarded-for')?.split(',')[0] ?? request.headers.get('cf-connecting-ip') ?? '0.0.0.0').trim();
+  const rate = await checkRateLimit(apiLimiter, `advance-approve:${ip}`);
+  if (!rate.success) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
 
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -51,15 +38,34 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const requestBody = await request.json();
-  const action = typeof requestBody?.action === 'string' ? requestBody.action : null;
+  // Ownership check — approver must belong to the same org as the advance.
+  // Run all three lookups in parallel to keep latency low.
+  const [advanceOrgRes, approverEmpRes, approverEmployerRes] = await Promise.all([
+    supabase.from('advances').select('organization_id').eq('id', id).maybeSingle(),
+    supabase.from('employees').select('organization_id').eq('user_id', user.id).maybeSingle(),
+    supabase.from('employers').select('onboarding_id').eq('user_id', user.id).maybeSingle(),
+  ]);
 
-  if (action !== 'approve' && action !== 'deny') {
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  const advOrgId = advanceOrgRes.data?.organization_id ?? null;
+  // HR users have an employee record; employer owners have an employers record
+  const approverOrgId =
+    approverEmpRes.data?.organization_id ??
+    approverEmployerRes.data?.onboarding_id ??
+    null;
+
+  if (!advOrgId || !approverOrgId || advOrgId !== approverOrgId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const requestBody = await request.json().catch(() => null);
+  const parsed = patchSchema.safeParse(requestBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  }
+  const { action } = parsed.data;
+
   if (action === 'approve') {
-    const { data: advance, error: advanceError } = await supabase.from('advances').select('*').eq('id', id).single();
+    const { data: advance, error: advanceError } = await supabase.from('advances').select('id, employee_id, amount, status').eq('id', id).single();
 
     if (advanceError || !advance) {
       return NextResponse.json({ error: 'Advance request not found' }, { status: 404 });

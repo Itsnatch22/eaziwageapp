@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
 import { toast } from 'sonner';
@@ -24,6 +24,8 @@ type UseNotificationsOptions = {
 export function useNotifications({ userId, apiPath, onToast }: UseNotificationsOptions) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  const onToastRef = useRef(onToast);
+  useEffect(() => { onToastRef.current = onToast; }, [onToast]);
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
@@ -60,7 +62,7 @@ export function useNotifications({ userId, apiPath, onToast }: UseNotificationsO
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
         const n = payload.new as Notification;
         setNotifications(prev => [n, ...prev].slice(0, 50));
-        try { if (onToast) onToast(n); }
+        try { onToastRef.current?.(n); }
         catch {}
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
@@ -76,7 +78,7 @@ export function useNotifications({ userId, apiPath, onToast }: UseNotificationsO
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, onToast]);
+  }, [userId]); // onToast is stable via ref — no channel churn on parent re-renders
 
   const markAsRead = useCallback(async (id?: string) => {
 

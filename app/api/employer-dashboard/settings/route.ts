@@ -54,7 +54,7 @@ export async function GET() {
 
   if (error) {
     console.error('[employer-settings/GET] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch employer settings' }, { status: 500 });
   }
 
   if (!employer) {

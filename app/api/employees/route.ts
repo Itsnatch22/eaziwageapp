@@ -107,7 +107,7 @@ export async function GET() {
 
     return {
       ...emp,
-      name: emp.name || emp.full_name || 'Unknown',
+      name: emp.full_name || emp.name || 'Unknown',
       full_name: emp.full_name || emp.name || 'Unknown',
       department: emp.department || 'General',
       salary: Number(emp.monthly_salary || 0),

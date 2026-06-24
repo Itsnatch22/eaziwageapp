@@ -2,19 +2,19 @@ import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-
-    const { data: employer, error: employerError } = await adminSupabase
+    // employer_view_own_wallet + employers_can_read_own_record RLS — user-scoped client is sufficient
+    const { data: employer, error: employerError } = await supabase
       .from('employers')
       .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
       .eq('user_id', user.id)
@@ -27,8 +27,7 @@ export async function GET() {
     }
 
     if (!employer) {
-
-      const anyResp = await adminSupabase
+      const anyResp = await supabase
         .from('employers')
         .select('id, status, onboarding_id, employer_onboarding!onboarding_id(country, currency, deleted_at)')
         .eq('user_id', user.id)
@@ -50,6 +49,7 @@ export async function GET() {
 
       return NextResponse.json({ error: 'Employer not approved. Please complete onboarding.' }, { status: 403 });
     }
+
     const onboarding = Array.isArray(employer.employer_onboarding)
       ? employer.employer_onboarding[0]
       : employer.employer_onboarding;
@@ -58,49 +58,42 @@ export async function GET() {
       return NextResponse.json({ error: 'Account has been terminated' }, { status: 403 });
     }
 
-
-    const { data: wallet, error: walletError } = await adminSupabase
+    // employer_view_own_wallet RLS covers this SELECT
+    const { data: wallet, error: walletError } = await supabase
       .from('employer_wallets')
-      .select('*')
+      .select('id, employer_id, balance, arrears_balance, currency, created_at, updated_at')
       .eq('employer_id', employer.id)
       .maybeSingle();
 
     if (walletError) throw walletError;
 
-
     let currentWallet = wallet;
     if (!wallet) {
       const walletCurrency = onboarding?.currency || getCurrencyFromCountry(onboarding?.country, 'KES');
-
+      // Only admin RLS exists for employer_wallets INSERT — service-role required here
+      const adminSupabase = createAdminClient();
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
-        .insert({
-          employer_id: employer.id,
-          balance: 0,
-          arrears_balance: 0,
-          currency: walletCurrency
-        })
-        .select()
+        .insert({ employer_id: employer.id, balance: 0, arrears_balance: 0, currency: walletCurrency })
+        .select('id, employer_id, balance, arrears_balance, currency, created_at, updated_at')
         .single();
-      
       if (createError) throw createError;
       currentWallet = newWallet;
     }
 
+    if (!currentWallet) throw new Error('Failed to initialize wallet');
 
-    const { data: transactions, error: txError } = await adminSupabase
+    // employer_view_own_wallet_tx RLS covers this SELECT
+    const { data: transactions, error: txError } = await supabase
       .from('wallet_transactions')
-      .select('*')
+      .select('id, wallet_id, amount, transaction_type, status, description, reference, created_at')
       .eq('wallet_id', currentWallet.id)
       .order('created_at', { ascending: false })
       .limit(20);
 
     if (txError) throw txError;
 
-    return NextResponse.json({
-      wallet: currentWallet,
-      transactions: transactions || []
-    });
+    return NextResponse.json({ wallet: currentWallet, transactions: transactions || [] });
 
   } catch (error: unknown) {
     console.error('[Wallet API Error]', error);
@@ -116,8 +109,11 @@ export async function POST(req: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const rate = await checkRateLimit(apiLimiter, `wallet-topup:${user.id}`);
+    if (!rate.success) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
 
-    const { data: employer, error: employerError } = await adminSupabase
+    // employers_can_read_own_record + employer_view_own_wallet RLS — user-scoped client is sufficient
+    const { data: employer, error: employerError } = await supabase
       .from('employers')
       .select('id, status, company_name, onboarding_id, employer_onboarding!onboarding_id(company_name, country, currency, deleted_at)')
       .eq('user_id', user.id)
@@ -140,9 +136,10 @@ export async function POST(req: Request) {
     if (!amount || amount <= 0) return NextResponse.json({ error: 'Invalid amount' }, { status: 422 });
 
 
-    const { data: wallet, error: walletError } = await adminSupabase
+    // employer_view_own_wallet RLS covers this SELECT
+    const { data: wallet, error: walletError } = await supabase
       .from('employer_wallets')
-      .select('*')
+      .select('id, employer_id, balance, arrears_balance, currency, created_at, updated_at')
       .eq('employer_id', employer.id)
       .maybeSingle();
 
@@ -154,12 +151,13 @@ export async function POST(req: Request) {
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
        .insert({ employer_id: employer.id, balance: 0, arrears_balance: 0, currency: walletCurrency })
-        .select()
+        .select('id, employer_id, balance, arrears_balance, currency, created_at, updated_at')
         .single();
       if (createError) return NextResponse.json({ error: 'Failed to create wallet' }, { status: 500 });
       currentWallet = newWallet;
     }
 
+    if (!currentWallet) return NextResponse.json({ error: 'Failed to initialize wallet' }, { status: 500 });
 
     const reference = `DEP-${employer.id}-${Date.now()}`;
     

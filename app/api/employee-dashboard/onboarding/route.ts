@@ -258,8 +258,7 @@ const { data: existing } = await adminSupabase
          user_id: user.id,
          employer_id: employerId,
          employee_code: generatedEmployeeCode,
-         name: employeeName, 
-         full_name: employeeName, 
+         full_name: employeeName,
          email: user.email,
          phone: user.user_metadata?.phone || null,
          employee_number: generatedEmployeeCode,
@@ -408,7 +407,8 @@ export async function GET() {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[employee-onboarding/GET] DB error:', error);
+    return NextResponse.json({ error: 'Failed to fetch onboarding data' }, { status: 500 });
   }
 
   return NextResponse.json(data ?? null);

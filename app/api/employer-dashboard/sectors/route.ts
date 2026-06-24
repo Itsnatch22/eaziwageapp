@@ -13,7 +13,8 @@ export async function GET() {
     .order('name');
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[sectors/GET] DB error:', error);
+    return NextResponse.json({ error: 'Failed to fetch sectors' }, { status: 500 });
   }
 
   return NextResponse.json(data);

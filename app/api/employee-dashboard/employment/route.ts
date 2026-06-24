@@ -12,13 +12,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await adminSupabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('full_name, avatar_url')
       .eq('id', user.id)
       .single();
 
-    const { data: onboarding, error: onboardingError } = await adminSupabase
+    const { data: onboarding, error: onboardingError } = await supabase
       .from('employee_onboarding')
       .select(`
         id,
@@ -45,7 +45,7 @@ export async function GET() {
     }
 
 
-    const { data: employeeRecord, error: employeeRecordError } = await adminSupabase
+    const { data: employeeRecord, error: employeeRecordError } = await supabase
      .from('employees')
      .select('id')
      .eq('user_id', user.id)

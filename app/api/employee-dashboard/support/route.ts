@@ -5,18 +5,18 @@ import React from 'react';
 import { sendEmail } from '@/lib/email-service';
 import AdminSupportNotification from '@/lib/emails/AdminSupportNotification';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { contactLimiter, checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET() {
   try {
     const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: tickets, error } = await adminSupabase
+    const { data: tickets, error } = await supabase
       .from('support_tickets')
       .select('*')
       .eq('user_id', user.id)
@@ -39,6 +39,9 @@ export async function POST(req: NextRequest) {
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const rate = await checkRateLimit(contactLimiter, `support:${user.id}`);
+    if (!rate.success) return NextResponse.json({ error: 'Too many support requests. Please wait before submitting again.' }, { status: 429 });
 
     const { subject, message, category } = await req.json();
 
