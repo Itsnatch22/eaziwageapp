@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
-import { getEnv } from '@/env';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 
 type AdminUserMetadata = Record<string, unknown>;
@@ -109,14 +109,14 @@ async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminU
     return { user: null, isAdmin: false };
   }
 
-  const env = getEnv();
-  const adminEmails = (env.ADMIN_EMAILS || '')
-    .replace(/^"|"$/g, '')
-    .split(',')
-    .map(e => e.trim().toLowerCase());
-  const isEnvAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
+  const adminSupabase = createAdminClient();
+  const { data: systemAdmin } = await adminSupabase
+    .from('system_admins')
+    .select('is_admin')
+    .eq('id', user.id)
+    .maybeSingle<{ is_admin: boolean }>();
 
-  if (isEnvAdmin) {
+  if (systemAdmin?.is_admin === true) {
     return { user, isAdmin: true };
   }
 

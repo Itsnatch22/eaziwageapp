@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { notifyAdmin } from '@/lib/notifications';
+import { getEnv } from '@/env';
 import { z } from 'zod';
 
 const bankChangeSchema = z.object({
@@ -66,25 +67,42 @@ export async function POST(req: NextRequest) {
 
     const { bank_name, bank_account_number, reason } = parsed.data;
 
+    // Insert the request row without raw account numbers — PII written via RPC below
     const { data: requestRecord, error: requestError } = await supabase
       .from('bank_change_requests')
       .insert({
         employer_id:      employer.onboarding_id,
         employer_live_id: employer.id,
         user_id:          user.id,
-        old_bank_name: onboarding?.bank_name,
-        old_account_number: onboarding?.bank_account_number,
-        new_bank_name: bank_name,
-        new_account_number: bank_account_number,
-        reason: reason || 'Not provided',
-        status: 'pending'
+        old_bank_name:    onboarding?.bank_name,
+        new_bank_name:    bank_name,
+        reason:           reason || 'Not provided',
+        status:           'pending',
       })
-      .select()
+      .select('id')
       .single();
 
     if (requestError) {
       console.error('[bank-change-request] DB error:', requestError);
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
+    }
+
+    // Encrypt old/new account numbers — row must exist before this is called
+    const { PII_ENCRYPTION_KEY } = getEnv();
+    if (!PII_ENCRYPTION_KEY) {
+      return NextResponse.json({ error: 'Encryption not configured' }, { status: 500 });
+    }
+
+    const { error: piiError } = await supabase.rpc('insert_bank_change_request_pii', {
+      p_request_id:  requestRecord.id,
+      p_old_account: onboarding?.bank_account_number ?? null,
+      p_new_account: bank_account_number,
+      p_key:         PII_ENCRYPTION_KEY,
+    });
+
+    if (piiError) {
+      console.error('[bank-change-request] PII error:', piiError);
+      return NextResponse.json({ error: 'Failed to save secure fields' }, { status: 500 });
     }
 
     const { success: notifSuccess, error: notifError } = await notifyAdmin({

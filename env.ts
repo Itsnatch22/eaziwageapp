@@ -15,7 +15,6 @@ interface EnvConfig {
   UPSTASH_REDIS_REST_TOKEN: string;
   RESEND_API_KEY: string;
   PII_ENCRYPTION_KEY?: string;
-  ADMIN_EMAILS?: string;
   ADMIN_PASSWORD?: string;
   ADMIN_NOTIFICATION_EMAIL?: string;
   PUSH_VAPID_CONTACT?: string;
@@ -83,15 +82,6 @@ export function validateEnv(): EnvConfig {
       errors.push('UPSTASH_REDIS_REST_TOKEN is not defined');
     }
 
-    if (!process.env.ADMIN_EMAILS) {
-      errors.push('ADMIN_EMAILS is not defined');
-    } else {
-      const emails = process.env.ADMIN_EMAILS.split(',').map(e => e.trim());
-      if (emails.some(e => !e || !/\S+@\S+\.\S+/.test(e))) {
-        errors.push('ADMIN_EMAILS contains invalid email addresses');
-      }
-    }
-
     if (process.env.ADMIN_NOTIFICATION_EMAIL && !/\S+@\S+\.\S+/.test(process.env.ADMIN_NOTIFICATION_EMAIL)) {
       errors.push('ADMIN_NOTIFICATION_EMAIL is not a valid email address');
     }
@@ -150,7 +140,6 @@ export function validateEnv(): EnvConfig {
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN!,
     RESEND_API_KEY: process.env.RESEND_API_KEY!,
     PII_ENCRYPTION_KEY: process.env.PII_ENCRYPTION_KEY,
-    ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     ADMIN_NOTIFICATION_EMAIL: process.env.ADMIN_NOTIFICATION_EMAIL,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     PUSH_VAPID_CONTACT: process.env.PUSH_VAPID_CONTACT,

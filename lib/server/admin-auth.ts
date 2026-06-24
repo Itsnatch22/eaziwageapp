@@ -1,6 +1,5 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { getEnv } from '@/env';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
@@ -29,19 +28,9 @@ export async function requireAdmin(): Promise<AdminContext | NextResponse<{ erro
 
 export interface AdminAccessResult {
   isAdmin: boolean;
-  isEnvAdmin: boolean;
   isSystemAdmin: boolean;
   roleCandidates: string[];
   error?: 'ROLE_CHECK_FAILED';
-}
-
-function normalizeEmails(value: string | undefined): string[] {
-  if (!value) return [];
-  return value
-    .replace(/^"|"$/g, '')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
 }
 
 export async function checkAdminAccess(params: {
@@ -49,23 +38,17 @@ export async function checkAdminAccess(params: {
   adminSupabase: SupabaseClient;
 }): Promise<AdminAccessResult> {
   const { user, adminSupabase } = params;
-  const env = getEnv();
 
-  const adminEmails = normalizeEmails(env.ADMIN_EMAILS);
-  const isEnvAdmin = adminEmails.includes(user.email?.toLowerCase() ?? '');
-
-  let isSystemAdmin = false;
   const { data: systemAdmin } = await adminSupabase
     .from('system_admins')
     .select('id, is_admin')
     .eq('id', user.id)
     .maybeSingle<{ id: string; is_admin: boolean }>();
-  isSystemAdmin = systemAdmin?.is_admin === true;
+  const isSystemAdmin = systemAdmin?.is_admin === true;
 
-  if (isEnvAdmin || isSystemAdmin) {
+  if (isSystemAdmin) {
     return {
       isAdmin: true,
-      isEnvAdmin,
       isSystemAdmin,
       roleCandidates: [],
     };
@@ -80,7 +63,6 @@ export async function checkAdminAccess(params: {
   if (profileError) {
     return {
       isAdmin: false,
-      isEnvAdmin,
       isSystemAdmin,
       roleCandidates: [],
       error: 'ROLE_CHECK_FAILED',
@@ -102,7 +84,6 @@ export async function checkAdminAccess(params: {
 
   return {
     isAdmin,
-    isEnvAdmin,
     isSystemAdmin,
     roleCandidates,
   };

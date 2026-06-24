@@ -6,6 +6,7 @@ import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
 import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { getEnv } from '@/env';
 
 export const runtime = 'nodejs';
 
@@ -179,22 +180,22 @@ const { data: existing } = await adminSupabase
      user.email?.split('@')[0] ??
      'there';
 
+   // PII fields (national_id, date_of_birth, tax_id, bank_account, mobile_money_number)
+   // are NOT written here — they go through the upsert_employee_onboarding_pii RPC
+   // which encrypts them at rest before writing to the DB.
    const upsertPayload = {
      user_id: user.id,
      employer_id: employerId,
      employee_code: generatedEmployeeCode,
      full_name: employeeName,
      email: user.email,
-     national_id,
      id_type,
      nationality: nationality || 'Kenyan',
-     date_of_birth,
      country,
      address_line1,
      address_line2: address_line2 || null,
      city,
      postal_code: postal_code || null,
-     tax_id: tax_id || null,
      job_title,
      department: department || null,
      employment_type: normalizedEmploymentType,
@@ -224,11 +225,33 @@ const { data: existing } = await adminSupabase
         .eq('id', existing.id)
     : await adminSupabase.from('employee_onboarding').insert(upsertPayload);
 
-if (upsertError) {
+  if (upsertError) {
      console.error('[employee/onboarding/submit]', upsertError);
      return NextResponse.json({ error: upsertError.message }, { status: 500 });
    }
-    try {
+
+  // Encrypt PII fields via DB function — row must exist before this is called
+  const { PII_ENCRYPTION_KEY } = getEnv();
+  if (!PII_ENCRYPTION_KEY) {
+    return NextResponse.json({ error: 'Encryption not configured' }, { status: 500 });
+  }
+
+  const { error: piiError } = await supabase.rpc('upsert_employee_onboarding_pii', {
+    p_user_id:       user.id,
+    p_national_id:   national_id,
+    p_bank_account:  bank_account ?? null,
+    p_mobile_money:  mobile_money_number ?? null,
+    p_date_of_birth: date_of_birth,
+    p_tax_id:        tax_id ?? null,
+    p_key:           PII_ENCRYPTION_KEY,
+  });
+
+  if (piiError) {
+    console.error('[employee/onboarding/pii]', piiError);
+    return NextResponse.json({ error: 'Failed to save secure fields' }, { status: 500 });
+  }
+
+  try {
      const { data: emp } = await adminSupabase
        .from('employees')
        .upsert({

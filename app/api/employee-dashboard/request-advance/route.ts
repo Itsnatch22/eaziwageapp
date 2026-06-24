@@ -18,9 +18,9 @@ const requestSchema = z.object({
 
 const toMoney = (value: number) => Math.round(value * 100) / 100;
 
-
-async function resolveEmployee(adminSupabase: SupabaseClient, userId: string): Promise<{ id: string; organization_id: string | null } | null> {
-  const { data, error } = await adminSupabase
+// Use the user-scoped client — RLS on `employees` restricts to own row via user_id
+async function resolveEmployee(supabase: SupabaseClient, userId: string): Promise<{ id: string; organization_id: string | null } | null> {
+  const { data, error } = await supabase
     .from('employees')
     .select('id, organization_id')
     .eq('user_id', userId)
@@ -32,7 +32,6 @@ async function resolveEmployee(adminSupabase: SupabaseClient, userId: string): P
 export async function POST(req: NextRequest) {
   const supabase = await createRouteHandlerClient();
   const adminSupabase = createAdminClient();
-
 
   let userId: string | null = null;
   let employeeId: string | null = null;
@@ -66,8 +65,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-
-    const employeeRecord = await resolveEmployee(adminSupabase, user.id);
+    // Resolve the live employees.id — all advance-table queries must use this FK
+    const employeeRecord = await resolveEmployee(supabase, user.id);
     if (!employeeRecord) {
       return errorResponse(404, 'Employee record not found.', { note: 'resolveEmployee returned null' });
     }
@@ -81,7 +80,6 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return errorResponse(422, 'Validation failed', { issues: parsed.error.issues });
     }
-
 
     const { data: employee, error: employeeError } = await supabase
       .from('employee_onboarding')
@@ -102,11 +100,11 @@ export async function POST(req: NextRequest) {
 
     employerId = employee.employer_id;
 
-
+    // Use employeeId (employees.id) — advances.employee_id FK points to employees, not employee_onboarding
     const { data: existingPending, error: existingPendingError } = await supabase
       .from('advances')
       .select('id, status')
-      .eq('employee_id', employee.id)
+      .eq('employee_id', employeeId)
       .eq('status', 'pending')
       .limit(1)
       .maybeSingle();
@@ -148,7 +146,6 @@ export async function POST(req: NextRequest) {
         cooldown_period: Number(employeeEwa.cooldown_period ?? effectiveSettings.cooldown_period),
       };
     } else {
-
       const { data: employerSettings, error: employerSettingsError } = await supabase
         .from('employers')
         .select('advance_limit_percent, min_advance_amount, cooldown_days')
@@ -188,10 +185,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (effectiveSettings.cooldown_period > 0) {
+      // Use employeeId (employees.id) — same FK issue as the pending check above
       const { data: lastAdvance, error: lastAdvanceError } = await supabase
         .from('advances')
         .select('requested_at, status')
-        .eq('employee_id', employee.id)
+        .eq('employee_id', employeeId)
         .in('status', ['approved', 'paid', 'completed'])
         .order('requested_at', { ascending: false })
         .limit(1)
@@ -209,9 +207,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Pass employeeId (employees.id) so the fraud engine can query advance history correctly
     const fraudResult = await runFraudChecks({
       userId: user.id,
-      employeeId: employee.id,
+      employeeId,
       employerId: employee.employer_id,
       amount: requestedAmount,
     });
@@ -225,7 +224,6 @@ export async function POST(req: NextRequest) {
       .select('risk_score')
       .eq('id', employee.employer_id)
       .maybeSingle();
-
 
     const { data: employerRecord, error: employerLookupError } = await supabase
       .from('employers')
@@ -245,7 +243,6 @@ export async function POST(req: NextRequest) {
     const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
     const random = Math.random().toString(36).substring(2, 7).toUpperCase();
     const reference = `EWA-${timestamp}-${random}`;
-
 
     paymentMethodId = parsed.data.payment_method_id || null;
 
@@ -268,16 +265,18 @@ export async function POST(req: NextRequest) {
       return errorResponse(400, 'No payment method selected or default found. Please add and verify a payment method.');
     }
 
+    // Include employee_id filter in the query — ownership is DB-enforced, not just app-enforced.
+    // If the payment method ID belongs to a different employee, this returns null (→ 404).
     const { data: pm, error: pmError } = await adminSupabase
       .from('payment_methods')
       .select('*')
       .eq('id', paymentMethodId)
+      .eq('employee_id', employeeId)
       .maybeSingle();
 
     if (pmError) return errorResponse(500, 'Payment method lookup failed', { pmError });
     if (!pm) return errorResponse(404, 'Payment method not found');
 
-    if (pm.employee_id !== employeeId) return errorResponse(403, 'Payment method does not belong to you');
     if (!pm.is_active) return errorResponse(422, 'Payment method is inactive');
     if (!pm.is_verified) return errorResponse(422, 'Payment method is not verified');
 
@@ -287,13 +286,9 @@ export async function POST(req: NextRequest) {
       return errorResponse(422, 'Selected payment method type does not match chosen disbursement method');
     }
 
-    if (!organizationId) {
-      return errorResponse(500, 'Employee is not associated with an organization', { employeeId });
-    }
-
     const payload = {
       employee_id: employeeId,
-      organization_id: organizationId,
+      organization_id: organizationId ?? null,
       amount: requestedAmount,
       fee_percentage: feePercentage,
       fee_amount: feeAmount,

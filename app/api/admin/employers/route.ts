@@ -115,7 +115,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!rateResult.success) {
     return NextResponse.json(
       { error: 'Too many requests.', code: 'RATE_LIMITED' },
-      { status: 429, headers: rateResult.headers }
+      { status: 429, headers: rateResult.headers },
     );
   }
 
@@ -123,262 +123,226 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (auth instanceof NextResponse) return auth;
   const { adminSupabase } = auth;
 
-  
-  const searchParams = req.nextUrl.searchParams;
-  const statusFilter = searchParams.get('status')?.trim() ?? '';
-  const countryFilter = searchParams.get('country')?.trim() ?? '';
-  const riskRatingFilter = searchParams.get('risk_rating')?.trim() ?? '';
-  const searchFilter = searchParams.get('search')?.trim().toLowerCase() ?? '';
+  const searchParams   = req.nextUrl.searchParams;
+  const statusFilter      = searchParams.get('status')?.trim()      ?? '';
+  const countryFilter     = searchParams.get('country')?.trim()     ?? '';
+  const riskRatingFilter  = searchParams.get('risk_rating')?.trim() ?? '';
+  const searchFilter      = searchParams.get('search')?.trim()      ?? '';
+  const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit')  ?? '25', 10) || 25));
+  const page   = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10) || 0);
+  const from   = page * limit;
+  const to     = from + limit - 1;
 
-  
-  const { data: onboardingRows, error } = await adminSupabase
+  // 1. Lightweight stats query — full table, minimal columns, no filters
+  //    Used for global counts, filter options, and risk distribution.
+  //    Employer tables rarely exceed a few thousand rows so this stays cheap.
+  const [statsResult, exchangeRatesResult] = await Promise.all([
+    adminSupabase
+      .from('employer_onboarding')
+      .select('id, status, country, industry, risk_rating'),
+    // Cap exchange_rates — there are ~200 currencies; never fetch unbounded
+    adminSupabase
+      .from('exchange_rates')
+      .select('currency_code, rate_to_usd')
+      .limit(100),
+  ]);
+
+  const statsRows = statsResult.data ?? [];
+
+  const countries  = [...new Set(statsRows.map((e) => e.country).filter(Boolean))].sort() as string[];
+  const industries = [...new Set(statsRows.map((e) => e.industry).filter(Boolean))].sort() as string[];
+
+  const stats = {
+    total:        statsRows.length,
+    active:       statsRows.filter((e) => toAdminStatus(e.status) === 'approved').length,
+    pending:      statsRows.filter((e) => { const s = toAdminStatus(e.status); return s === 'pending'; }).length,
+    risk_review:  statsRows.filter((e) => e.status === 'risk_review_in_progress').length,
+    suspended:    statsRows.filter((e) => e.status === 'suspended').length,
+    rejected:     statsRows.filter((e) => e.status === 'rejected').length,
+    risk_distribution: {
+      low_risk:       statsRows.filter((e) => e.risk_rating === 'A').length,
+      medium_risk:    statsRows.filter((e) => e.risk_rating === 'B').length,
+      high_risk:      statsRows.filter((e) => e.risk_rating === 'C').length,
+      very_high_risk: statsRows.filter((e) => e.risk_rating === 'D').length,
+    },
+    needs_risk_assessment: statsRows.filter((e) => !e.risk_rating || e.status === 'risk_review_in_progress').length,
+    base_currency: countryFilter ? 'KES' : 'KES',
+  };
+
+  const rates = (exchangeRatesResult.data ?? []).reduce((acc: Record<string, number>, rate) => {
+    if (rate.currency_code) acc[rate.currency_code.toUpperCase()] = Number(rate.rate_to_usd ?? 0);
+    return acc;
+  }, {} as Record<string, number>);
+
+  // 2. Paginated + filtered data query — DB-level WHERE clauses, no JS filtering
+  let dataQuery = adminSupabase
     .from('employer_onboarding')
-    .select(`
-      id,
-      user_id,
-      company_name,
-      industry,
-      sector,
-      country,
-      registration_number,
-      tax_id,
-      physical_address,
-      contact_person,
-      contact_email,
-      contact_phone,
-      payroll_cycle,
-      status,
-      risk_score,
-      risk_rating,
-      created_at,
-      updated_at
-    `);
+    .select(
+      'id, user_id, company_name, industry, sector, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, status, risk_score, risk_rating, created_at, updated_at',
+      { count: 'exact' },
+    )
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (statusFilter)     dataQuery = dataQuery.eq('status', statusFilter);
+  if (countryFilter)    dataQuery = dataQuery.eq('country', countryFilter);
+  if (riskRatingFilter) dataQuery = dataQuery.eq('risk_rating', riskRatingFilter);
+  if (searchFilter) {
+    const s = searchFilter.replace(/%/g, '\\%').replace(/_/g, '\\_');
+    dataQuery = dataQuery.or(
+      `company_name.ilike.%${s}%,contact_email.ilike.%${s}%,contact_person.ilike.%${s}%,industry.ilike.%${s}%`,
+    );
+  }
+
+  const { data: onboardingRows, error, count: filteredCount } = await dataQuery;
 
   if (error) {
     console.error('[GET /api/admin/employers] Database error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch employers.', code: 'SERVER_ERROR' },
-      { status: 500, headers: rateResult.headers }
+      { status: 500, headers: rateResult.headers },
     );
   }
 
-  console.log(`[GET /api/admin/employers] Found ${onboardingRows?.length || 0} onboarding records.`);
-  if (onboardingRows && onboardingRows.length > 0) {
-    console.log(`[GET /api/admin/employers] Sample ID: ${onboardingRows[0].id}`);
+  // 3. Enrich only the paginated page of employers
+  const employerIds   = (onboardingRows ?? []).map((row) => row.id);
+  const userIds       = (onboardingRows ?? []).map((row) => row.user_id).filter(Boolean);
+  const startOfMonth  = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+  if (employerIds.length === 0) {
+    return NextResponse.json({
+      data: [],
+      stats,
+      pagination: { total: filteredCount ?? 0, page, limit, hasMore: false },
+      filters: { countries, industries, risk_ratings: ['A', 'B', 'C', 'D'], statuses: ['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'] },
+      framework: { version: 'REV1', date: '2025-10-25', base_fee: 3.5, risk_factor: 3.0 },
+    }, { status: 200, headers: rateResult.headers });
   }
 
-  const employerIds = (onboardingRows ?? []).map((row) => row.id);
-  const userIds = (onboardingRows ?? []).map((row) => row.user_id).filter(Boolean);
-  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const [profilesResult, riskFactorsResult, liveEmployersResult] = await Promise.all([
+    adminSupabase.from('profiles').select('id, company_code').in('id', userIds),
+    adminSupabase
+      .from('employer_risk_factors')
+      .select('employer_id, registration_status, tax_compliance, ewa_agreement, audited_financials, liquidity_ratio, payroll_sustainability, employee_count, churn_rate, payroll_integration, industry_risk, regulatory_exposure, beneficial_ownership, pep_screening, composite_score, scored_at')
+      .in('employer_id', employerIds),
+    adminSupabase.from('employers').select('id, onboarding_id').in('onboarding_id', employerIds),
+  ]);
 
-  const { data: profileCodes } = await adminSupabase
-    .from('profiles')
-    .select('id, company_code')
-    .in('id', userIds);
-  
-  const codesByUserId = new Map(profileCodes?.map(p => [p.id, p.company_code]) ?? []);
-
-  const { data: riskFactorsData } = await adminSupabase
-    .from('employer_risk_factors')
-    .select(`
-      employer_id,
-      registration_status,
-      tax_compliance,
-      ewa_agreement,
-      audited_financials,
-      liquidity_ratio,
-      payroll_sustainability,
-      employee_count,
-      churn_rate,
-      payroll_integration,
-      industry_risk,
-      regulatory_exposure,
-      beneficial_ownership,
-      pep_screening,
-      composite_score,
-      scored_at
-    `)
-    .in('employer_id', employerIds);
+  const codesByUserId = new Map(profilesResult.data?.map((p) => [p.id, p.company_code]) ?? []);
 
   const riskFactorsByEmployer = new Map<string, RiskFactors & { employer_id: string; scored_at: string | null }>();
-  (riskFactorsData ?? []).forEach((rf) => {
+  (riskFactorsResult.data ?? []).forEach((rf) => {
     riskFactorsByEmployer.set(rf.employer_id, rf as RiskFactors & { employer_id: string; scored_at: string | null });
   });
 
-  const { data: liveEmployers } = employerIds.length
-    ? await adminSupabase
-        .from('employers')
-        .select('id, onboarding_id')
-        .in('onboarding_id', employerIds)
-    : { data: [] as Array<{ id: string; onboarding_id: string | null }> };
-
+  const liveEmployers = liveEmployersResult.data ?? [];
   const onboardingIdByLiveEmployerId = new Map(
-    (liveEmployers ?? [])
-      .filter((employer): employer is { id: string; onboarding_id: string } => Boolean(employer.onboarding_id))
-      .map((employer) => [employer.id, employer.onboarding_id])
+    liveEmployers
+      .filter((e): e is { id: string; onboarding_id: string } => Boolean(e.onboarding_id))
+      .map((e) => [e.id, e.onboarding_id]),
   );
-  const liveEmployerIds = (liveEmployers ?? []).map((employer) => employer.id);
-
-  const { data: exchangeRates } = await adminSupabase
-    .from('exchange_rates')
-    .select('currency_code, rate_to_usd');
-
-  const rates = (exchangeRates || []).reduce((acc: Record<string, number>, rate) => {
-    if (rate.currency_code) acc[rate.currency_code.toUpperCase()] = Number(rate.rate_to_usd ?? 0);
-    return acc;
-  }, {} as Record<string, number>);
+  const liveEmployerIds = liveEmployers.map((e) => e.id);
 
   const [employeesResult, advancesResult] = await Promise.all([
     liveEmployerIds.length
-      ? adminSupabase
-          .from('employees')
-          .select('employer_id, monthly_salary, status')
-          .in('employer_id', liveEmployerIds)
+      ? adminSupabase.from('employees').select('employer_id, monthly_salary, status').in('employer_id', liveEmployerIds)
       : Promise.resolve({ data: [] as Array<{ employer_id: string; monthly_salary: number | null; status: string | null }> }),
-    employerIds.length
-      ? adminSupabase
-          .from('advances')
-          .select('employer_id, amount, created_at')
-          .in('employer_id', employerIds)
-          .gte('created_at', startOfMonth)
-      : Promise.resolve({ data: [] as Array<{ employer_id: string; amount: number | null; created_at: string }> }),
+    adminSupabase
+      .from('advances')
+      .select('employer_id, amount')
+      .in('employer_id', employerIds)
+      .gte('created_at', startOfMonth),
   ]);
 
   const employeesByEmployer = new Map<string, { count: number; payroll: number }>();
   (employeesResult.data ?? []).forEach((employee) => {
     const onboardingId = onboardingIdByLiveEmployerId.get(employee.employer_id);
     if (!onboardingId) return;
-
-    const curr = employeesByEmployer.get(onboardingId) ?? { count: 0, payroll: 0 };
+    const curr   = employeesByEmployer.get(onboardingId) ?? { count: 0, payroll: 0 };
     const active = employee.status?.toLowerCase() === 'active';
     employeesByEmployer.set(onboardingId, {
-      count: curr.count + 1,
+      count:   curr.count + 1,
       payroll: curr.payroll + (active ? employee.monthly_salary ?? 0 : 0),
     });
   });
 
   const advancesByEmployer = new Map<string, number>();
-  (advancesResult.data ?? []).forEach((advance) => {
-    advancesByEmployer.set(
-      advance.employer_id,
-      (advancesByEmployer.get(advance.employer_id) ?? 0) + (advance.amount ?? 0)
-    );
+  (advancesResult.data ?? []).forEach((adv) => {
+    advancesByEmployer.set(adv.employer_id, (advancesByEmployer.get(adv.employer_id) ?? 0) + (adv.amount ?? 0));
   });
 
   const result = (onboardingRows ?? []).map((row) => {
-    const employeeMeta = employeesByEmployer.get(row.id) ?? { count: 0, payroll: 0 };
-    const riskFactors = riskFactorsByEmployer.get(row.id);
-    
-    let riskScore = Number(row.risk_score ?? 0);
+    const employeeMeta  = employeesByEmployer.get(row.id) ?? { count: 0, payroll: 0 };
+    const riskFactors   = riskFactorsByEmployer.get(row.id);
+
+    let riskScore  = Number(row.risk_score ?? 0);
     let riskRating = row.risk_rating;
-    
+
     if (riskFactors) {
-      riskScore = calculateCompositeRiskScore(riskFactors);
+      riskScore  = calculateCompositeRiskScore(riskFactors);
       riskRating = getRiskRating(riskScore);
     } else if (!riskScore || riskScore === 0) {
-      riskScore = 3.0;
+      riskScore  = 3.0;
       riskRating = 'B';
     }
 
-    const applicationFee = calculateApplicationFee(riskScore);
-
-    const country = row.country ?? '';
+    const country         = row.country ?? '';
     const companyCurrency = getCurrencyFromCountry(country, 'KES');
 
     return {
-      id: row.id,
-      company_name: row.company_name ?? 'Unknown company',
-      employer_code: codesByUserId.get(row.user_id) || `EW-${row.id.slice(0, 8).toUpperCase()}`,
-      industry: row.industry ?? '',
-      sector: row.sector ?? '',
-      country: country,
+      id:                  row.id,
+      company_name:        row.company_name ?? 'Unknown company',
+      employer_code:       codesByUserId.get(row.user_id) || `EW-${row.id.slice(0, 8).toUpperCase()}`,
+      industry:            row.industry ?? '',
+      sector:              row.sector ?? '',
+      country,
       registration_number: row.registration_number ?? null,
-      tax_id: row.tax_id ?? null,
-      address: row.physical_address ?? null,
-      contact_person: row.contact_person ?? null,
-      contact_email: row.contact_email ?? '',
-      contact_phone: row.contact_phone ?? null,
-      payroll_cycle: row.payroll_cycle ?? null,
-      status: toAdminStatus(row.status),
-      
-      risk_score: riskScore,
-      risk_rating: riskRating ?? 'B',
-      application_fee: applicationFee,
-      risk_scored_at: riskFactors?.scored_at ?? null,
-      has_risk_factors: !!riskFactors,
-      
-      created_at: row.created_at,
-      updated_at: row.updated_at ?? row.created_at,
-      employee_count: employeeMeta.count,
-      total_advances: convertToUSD(advancesByEmployer.get(row.id) ?? 0, companyCurrency, rates),
-      monthly_payroll: convertToUSD(employeeMeta.payroll, companyCurrency, rates),
+      tax_id:              row.tax_id ?? null,
+      address:             row.physical_address ?? null,
+      contact_person:      row.contact_person ?? null,
+      contact_email:       row.contact_email ?? '',
+      contact_phone:       row.contact_phone ?? null,
+      payroll_cycle:       row.payroll_cycle ?? null,
+      status:              toAdminStatus(row.status),
+      risk_score:          riskScore,
+      risk_rating:         riskRating ?? 'B',
+      application_fee:     calculateApplicationFee(riskScore),
+      risk_scored_at:      riskFactors?.scored_at ?? null,
+      has_risk_factors:    !!riskFactors,
+      created_at:          row.created_at,
+      updated_at:          row.updated_at ?? row.created_at,
+      employee_count:      employeeMeta.count,
+      total_advances:      convertToUSD(advancesByEmployer.get(row.id) ?? 0, companyCurrency, rates),
+      monthly_payroll:     convertToUSD(employeeMeta.payroll, companyCurrency, rates),
     };
   });
-  
-  const countries = [...new Set(result.map((e) => e.country).filter(Boolean))].sort();
-  const industries = [...new Set(result.map((e) => e.industry).filter(Boolean))].sort();
 
-  const stats = {
-    total: result.length,
-    active: result.filter((e) => e.status === 'approved').length,
-    pending: result.filter((e) => e.status === 'pending' || e.status === 'submitted').length,
-    risk_review: result.filter((e) => e.status === 'risk_review_in_progress').length,
-    suspended: result.filter((e) => e.status === 'suspended').length,
-    rejected: result.filter((e) => e.status === 'rejected').length,
-    total_employees: result.reduce((sum, e) => sum + e.employee_count, 0),
-    
-    risk_distribution: {
-      low_risk: result.filter((e) => e.risk_rating === 'A').length,
-      medium_risk: result.filter((e) => e.risk_rating === 'B').length,
-      high_risk: result.filter((e) => e.risk_rating === 'C').length,
-      very_high_risk: result.filter((e) => e.risk_rating === 'D').length,
-    },
-    
-    avg_risk_score: result.length > 0 
-      ? result.reduce((sum, e) => sum + e.risk_score, 0) / result.length 
-      : 0,
-    avg_application_fee: result.length > 0
-      ? result.reduce((sum, e) => sum + e.application_fee, 0) / result.length
-      : 0,
-    
-    needs_risk_assessment: result.filter((e) => !e.has_risk_factors || e.status === 'risk_review_in_progress').length,
-
-    base_currency: countryFilter ? (countries.find(c => c === countryFilter) || 'KES') : 'KES',
+  // avg stats derived from the current page only (good enough for dashboard display)
+  const pageStats = {
+    avg_risk_score:    result.length > 0 ? result.reduce((s, e) => s + e.risk_score, 0) / result.length : 0,
+    avg_application_fee: result.length > 0 ? result.reduce((s, e) => s + e.application_fee, 0) / result.length : 0,
+    total_employees:   result.reduce((s, e) => s + e.employee_count, 0),
   };
-
-  const filtered = result.filter((e) => {
-    if (statusFilter && e.status !== statusFilter) return false;
-    if (countryFilter && e.country !== countryFilter) return false;
-    if (riskRatingFilter && e.risk_rating !== riskRatingFilter) return false;
-    if (searchFilter) {
-      return (
-        e.company_name.toLowerCase().includes(searchFilter) ||
-        e.contact_email.toLowerCase().includes(searchFilter) ||
-        (e.contact_person ?? '').toLowerCase().includes(searchFilter) ||
-        (e.industry ?? '').toLowerCase().includes(searchFilter)
-      );
-    }
-    return true;
-  });
 
   return NextResponse.json(
     {
-      data: filtered,
-      stats,
+      data:  result,
+      stats: { ...stats, ...pageStats },
+      pagination: {
+        total:   filteredCount ?? 0,
+        page,
+        limit,
+        hasMore: (filteredCount ?? 0) > from + result.length,
+      },
       filters: {
         countries,
         industries,
         risk_ratings: ['A', 'B', 'C', 'D'],
         statuses: ['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'],
       },
-      framework: {
-        version: 'REV1',
-        date: '2025-10-25',
-        base_fee: 3.5,
-        risk_factor: 3.0,
-      },
+      framework: { version: 'REV1', date: '2025-10-25', base_fee: 3.5, risk_factor: 3.0 },
     },
-    { status: 200, headers: rateResult.headers }
+    { status: 200, headers: rateResult.headers },
   );
 }
 

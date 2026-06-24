@@ -80,26 +80,20 @@ export async function POST(req: NextRequest) {
 
     (async () => {
       try {
-        const adminEmails = (env.ADMIN_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean);
-        if (adminEmails.length > 0) {
+        const adminEmail = env.ADMIN_NOTIFICATION_EMAIL;
+        if (adminEmail) {
           const dashboardUrl = env.NEXT_PUBLIC_APP_URL || 'https://app.eaziwage.com';
-          const promises = adminEmails.map((to) =>
-            sendEmail({
-                          to,
-                          subject: `[Support] ${subject}`,
-                          react: React.createElement(AdminSupportNotification, {
-                            submitterEmail: user.email ?? 'Unknown Submitter',
-                            subject,
-                            message,
-                            ticketId: ticket.id,
-                            dashboardUrl,
-                          }),
-                        })
-          );
-
-          const results = await Promise.allSettled(promises);
-          const failed = results.filter((r) => r.status === 'rejected');
-          if (failed.length) console.error('[Support Email Errors]', failed);
+          await sendEmail({
+            to: adminEmail,
+            subject: `[Support] ${subject}`,
+            react: React.createElement(AdminSupportNotification, {
+              submitterEmail: user.email ?? 'Unknown Submitter',
+              subject,
+              message,
+              ticketId: ticket.id,
+              dashboardUrl,
+            }),
+          });
         }
       } catch (error) {
         console.error('[Support Email Error]', error);

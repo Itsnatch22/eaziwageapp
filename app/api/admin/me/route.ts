@@ -20,40 +20,24 @@ export async function GET(): Promise<NextResponse> {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const adminEmails = (env.ADMIN_EMAILS || '')
-    .replace(/^"|"$/g, '')
-    .split(',')
-    .map(e => e.trim().toLowerCase());
-  const isEnvAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
-
-  console.log('[/api/admin/me] Email check:', {
-    userEmail: user.email?.toLowerCase(),
-    adminEmails,
-    isEnvAdmin
-  });
-
-  let systemAdminRecord = null;
-  if (isEnvAdmin) {
-    const { data: sysAdmin } = await adminSupabase
+  const [systemAdminResult, profileResult] = await Promise.all([
+    adminSupabase
       .from('system_admins')
-      .select('id, email, full_name, avatar_url')
+      .select('id, email, full_name, avatar_url, is_admin')
       .eq('id', user.id)
-      .maybeSingle<{ id: string; email: string; full_name: string | null; avatar_url: string | null }>();
-    systemAdminRecord = sysAdmin;
-    
-    console.log('[/api/admin/me] System admin record:', systemAdminRecord ? 'Found' : 'Not found');
-  }
+      .maybeSingle<{ id: string; email: string; full_name: string | null; avatar_url: string | null; is_admin: boolean }>(),
+    adminSupabase
+      .from('profiles')
+      .select('id, email, full_name, role, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle<{ id: string; email: string; full_name: string | null; role: string | null; avatar_url: string | null }>(),
+  ]);
 
-  const { data: profile } = await adminSupabase
-    .from('profiles')
-    .select('id, email, full_name, role, avatar_url')
-    .eq('id', user.id)
-    .maybeSingle<{ id: string; email: string; full_name: string | null; role: string | null; avatar_url: string | null }>();
+  const systemAdminRecord = systemAdminResult.data;
+  const profile = profileResult.data;
+  const isSystemAdmin = systemAdminRecord?.is_admin === true;
 
-  console.log('[/api/admin/me] Profile record:', profile ? 'Found' : 'Not found', profile?.role);
-
-  if (isEnvAdmin) {
-    console.log('[/api/admin/me] ✓ User is env admin, granting access');
+  if (isSystemAdmin) {
     return NextResponse.json({
       user_id: user.id,
       email: user.email,
@@ -64,7 +48,7 @@ export async function GET(): Promise<NextResponse> {
       user_metadata_role: user.user_metadata?.role ?? null,
       role_candidates: ['admin'],
       is_admin: true,
-      is_env_admin: true,
+      is_env_admin: false,
       allowed_roles: ['admin', 'super_admin', 'compliance', 'employer_admin'],
     });
   }
@@ -75,8 +59,6 @@ export async function GET(): Promise<NextResponse> {
 
   const allowedRoles = ['admin', 'super_admin', 'compliance', 'employer_admin'];
   const isAdminRoleFinal = roleCandidates.some((role) => allowedRoles.includes(role));
-
-  console.log('[/api/admin/me] Role candidates:', roleCandidates, 'Is admin:', isAdminRoleFinal);
 
   return NextResponse.json({
     user_id: user.id,

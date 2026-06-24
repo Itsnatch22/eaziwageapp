@@ -5,6 +5,7 @@ import { onboardingSubmitSchema, stepUpdateSchema } from '@/lib/validations/empl
 import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployerOnboardingConfirmation from '@/lib/emails/EmployerOnboardingConfirmation';
 import { notifyAdmin } from '@/lib/notifications';
+import { getEnv } from '@/env';
 
 export const runtime = 'nodejs';
 
@@ -85,6 +86,9 @@ export async function POST(req: NextRequest) {
     proof_of_address,
     proof_of_bank_account,
     employment_contract_template,
+    // PII — written via upsert_employer_onboarding_pii RPC, not stored raw
+    bank_account_number,
+    tax_id,
     ...fields
   } = parsed.data;
 
@@ -130,6 +134,24 @@ export async function POST(req: NextRequest) {
       .eq('id', onboardingId);
 
     if (upsertError) throw upsertError;
+
+    // Encrypt PII fields — row must exist before this is called
+    const { PII_ENCRYPTION_KEY } = getEnv();
+    if (!PII_ENCRYPTION_KEY) {
+      return NextResponse.json({ error: 'Encryption not configured' }, { status: 500 });
+    }
+
+    const { error: piiError } = await supabase.rpc('upsert_employer_onboarding_pii', {
+      p_user_id:             user.id,
+      p_bank_account_number: bank_account_number ?? null,
+      p_tax_id:              tax_id ?? null,
+      p_key:                 PII_ENCRYPTION_KEY,
+    });
+
+    if (piiError) {
+      console.error('[employer/onboarding/pii]', piiError);
+      return NextResponse.json({ error: 'Failed to save secure fields' }, { status: 500 });
+    }
 
     const validOwners = beneficial_owners.filter((o) => o.full_name.trim());
 

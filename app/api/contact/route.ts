@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const SUPPORT_EMAIL = env.ADMIN_EMAILS?.split(',')[0].trim() || "support@eaziwage.com";
+    const SUPPORT_EMAIL = env.ADMIN_NOTIFICATION_EMAIL || "support@eaziwage.com";
 
     const { error: dbError } = await supabase
       .from("dashboard_contact")
