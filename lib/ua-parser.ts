@@ -1,15 +1,16 @@
 import { UAParser } from 'ua-parser-js';
 
-/**
- * Returns a friendly device name from a User-Agent string.
- * Examples:
- *  - "Samsung SM-A060F" -> "Samsung SM-A060F"
- *  - "iPhone" -> "iPhone"
- *  - "Desktop - Windows 10" -> "Desktop - Windows 10"
- */
 export function getDeviceName(userAgent: string | null): string | null {
   if (!userAgent) return null;
   try {
+    // '; Win11' is a sentinel appended at login time when Sec-CH-UA-Platform-Version >= 14,
+    // since Windows 11 reports 'Windows NT 10.0' in the UA string — identical to Windows 10.
+    if (userAgent.includes('; Win11')) {
+      const parser = new UAParser(userAgent.replace('; Win11', ''));
+      const browser = parser.getResult().browser;
+      return `Desktop - Windows 11${browser.name ? ` · ${browser.name}` : ''}`;
+    }
+
     const parser = new UAParser(userAgent);
     const result = parser.getResult();
     const device = result.device;

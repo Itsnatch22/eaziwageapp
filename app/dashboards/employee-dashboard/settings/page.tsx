@@ -154,6 +154,21 @@ export default function EmployeeSettings() {
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [logPage, setLogPage] = useState(0);
+  const [logTotal, setLogTotal] = useState(0);
+
+  type PaymentMethod = {
+    id: string;
+    method_type: 'mobile_money' | 'bank_account';
+    provider_name: string;
+    account_number?: string | null;
+    account_name?: string | null;
+    phone_number?: string | null;
+    is_default?: boolean;
+    is_verified?: boolean;
+  };
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '' });
@@ -171,21 +186,47 @@ export default function EmployeeSettings() {
   const [backupLoading, setBackupLoading] = useState(false);
 
   useEffect(() => {
+    if (activeTab === 'security') setLogPage(0);
+  }, [activeTab]);
+
+  useEffect(() => {
     async function fetchLogs() {
       if (activeTab === 'security') {
         setLogsLoading(true);
         try {
-          const res = await fetch('/api/auth/activity-logs');
+          const res = await fetch(`/api/auth/activity-logs?page=${logPage}`);
           if (res.ok) {
             const data = await res.json();
             setActivityLogs(data.logs || []);
+            setLogTotal(data.total ?? 0);
           }
         } finally {
           setLogsLoading(false);
         }
       }
     }
-    
+    fetchLogs();
+  }, [activeTab, logPage]);
+
+  useEffect(() => {
+    async function fetchPaymentMethods() {
+      if (activeTab === 'payment') {
+        setPaymentMethodsLoading(true);
+        try {
+          const res = await fetch('/api/employee-dashboard/payment-methods');
+          if (res.ok) {
+            const data = await res.json();
+            setPaymentMethods(data.methods || []);
+          }
+        } finally {
+          setPaymentMethodsLoading(false);
+        }
+      }
+    }
+    fetchPaymentMethods();
+  }, [activeTab]);
+
+  useEffect(() => {
     async function fetchNotificationPreferences() {
       if (activeTab === 'notifications') {
         try {
@@ -218,7 +259,6 @@ export default function EmployeeSettings() {
       }
     }
     
-    fetchLogs();
     fetchNotificationPreferences();
     fetchMfaStatus();
   }, [activeTab]);
@@ -691,34 +731,64 @@ export default function EmployeeSettings() {
             
             {activeTab === 'payment' && (
               <div className="space-y-6">
-                <SettingsCard icon={Smartphone} title="Mobile Money" description="Your primary disbursement method">
-                  <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center shadow-sm">
-                        <Smartphone className="w-6 h-6 text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-white">{employee?.mobile_money_provider || 'Not linked'}</p>
-                        <p className="text-sm text-emerald-600 font-medium">{employee?.mobile_money_number || '---'}</p>
-                      </div>
-                    </div>
-                    {employee?.mobile_money_number && <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase">Linked</span>}
-                  </div>
-                </SettingsCard>
-
-                <SettingsCard icon={Landmark} title="Bank Account" description="Alternative withdrawal method">
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center shadow-sm">
+                <SettingsCard icon={CreditCard} title="Payment Methods" description="Your saved disbursement accounts">
+                  {paymentMethodsLoading ? (
+                    <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+                  ) : paymentMethods.length === 0 ? (
+                    <div className="flex flex-col items-center gap-3 py-8 text-center">
+                      <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center">
                         <CreditCard className="w-6 h-6 text-slate-400" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 dark:text-white">{employee?.bank_name || 'No bank linked'}</p>
-                        <p className="text-sm text-slate-500">{employee?.bank_account ? `•••• ${employee.bank_account.slice(-4)}` : '---'}</p>
+                        <p className="font-medium text-slate-700 dark:text-slate-300 text-sm">No payment methods saved</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Add a mobile money number or bank account to receive advances.</p>
+                      </div>
+                      <Button size="sm" className="mt-1" onClick={() => router.push('/dashboards/employee-dashboard/payment-methods')}>
+                        Add Payment Method
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {paymentMethods.map((pm) => {
+                        const isMobile = pm.method_type === 'mobile_money';
+                        return (
+                          <div key={pm.id} className={cn(
+                            'p-4 rounded-xl border flex items-center justify-between gap-4',
+                            isMobile
+                              ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20'
+                              : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'
+                          )}>
+                            <div className="flex items-center gap-4 min-w-0">
+                              <div className="w-10 h-10 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                                {isMobile ? <Smartphone className="w-5 h-5 text-emerald-600" /> : <Landmark className="w-5 h-5 text-slate-500" />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-900 dark:text-white text-sm truncate">{pm.provider_name}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                                  {isMobile
+                                    ? pm.phone_number || '---'
+                                    : pm.account_number ? `•••• ${pm.account_number.slice(-4)}` : '---'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {pm.is_default && (
+                                <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 text-[10px] font-bold uppercase">Default</span>
+                              )}
+                              {pm.is_verified && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase">Verified</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div className="pt-2 flex justify-end">
+                        <Button variant="outline" size="sm" className="rounded-lg" onClick={() => router.push('/dashboards/employee-dashboard/payment-methods')}>
+                          Manage Payment Methods
+                        </Button>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="rounded-lg" onClick={() => router.push('/dashboards/employee-dashboard/onboarding')}>Manage</Button>
-                  </div>
+                  )}
                 </SettingsCard>
               </div>
             )}
@@ -937,28 +1007,57 @@ export default function EmployeeSettings() {
                     ) : activityLogs.length === 0 ? (
                       <p className="text-xs text-slate-500 text-center py-4">No recent activity logged.</p>
                     ) : (
-                      <div className="divide-y divide-slate-100 dark:divide-white/5">
-                        {activityLogs.map((log, idx) => (
-                          <div key={idx} className="py-3 flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{(log.action || 'activity').replace('_', ' ')}</p>
-                              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{log.created_at ? new Date(log.created_at).toLocaleString() : 'Recent'}</p>
-                              {(log.metadata?.device_name || log.metadata?.location || log.metadata?.ip) && (
-                                <p className="text-[9px] text-slate-400 mt-1">
-                                  {log.metadata.device_name ? `💻 ${log.metadata.device_name}` : ''}
-                                  {log.metadata.user_agent ? ` ${log.metadata.device_name ? '• ' : ''}${String(log.metadata.user_agent).slice(0, 60)}${String(log.metadata.user_agent).length > 60 ? '...' : ''}` : ''}
-                                  {(log.metadata.location || log.metadata.ip) ? (log.metadata.device_name ? ' • ' : '') : ''}
-                                  {log.metadata.location ? `📍 ${log.metadata.location}` : ''} 
-                                  {log.metadata.ip ? `${log.metadata.location ? ' • ' : ''}🌐 ${log.metadata.ip}` : ''}
-                                </p>
-                              )}
+                      <>
+                        <div className="divide-y divide-slate-100 dark:divide-white/5">
+                          {activityLogs.map((log, idx) => (
+                            <div key={idx} className="py-3 flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{(log.action || 'activity').replace('_', ' ')}</p>
+                                <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{log.created_at ? new Date(log.created_at).toLocaleString() : 'Recent'}</p>
+                                {(log.metadata?.device_name || log.metadata?.location || log.metadata?.ip) && (
+                                  <p className="text-[9px] text-slate-400 mt-1">
+                                    {log.metadata.device_name ? `💻 ${log.metadata.device_name}` : ''}
+                                    {(log.metadata.location || log.metadata.ip) ? (log.metadata.device_name ? ' • ' : '') : ''}
+                                    {log.metadata.location ? `📍 ${log.metadata.location}` : ''}
+                                    {log.metadata.ip ? `${log.metadata.location ? ' • ' : ''}🌐 ${log.metadata.ip}` : ''}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest ml-3">
+                                {log.metadata?.ip ? log.metadata.ip.split('.').slice(-2).join('.') : 'Verified'}
+                              </span>
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest ml-3">
-                              {log.metadata?.ip ? log.metadata.ip.split('.').slice(-2).join('.') : 'Verified'}
+                          ))}
+                        </div>
+                        {logTotal > 10 && (
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-white/5">
+                            <span className="text-xs text-slate-500">
+                              Page {logPage + 1} of {Math.ceil(logTotal / 10)}
+                              <span className="ml-1 text-slate-400">({logTotal} total)</span>
                             </span>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-3 text-xs"
+                                disabled={logPage === 0}
+                                onClick={() => setLogPage(p => p - 1)}
+                              >
+                                ← Prev
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-3 text-xs"
+                                disabled={(logPage + 1) * 10 >= logTotal}
+                                onClick={() => setLogPage(p => p + 1)}
+                              >
+                                Next →
+                              </Button>
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </SettingsCard>

@@ -45,6 +45,8 @@ export async function GET() {
       return NextResponse.json({ integrations: [] });
     }
 
+const onboardingId = employer.onboarding_id ?? employer.id;
+
 const { data: integrations, error } = await supabase
        .from('payroll_integrations')
        .select(`
@@ -57,7 +59,7 @@ const { data: integrations, error } = await supabase
            error_message, duration_ms, created_at
          )
        `)
-       .eq('employer_id', employer.id)
+       .eq('employer_id', onboardingId)
        .order('created_at', { ascending: false });
 
     if (error) {
@@ -117,10 +119,12 @@ export async function POST(req: NextRequest) {
 
     const { provider, provider_label, sync_mode, sync_frequency, sync_time } = parsed.data;
 
+const onboardingId = employer.onboarding_id ?? employer.id;
+
 const { data: existing, error: existingError } = await supabase
        .from('payroll_integrations')
        .select('id, integration_code, webhook_secret')
-       .eq('employer_id', employer.id)
+       .eq('employer_id', onboardingId)
        .eq('provider', provider)
        .maybeSingle();
 
@@ -159,7 +163,7 @@ const { data: existing, error: existingError } = await supabase
 const { error: insertErr } = await supabase
          .from('payroll_integrations')
          .insert({
-           employer_id:      employer.id,
+           employer_id:      onboardingId,
            provider,
            provider_label,
            integration_code: integrationCode,
@@ -226,6 +230,8 @@ export async function DELETE(req: NextRequest) {
     }
     if (!emp) return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
 
+    const empOnboardingId = emp.onboarding_id ?? emp.id;
+
     const q = supabase
       .from('payroll_integrations')
       .delete();
@@ -233,7 +239,7 @@ export async function DELETE(req: NextRequest) {
     if (integrationId) q.eq('id', integrationId);
     if (integrationCode) q.eq('integration_code', integrationCode);
 
-    q.eq('employer_id', emp.id);
+    q.eq('employer_id', empOnboardingId);
 
     const { error: delErr } = await q;
     if (delErr) {

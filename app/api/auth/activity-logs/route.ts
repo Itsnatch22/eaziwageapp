@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { getDeviceName } from '@/lib/ua-parser';
 
@@ -12,7 +12,9 @@ type LoginHistoryRow = {
   device_fingerprint: string | null;
 };
 
-export async function GET() {
+const LIMIT = 10;
+
+export async function GET(req: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
 
@@ -21,15 +23,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: logs, error: logsError } = await supabase
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10));
+    const from = page * LIMIT;
+    const to = from + LIMIT - 1;
+
+    const { data: logs, error: logsError, count } = await supabase
       .from('login_history')
-      .select('id, email, ip_address, user_agent, logged_in_at, location, device_fingerprint')
+      .select('id, email, ip_address, user_agent, logged_in_at, location, device_fingerprint', { count: 'exact' })
       .eq('user_id', user.id)
       .order('logged_in_at', { ascending: false })
-      .limit(20);
+      .range(from, to);
 
     if (logsError) throw logsError;
-
 
     const formattedLogs = (logs || []).map((log: LoginHistoryRow) => ({
       action: 'login',
@@ -43,7 +49,7 @@ export async function GET() {
       }
     }));
 
-    return NextResponse.json({ logs: formattedLogs });
+    return NextResponse.json({ logs: formattedLogs, total: count ?? 0, page, limit: LIMIT });
   } catch (error: unknown) {
     console.error('[Activity Logs API Error]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

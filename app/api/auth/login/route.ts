@@ -71,7 +71,18 @@ function getClientIp(req: NextRequest): string {
 }
 
 function getUserAgent(req: NextRequest): string {
-  return req.headers.get('user-agent') ?? 'Unknown';
+  const ua = req.headers.get('user-agent') ?? 'Unknown';
+  // Windows 10 and 11 both report 'Windows NT 10.0' in the UA string.
+  // Sec-CH-UA-Platform-Version (sent after the server advertises Accept-CH) distinguishes
+  // them: major version >= 14 means Windows 11.
+  if (ua.includes('Windows NT 10.0')) {
+    const platformVersion = req.headers.get('sec-ch-ua-platform-version');
+    if (platformVersion) {
+      const major = parseInt(platformVersion.replace(/"/g, '').split('.')[0], 10);
+      if (!isNaN(major) && major >= 14) return ua + '; Win11';
+    }
+  }
+  return ua;
 }
 
 async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean> {
