@@ -194,7 +194,7 @@ export async function GET() {
        beneficial_ownership, pep_screening,
        composite_score, scored_at, notes`,
     )
-    .eq('employer_id', employer.onboarding_id)
+    .eq('employer_live_id', employer.id)
     .maybeSingle();
 
   if (rfError) {
@@ -256,7 +256,7 @@ export async function GET() {
   const { data: pendingReview } = await supabase
     .from('risk_review_requests')
     .select('id, created_at, message')
-    .eq('employer_id', employer.onboarding_id)
+    .eq('employer_live_id', employer.id)
     .eq('status', 'pending')
     .limit(1)
     .maybeSingle();

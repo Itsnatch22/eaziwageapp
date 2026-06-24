@@ -104,7 +104,7 @@ const { data: integration, error: intgErr } = await supabase
      .from('payroll_integrations')
      .select('id, provider, status, sync_mode, sync_frequency, sync_time')
      .eq('id', integration_id)
-     .eq('employer_id', employer.id)
+     .eq('employer_live_id', employer.id)
      .maybeSingle();
 
   if (intgErr) {
@@ -130,7 +130,7 @@ const { data: latestUpload, error: uploadErr } = await supabase
        error_summary, warning_summary,
        uploaded_at, processed_at
      `)
-     .eq('employer_id', employer.id)
+     .eq('employer_live_id', employer.id)
      .eq('source', 'api_push')
      .eq('integration_id', integration_id)
      .order('uploaded_at', { ascending: false })
@@ -160,7 +160,8 @@ await supabase
        .from('payroll_sync_logs')
        .insert({
          integration_id,
-         employer_id:      employer.id,
+         employer_id:      onboarding_id,
+         employer_live_id: employer.id,
          triggered_by:     'manual',
          status:           'failed',
          records_received: 0,
@@ -214,7 +215,8 @@ const { data: syncLog, error: logErr } = await supabase
      .from('payroll_sync_logs')
      .insert({
        integration_id,
-       employer_id:      employer.id,
+       employer_id:      onboarding_id,
+       employer_live_id: employer.id,
        triggered_by:     'manual',
        status:           syncStatus,
        records_received: upload.total_rows,

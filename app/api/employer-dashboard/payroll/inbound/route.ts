@@ -37,6 +37,7 @@ interface UploadRow {
 interface IntegrationRow {
   id: string;
   employer_id: string;
+  employer_live_id: string | null;
   webhook_secret: string | null;
   status: string;
 }
@@ -44,6 +45,7 @@ interface IntegrationRow {
 interface RowResult {
   upload_id: string;
   employer_id: string;
+  employer_live_id: string | null;
   employee_code: string;
   employee_id: string | null;
   days_worked: number | null;
@@ -121,7 +123,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { data: integration, error: intgErr } = await supabase
     .from('payroll_integrations')
-    .select('id, employer_id, webhook_secret, status')
+    .select('id, employer_id, employer_live_id, webhook_secret, status')
     .eq('integration_code', integrationCode)
     .maybeSingle();
 
@@ -186,20 +188,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { month, employees: rows } = payload;
-  const employerId = intg.employer_id;
+  const employerId     = intg.employer_id;
+  const employerLiveId = intg.employer_live_id;
 
 
   const { data: uploadData, error: uploadErr } = await supabase
     .from('payroll_uploads')
     .upsert(
       {
-        employer_id:   employerId,
+        employer_id:     employerId,
+        employer_live_id: employerLiveId,
         month,
-        source:        'api_push',
-        status:        'processing',
-        total_rows:    rows.length,
-        integration_id: intg.id,
-        uploaded_at:   new Date().toISOString(),
+        source:          'api_push',
+        status:          'processing',
+        total_rows:      rows.length,
+        integration_id:  intg.id,
+        uploaded_at:     new Date().toISOString(),
       },
       { onConflict: 'employer_id,month,source' },
     )
@@ -217,7 +221,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { data: knownEmployees, error: empErr } = await supabase
     .from('employee_onboarding')
     .select('id, employee_code, monthly_salary, status')
-    .eq('employer_id', employerId);
+    .eq('live_employer_id', employerLiveId);
 
   if (empErr) {
     console.error('[payroll/inbound] employee fetch error', empErr.message);
@@ -314,9 +318,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const net = Math.max(0, (row.gross_salary ?? 0) - deductions);
 
     rowResults.push({
-      upload_id:     uploadId,
-      employer_id:   employerId,
-      employee_code: row.employee_code ?? '',
+      upload_id:        uploadId,
+      employer_id:      employerId,
+      employer_live_id: employerLiveId,
+      employee_code:    row.employee_code ?? '',
       employee_id:   known?.id ?? null,
       days_worked:   row.days_worked ?? null,
       gross_salary:  row.gross_salary ?? 0,
@@ -376,6 +381,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .insert({
       integration_id:   intg.id,
       employer_id:      employerId,
+      employer_live_id: employerLiveId,
       triggered_by:     'webhook',
       status:           syncStatus,
       records_received: rows.length,

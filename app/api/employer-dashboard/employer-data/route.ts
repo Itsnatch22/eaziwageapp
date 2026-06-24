@@ -82,7 +82,7 @@ export async function GET() {
   const { data: riskFactorsRow } = await supabase
     .from('employer_risk_factors')
     .select('*')
-    .eq('employer_id', employer.onboarding_id)
+    .eq('employer_live_id', employer.id)
     .maybeSingle();
 
   const risk_factors = riskFactorsRow
@@ -116,7 +116,7 @@ export async function GET() {
   const { data: pendingReview } = await supabase
     .from('risk_review_requests')
     .select('id, status, created_at')
-    .eq('employer_id', employer.onboarding_id)
+    .eq('employer_live_id', employer.id)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
     .limit(1)

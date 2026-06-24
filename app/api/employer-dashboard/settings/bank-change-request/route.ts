@@ -69,8 +69,9 @@ export async function POST(req: NextRequest) {
     const { data: requestRecord, error: requestError } = await supabase
       .from('bank_change_requests')
       .insert({
-        employer_id: employer.onboarding_id,
-        user_id: user.id,
+        employer_id:      employer.onboarding_id,
+        employer_live_id: employer.id,
+        user_id:          user.id,
         old_bank_name: onboarding?.bank_name,
         old_account_number: onboarding?.bank_account_number,
         new_bank_name: bank_name,

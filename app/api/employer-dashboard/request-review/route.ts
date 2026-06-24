@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   const { data: existing } = await supabase
     .from('risk_review_requests')
     .select('id')
-    .eq('employer_id', employer.onboarding_id)
+    .eq('employer_live_id', employer.id)
     .eq('status', 'pending')
     .maybeSingle();
 
@@ -77,8 +77,9 @@ export async function POST(req: NextRequest) {
   const { error: insertError } = await supabase
     .from('risk_review_requests')
     .insert({
-      employer_id: employer.onboarding_id,
-      user_id:     user.id,
+      employer_id:      employer.onboarding_id,
+      employer_live_id: employer.id,
+      user_id:          user.id,
       type,
       message,
       status: 'pending',

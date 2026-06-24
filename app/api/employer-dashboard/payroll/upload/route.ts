@@ -44,15 +44,16 @@ const { data: upload, error: uploadErr } = await supabase
      .from('payroll_uploads')
      .upsert(
        {
-         employer_id:    employer.id,
+         employer_id:     employer.onboarding_id,
+         employer_live_id: employer.id,
          month,
-         source:         'manual',
-         status:         'processing',
-         file_name:      file_name ?? null,
+         source:          'manual',
+         status:          'processing',
+         file_name:       file_name ?? null,
          file_size_bytes: file_size_bytes ?? null,
-         total_rows:     rows.length,
-         uploaded_by:    user.id,
-         uploaded_at:    new Date().toISOString(),
+         total_rows:      rows.length,
+         uploaded_by:     user.id,
+         uploaded_at:     new Date().toISOString(),
        },
        { onConflict: 'employer_id,month,source' },
      )
@@ -69,16 +70,17 @@ const { data: upload, error: uploadErr } = await supabase
 const { data: knownEmployees } = await supabase
      .from('employee_onboarding')
      .select('id, employee_code, monthly_salary, status')
-     .eq('employer_id', employer.id);
+     .eq('live_employer_id', employer.id);
 
   const employeeMap = new Map(
     (knownEmployees ?? []).map(e => [e.employee_code, e])
   );
 
   type RowResult = {
-    upload_id:      string;
-    employer_id:    string;
-    employee_code:  string;
+    upload_id:        string;
+    employer_id:      string | null;
+    employer_live_id: string;
+    employee_code:    string;
     employee_id:    string | null;
     days_worked:    number | null;
     gross_salary:   number;
@@ -160,9 +162,10 @@ const { data: knownEmployees } = await supabase
     const net = Math.max(0, row.gross_salary - row.deductions);
 
 rowResults.push({
-       upload_id:     uploadId,
-       employer_id:   employer.id,
-       employee_code: row.employee_code,
+       upload_id:        uploadId,
+       employer_id:      employer.onboarding_id,
+       employer_live_id: employer.id,
+       employee_code:    row.employee_code,
        employee_id:   known?.id ?? null,
        days_worked:   row.days_worked ?? null,
        gross_salary:  row.gross_salary,

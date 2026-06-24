@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const { data: integration, error: intErr } = await supabaseAdmin
       .from('payroll_integrations')
       .select('id, employer_id, integration_code, webhook_secret, webhook_secret_encrypted')
-      .eq('employer_id', employer.onboarding_id)
+      .eq('employer_live_id', employer.id)
       .eq('integration_code', integrationCode)
       .maybeSingle();
 

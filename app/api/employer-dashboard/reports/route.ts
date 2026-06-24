@@ -322,7 +322,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { data: syncData } = await supabase
       .from('payroll_sync_logs')
       .select('status, records_received, records_valid, created_at')
-      .eq('employer_id', onboardingEmployerId)
+      .eq('employer_live_id', employerId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();

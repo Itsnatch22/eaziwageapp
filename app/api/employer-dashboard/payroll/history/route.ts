@@ -42,7 +42,7 @@ export async function GET() {
           row_status, row_errors, row_warnings, source_row
         )
       `)
-      .eq('employer_id', employer.id)
+      .eq('employer_live_id', employer.id)
       .order('month', { ascending: false })
       .limit(24); // 2 years of monthly uploads
 

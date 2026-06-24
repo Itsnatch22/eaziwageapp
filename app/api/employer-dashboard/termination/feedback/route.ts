@@ -27,8 +27,9 @@ export async function POST(req: NextRequest) {
     const { error: feedbackError } = await adminSupabase
       .from('termination_feedback')
       .insert({
-        user_id: user.id,
-        employer_id: employer?.onboarding_id,
+        user_id:          user.id,
+        employer_id:      employer?.onboarding_id,
+        employer_live_id: employer?.id,
         reason,
         other_reason,
         additional_comments
