@@ -202,6 +202,8 @@ const { data: existing } = await adminSupabase
      start_date: start_date || null,
      monthly_salary,
      currency: employeeCurrency,
+     bank_name,
+     mobile_money_provider,
 
      face_id: face_id || null,
      id_front: id_front || null,
