@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: employer, error: employerError } = await supabase
+    const { data: employerLive, error: employerError } = await supabase
       .from('employers')
       .select('id, onboarding_id')
       .eq('user_id', user.id)
@@ -98,6 +98,16 @@ export async function POST(req: NextRequest) {
     if (employerError) {
       console.error('[payroll/connect] employer lookup error', employerError.message);
       return NextResponse.json({ error: 'Failed to resolve employer' }, { status: 500 });
+    }
+
+    let employer: { id: string; onboarding_id?: string | null } | null = employerLive;
+    if (!employer) {
+      const { data: onboarding } = await supabase
+        .from('employer_onboarding')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (onboarding) employer = { id: onboarding.id, onboarding_id: null };
     }
 
     if (!employer) {

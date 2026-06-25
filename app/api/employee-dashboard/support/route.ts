@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     const env = getEnv();
     try {
       const notification = {
-        type: 'support_ticket',
+        type: 'review_request',
         title: `New support ticket: ${subject}`,
         message: message.length > 300 ? `${message.slice(0, 300)}...` : message,
         read: false,

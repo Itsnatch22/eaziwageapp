@@ -123,6 +123,21 @@ export default function AdminNotificationsPage() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (notifications.length === 0) return;
+    try {
+      const res = await fetch('/api/admin/notifications?all=true', { method: 'DELETE' });
+      if (res.ok) {
+        setNotifications([]);
+        toast.success('All notifications deleted');
+      } else {
+        toast.error('Failed to delete all notifications');
+      }
+    } catch {
+      toast.error('Failed to delete all notifications');
+    }
+  };
+
   const filteredNotifications = notifications.filter(n => {
     if (filter === 'unread' && n.read) return false;
     if (searchTerm) {
@@ -171,6 +186,15 @@ export default function AdminNotificationsPage() {
             >
               <CheckCircle2 className="w-4 h-4 mr-2" />
               Mark all as read
+            </Button>
+            <Button
+              variant="outline"
+              className="bg-white/60 dark:bg-slate-800/60 text-red-600 hover:text-red-700 hover:border-red-300"
+              onClick={handleDeleteAll}
+              disabled={notifications.length === 0}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete all
             </Button>
           </div>
         </div>

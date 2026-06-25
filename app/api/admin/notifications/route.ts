@@ -183,7 +183,9 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
+    const bulk = searchParams.get('all') === 'true';
+
+    if (!id && !bulk) return NextResponse.json({ error: 'Missing ID or all=true' }, { status: 400 });
 
     try {
         const supabase = await createRouteHandlerClient();
@@ -198,8 +200,14 @@ export async function DELETE(req: NextRequest) {
             auth: { autoRefreshToken: false, persistSession: false },
         });
 
-        const { error } = await adminSupabase.from('admin_notifications').delete().eq('id', id);
-        if (error) throw error;
+        if (bulk) {
+            // Supabase requires a filter; use a sentinel that never matches real UUIDs to delete all rows
+            const { error } = await adminSupabase.from('admin_notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            if (error) throw error;
+        } else {
+            const { error } = await adminSupabase.from('admin_notifications').delete().eq('id', id!);
+            if (error) throw error;
+        }
 
         return NextResponse.json({ success: true });
     } catch {

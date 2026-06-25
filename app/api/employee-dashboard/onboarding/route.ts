@@ -137,6 +137,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Resolve live employer ID for FK compatibility with the employees table.
+  // employerId may be an employer_onboarding.id (legacy); look up the corresponding employers.id.
+  let liveEmployerId: string = employerId;
+  const { data: liveEmp } = await adminSupabase
+    .from('employers')
+    .select('id')
+    .eq('onboarding_id', employerId)
+    .maybeSingle();
+  if (liveEmp?.id) {
+    liveEmployerId = liveEmp.id;
+  } else if (employerId !== liveEmployerId) {
+    // employerId is already from employers table — keep it
+    liveEmployerId = employerId;
+  }
+
 const { data: existing } = await adminSupabase
      .from('employee_onboarding')
      .select('id, status, submitted_at')
@@ -278,7 +293,7 @@ const { data: existing } = await adminSupabase
        .from('employees')
        .upsert({
          user_id: user.id,
-         employer_id: employerId,
+         employer_id: liveEmployerId,
          employee_code: generatedEmployeeCode,
          full_name: employeeName,
          email: user.email,

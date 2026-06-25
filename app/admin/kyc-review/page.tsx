@@ -615,6 +615,26 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: IconType; label: string; 
 
 const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
   const previewKind = getDocumentPreviewKind(doc);
+  const [imgError, setImgError] = useState(false);
+  const hasUrl = !!doc.document_url;
+
+  const NoPreview = () => (
+    <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400">
+      <FileText className="w-12 h-12 opacity-40" />
+      <p className="text-sm font-medium">Preview unavailable</p>
+      {hasUrl && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open(doc.document_url!, '_blank', 'noopener,noreferrer')}
+          className="rounded-xl"
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Open in new tab
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div className="lg:col-span-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
@@ -630,8 +650,9 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => window.open(doc.document_url, '_blank', 'noopener,noreferrer')}
-          className="shrink-0 rounded-xl border-purple-200 text-purple-600 hover:bg-purple-50"
+          disabled={!hasUrl}
+          onClick={() => hasUrl && window.open(doc.document_url!, '_blank', 'noopener,noreferrer')}
+          className="shrink-0 rounded-xl border-purple-200 text-purple-600 hover:bg-purple-50 disabled:opacity-50"
         >
           <ExternalLink className="w-4 h-4 mr-2" />
           Open
@@ -639,20 +660,22 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
       </div>
 
       <div className="h-105 lg:h-140 bg-slate-200/70 dark:bg-slate-950">
-        {previewKind === 'image' ? (
-
+        {!hasUrl || imgError ? (
+          <NoPreview />
+        ) : previewKind === 'image' ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={doc.document_url}
+              src={doc.document_url!}
               alt={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}
               className="h-full w-full object-contain"
+              onError={() => setImgError(true)}
             />
           </>
         ) : (
           <iframe
             title={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}
-            src={doc.document_url}
+            src={doc.document_url!}
             className="h-full w-full border-0 bg-white"
           />
         )}

@@ -16,10 +16,11 @@ const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control',   value: 'off' },
   // Only send the origin (no path/query) in cross-origin Referer headers.
   { key: 'Referrer-Policy',          value: 'strict-origin-when-cross-origin' },
-  // Deny access to camera, mic, geolocation, and interest-cohort (FLoC).
+  // Deny access to camera, mic, and interest-cohort (FLoC).
+  // geolocation is intentionally allowed (self) for the onboarding address autofill feature.
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+    value: 'camera=(), microphone=(), geolocation=(self), interest-cohort=()',
   },
   // Enforce HTTPS for 2 years, include subdomains, pre-load eligible.
   // Only effective over TLS; browsers ignore it over plain HTTP.

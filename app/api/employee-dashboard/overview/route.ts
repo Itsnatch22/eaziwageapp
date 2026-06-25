@@ -81,17 +81,15 @@ export async function GET() {
   }
 
 
-  const { data: employeeRecord, error: employeeRecordError } = await supabase
+  const { data: employeeRecord } = await supabase
     .from('employees')
     .select('id')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (employeeRecordError || !employeeRecord) {
-    return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
-  }
-
-  const liveEmployeeId = employeeRecord.id;
+  // employees row may not exist yet (KYC pending / sync lag).
+  // Fall back to null — advances will be empty, which is correct for new employees.
+  const liveEmployeeId = employeeRecord?.id ?? null;
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -100,16 +98,15 @@ export async function GET() {
     .maybeSingle();
 
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-  const { data: advances, error: advancesError } = await supabase
-    .from('advances')
-    .select('*')
-    .eq('employee_id', liveEmployeeId)
-    .gte('created_at', startOfMonth)
-    .order('created_at', { ascending: false });
-
-  if (advancesError) {
-    return NextResponse.json({ error: advancesError.message }, { status: 500 });
-  }
+  const advances = liveEmployeeId
+    ? await supabase
+        .from('advances')
+        .select('*')
+        .eq('employee_id', liveEmployeeId)
+        .gte('created_at', startOfMonth)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => data ?? [])
+    : [];
 
   const monthlySalary = Number(employee.monthly_salary || 0);
   
@@ -119,11 +116,13 @@ export async function GET() {
   const earnedWages = (monthlySalary / daysInMonth) * daysPassed;
 
 
-  const { data: employeeEwa } = await supabase
-    .from('employee_ewa_settings')
-    .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
-    .eq('employee_id', liveEmployeeId)
-    .maybeSingle();
+  const { data: employeeEwa } = liveEmployeeId
+    ? await supabase
+        .from('employee_ewa_settings')
+        .select('ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
+        .eq('employee_id', liveEmployeeId)
+        .maybeSingle()
+    : { data: null };
 
   let effective = {
     ewa_enabled: true,

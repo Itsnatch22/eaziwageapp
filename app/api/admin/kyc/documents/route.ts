@@ -217,13 +217,13 @@ export async function GET(req: NextRequest) {
       const storedDocumentNumber = typeof doc.document_number === 'string'
         ? doc.document_number.trim()
         : null;
-      const onboardingDocumentNumber = identity?.national_id?.trim() || null;
       const freshDocumentUrl = await getFreshEmployeeDocumentUrl(adminSupabase, doc);
 
       return {
         ...doc,
         document_url: freshDocumentUrl,
-        document_number: storedDocumentNumber || onboardingDocumentNumber,
+        // national_id in employee_onboarding is encrypted at rest — never use it as fallback here
+        document_number: storedDocumentNumber || null,
         id_type: identity?.id_type ?? null,
       };
     }));

@@ -34,22 +34,40 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: employer } = await adminSupabase
+    const { data: employerLive } = await adminSupabase
       .from('employers')
       .select('id, onboarding_id')
       .eq('user_id', user.id)
-      .eq('status', 'approved')
       .maybeSingle();
 
-    if (!employer) {
+    // Resolve employer identity: prefer employers row (any status), fall back to employer_onboarding
+    let employerId: string | null = null;
+    let onboardingId: string | null = null;
+    if (employerLive) {
+      employerId = employerLive.id;
+      onboardingId = employerLive.onboarding_id;
+    } else {
+      const { data: onboarding } = await adminSupabase
+        .from('employer_onboarding')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (onboarding) {
+        onboardingId = onboarding.id;
+      }
+    }
+
+    if (!employerId && !onboardingId) {
       return NextResponse.json({ error: 'Employer not found' }, { status: 403 });
     }
+
+    const senderId = String(onboardingId ?? employerId);
 
     const { data: announcementRows, error: annError } = await adminSupabase
       .from('notifications')
       .select('id, title, message, created_at, metadata')
       .eq('type', 'announcement')
-      .eq('metadata->>sender_id', String(employer.onboarding_id))
+      .eq('metadata->>sender_id', senderId)
       .order('created_at', { ascending: false });
 
     if (annError) {
@@ -91,14 +109,30 @@ export async function POST(req: NextRequest) {
     const rate = await checkRateLimit(contactLimiter, `announcements:${user.id}`);
     if (!rate.success) return NextResponse.json({ error: 'Too many announcements. Please wait before sending another.' }, { status: 429 });
 
-    const { data: employer } = await adminSupabase
+    const { data: employerLivePost } = await adminSupabase
       .from('employers')
       .select('id, onboarding_id, company_name')
       .eq('user_id', user.id)
-      .eq('status', 'approved')
       .maybeSingle();
 
-    if (!employer) {
+    let postOnboardingId: string | null = null;
+    let postCompanyName = 'Your Employer';
+    if (employerLivePost) {
+      postOnboardingId = employerLivePost.onboarding_id;
+      postCompanyName = employerLivePost.company_name ?? postCompanyName;
+    } else {
+      const { data: onboarding } = await adminSupabase
+        .from('employer_onboarding')
+        .select('id, company_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (onboarding) {
+        postOnboardingId = onboarding.id;
+        postCompanyName = onboarding.company_name ?? postCompanyName;
+      }
+    }
+
+    if (!postOnboardingId) {
       return NextResponse.json({ error: 'Employer not found' }, { status: 403 });
     }
 
@@ -112,7 +146,7 @@ export async function POST(req: NextRequest) {
     const { data: employees } = await adminSupabase
       .from('employee_onboarding')
       .select('user_id')
-      .eq('employer_id', employer.onboarding_id)
+      .eq('employer_id', postOnboardingId)
       .not('user_id', 'is', null)
       .eq('status', 'approved');
 
@@ -130,8 +164,8 @@ export async function POST(req: NextRequest) {
       read: false,
       metadata: {
         announcement_id: announcementId,
-        sender_id: employer.onboarding_id,
-        sender_name: employer.company_name,
+        sender_id: postOnboardingId,
+        sender_name: postCompanyName,
         is_announcement: true
       }
     }));

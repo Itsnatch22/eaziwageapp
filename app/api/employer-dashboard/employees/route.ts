@@ -24,11 +24,23 @@ export async function GET(req: NextRequest) {
   if (employerError) {
     return NextResponse.json({ error: employerError.message }, { status: 500 });
   }
-  
+
   const employerIds: string[] = [];
   if (employer?.onboarding_id) employerIds.push(employer.onboarding_id);
   if (employer?.id && !employerIds.includes(employer.id)) {
     employerIds.push(employer.id);
+  }
+
+  // Fall back to employer_onboarding when employers row hasn't been synced yet
+  if (employerIds.length === 0) {
+    const { data: onboarding } = await supabase
+      .from('employer_onboarding')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (onboarding?.id) {
+      employerIds.push(onboarding.id);
+    }
   }
 
   if (employerIds.length === 0) {

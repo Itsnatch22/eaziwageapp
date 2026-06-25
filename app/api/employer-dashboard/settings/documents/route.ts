@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
-
+import { createAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -90,7 +90,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { error: updateError } = await supabase
+    // Use admin client to bypass RLS — the user is updating their own record but
+    // employer_onboarding RLS may only allow inserts, not updates from the user role.
+    const adminSupabase = createAdminClient();
+    const { error: updateError } = await adminSupabase
       .from('employer_onboarding')
       .update({ [documentType]: fileUrl })
       .eq('id', existingProfile.id);

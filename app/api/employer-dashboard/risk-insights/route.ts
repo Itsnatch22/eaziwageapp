@@ -189,7 +189,15 @@ export async function GET() {
       );
     }
 
-    const computedCRS = calculateCompositeRiskScore(DEFAULT_RISK_FACTORS);
+    // Use the admin-set risk_score/risk_rating from onboarding when available.
+    // risk_score is stored on a 0–5 scale per the DB schema.
+    const storedScore = Number(onboardingFallback.risk_score ?? 0);
+    const computedCRS = storedScore > 0
+      ? Math.max(0, Math.min(5, storedScore))
+      : calculateCompositeRiskScore(DEFAULT_RISK_FACTORS);
+    const computedRating = onboardingFallback.risk_rating
+      ? String(onboardingFallback.risk_rating)
+      : getRiskRating(computedCRS);
     return NextResponse.json({
       id:                   onboardingFallback.id,
       company_name:         onboardingFallback.company_name,
@@ -206,7 +214,7 @@ export async function GET() {
       annual_revenue_range: onboardingFallback.annual_revenue_range,
       submitted_at:         onboardingFallback.submitted_at,
       risk_score:           computedCRS,
-      risk_rating:          getRiskRating(computedCRS),
+      risk_rating:          computedRating,
       application_fee:      calculateApplicationFee(computedCRS),
       risk_factors:         DEFAULT_RISK_FACTORS,
       category_weights:     CATEGORY_WEIGHTS,
@@ -223,6 +231,9 @@ export async function GET() {
     ? employer.employer_onboarding[0]
     : employer.employer_onboarding;
 
+  // Admin saves employer_risk_factors with employer_id = employer_onboarding.id.
+  // Use onboarding_id (the FK to employer_onboarding) as the lookup key.
+  const riskFactorId = employer.onboarding_id ?? employer.id;
   const { data: rf, error: rfError } = await supabase
     .from('employer_risk_factors')
     .select(
@@ -233,7 +244,7 @@ export async function GET() {
        beneficial_ownership, pep_screening,
        composite_score, scored_at, notes`,
     )
-    .eq('employer_live_id', employer.id)
+    .eq('employer_id', riskFactorId)
     .maybeSingle();
 
   if (rfError) {

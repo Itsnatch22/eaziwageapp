@@ -27,6 +27,65 @@ function normalizeEmployeeStatus(status: string | null | undefined) {
     : status?.toLowerCase() || 'pending';
 }
 
+type OnboardingRow = {
+  id: string;
+  user_id: string | null;
+  employer_id: string | null;
+  employee_code: string | null;
+  full_name: string | null;
+  full_name_placeholder?: string | null;
+  email: string | null;
+  email_placeholder?: string | null;
+  job_title: string | null;
+  department: string | null;
+  employment_type: string | null;
+  monthly_salary: number | null;
+  country: string | null;
+  city?: string | null;
+  status: string | null;
+  submitted_at: string | null;
+  created_at: string | null;
+  employer?: { company_name: string } | { company_name: string }[] | null;
+};
+
+function buildFromOnboarding(rows: OnboardingRow[], pendingKycByUserId: Map<string, number>) {
+  return rows.map((emp) => ({
+    id:               emp.id,
+    user_id:          emp.user_id,
+    employer_id:      emp.employer_id,
+    employee_code:    emp.employee_code || 'N/A',
+    full_name:        emp.full_name || emp.full_name_placeholder || 'Anonymous User',
+    name:             emp.full_name || emp.full_name_placeholder || 'Anonymous User',
+    email:            emp.email || emp.email_placeholder || null,
+    phone:            null,
+    country:          emp.country || null,
+    job_title:        emp.job_title || 'Not Set',
+    department:       emp.department || 'Not Set',
+    monthly_salary:   Number(emp.monthly_salary ?? 0),
+    advance_limit:    0,
+    earned_wages:     0,
+    employment_type:  emp.employment_type || 'full-time',
+    hire_date:        null,
+    termination_date: null,
+    status:           normalizeEmployeeStatus(emp.status),
+    kyc_status:       emp.status || 'pending',
+    employer_name:    (Array.isArray(emp.employer) ? emp.employer[0]?.company_name : emp.employer?.company_name) || 'Unlinked',
+    currency:         'KES',
+    risk_score:       null,
+    id_document_front: false,
+    id_document_back:  false,
+    selfie:            false,
+    address_proof:     false,
+    payslip_1:         false,
+    payslip_2:         false,
+    bank_statement:    false,
+    employment_contract: false,
+    pending_kyc_documents: emp.user_id ? pendingKycByUserId.get(emp.user_id) ?? 0 : 0,
+    created_at:       emp.created_at,
+    updated_at:       emp.created_at,
+  }));
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -61,13 +120,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { employer_id, status, search, limit, offset } = queryParams.data;
 
-    // Lightweight stats query — no filters, minimal columns
-    const [statsResult, pendingKycResult] = await Promise.all([
+    // Lightweight stats query — check employees first, fall back to employee_onboarding.
+    // employees rows may not exist when employer was approved via the KYC review route
+    // (which doesn't create an employers row), causing the FK insert to fail silently.
+    const [statsResult, onboardingStatsResult, pendingKycResult] = await Promise.all([
       adminSupabase.from('employees').select('id, status, user_id'),
+      adminSupabase.from('employee_onboarding').select('id, status, user_id, submitted_at'),
       adminSupabase.from('employee_kyc_documents').select('id, user_id').eq('status', 'pending'),
     ]);
 
-    const allForStats       = statsResult.data ?? [];
+    const liveEmployees     = statsResult.data ?? [];
+    const onboardingRows    = (onboardingStatsResult.data ?? []).filter((e) => e.submitted_at); // exclude registration stubs
+
+    // Use live employees for stats when they exist; otherwise fall back to onboarding.
+    const allForStats = liveEmployees.length > 0 ? liveEmployees : onboardingRows;
     const employeeUserIds   = new Set(allForStats.map((e) => e.user_id).filter(Boolean));
     const pendingKycDocs    = (pendingKycResult.data ?? []).filter(
       (d) => d.user_id && employeeUserIds.has(d.user_id),
@@ -80,13 +146,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       suspended:    allForStats.filter((e) => normalizeEmployeeStatus(e.status) === 'suspended').length,
     };
 
-    // Resolve employer_id: may be employers.id (direct) or employer_onboarding.id (legacy)
-    let resolvedEmployerId: string | undefined;
-    if (employer_id) {
-      const directHit = allForStats.some((e: { id: string; status: string | null; user_id: string | null } & Record<string, unknown>) => (e as unknown as Record<string, string>)['employer_id'] === employer_id);
-      if (directHit) {
-        resolvedEmployerId = employer_id;
-      } else {
+    const pendingKycByUserId = new Map<string, number>();
+    pendingKycDocs.forEach((doc) => {
+      if (!doc.user_id) return;
+      pendingKycByUserId.set(doc.user_id, (pendingKycByUserId.get(doc.user_id) ?? 0) + 1);
+    });
+
+    // When the live employees table is populated, use it (has FK to employers for company name).
+    // When empty, fall back to employee_onboarding (source of truth for submitted KYC).
+    let validatedEmployees: ReturnType<typeof buildFromOnboarding>;
+    let total: number | null = 0;
+
+    if (liveEmployees.length > 0) {
+      // Resolve employer_id: may be employers.id (direct) or employer_onboarding.id (legacy)
+      let resolvedEmployerId: string | undefined;
+      if (employer_id) {
         const { data: resolved } = await adminSupabase
           .from('employers')
           .select('id')
@@ -94,89 +168,110 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .maybeSingle();
         resolvedEmployerId = resolved?.id ?? employer_id;
       }
-    }
 
-    // Paginated, DB-filtered data query
-    let dataQuery = adminSupabase
-      .from('employees')
-      .select(
-        `*, employers!employer_id(company_name)`,
-        { count: 'exact' },
-      )
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      let dataQuery = adminSupabase
+        .from('employees')
+        .select(`*, employers!employer_id(company_name)`, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
-    if (search) {
-      const s = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
-      dataQuery = dataQuery.or(
-        `full_name.ilike.%${s}%,email.ilike.%${s}%,employee_code.ilike.%${s}%,job_title.ilike.%${s}%,department.ilike.%${s}%`,
-      );
-    }
-
-    if (status) {
-      const dbValues = STATUS_DB_MAP[status] ?? [status];
-      if (dbValues.length === 1) {
-        dataQuery = dataQuery.eq('status', dbValues[0]);
-      } else {
-        dataQuery = dataQuery.in('status', dbValues);
+      if (search) {
+        const s = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+        dataQuery = dataQuery.or(
+          `full_name.ilike.%${s}%,email.ilike.%${s}%,employee_code.ilike.%${s}%,job_title.ilike.%${s}%,department.ilike.%${s}%`,
+        );
       }
+      if (status) {
+        const dbValues = STATUS_DB_MAP[status] ?? [status];
+        dataQuery = dbValues.length === 1
+          ? dataQuery.eq('status', dbValues[0])
+          : dataQuery.in('status', dbValues);
+      }
+      if (resolvedEmployerId) {
+        dataQuery = dataQuery.eq('employer_id', resolvedEmployerId);
+      }
+
+      const { data: employees, error: employeeErr, count: cnt } = await dataQuery;
+      if (employeeErr) {
+        console.error('[GET /api/admin/employees] Query error:', employeeErr);
+        return NextResponse.json({ error: 'Failed to fetch employees', code: 'QUERY_ERROR' }, { status: 500 });
+      }
+
+      total = cnt;
+      validatedEmployees = (employees ?? []).map((emp) => ({
+        id:               emp.id,
+        user_id:          emp.user_id,
+        employer_id:      emp.employer_id,
+        employee_code:    emp.employee_code || 'N/A',
+        full_name:        emp.full_name || emp.name || 'Anonymous User',
+        name:             emp.full_name || emp.name || 'Anonymous User',
+        email:            emp.email,
+        phone:            emp.phone,
+        country:          emp.country || null,
+        job_title:        emp.job_title || 'Not Set',
+        department:       emp.department || 'Not Set',
+        monthly_salary:   emp.monthly_salary || 0,
+        advance_limit:    emp.advance_limit || 0,
+        earned_wages:     emp.earned_wages || 0,
+        employment_type:  emp.employment_type || 'full-time',
+        hire_date:        emp.hire_date || null,
+        termination_date: emp.termination_date || null,
+        status:           normalizeEmployeeStatus(emp.status),
+        kyc_status:       emp.kyc_status || 'pending',
+        employer_name:    emp.employers?.company_name || 'Unlinked',
+        currency:         emp.currency || 'KES',
+        risk_score:       emp.risk_score ?? null,
+        id_document_front:    Boolean(emp.id_document_front),
+        id_document_back:     Boolean(emp.id_document_back),
+        selfie:               Boolean(emp.selfie),
+        address_proof:        Boolean(emp.address_proof),
+        payslip_1:            Boolean(emp.payslip_1),
+        payslip_2:            Boolean(emp.payslip_2),
+        bank_statement:       Boolean(emp.bank_statement),
+        employment_contract:  Boolean(emp.employment_contract),
+        pending_kyc_documents: emp.user_id ? pendingKycByUserId.get(emp.user_id) ?? 0 : 0,
+        created_at:       emp.created_at,
+        updated_at:       emp.updated_at,
+      }));
+    } else {
+      // Fallback: read from employee_onboarding (employees haven't been synced yet)
+      let onboardingQuery = adminSupabase
+        .from('employee_onboarding')
+        .select(`
+          id, user_id, employer_id, employee_code, full_name, full_name_placeholder,
+          email, email_placeholder, job_title, department, employment_type, monthly_salary,
+          country, city, status, submitted_at, created_at,
+          employer:employer_onboarding!employer_id (company_name)
+        `, { count: 'exact' })
+        .not('submitted_at', 'is', null)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (search) {
+        const s = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+        onboardingQuery = onboardingQuery.or(
+          `full_name.ilike.%${s}%,email.ilike.%${s}%,employee_code.ilike.%${s}%,job_title.ilike.%${s}%`,
+        );
+      }
+      if (status) {
+        const dbValues = STATUS_DB_MAP[status] ?? [status];
+        onboardingQuery = dbValues.length === 1
+          ? onboardingQuery.eq('status', dbValues[0])
+          : onboardingQuery.in('status', dbValues);
+      }
+      if (employer_id) {
+        onboardingQuery = onboardingQuery.eq('employer_id', employer_id);
+      }
+
+      const { data: onboarding, error: obErr, count: cnt } = await onboardingQuery;
+      if (obErr) {
+        console.error('[GET /api/admin/employees] Onboarding fallback query error:', obErr);
+        return NextResponse.json({ error: 'Failed to fetch employees', code: 'QUERY_ERROR' }, { status: 500 });
+      }
+
+      total = cnt;
+      validatedEmployees = buildFromOnboarding(onboarding ?? [], pendingKycByUserId);
     }
-
-    if (resolvedEmployerId) {
-      dataQuery = dataQuery.eq('employer_id', resolvedEmployerId);
-    }
-
-    const { data: employees, error: employeeErr, count: total } = await dataQuery;
-
-    if (employeeErr) {
-      console.error('[GET /api/admin/employees] Query error:', employeeErr);
-      return NextResponse.json(
-        { error: 'Failed to fetch employees', code: 'QUERY_ERROR' },
-        { status: 500 },
-      );
-    }
-
-    const pendingKycByUserId = new Map<string, number>();
-    pendingKycDocs.forEach((doc) => {
-      if (!doc.user_id) return;
-      pendingKycByUserId.set(doc.user_id, (pendingKycByUserId.get(doc.user_id) ?? 0) + 1);
-    });
-
-    const validatedEmployees = (employees ?? []).map((emp) => ({
-      id:               emp.id,
-      user_id:          emp.user_id,
-      employer_id:      emp.employer_id,
-      employee_code:    emp.employee_code || 'N/A',
-      full_name:        emp.full_name || emp.name || 'Anonymous User',
-      name:             emp.full_name || emp.name || 'Anonymous User',
-      email:            emp.email,
-      phone:            emp.phone,
-      country:          emp.country || null,
-      job_title:        emp.job_title || 'Not Set',
-      department:       emp.department || 'Not Set',
-      monthly_salary:   emp.monthly_salary || 0,
-      advance_limit:    emp.advance_limit || 0,
-      earned_wages:     emp.earned_wages || 0,
-      employment_type:  emp.employment_type || 'full-time',
-      hire_date:        emp.hire_date || null,
-      termination_date: emp.termination_date || null,
-      status:           normalizeEmployeeStatus(emp.status),
-      kyc_status:       emp.kyc_status || 'pending',
-      employer_name:    emp.employers?.company_name || 'Unlinked',
-      currency:         emp.currency || 'KES',
-      risk_score:       emp.risk_score ?? null,
-      id_document_front:    Boolean(emp.id_document_front),
-      id_document_back:     Boolean(emp.id_document_back),
-      selfie:               Boolean(emp.selfie),
-      address_proof:        Boolean(emp.address_proof),
-      payslip_1:            Boolean(emp.payslip_1),
-      payslip_2:            Boolean(emp.payslip_2),
-      bank_statement:       Boolean(emp.bank_statement),
-      employment_contract:  Boolean(emp.employment_contract),
-      pending_kyc_documents: emp.user_id ? pendingKycByUserId.get(emp.user_id) ?? 0 : 0,
-      created_at:       emp.created_at,
-      updated_at:       emp.updated_at,
-    }));
 
     return NextResponse.json(
       {
