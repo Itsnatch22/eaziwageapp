@@ -73,7 +73,39 @@ export async function GET() {
   }
 
   if (!employer) {
-    return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
+    const { data: onboardingFallback } = await supabase
+      .from('employer_onboarding')
+      .select('id, company_name, industry, country, status, risk_score, risk_rating, contact_person, contact_email, payroll_cycle, created_at, sector, city, employee_count, annual_revenue_range, submitted_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!onboardingFallback) {
+      return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      id:                   onboardingFallback.id,
+      company_name:         onboardingFallback.company_name,
+      industry:             onboardingFallback.industry,
+      country:              onboardingFallback.country,
+      status:               onboardingFallback.status,
+      contact_person:       onboardingFallback.contact_person,
+      contact_email:        onboardingFallback.contact_email,
+      payroll_cycle:        onboardingFallback.payroll_cycle,
+      created_at:           onboardingFallback.created_at,
+      onboarding_id:        onboardingFallback.id,
+      sector:               onboardingFallback.sector,
+      city:                 onboardingFallback.city,
+      employee_count:       onboardingFallback.employee_count,
+      annual_revenue_range: onboardingFallback.annual_revenue_range,
+      submitted_at:         onboardingFallback.submitted_at,
+      risk_score:           Number(onboardingFallback.risk_score ?? 3.0),
+      risk_rating:          onboardingFallback.risk_rating ?? 'B',
+      risk_factors:         DEFAULT_RISK_FACTORS,
+      has_pending_review:   false,
+    });
   }
   const onboarding = Array.isArray(employer.employer_onboarding)
     ? employer.employer_onboarding[0]

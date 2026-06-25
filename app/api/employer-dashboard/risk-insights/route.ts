@@ -172,13 +172,52 @@ export async function GET() {
   }
 
   if (!employer) {
-    return NextResponse.json(
-      { 
-        error: 'No employer profile found. Please complete onboarding first.',
-        suggestion: 'Complete the employer onboarding process to access risk insights.'
-      },
-      { status: 404 },
-    );
+    // employers record may not exist yet (pending approval / sync delay).
+    // Fall back to employer_onboarding so the page can render a pending state.
+    const { data: onboardingFallback } = await supabase
+      .from('employer_onboarding')
+      .select('id, company_name, industry, country, status, risk_score, risk_rating, contact_person, contact_email, payroll_cycle, created_at, sector, city, employee_count, annual_revenue_range, submitted_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!onboardingFallback) {
+      return NextResponse.json(
+        { error: 'No employer profile found. Please complete onboarding first.' },
+        { status: 404 },
+      );
+    }
+
+    const computedCRS = calculateCompositeRiskScore(DEFAULT_RISK_FACTORS);
+    return NextResponse.json({
+      id:                   onboardingFallback.id,
+      company_name:         onboardingFallback.company_name,
+      industry:             onboardingFallback.industry,
+      sector:               onboardingFallback.sector,
+      city:                 onboardingFallback.city,
+      country:              onboardingFallback.country,
+      currency:             'KES',
+      employee_count:       onboardingFallback.employee_count,
+      status:               onboardingFallback.status,
+      contact_person:       onboardingFallback.contact_person,
+      contact_email:        onboardingFallback.contact_email,
+      payroll_cycle:        onboardingFallback.payroll_cycle,
+      annual_revenue_range: onboardingFallback.annual_revenue_range,
+      submitted_at:         onboardingFallback.submitted_at,
+      risk_score:           computedCRS,
+      risk_rating:          getRiskRating(computedCRS),
+      application_fee:      calculateApplicationFee(computedCRS),
+      risk_factors:         DEFAULT_RISK_FACTORS,
+      category_weights:     CATEGORY_WEIGHTS,
+      sub_factor_weights:   SUB_FACTOR_WEIGHTS,
+      risk_scored_at:       null,
+      risk_notes:           null,
+      has_pending_review:   false,
+      pending_review:       null,
+      framework_version:    'REV1',
+      framework_date:       '2025-10-25',
+    });
   }
   const onboarding = Array.isArray(employer.employer_onboarding)
     ? employer.employer_onboarding[0]

@@ -71,7 +71,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!employer) {
-    return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
+    return NextResponse.json({ error: 'Payroll sync is available once your account is approved.' }, { status: 403 });
   }
 
   const { onboarding_id } = employer as EmployerRow;

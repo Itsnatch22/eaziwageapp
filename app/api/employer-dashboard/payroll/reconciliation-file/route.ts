@@ -59,7 +59,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: employerError.message }, { status: 500 });
   }
   if (!employer) {
-    return NextResponse.json({ error: 'Employer profile not found.' }, { status: 404 });
+    const { data: obFallback } = await supabase
+      .from('employer_onboarding')
+      .select('id, company_name')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const companyName = obFallback?.company_name ?? 'Employer';
+    const csv = buildCsv([
+      ['Report', 'Payroll Deduction Reconciliation'],
+      ['Company', companyName],
+      ['Month', range.key],
+      ['Message', 'No active employer account found. Please complete onboarding.'],
+    ]);
+    return new NextResponse(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="payroll-deductions-${range.key}.csv"`,
+      },
+    });
   }
 
   const { data: employees, error: employeeError } = await supabase

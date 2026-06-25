@@ -21,13 +21,13 @@ export async function GET() {
     .maybeSingle();
 
   if (!employer) {
-    return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
+    return NextResponse.json({ transactions: [], balance: 0 });
   }
 
   const { data: wallet } = await supabase
     .from('employer_wallets')
     .select('id, balance, currency')
-    .eq('employer_id', employer.onboarding_id)
+    .eq('employer_id', employer.id)
     .maybeSingle();
 
   if (!wallet) {

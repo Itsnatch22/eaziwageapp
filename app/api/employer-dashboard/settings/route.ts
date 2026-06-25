@@ -58,7 +58,34 @@ export async function GET() {
   }
 
   if (!employer) {
-    return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
+    const { data: ob } = await supabase
+      .from('employer_onboarding')
+      .select(`id, company_name, contact_person, contact_email, phone, payroll_cycle, country, registration_number, tax_id, industry, physical_address, city, postal_code, county_region, sector, bank_name, bank_account_number, email_notifications, advance_alerts, payroll_reminders, weekly_reports, max_advance_percentage, min_advance_amount, advance_access_days, cooldown_period`)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!ob) {
+      return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
+    }
+
+    const countryLimitFb = getAdvanceLimit(ob.country);
+    return NextResponse.json({
+      employer: {
+        id: ob.id, company_name: ob.company_name, contact_person: ob.contact_person,
+        contact_email: ob.contact_email, contact_phone: ob.phone, payroll_cycle: ob.payroll_cycle,
+        country: ob.country, registration_number: ob.registration_number, tax_id: ob.tax_id,
+        industry: ob.industry, onboarding_id: ob.id, physical_address: ob.physical_address,
+        city: ob.city, postal_code: ob.postal_code, county_region: ob.county_region,
+        sector: ob.sector, bank_name: ob.bank_name, bank_account_number: ob.bank_account_number,
+        email_notifications: ob.email_notifications ?? true, advance_alerts: ob.advance_alerts ?? true,
+        payroll_reminders: ob.payroll_reminders ?? true, weekly_reports: ob.weekly_reports ?? false,
+        max_advance_percentage: Math.min(ob.max_advance_percentage ?? 50, countryLimitFb),
+        min_advance_amount: ob.min_advance_amount ?? 500, max_advance_amount: 50000,
+        advance_access_days: ob.advance_access_days ?? [1, 25], cooldown_period: ob.cooldown_period ?? 7,
+      },
+    });
   }
 
   const onboarding = Array.isArray(employer.employer_onboarding)
@@ -126,7 +153,43 @@ export async function PUT(req: NextRequest) {
   }
 
   if (!existing) {
-    return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
+    // No employers record yet — update employer_onboarding directly
+    const { data: obFallback } = await supabase
+      .from('employer_onboarding')
+      .select('id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!obFallback) {
+      return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
+    }
+
+    const { error: obUpdateError } = await supabase
+      .from('employer_onboarding')
+      .update({
+        physical_address: input.physicalAddress ?? null,
+        city: input.city ?? null,
+        postal_code: input.postalCode ?? null,
+        county_region: input.countyRegion ?? null,
+        email_notifications: input.emailNotifications ?? true,
+        advance_alerts: input.advanceAlerts ?? true,
+        payroll_reminders: input.payrollReminders ?? true,
+        weekly_reports: input.weeklyReports ?? false,
+        max_advance_percentage: input.maxAdvancePercentage ?? 50,
+        min_advance_amount: input.minAdvanceAmount ?? 500,
+        advance_access_days: input.advanceAccessDays ?? [1, 25],
+        cooldown_period: input.cooldownPeriod ?? 7,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', obFallback.id);
+
+    if (obUpdateError) {
+      return NextResponse.json({ error: obUpdateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ message: 'Settings updated successfully.' });
   }
 
   const updates = {

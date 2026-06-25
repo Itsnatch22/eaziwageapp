@@ -49,7 +49,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!employer) {
-      return NextResponse.json({ error: 'Employer record not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Your account is pending approval. Bank change requests can be submitted once approved.' },
+        { status: 403 },
+      );
     }
     const onboarding = Array.isArray(employer.employer_onboarding)
       ? employer.employer_onboarding[0]

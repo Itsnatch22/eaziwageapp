@@ -52,7 +52,7 @@ export async function PATCH(
     return NextResponse.json({ error: employerError.message }, { status: 500 });
   }
   if (!employer) {
-    return NextResponse.json({ error: 'Employer profile not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Advance approvals are available once your account is approved.' }, { status: 403 });
   }
 
   const { data: employeeRows, error: employeesError } = await supabase

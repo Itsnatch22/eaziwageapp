@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to resolve employer' }, { status: 500 });
     }
 
-    if (!employer) return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
+    if (!employer) return NextResponse.json({ error: 'Payroll integrations are available once your account is approved.' }, { status: 403 });
 
 
     const { data: integration, error: intErr } = await supabaseAdmin
