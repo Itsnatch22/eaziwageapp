@@ -182,20 +182,31 @@ export async function proxy(req: NextRequest) {
       const employerOnboardingPath = '/dashboards/employer-dashboard/onboarding';
       const employeeOnboardingPath = '/dashboards/employee-dashboard/onboarding';
       
-      // Employers who have submitted (status = pending/active/rejected) can reach the
+      // Both employers and employees who have submitted their onboarding can reach the
       // dashboard even before admin approval. Only redirect if they haven't submitted yet.
-      let employerSubmitted = false;
-      if (role === 'employer' && !isActive) {
-        const { data: eoRow } = await supabase
-          .from('employer_onboarding')
-          .select('status')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle<{ status: string }>();
-        employerSubmitted = !!eoRow?.status && eoRow.status !== 'draft';
+      let submittedOnboarding = false;
+      if (!isActive) {
+        if (role === 'employer') {
+          const { data: eoRow } = await supabase
+            .from('employer_onboarding')
+            .select('status')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle<{ status: string }>();
+          submittedOnboarding = !!eoRow?.status && eoRow.status !== 'draft';
+        } else if (role === 'employee') {
+          const { data: empRow } = await supabase
+            .from('employee_onboarding')
+            .select('status')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle<{ status: string }>();
+          // 'pending' = submitted awaiting approval, 'approved' = approved (is_active may lag)
+          submittedOnboarding = !!empRow?.status && empRow.status !== 'draft';
+        }
       }
 
-      if (!isActive && !employerSubmitted) {
+      if (!isActive && !submittedOnboarding) {
         const targetOnboardingPath = role === 'employer' ? employerOnboardingPath : employeeOnboardingPath;
         if (pathname !== targetOnboardingPath) {
           console.log(`[middleware] Redirecting inactive ${role} ${user.id} to ${targetOnboardingPath}`);
