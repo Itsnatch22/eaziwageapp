@@ -142,9 +142,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { error: piiError } = await supabase.rpc('upsert_employer_onboarding_pii', {
-      p_user_id:             user.id,
+      p_onboarding_id:       onboardingId,
       p_bank_account_number: bank_account_number ?? null,
-      p_tax_id:              tax_id ?? null,
       p_key:                 PII_ENCRYPTION_KEY,
     });
 

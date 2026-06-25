@@ -511,6 +511,12 @@ export default function EmployerOnboarding() {
               });
               setUploadedFiles(prev => ({ ...prev, ...docs }));
             }
+
+            // Resume from the last saved step so a session timeout doesn't reset progress.
+            // Cap at STEPS.length - 1 in case the DB value is stale or out of range.
+            if (typeof profile.current_step === 'number' && profile.current_step > 0) {
+              setCurrentStep(Math.min(profile.current_step, STEPS.length - 1));
+            }
           }
         }
       } catch (err) {
