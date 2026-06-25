@@ -268,15 +268,18 @@ export async function GET() {
       }
     : DEFAULT_RISK_FACTORS;
 
-  let computedCRS = Number(employer.risk_score ?? rf?.composite_score ?? 0);
-  let computedRating = employer.risk_rating;
-
-  if (!computedCRS || computedCRS === 0) {
+  // Always recalculate from current risk factors when they exist so the score
+  // stays fresh even if employers.risk_score hasn't been synced by an admin.
+  // Only fall back to the stored value when no factor record exists at all.
+  let computedCRS: number;
+  if (rf) {
     computedCRS = calculateCompositeRiskScore(risk_factors);
-    computedRating = getRiskRating(computedCRS);
-    
-    console.log('[risk-insights] Computed CRS:', computedCRS, 'Rating:', computedRating);
+  } else {
+    const stored = Number(employer.risk_score ?? 0);
+    computedCRS = stored > 0 ? stored : calculateCompositeRiskScore(DEFAULT_RISK_FACTORS);
   }
+  // Rating is always derived from the live CRS — never read the stale column.
+  const computedRating = getRiskRating(computedCRS);
 
   const applicationFee = calculateApplicationFee(computedCRS);
 
@@ -325,7 +328,7 @@ export async function GET() {
 
 
     risk_score:  computedCRS,
-    risk_rating: computedRating ?? 'B',
+    risk_rating: computedRating,
     application_fee: applicationFee,
     risk_factors,
 

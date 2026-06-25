@@ -580,6 +580,7 @@ export default function Onboarding() {
   const [faceIdCaptured, setFaceIdCaptured] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const [uploadingFile, setUploadingFile] = useState<OnboardingDocKey | null>(
     null,
@@ -787,35 +788,65 @@ export default function Onboarding() {
   };
 
 
+  // Assign the stream to the video element once it's mounted in the DOM.
+  useEffect(() => {
+    if (capturingFaceId && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [capturingFaceId]);
+
+  // Stop the camera track when the component unmounts mid-capture.
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
   const startFaceCapture = async () => {
     try {
-      setCapturingFaceId(true);
+      // Acquire the stream before setting state so the video element is
+      // guaranteed to be in the DOM when we assign srcObject.
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: 640, height: 480 },
       });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-    } catch {
-      toast.error("Camera access denied");
+      streamRef.current = stream;
+      setCapturingFaceId(true);
+    } catch (err: unknown) {
+      const name = err instanceof DOMException ? err.name : '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        toast.error("Camera permission denied. Please allow camera access and try again.");
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        toast.error("Camera is in use by another app. Close it and try again.");
+      } else if (name === 'NotFoundError') {
+        toast.error("No camera found on this device.");
+      } else {
+        toast.error("Could not start camera. Please try again.");
+      }
       setCapturingFaceId(false);
     }
   };
 
   const stopFaceCapture = () => {
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream)
-        .getTracks()
-        .forEach((t) => t.stop());
-      videoRef.current.srcObject = null;
-    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
     setCapturingFaceId(false);
   };
 
   const captureFaceId = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
+    if (!video || !canvas) return;
+
+    // Guard against capturing before the video stream has loaded frames.
+    if (video.readyState < 2 || video.videoWidth === 0) {
+      toast.error("Camera isn't ready yet — please wait a moment and try again.");
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video, 0, 0);
 
     canvas.toBlob(
       async (blob) => {
@@ -909,6 +940,7 @@ export default function Onboarding() {
   const retakeFaceId = () => {
     setFaceIdCaptured(false);
     setUploadedFiles((prev) => ({ ...prev, face_id: null }));
+    startFaceCapture();
   };
 
   const canProceed = (): boolean => {
