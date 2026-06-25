@@ -585,7 +585,7 @@ export default function RiskInsightsPage() {
             <p className="text-slate-500 mb-4">
               Complete your employer profile to view risk insights
             </p>
-            <Button onClick={() => window.location.href = '/employer/onboarding'}>
+            <Button onClick={() => window.location.href = '/dashboards/employer-dashboard/onboarding'}>
               Complete Onboarding
             </Button>
           </div>
