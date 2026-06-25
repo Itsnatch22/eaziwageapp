@@ -6,7 +6,7 @@ import {
   Building2, MapPin, Users, ArrowRight, ArrowLeft,
   Phone, AlertCircle, Check, Sparkles,
   Shield, FileText, ChevronDown, Upload,
-   UserCheck, Factory,
+  UserCheck, Factory, Loader2,
   DollarSign, Plus, Trash2, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -360,6 +360,7 @@ export default function EmployerOnboarding() {
   const [loading, setLoading] = useState(false);
   const [sectors, setSectors] = useState<{ id: string; name: string; industry: string }[]>([]);
   const [error, setError] = useState("");
+  const [geolocating, setGeolocating] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsContent, setShowTermsContent] = useState(false);
 
@@ -464,7 +465,13 @@ export default function EmployerOnboarding() {
         if (res.ok) {
           const data = await res.json();
           const profile = data?.profile;
-          
+
+          const ALREADY_SUBMITTED = ['pending', 'submitted', 'approved', 'risk_review_in_progress'];
+          if (profile && ALREADY_SUBMITTED.includes(profile.status)) {
+            router.replace('/dashboards/employer-dashboard');
+            return;
+          }
+
           if (profile && (profile.status === 'rejected' || profile.status === 'draft')) {
             setFormData(prev => ({
               ...prev,
@@ -541,6 +548,55 @@ export default function EmployerOnboarding() {
 
   const updateField = (field: string, value: unknown) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+  const handleGeolocate = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setGeolocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { headers: { "Accept-Language": "en" } },
+          );
+          if (!res.ok) throw new Error("Geocoding failed");
+          const geo = await res.json() as { address?: Record<string, string> };
+          const addr = geo.address ?? {};
+
+          const road = [addr.house_number, addr.road].filter(Boolean).join(" ");
+          const physicalAddress = road || addr.neighbourhood || "";
+          const city = addr.city || addr.town || addr.village || addr.municipality || "";
+          const countyRegion = addr.state || addr.county || "";
+
+          setFormData((prev) => ({
+            ...prev,
+            ...(physicalAddress && { physical_address: physicalAddress }),
+            ...(city && { city }),
+            ...(addr.postcode && { postal_code: addr.postcode }),
+            ...(countyRegion && { county_region: countyRegion }),
+          }));
+          toast.success("Location detected — please verify the address below.");
+        } catch {
+          toast.error("Couldn't fetch address details. Please enter manually.");
+        } finally {
+          setGeolocating(false);
+        }
+      },
+      (err) => {
+        setGeolocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error("Location access denied. Please enter your address manually.");
+        } else {
+          toast.error("Couldn't get your location. Please enter manually.");
+        }
+      },
+      { timeout: 10000 },
+    );
+  };
 
   const updateOwner = (index: number, field: string, value: unknown) =>
     setBeneficialOwners((prev) => {
@@ -809,6 +865,19 @@ const handleFileUpload = async (file: File, documentType: string) => {
               <p className="text-slate-600 dark:text-slate-300">Your company&apos;s physical address</p>
             </div>
             <div className="space-y-4 max-w-md mx-auto">
+              <button
+                type="button"
+                onClick={handleGeolocate}
+                disabled={geolocating}
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl border-2 border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 text-primary text-sm font-medium transition-all disabled:opacity-50"
+              >
+                {geolocating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />Detecting location…</>
+                ) : (
+                  <><MapPin className="w-4 h-4" />Use my current location</>
+                )}
+              </button>
+
               <div className="flex flex-col gap-2">
                 <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Physical Address *</Label>
                 <Input placeholder="Street address, building name" value={formData.physical_address} onChange={(e) => updateField("physical_address", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-address" />

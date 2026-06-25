@@ -315,6 +315,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     employerOnboardingId = resolvedOnboarding.id;
   }
 
+  // Resolve the FK-safe company_code for profiles.company_code.
+  // profiles.company_code → employers.company_code (NOT employer_onboarding.company_code).
+  // If the employer has no employers row yet (pending admin sync), this stays null.
+  let resolvedProfileCompanyCode: string | null = null;
+  if (input.role === 'employee' && employerUserId) {
+    const { data: empRow } = await supabase
+      .from('employers')
+      .select('company_code')
+      .eq('user_id', employerUserId)
+      .maybeSingle<{ company_code: string | null }>();
+    resolvedProfileCompanyCode = empRow?.company_code ?? null;
+  }
+
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email:             input.email,
     password:          input.password,
@@ -403,7 +416,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .insert({
         user_id: userId,
         employer_id: employerOnboardingId,
+        // 'pending' + submitted_at=null = registration stub, KYC not yet submitted.
+        // The onboarding POST distinguishes this from a real submission via submitted_at.
         status: 'pending',
+        submitted_at: null,
         full_name: input.full_name,
         email: input.email,
         country: input.phone_country_code,
@@ -432,7 +448,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       phone_country_code: input.phone_country_code,
       role:               input.role,
       role_normalized:    input.role,
-      company_code:       input.role === 'employee' ? (input.company_code || null) : generatedEmployerCode,
+      company_code:       input.role === 'employee' ? resolvedProfileCompanyCode : generatedEmployerCode,
       company_name:       input.role === 'employer' ? input.company_name : null,
       email_verified:     false,
       is_active:          false, // Fix 2: Explicitly set to false initially

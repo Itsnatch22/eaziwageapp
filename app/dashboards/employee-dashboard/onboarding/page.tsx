@@ -21,6 +21,7 @@ import {
   Search,
   ScanFace,
   Loader2,
+  MapPin,
   Landmark as BankIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -571,6 +572,7 @@ export default function Onboarding() {
   const [employerSearch, setEmployerSearch] = useState("");
   const [employersLoading, setEmployersLoading] = useState(false);
   const [error, setError] = useState("");
+  const [geolocating, setGeolocating] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsContent, setShowTermsContent] = useState(false);
   const [showPrivacyContent, setShowPrivacyContent] = useState(false);
@@ -637,6 +639,15 @@ export default function Onboarding() {
             full_name: data?.profile?.full_name || "",
             email: data?.profile?.email || "",
           });
+
+          // Pre-populate employer from the registration stub so employees who
+          // registered with a company code don't have to re-enter it.
+          if (profile?.employer_id && status !== "rejected") {
+            setFormData((prev) => ({
+              ...prev,
+              employer_id: profile.employer_id,
+            }));
+          }
 
           if (status === "rejected" && profile) {
             setCurrentStep(2);
@@ -759,6 +770,58 @@ export default function Onboarding() {
     value: OnboardingFormData[K],
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleGeolocate = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setGeolocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { headers: { "Accept-Language": "en" } },
+          );
+          if (!res.ok) throw new Error("Geocoding failed");
+          const geo = await res.json() as { address?: Record<string, string> };
+          const addr = geo.address ?? {};
+
+          const countryCode = (addr.country_code ?? "").toUpperCase();
+          const validCodes = COUNTRIES_OF_WORK.map((c) => c.code);
+          const road = [addr.house_number, addr.road].filter(Boolean).join(" ");
+          const line1 = road || addr.neighbourhood || "";
+          const line2 = addr.suburb && addr.suburb !== line1 ? addr.suburb : "";
+          const city = addr.city || addr.town || addr.village || addr.municipality || "";
+
+          setFormData((prev) => ({
+            ...prev,
+            ...(validCodes.includes(countryCode) && { country: countryCode }),
+            ...(line1 && { address_line1: line1 }),
+            ...(line2 && { address_line2: line2 }),
+            ...(city && { city }),
+            ...(addr.postcode && { postal_code: addr.postcode }),
+          }));
+          toast.success("Location detected — please verify the address below.");
+        } catch {
+          toast.error("Couldn't fetch address details. Please enter manually.");
+        } finally {
+          setGeolocating(false);
+        }
+      },
+      (err) => {
+        setGeolocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error("Location access denied. Please enter your address manually.");
+        } else {
+          toast.error("Couldn't get your location. Please enter manually.");
+        }
+      },
+      { timeout: 10000 },
+    );
   };
 
   const handleFileUpload = async (file: File, docKey: OnboardingDocKey) => {
@@ -1283,6 +1346,19 @@ export default function Onboarding() {
             </div>
 
             <div className="space-y-4 max-w-md mx-auto">
+              <button
+                type="button"
+                onClick={handleGeolocate}
+                disabled={geolocating}
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl border-2 border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 text-primary text-sm font-medium transition-all disabled:opacity-50"
+              >
+                {geolocating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />Detecting location…</>
+                ) : (
+                  <><MapPin className="w-4 h-4" />Use my current location</>
+                )}
+              </button>
+
               <div className="flex flex-col gap-2">
                 <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">
                   Country of Work *

@@ -65,20 +65,37 @@ export async function POST(req: NextRequest) {
   let employerId = data.employer_id;
 
   if (!employerId && data.company_code) {
+    const code = data.company_code.trim().toUpperCase();
+
+    // Primary: employers table (fully-synced records)
     const { data: byCode } = await adminSupabase
       .from('employers')
       .select('id')
-      .eq('company_code', data.company_code.trim().toUpperCase())
+      .eq('company_code', code)
       .in('status', ['approved', 'pending'])
       .maybeSingle();
 
-    if (!byCode) {
-      return NextResponse.json(
-        { error: 'Company code not recognized. Please check it and try again.' },
-        { status: 422 },
-      );
+    if (byCode) {
+      employerId = byCode.id;
+    } else {
+      // Fallback: employer_onboarding is the canonical source (populated at registration
+      // and admin approval). The employers row may not exist yet if the admin hasn't
+      // synced the approval yet.
+      const { data: byOnboarding } = await adminSupabase
+        .from('employer_onboarding')
+        .select('id')
+        .ilike('company_code', code)
+        .eq('status', 'approved')
+        .maybeSingle();
+
+      if (!byOnboarding) {
+        return NextResponse.json(
+          { error: 'Company code not recognized. Please check it and try again.' },
+          { status: 422 },
+        );
+      }
+      employerId = byOnboarding.id;
     }
-    employerId = byCode.id;
   }
 
   if (!employerId) {
@@ -122,11 +139,14 @@ export async function POST(req: NextRequest) {
 
 const { data: existing } = await adminSupabase
      .from('employee_onboarding')
-     .select('id, status')
+     .select('id, status, submitted_at')
      .eq('user_id', user.id)
      .maybeSingle();
 
-   if (existing && existing.status !== 'rejected') {
+   // Allow: no record, registration stub (pending + submitted_at=null), or rejected (resubmission).
+   // Block: actually-submitted pending/under_review/approved/suspended records.
+   const isRegistrationStub = existing?.status === 'pending' && !existing?.submitted_at;
+   if (existing && !isRegistrationStub && existing.status !== 'rejected') {
      return NextResponse.json(
        { error: 'You already have an active KYC application.' },
        { status: 409 },
