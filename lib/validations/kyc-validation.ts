@@ -50,8 +50,8 @@ export const ProfileSchema = z.object({
   avatar_url: z.string().url().nullable(),
   is_active: z.boolean(),
   metadata: z.record(z.string(), z.unknown()).default({}),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 
@@ -71,8 +71,8 @@ export const EmployeeSchema = z.object({
   employer_name: z.string().optional(),
   kyc_status: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).default({}),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
 });
 export type Employee = z.infer<typeof EmployeeSchema>;
 
@@ -85,12 +85,12 @@ export const KYCDocumentSchema = z.object({
   document_number: z.string().nullable(),
   status: DocumentStatusEnum,
   reviewer_notes: z.string().nullable(),
-  reviewed_at: z.string().datetime().nullable(),
+  reviewed_at: z.string().datetime({ offset: true }).nullable().optional(),
   reviewed_by: z.string().uuid().nullable(),
   expiry_date: z.string().nullable(),
   metadata: z.record(z.string(), z.unknown()).default({}),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
 });
 export type KYCDocument = z.infer<typeof KYCDocumentSchema>;
 
@@ -103,7 +103,7 @@ export const DocumentReviewHistorySchema = z.object({
   reviewer_notes: z.string().nullable(),
   ip_address: z.string().nullable(),
   user_agent: z.string().nullable(),
-  created_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
 });
 export type DocumentReviewHistory = z.infer<typeof DocumentReviewHistorySchema>;
 
@@ -116,8 +116,8 @@ export const NotificationSchema = z.object({
   link: z.string().nullable(),
   is_read: z.boolean(),
   metadata: z.record(z.string(), z.unknown()).default({}),
-  created_at: z.string().datetime(),
-  read_at: z.string().datetime().nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  read_at: z.string().datetime({ offset: true }).nullable(),
 });
 export type Notification = z.infer<typeof NotificationSchema>;
 
