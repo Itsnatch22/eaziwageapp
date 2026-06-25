@@ -259,75 +259,60 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let employerOnboardingId: string | null = null;
 
   if (input.role === 'employee' && input.company_code) {
-    const { data: employer, error: empError } = await supabase
-      .from('employers')
-      .select('id, status, user_id, employer_code, onboarding_id')
-      .ilike('employer_code', input.company_code)
-      .maybeSingle<EmployerRecord>();
+    // Primary lookup: employer_onboarding.company_code — canonical source populated
+    // at registration and admin approval for all employers (legacy + new).
+    let resolvedOnboarding: OnboardingRecord | null = null;
 
-    if (empError || !employer) {
-      const { data: profileEmp, error: profileEmpError } = await supabase
-        .from('profiles')
-        .select('id, role, company_code')
-        .eq('role', 'employer')
-        .ilike('company_code', input.company_code)
-        .maybeSingle<{ id: string; role: string; company_code: string | null }>();
+    const { data: onboardingByCode } = await supabase
+      .from('employer_onboarding')
+      .select('id, status, user_id')
+      .ilike('company_code', input.company_code)
+      .maybeSingle<OnboardingRecord>();
 
-      if (profileEmpError || !profileEmp) {
-        return NextResponse.json(
-          { error: 'Company code not found. Please search again or continue without a code.' },
-          { status: 422, headers: rateResult.headers },
-        );
-      }
-
-      const { data: onboardingRows } = await supabase
-        .from('employer_onboarding')
-        .select('id, status, user_id')
-        .eq('user_id', profileEmp.id)
-        .order('created_at', { ascending: false });
-
-      const approvedOnboarding = (onboardingRows as OnboardingRecord[] | null)
-        ?.find((r) => r.status === 'approved') ?? null;
-
-      const latestOnboarding = (onboardingRows && onboardingRows.length > 0)
-        ? (onboardingRows[0] as OnboardingRecord)
-        : null;
-
-      if (!approvedOnboarding) {
-
-
-
-
-        if (latestOnboarding?.status === 'rejected' || latestOnboarding?.status === 'suspended') {
-          return NextResponse.json(
-            { error: `This company is currently ${latestOnboarding.status} on EaziWage. Please contact support.` },
-            { status: 422, headers: rateResult.headers },
-          );
-        }
-        return NextResponse.json(
-          { error: 'This company has not finished onboarding yet. Please try again once they have completed setup, or continue without a code.' },
-          { status: 422, headers: rateResult.headers },
-        );
-      }
-
-      employerUserId = approvedOnboarding.user_id;
-      employerOnboardingId = approvedOnboarding.id;
+    if (onboardingByCode) {
+      resolvedOnboarding = onboardingByCode;
     } else {
-        if (employer.status === 'rejected' || employer.status === 'suspended') {
-            return NextResponse.json(
-              { error: `This company is currently ${employer.status} on EaziWage. Please contact support.` },
-              { status: 422, headers: rateResult.headers },
-            );
-        }
-        if (employer.status !== 'approved') {
-          return NextResponse.json(
-            { error: 'This company has not finished onboarding yet. Please try again once they have completed setup, or continue without a code.' },
-            { status: 422, headers: rateResult.headers },
-          );
-        }
-        employerUserId = employer.user_id;
-        employerOnboardingId = employer.onboarding_id;
+      // Secondary fallback: employers table (company_code or employer_code) for
+      // records pre-dating the onboarding backfill migration.
+      const { data: employerByCode } = await supabase
+        .from('employers')
+        .select('id, status, user_id, onboarding_id')
+        .or(`company_code.ilike.${input.company_code},employer_code.ilike.${input.company_code}`)
+        .maybeSingle<EmployerRecord>();
+
+      if (employerByCode?.onboarding_id) {
+        const { data: linked } = await supabase
+          .from('employer_onboarding')
+          .select('id, status, user_id')
+          .eq('id', employerByCode.onboarding_id)
+          .maybeSingle<OnboardingRecord>();
+        resolvedOnboarding = linked ?? null;
+      }
     }
+
+    if (!resolvedOnboarding) {
+      return NextResponse.json(
+        { error: 'Company code not found. Please search again or continue without a code.' },
+        { status: 422, headers: rateResult.headers },
+      );
+    }
+
+    if (resolvedOnboarding.status === 'rejected' || resolvedOnboarding.status === 'suspended') {
+      return NextResponse.json(
+        { error: `This company is currently ${resolvedOnboarding.status} on EaziWage. Please contact support.` },
+        { status: 422, headers: rateResult.headers },
+      );
+    }
+
+    if (resolvedOnboarding.status !== 'approved') {
+      return NextResponse.json(
+        { error: 'This company has not finished onboarding yet. Please try again once they have completed setup, or continue without a code.' },
+        { status: 422, headers: rateResult.headers },
+      );
+    }
+
+    employerUserId = resolvedOnboarding.user_id;
+    employerOnboardingId = resolvedOnboarding.id;
   }
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -368,6 +353,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         user_id: userId,
         company_name: input.company_name || '',
         status: 'draft',
+        company_code: generatedEmployerCode,
         currency: registrationCurrency,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

@@ -12,7 +12,6 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-
 export async function GET(req: Request): Promise<NextResponse> {
   try {
     const ip =
@@ -28,56 +27,62 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
-    const { data: employersData, error: employersError } = await supabase
-      .from('employers')
-      .select('id, company_name, employer_code')
-      .eq('status', 'approved');
+    // employer_onboarding.company_code is the canonical source — populated at
+    // registration and at admin approval. The employers table is a secondary
+    // source for fully-migrated records that pre-date the onboarding column.
+    const [{ data: onboardingData, error: onboardingError }, { data: employersData, error: employersError }] =
+      await Promise.all([
+        supabase
+          .from('employer_onboarding')
+          .select('id, company_name, company_code')
+          .eq('status', 'approved')
+          .not('company_code', 'is', null),
+        supabase
+          .from('employers')
+          .select('id, company_name, company_code, employer_code, onboarding_id')
+          .eq('status', 'approved'),
+      ]);
 
-    const { data: onboardingData, error: onboardingError } = await supabase
-      .from('employer_onboarding')
-      .select('id, company_name, status, user_id')
-      .eq('status', 'approved');
-
-    if (employersError || onboardingError) {
-      console.error('[public-approved-employers] Query failed:', employersError || onboardingError);
+    if (onboardingError || employersError) {
+      console.error('[public-approved-employers] Query failed:', onboardingError || employersError);
       return NextResponse.json(
         { error: 'Failed to load approved employers.' },
         { status: 500, headers: rateResult.headers },
       );
     }
 
-
-    const userIds = new Set<string>();
-    onboardingData?.forEach(e => { if (e.user_id) userIds.add(e.user_id); });
-    const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, company_code')
-        .in('id', Array.from(userIds));
-    
-    const codeMap = new Map(profilesData?.map(p => [p.id, p.company_code]) ?? []);
-
+    // Build a merged list, keyed by onboarding_id to avoid duplicates.
+    // employer_onboarding rows win; employers rows fill in any gaps.
     const companyMap = new Map<string, { id: string; company_name: string; company_code: string }>();
 
-    onboardingData?.forEach((row) => {
-        const code = codeMap.get(row.user_id) || `EW-${row.id.slice(0, 8).toUpperCase()}`;
+    // Primary: onboarding records with real codes
+    for (const row of onboardingData ?? []) {
+      if (row.company_code) {
         companyMap.set(row.id, {
-            id: row.id,
-            company_name: row.company_name ?? 'Unknown Company',
-            company_code: code
+          id: row.id,
+          company_name: row.company_name ?? 'Unknown Company',
+          company_code: row.company_code,
         });
-    });
+      }
+    }
 
-    employersData?.forEach((row) => {
-        const code = row.employer_code || `EW-${row.id.slice(0, 8).toUpperCase()}`;
-        companyMap.set(row.id, {
-            id: row.id,
-            company_name: row.company_name ?? 'Unknown Company',
-            company_code: code
+    // Secondary: employers records for any approved employers not yet in onboarding map
+    for (const row of employersData ?? []) {
+      const code = row.company_code || row.employer_code;
+      if (!code) continue;
+      // onboarding_id links employers → employer_onboarding; prefer onboarding entry if present
+      const key = row.onboarding_id ?? row.id;
+      if (!companyMap.has(key)) {
+        companyMap.set(key, {
+          id: key,
+          company_name: row.company_name ?? 'Unknown Company',
+          company_code: code,
         });
-    });
+      }
+    }
 
-    const employers = Array.from(companyMap.values()).sort((a, b) => 
-        a.company_name.localeCompare(b.company_name)
+    const employers = Array.from(companyMap.values()).sort((a, b) =>
+      a.company_name.localeCompare(b.company_name),
     );
 
     return NextResponse.json(employers, { status: 200, headers: rateResult.headers });

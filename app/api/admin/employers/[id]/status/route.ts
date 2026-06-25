@@ -97,6 +97,13 @@ export async function PATCH(
   const updatePayload: Record<string, unknown> = {
     status,
     updated_at: new Date().toISOString(),
+    // Always stamp company_code on the onboarding record so it becomes the
+    // canonical lookup source for employee registration.
+    ...(!(employer as Record<string, unknown>).company_code && status !== 'rejected'
+      ? { company_code: (typeof employer_code === 'string' && employer_code.trim()
+          ? employer_code.trim().replace(/[^A-Z0-9]/gi, '').slice(0, 20).toUpperCase()
+          : generatePrimaryCompanyCode(employer.id)) }
+      : {}),
   };
 
   const resolvedMinAdvance =
