@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useState, useCallback, type ComponentType } from 'react';
 import {
   CheckCircle2,
   Clock,
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { cn, formatCurrency, formatDateTime } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'rejected' | 'repaid' | string;
 
@@ -95,14 +96,20 @@ export default function EmployerAdvancesPage() {
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'approved' | 'disbursed' | 'rejected'>('');
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
 
-  const fetchAdvances = async () => {
+  const fetchAdvances = useCallback(async () => {
     const res = await fetch('/api/employer-dashboard/advances');
     const data: unknown = await res.json();
     if (!res.ok) {
       throw new Error((data as { error?: string })?.error || 'Failed to load advances');
     }
     setAdvances(Array.isArray(data) ? (data as AdvanceItem[]) : []);
-  };
+  }, []);
+
+  // Refresh when an employee submits a new advance or admin changes status
+  useRealtimeRefresh(
+    [{ table: 'advances', event: '*' }],
+    (_table) => void fetchAdvances(),
+  );
 
   useEffect(() => {
     const boot = async () => {

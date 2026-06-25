@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -39,6 +39,7 @@ import { useAuthStore } from "@/lib/stores/auth";
 
 import { DashboardBreadcrumbs } from "../layout/DashboardBreadcrumbs";
 import PushClient from '@/components/push/PushClient';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 
 
@@ -418,31 +419,35 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
     }
   }, [globalUser, userProfile]);
 
-  useEffect(() => {
-    if (!userProfile?.id) return;
-
-    const supabase = createClient();
-
-    const channel = supabase
-      .channel('realtime:global-settings')
-      .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding' }, () => {
-        toast.info("Global settings updated", {
-          description: "A platform-wide configuration has been modified.",
-          icon: <Settings className="w-5 h-5 text-purple-600" />,
-        });
-      })
-      .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_kyc_documents' }, () => {
-        toast.info("Global settings updated", {
-          description: "A platform-wide configuration has been modified.",
-          icon: <Settings className="w-5 h-5 text-purple-600" />,
-        });
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+  const handleAdminRealtimeEvent = useCallback((table: string) => {
+    const messages: Record<string, { title: string; description: string }> = {
+      advances:              { title: 'New advance activity',       description: 'An advance request was submitted or updated.' },
+      employer_onboarding:   { title: 'Employer application update', description: 'An employer profile was submitted or changed.' },
+      employee_kyc_documents:{ title: 'KYC document submitted',     description: 'A new KYC document is ready for review.' },
+      fraud_flags:           { title: 'Fraud flag raised',          description: 'A transaction has been flagged for review.' },
+      admin_wallets:         { title: 'Admin wallet updated',       description: 'The platform wallet balance has changed.' },
     };
-  }, [userProfile?.id]);
+    const msg = messages[table];
+    if (msg) {
+      toast.info(msg.title, {
+        description: msg.description,
+        icon: <Settings className="w-5 h-5 text-purple-600" />,
+      });
+    }
+  }, []);
+
+  // Watch tables that drive the admin's key workflows — new advances, employer
+  // applications, KYC docs, fraud flags, and wallet changes.
+  useRealtimeRefresh(
+    userProfile?.id ? [
+      { table: 'advances',               event: 'INSERT' },
+      { table: 'employer_onboarding',    event: 'INSERT' },
+      { table: 'employee_kyc_documents', event: 'INSERT' },
+      { table: 'fraud_flags',            event: 'INSERT' },
+      { table: 'admin_wallets',          event: 'UPDATE' },
+    ] : [],
+    handleAdminRealtimeEvent,
+  );
 
   useEffect(() => {
     Promise.resolve().then(() => setIsHydrated(true));

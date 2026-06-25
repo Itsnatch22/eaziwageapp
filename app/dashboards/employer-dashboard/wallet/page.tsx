@@ -10,6 +10,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface Transaction {
   id: string;
@@ -75,6 +76,15 @@ const WalletPage = () => {
   useEffect(() => {
     Promise.resolve().then(() => fetchData());
   }, [fetchData]);
+
+  // Refresh when admin funds the wallet or a payout goes through
+  useRealtimeRefresh(
+    wallet?.id ? [
+      { table: 'employer_wallets',   filter: `id=eq.${wallet.id}` },
+      { table: 'wallet_transactions', filter: `wallet_id=eq.${wallet.id}` },
+    ] : [],
+    (_table) => void fetchData(),
+  );
 
   const getTransactionIcon = (type: string) => {
     switch (type) {

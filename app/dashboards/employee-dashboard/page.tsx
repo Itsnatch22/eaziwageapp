@@ -14,9 +14,9 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useAuthStore } from '@/lib/stores/auth';
-import { createClient } from '@/lib/supabase/client';
 import { useCurrency } from '@/hooks/useCurrency';
 import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardingGuide';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 
 
@@ -197,22 +197,16 @@ export default function EmployeeDashboardPage() {
     void fetchStats({ silent: true });
   }, [fetchStats]);
 
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const supabase = createClient();
-
-    const channel = supabase
-          .channel(`realtime:kyc:user-${user.id}`)
-          .on('postgres_changes' as const, { event: 'UPDATE', schema: 'public', table: 'employee_onboarding', filter: `user_id=eq.${user.id}` }, () => {
-        void fetchStats();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, fetchStats]);
+  // Refresh dashboard when any relevant record changes — advance status, EWA
+  // settings, or KYC status. All filtered to this employee's user_id.
+  useRealtimeRefresh(
+    user?.id ? [
+      { table: 'advances',              filter: `employee_id=eq.${user.id}` },
+      { table: 'employee_ewa_settings', filter: `user_id=eq.${user.id}` },
+      { table: 'employee_onboarding',   filter: `user_id=eq.${user.id}` },
+    ] : [],
+    (_table) => void fetchStats({ silent: true }),
+  );
 
   const getNextPayday = () => {
     const today = new Date();

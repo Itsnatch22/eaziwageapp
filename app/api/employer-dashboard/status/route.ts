@@ -22,10 +22,27 @@ export async function GET() {
     }
 
     if (!employer) {
-      return NextResponse.json({ 
-        status: 'not_onboarded',
-        message: 'No employer profile found' 
-      });
+      // employers record may not exist yet (e.g. approval sync in progress).
+      // Fall back to employer_onboarding so a freshly-approved employer isn't
+      // stuck as 'not_onboarded' while the sync completes.
+      const { data: onboardingRow } = await supabase
+        .from('employer_onboarding')
+        .select('status')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ status: string }>();
+
+      if (!onboardingRow) {
+        return NextResponse.json({ status: 'not_onboarded', message: 'No employer profile found' });
+      }
+
+      const mapped =
+        onboardingRow.status === 'approved' ? 'active' :
+        onboardingRow.status === 'draft'    ? 'not_onboarded' :
+        onboardingRow.status; // pending, rejected, risk_review_in_progress, etc.
+
+      return NextResponse.json({ status: mapped, message: `Employer onboarding status: ${onboardingRow.status}` });
     }
 
     const onboarding = Array.isArray(employer.employer_onboarding)

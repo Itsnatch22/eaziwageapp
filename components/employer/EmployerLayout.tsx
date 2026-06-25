@@ -11,7 +11,7 @@ import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
 import { logout } from '@/actions/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import { createClient } from '@/lib/supabase/client';
@@ -398,54 +398,50 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
   const router = useRouter();
   const isEmployerDashboardHome = pathname === '/dashboards/employer-dashboard';
 
-  useEffect(() => {
-    const checkAccess = async () => {
-      if (!user?.id) return;
-      if (pathname === '/dashboards/employer-dashboard/onboarding') return;
+  const checkAccess = useCallback(async () => {
+    if (!user?.id) return;
+    if (pathname === '/dashboards/employer-dashboard/onboarding') return;
 
-      try {
+    try {
+      const res = await fetch('/api/employer-dashboard/status');
 
-        const res = await fetch('/api/employer-dashboard/status');
-        
-        if (!res.ok) {
+      if (!res.ok) {
+        router.push('/dashboards/employer-dashboard/onboarding');
+        return;
+      }
 
+      const data = await res.json();
+
+      switch (data.status) {
+        case 'active':
+          return;
+
+        case 'terminated':
+          router.push('/');
+          return;
+
+        case 'not_onboarded':
+        case 'pending':
+        case 'submitted':
+        case 'risk_review_in_progress':
+        case 'rejected':
+          if (isEmployerDashboardHome) return;
+          router.push('/dashboards/employer-dashboard');
+          return;
+
+        case 'draft':
+        default:
           router.push('/dashboards/employer-dashboard/onboarding');
           return;
-        }
-        
-        const data = await res.json();
-        
-        switch (data.status) {
-          case 'active':
-
-            return;
-            
-          case 'terminated':
-
-            router.push('/');
-            return;
-            
-          case 'not_onboarded':
-          case 'pending':
-          case 'submitted':
-          case 'risk_review_in_progress':
-          case 'rejected':
-            if (isEmployerDashboardHome) return;
-            router.push('/dashboards/employer-dashboard');
-            return;
-
-          case 'draft':
-          default:
-
-            router.push('/dashboards/employer-dashboard/onboarding');
-            return;
-        }
-      } catch (err) {
-        console.error('Access check failed', err);
       }
-    };
-    void checkAccess();
+    } catch (err) {
+      console.error('Access check failed', err);
+    }
   }, [user?.id, pathname, router, isEmployerDashboardHome]);
+
+  useEffect(() => {
+    void checkAccess();
+  }, [checkAccess]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -453,7 +449,36 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
     const supabase = createClient();
 
     const channel = supabase
-      .channel(`realtime:employer-settings:employer-${user.id}`)
+      .channel(`realtime:employer-status:${user.id}`)
+      // Watch employer's own onboarding record — fires when admin changes status
+      .on('postgres_changes' as const, {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'employer_onboarding',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        const newStatus = (payload.new as { status?: string })?.status;
+        if (newStatus === 'approved') {
+          toast.success('Your account has been approved!', {
+            description: 'You now have full access to your employer dashboard.',
+          });
+        } else if (newStatus && newStatus !== 'draft') {
+          toast.info(`Account status updated to: ${newStatus.replace(/_/g, ' ')}`, {
+            description: 'Your employer profile status has changed.',
+          });
+        }
+        void checkAccess();
+      })
+      // Watch employers table sync — fires after admin approval completes
+      .on('postgres_changes' as const, {
+        event: '*',
+        schema: 'public',
+        table: 'employers',
+        filter: `user_id=eq.${user.id}`,
+      }, () => {
+        void checkAccess();
+      })
+      // Keep original listener for org settings changes
       .on('postgres_changes' as const, {
         event: 'UPDATE',
         schema: 'public',
@@ -469,7 +494,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, checkAccess]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300" data-testid="employer-dashboard">
