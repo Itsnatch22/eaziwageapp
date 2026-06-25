@@ -136,10 +136,10 @@ export async function proxy(req: NextRequest) {
           await Promise.all([
             supabase
               .from("employer_onboarding")
-              .select("id")
+              .select("id, status")
               .eq("user_id", user.id)
               .limit(1)
-              .maybeSingle<{ id: string }>(),
+              .maybeSingle<{ id: string; status: string }>(),
             supabase
               .from("employers")
               .select("id")
@@ -182,7 +182,20 @@ export async function proxy(req: NextRequest) {
       const employerOnboardingPath = '/dashboards/employer-dashboard/onboarding';
       const employeeOnboardingPath = '/dashboards/employee-dashboard/onboarding';
       
-      if (!isActive) {
+      // Employers who have submitted (status = pending/active/rejected) can reach the
+      // dashboard even before admin approval. Only redirect if they haven't submitted yet.
+      let employerSubmitted = false;
+      if (role === 'employer' && !isActive) {
+        const { data: eoRow } = await supabase
+          .from('employer_onboarding')
+          .select('status')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle<{ status: string }>();
+        employerSubmitted = !!eoRow?.status && eoRow.status !== 'draft';
+      }
+
+      if (!isActive && !employerSubmitted) {
         const targetOnboardingPath = role === 'employer' ? employerOnboardingPath : employeeOnboardingPath;
         if (pathname !== targetOnboardingPath) {
           console.log(`[middleware] Redirecting inactive ${role} ${user.id} to ${targetOnboardingPath}`);
