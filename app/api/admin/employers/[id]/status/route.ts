@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { notifyEmployer } from '@/lib/notifications';
 
 // Produces a code satisfying employers.company_code check: ^[A-Z0-9]{3,20}$
 function generatePrimaryCompanyCode(sourceId: string): string {
@@ -216,16 +217,30 @@ export async function PATCH(
     resolvedCompanyCode = canonicalCode;
   }
 
-  await adminSupabase.from('notifications').insert({
-    user_id: employer.user_id,
-    type: 'system',
-    title: `Employer Status Updated: ${status.replace(/_/g, ' ')}`,
+  const statusLabel: Record<string, string> = {
+    approved: 'Approved',
+    pending: 'Pending Review',
+    rejected: 'Rejected',
+    suspended: 'Suspended',
+    risk_review_in_progress: 'Under Risk Review',
+  };
+
+  await notifyEmployer({
+    userId: employer.user_id,
+    type: 'status_change',
+    title: `Account ${statusLabel[status] ?? status.replace(/_/g, ' ')}`,
     message:
       status === 'approved'
-        ? `Your employer profile is now fully active.${resolvedCompanyCode ? ` Company code: ${resolvedCompanyCode}.` : ''}`
-        : `Your employer profile status changed to ${status.replace(/_/g, ' ')}.${reason ? ` Reason: ${reason}` : ''}`,
-    read: false,
-    created_at: new Date().toISOString(),
+        ? `Your employer profile is now fully active.${resolvedCompanyCode ? ` Your company code is ${resolvedCompanyCode}.` : ''}`
+        : `Your employer account status has been updated to ${statusLabel[status] ?? status.replace(/_/g, ' ')}.${reason ? ` Reason: ${reason}` : ''}`,
+    metadata: {
+      companyName: employer.company_name,
+      contactPerson: employer.contact_person ?? undefined,
+      previousStatus: undefined,
+      newStatus: status,
+      reason: reason ?? undefined,
+      effectiveAt: new Date().toLocaleString(),
+    },
   });
 
   await adminSupabase.from('system_audit_logs').insert({

@@ -177,7 +177,7 @@ export default function EmployeeSettings() {
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [mfaStatus, setMfaStatus] = useState({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
   const [verificationCode, setVerificationCode] = useState('');
-  const { subscribe, unsubscribe } = usePushNotifications();
+  const { subscribe, unsubscribe, status: pushStatus } = usePushNotifications();
 
 
   const [mfaFactors, setMfaFactors] = useState<MFAFactor[]>([]);
@@ -608,14 +608,11 @@ export default function EmployeeSettings() {
               <div className="space-y-6">
                 <SettingsCard icon={User} title="Personal Information" description="Manage your basic account details">
                   <div className="flex flex-col items-center mb-8">
-                    <AvatarUpload 
-                      userId={profile?.id} 
-                      currentAvatarUrl={profile?.avatar_url} 
+                    <AvatarUpload
+                      userId={profile?.id}
+                      currentAvatarUrl={profile?.avatar_url}
                       fullName={profile?.full_name}
-                      onUploadSuccess={(url) => {
-
-                        console.log('Avatar updated in settings:', url);
-                      }}
+                      onUploadSuccess={(url) => setProfile(prev => prev ? { ...prev, avatar_url: url } : prev)}
                     />
                   </div>
 
@@ -853,14 +850,24 @@ export default function EmployeeSettings() {
                     onToggle={(checked: boolean) => handleNotificationUpdate('emailAlerts', checked)}
                     disabled={notificationLoading}
                   />
-                  <ToggleItem 
+                  <ToggleItem
                     icon={Smartphone}
                     label="Push Notifications"
                     description="Real-time withdrawal updates"
                     checked={notificationPrefs.pushNotifications}
                     onToggle={(checked: boolean) => handleNotificationUpdate('pushNotifications', checked)}
-                    disabled={notificationLoading}
+                    disabled={notificationLoading || pushStatus === 'unsupported'}
                   />
+                  {pushStatus === 'denied' && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 pl-1">
+                      Push notifications are blocked in your browser settings. Enable them there, or we&apos;ll continue sending you email alerts as a fallback.
+                    </p>
+                  )}
+                  {pushStatus === 'unsupported' && (
+                    <p className="text-xs text-slate-400 mt-1 pl-1">
+                      Push notifications aren&apos;t supported in this browser. You&apos;ll receive email alerts instead.
+                    </p>
+                  )}
                 </div>
               </SettingsCard>
             )}

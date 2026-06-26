@@ -5,7 +5,49 @@ import {
   TrendingUp, Users, DollarSign, BarChart3, ChevronRight, Eye,
   CreditCard, Link2, RefreshCw, X, Copy, Check, XCircle, AlertTriangle,
   Plug, Info, Download, Wifi, ChevronDown, ChevronUp,
+  TrendingDown, TableIcon, Wallet,
 } from 'lucide-react';
+
+// ── Payroll simulator currency formatting ─────────────────────────────────────
+const SIM_CURRENCY_CONFIG = {
+  KES: { locale: 'en-KE', decimals: 0 },
+  UGX: { locale: 'en-UG', decimals: 0 },
+  TZS: { locale: 'en-TZ', decimals: 0 },
+  RWF: { locale: 'en-RW', decimals: 0 },
+} as const;
+function fmtSim(amount: number, currency: string): string {
+  const cfg = SIM_CURRENCY_CONFIG[currency as keyof typeof SIM_CURRENCY_CONFIG]
+    ?? { locale: 'en-KE', decimals: 0 };
+  return new Intl.NumberFormat(cfg.locale, {
+    style: 'currency', currency,
+    maximumFractionDigits: cfg.decimals,
+  }).format(amount);
+}
+function deductionColor(pct: number) {
+  if (pct < 20) return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20';
+  if (pct <= 40) return 'text-amber-600 bg-amber-50 dark:bg-amber-900/20';
+  return 'text-red-600 bg-red-50 dark:bg-red-900/20';
+}
+function exportSimulatorCSV(rows: SimAdvance[], simCurrency: string) {
+  const header = ['Employee', 'Employee Code', 'Department', 'Monthly Salary', 'Total Advance', 'Net Pay', '% Deducted'];
+  const lines = rows.map(r => [
+    r.full_name ?? '',
+    r.employee_code ?? '',
+    r.department ?? '',
+    r.monthly_salary,
+    r.total_advance,
+    r.monthly_salary - r.total_advance,
+    ((r.total_advance / r.monthly_salary) * 100).toFixed(1) + '%',
+  ].join(','));
+  const csv = [header.join(','), ...lines].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `payroll-impact-${simCurrency}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -96,6 +138,31 @@ interface SyncResult {
 }
 
 
+
+interface SimAdvance {
+  id: string;
+  full_name: string | null;
+  employee_code: string | null;
+  department: string | null;
+  monthly_salary: number;
+  total_advance: number;
+  advances: Array<{ id: string; amount: number; fee_amount: number | null; disbursed_at: string | null }>;
+}
+
+interface SimTotals {
+  total_payroll: number;
+  total_committed: number;
+  net_payroll_outflow: number;
+  employees_total: number;
+  employees_affected: number;
+}
+
+interface SimulatorData {
+  currency: string;
+  payroll_cycle: string | null;
+  employees: SimAdvance[];
+  totals: SimTotals;
+}
 
 const PROVIDERS = ['SAP', 'Oracle', 'Sage', 'QuickBooks', 'Workday', 'Paychex', 'BambooHR', 'Gusto', 'Custom'];
 const FREQUENCIES = [
@@ -629,6 +696,17 @@ export default function EmployerPayroll() {
 
 
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [simulator, setSimulator]   = useState<SimulatorData | null>(null);
+  const [simLoading, setSimLoading] = useState(false);
+  const [showSim, setShowSim]       = useState(false);
+
+  const fetchSimulator = useCallback(async () => {
+    setSimLoading(true);
+    try {
+      const res = await fetch('/api/employer-dashboard/payroll-simulator');
+      if (res.ok) setSimulator(await res.json() as SimulatorData);
+    } catch { /* non-critical */ } finally { setSimLoading(false); }
+  }, []);
 
   const fetchData = useCallback(async () => {
     await Promise.resolve();
@@ -665,7 +743,8 @@ export default function EmployerPayroll() {
 
   useEffect(() => {
     Promise.resolve().then(() => fetchData());
-  }, [fetchData]);
+    void fetchSimulator();
+  }, [fetchData, fetchSimulator]);
 
   const downloadTemplate = () => {
     const rows = [
@@ -839,7 +918,167 @@ export default function EmployerPayroll() {
           <MetricCard icon={BarChart3} label="Upload History" value={payrollHistory.length} subtext="Total payroll cycles" />
         </div>
 
-        
+        {/* ── Payroll Impact Simulator ───────────────────────────────────────── */}
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
+          {/* Header / toggle row */}
+          <button
+            type="button"
+            className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
+            onClick={() => {
+              if (!showSim && !simulator) void fetchSimulator();
+              setShowSim(v => !v);
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+                <TableIcon className="w-5 h-5 text-violet-500" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Payroll Impact Simulator</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {simulator
+                    ? `${simulator.totals.employees_affected} employees · ${fmtSim(simulator.totals.total_committed, simulator.currency)} committed from next payroll`
+                    : 'Preview advance deductions before payroll runs'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {simulator && simulator.totals.employees_affected > 0 && (
+                <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">
+                  <Wallet className="w-3 h-3" />
+                  {((simulator.totals.total_committed / simulator.totals.total_payroll) * 100).toFixed(1)}% of payroll
+                </span>
+              )}
+              {showSim ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            </div>
+          </button>
+
+          {showSim && (
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              {simLoading ? (
+                <div className="flex items-center justify-center py-12 gap-3">
+                  <div className="w-6 h-6 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+                  <p className="text-sm text-slate-400">Loading advance commitments…</p>
+                </div>
+              ) : !simulator ? (
+                <div className="flex flex-col items-center py-12 gap-2 text-slate-400">
+                  <AlertCircle className="w-8 h-8" />
+                  <p className="text-sm">Could not load simulator data</p>
+                  <Button variant="outline" size="sm" onClick={() => void fetchSimulator()}>Retry</Button>
+                </div>
+              ) : (
+                <div className="p-5 space-y-5">
+                  {/* Summary row */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Total Payroll', value: fmtSim(simulator.totals.total_payroll, simulator.currency), icon: DollarSign, color: 'text-slate-600' },
+                      { label: 'Advance Repayments', value: fmtSim(simulator.totals.total_committed, simulator.currency), icon: TrendingDown, color: 'text-amber-600' },
+                      { label: 'Net Payroll Outflow', value: fmtSim(simulator.totals.net_payroll_outflow, simulator.currency), icon: TrendingUp, color: 'text-emerald-600' },
+                      { label: 'Employees Affected', value: `${simulator.totals.employees_affected} of ${simulator.totals.employees_total}`, icon: Users, color: 'text-violet-600' },
+                    ].map(({ label, value, icon: Icon, color }) => (
+                      <div key={label} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Icon className={`w-3.5 h-3.5 ${color}`} />
+                          <p className="text-xs text-slate-500">{label}</p>
+                        </div>
+                        <p className={`text-sm font-bold tabular-nums ${color}`}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {simulator.totals.employees_affected === 0 ? (
+                    <div className="flex flex-col items-center py-8 gap-2 text-slate-400">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                      <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No outstanding advances</p>
+                      <p className="text-xs">All employees have been repaid or have no active advances.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Per-employee table */}
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                                {['Employee', 'Department', 'Salary', 'Advance', 'Net Pay', '% Deducted'].map(h => (
+                                  <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {simulator.employees
+                                .filter(e => e.advances.length > 0)
+                                .map(emp => {
+                                  const deductPct = emp.monthly_salary > 0
+                                    ? (emp.total_advance / emp.monthly_salary) * 100
+                                    : 0;
+                                  const netPay = emp.monthly_salary - emp.total_advance;
+                                  return (
+                                    <tr key={emp.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                      <td className="px-4 py-3">
+                                        <p className="font-medium text-slate-900 dark:text-white">{emp.full_name ?? '—'}</p>
+                                        {emp.employee_code && <p className="text-xs text-slate-400">{emp.employee_code}</p>}
+                                      </td>
+                                      <td className="px-4 py-3 text-slate-500">{emp.department ?? '—'}</td>
+                                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300 tabular-nums font-medium">
+                                        {fmtSim(emp.monthly_salary, simulator.currency)}
+                                      </td>
+                                      <td className="px-4 py-3 tabular-nums font-medium text-amber-600">
+                                        {fmtSim(emp.total_advance, simulator.currency)}
+                                        {emp.advances.length > 1 && (
+                                          <span className="ml-1 text-xs text-slate-400">×{emp.advances.length}</span>
+                                        )}
+                                      </td>
+                                      <td className="px-4 py-3 tabular-nums font-semibold text-slate-900 dark:text-white">
+                                        {fmtSim(netPay, simulator.currency)}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ${deductionColor(deductPct)}`}>
+                                          {deductPct.toFixed(1)}%
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-between gap-3 pt-1">
+                        <p className="text-xs text-slate-400">
+                          Only showing employees with active unredeemed advances. Others ({simulator.totals.employees_total - simulator.totals.employees_affected}) are unaffected.
+                        </p>
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-white/60 dark:bg-slate-800/60"
+                            onClick={() => exportSimulatorCSV(
+                              simulator.employees.filter(e => e.advances.length > 0),
+                              simulator.currency
+                            )}
+                          >
+                            <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-violet-600 hover:bg-violet-700 text-white"
+                            onClick={downloadPayrollDeductionFile}
+                          >
+                            <FileText className="w-3.5 h-3.5 mr-1.5" /> Run Payroll
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="grid lg:grid-cols-2 gap-6">
 
           

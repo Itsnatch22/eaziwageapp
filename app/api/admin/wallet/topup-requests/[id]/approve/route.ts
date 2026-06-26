@@ -81,13 +81,31 @@ export async function PATCH(
 
     try {
       const { notifyEmployer } = await import('@/lib/notifications');
-      await notifyEmployer({
-        userId: employerId,
-        type: 'system',
-        title: 'Top-up Approved',
-        message: `Your top-up request of ${tx.amount} has been approved and applied to your wallet.`,
-        metadata: { wallet_transaction_id: id, amount: tx.amount }
-      });
+
+      const { data: employer } = await adminSupabase
+        .from('employers')
+        .select('user_id, company_name, contact_person, currency')
+        .eq('id', employerId)
+        .maybeSingle();
+
+      if (employer?.user_id) {
+        const currency = employer.currency ?? 'KES';
+        await notifyEmployer({
+          userId: employer.user_id,
+          type: 'wallet_topup_approved',
+          title: 'Wallet Top-Up Approved',
+          message: `Your wallet top-up of ${currency} ${Number(tx.amount).toLocaleString()} has been approved and credited to your account.`,
+          metadata: {
+            wallet_transaction_id: id,
+            approvedAmount: tx.amount,
+            currency,
+            companyName: employer.company_name,
+            contactPerson: employer.contact_person ?? undefined,
+            reference: tx.reference ?? undefined,
+            approvedAt: new Date().toLocaleString(),
+          },
+        });
+      }
     } catch (notifyErr) {
       console.error('[TopUp Approve] notifyEmployer failed:', notifyErr);
     }

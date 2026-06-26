@@ -2,7 +2,15 @@
  * notifications.ts
  * ─────────────────────────────────────────────────────────────────────────────
  * Central notification service for EaziWage.
- * Handles in-app notifications, email (React Email), and web push.
+ *
+ * Delivery chain (per notifyEmployee / notifyEmployer call):
+ *   1. Write in-app notification row with delivery_status = 'pending'
+ *   2. Try web push → on success: status = 'sent'
+ *      On 410/404 stale endpoint: delete the subscription row, fall through
+ *      On other error: log warning, fall through
+ *   3. Try email via Resend → on success: status = 'fallback_email'
+ *      On failure: status = 'failed', failure_reason set
+ *   4. No throw — in-app row is always the guaranteed fallback
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -11,7 +19,6 @@ import webpush from 'web-push';
 
 import { getEnv } from '@/env';
 import { sendEmail } from './email-service';
-
 
 import {
   NewEmployerRegistrationEmail,
@@ -67,7 +74,9 @@ export type EmployerNotificationType =
   | 'wallet_funded'
   | 'system'
   | 'employee'
-  | 'advance'| 'kyc_update';
+  | 'advance'
+  | 'kyc_update'
+  | 'risk_update';
 
 export type EmployeeNotificationType =
   | 'advance_approval'
@@ -99,6 +108,8 @@ if (env.VAPID_PRIVATE_KEY && env.PUSH_VAPID_CONTACT) {
     console.error('[notifications] Failed to set VAPID details:', e);
   }
 }
+
+// ─── Email element builders ───────────────────────────────────────────────────
 
 function buildAdminEmailElement(
   type: AdminNotificationType,
@@ -346,6 +357,7 @@ function buildEmployerEmailElement(
       });
 
     case 'system':
+    case 'risk_update':
     default:
       return React.createElement(EmployerStatusChangeEmail, {
         companyName,
@@ -433,32 +445,96 @@ function buildEmployeeEmailElement(
   }
 }
 
-async function sendPushNotifications(
-  userId: string,
-  title: string,
-  body: string,
-  metadata?: NotificationMetadata
-) {
+// ─── Core fallback chain ──────────────────────────────────────────────────────
+
+async function deliverWithFallback(params: {
+  notificationId: string;
+  userId: string;
+  title: string;
+  body: string;
+  emailElement: React.ReactElement | null;
+  userEmail: string | null;
+  metadata?: NotificationMetadata;
+}): Promise<'push' | 'email' | 'failed'> {
+  const { notificationId, userId, title, body, emailElement, userEmail, metadata } = params;
+
+  // Step 2: Try each active push subscription
   const { data: subs } = await supabaseAdmin
     .from('system_push_subscriptions')
-    .select('subscription_payload')
+    .select('endpoint, subscription_payload')
     .eq('user_id', userId)
     .eq('active', true);
 
-  if (!subs?.length) return;
-
-  await Promise.allSettled(
-    subs.map((sub) =>
-      webpush
-        .sendNotification(
+  if (subs?.length) {
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           sub.subscription_payload as any,
           JSON.stringify({ title, body, data: metadata })
-        )
-        .catch((e) => console.error(`[push] Failed for user ${userId}:`, e))
-    )
-  );
+        );
+        await supabaseAdmin
+          .from('notifications')
+          .update({
+            delivery_status: 'sent',
+            delivery_channel: 'push',
+            delivered_at: new Date().toISOString(),
+          })
+          .eq('id', notificationId);
+        return 'push';
+      } catch (pushErr: unknown) {
+        const statusCode = (pushErr as { statusCode?: number })?.statusCode;
+        if (statusCode === 410 || statusCode === 404) {
+          // Stale endpoint — delete it so it doesn't accumulate
+          await supabaseAdmin
+            .from('system_push_subscriptions')
+            .delete()
+            .eq('user_id', userId)
+            .eq('endpoint', sub.endpoint);
+        } else {
+          console.warn(`[push] Non-fatal failure for user ${userId}:`, pushErr);
+        }
+        // Fall through to next subscription or email
+      }
+    }
+  }
+
+  // Step 3: Email fallback
+  if (emailElement && userEmail) {
+    try {
+      await sendEmail({ to: userEmail, subject: title, react: emailElement });
+      await supabaseAdmin
+        .from('notifications')
+        .update({
+          delivery_status: 'fallback_email',
+          delivery_channel: 'email',
+          delivered_at: new Date().toISOString(),
+        })
+        .eq('id', notificationId);
+      return 'email';
+    } catch (emailErr: unknown) {
+      const reason = emailErr instanceof Error ? emailErr.message : String(emailErr);
+      await supabaseAdmin
+        .from('notifications')
+        .update({ delivery_status: 'failed', failure_reason: `Email: ${reason}` })
+        .eq('id', notificationId);
+      console.error(`[notify] Email fallback failed for notification ${notificationId}:`, emailErr);
+      return 'failed';
+    }
+  }
+
+  // Step 4: Both channels unavailable or failed
+  const reason = !userEmail
+    ? 'No email configured and no active push subscription'
+    : 'Push delivery failed and email was not available';
+  await supabaseAdmin
+    .from('notifications')
+    .update({ delivery_status: 'failed', failure_reason: reason })
+    .eq('id', notificationId);
+  return 'failed';
 }
+
+// ─── Public notification functions ───────────────────────────────────────────
 
 export async function notifyAdmin(params: {
   type: AdminNotificationType;
@@ -477,37 +553,36 @@ export async function notifyAdmin(params: {
         created_at: new Date().toISOString(),
       });
 
-const { data: globalSettings } = await supabaseAdmin
-  .from('global_settings')
-  .select('notification_settings')
-  .eq('id', 'default')
-  .single();
+    const { data: globalSettings } = await supabaseAdmin
+      .from('global_settings')
+      .select('notification_settings')
+      .eq('id', 'default')
+      .single();
 
-const ns = globalSettings?.notification_settings || {};
+    const ns = globalSettings?.notification_settings || {};
 
-const emailEnabledByType: Record<AdminNotificationType, boolean> = {
-  new_employer:    ns.email_new_employer  !== false,
-  employer_kyc:    ns.email_new_employer  !== false,
-  flagged_advance: ns.email_fraud_alert   !== false,
-  system_alert:    ns.email_daily_summary !== false,
-  review_request:  ns.email_large_advance !== false,
-  bank_change:     ns.email_fraud_alert   !== false,
-};
+    const emailEnabledByType: Record<AdminNotificationType, boolean> = {
+      new_employer:    ns.email_new_employer  !== false,
+      employer_kyc:    ns.email_new_employer  !== false,
+      flagged_advance: ns.email_fraud_alert   !== false,
+      system_alert:    ns.email_daily_summary !== false,
+      review_request:  ns.email_large_advance !== false,
+      bank_change:     ns.email_fraud_alert   !== false,
+    };
 
-if (emailEnabledByType[params.type]) {
-  const emailElement = buildAdminEmailElement(
-    params.type,
-    params.title,
-    params.message,
-    params.metadata ?? {}
-  );
-
-  await sendEmail({
-    to: env.ADMIN_NOTIFICATION_EMAIL ?? 'admin@eaziwage.com',
-    subject: `[Admin] ${params.title}`,
-    react: emailElement,
-  });
-}
+    if (emailEnabledByType[params.type]) {
+      const emailElement = buildAdminEmailElement(
+        params.type,
+        params.title,
+        params.message,
+        params.metadata ?? {}
+      );
+      await sendEmail({
+        to: env.ADMIN_NOTIFICATION_EMAIL ?? 'admin@eaziwage.com',
+        subject: `[Admin] ${params.title}`,
+        react: emailElement,
+      });
+    }
 
     return { success: true };
   } catch (err) {
@@ -524,6 +599,7 @@ export async function notifyEmployer(params: {
   metadata?: NotificationMetadata;
 }) {
   try {
+    // Step 1: Write in-app row first — guaranteed fallback even if push/email fail
     const { data, error } = await supabaseAdmin
       .from('notifications')
       .insert({
@@ -533,40 +609,36 @@ export async function notifyEmployer(params: {
         message: params.message,
         metadata: params.metadata,
         read: false,
+        delivery_status: 'pending',
         created_at: new Date().toISOString(),
       })
-      .select()
+      .select('id')
       .single();
 
     if (error) throw error;
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('email, full_name, notification_preferences')
+      .select('email, notification_preferences')
       .eq('id', params.userId)
       .single();
 
-    const prefs = profile?.notification_preferences || {};
+    const prefs = (profile?.notification_preferences as Record<string, boolean> | null) ?? {};
     const shouldSendEmail = prefs.emailAlerts !== false;
 
-    if (shouldSendEmail && profile?.email) {
-      const emailElement = buildEmployerEmailElement(
-        params.type,
-        params.title,
-        params.message,
-        params.metadata ?? {}
-      );
+    const emailElement = shouldSendEmail && profile?.email
+      ? buildEmployerEmailElement(params.type, params.title, params.message, params.metadata ?? {})
+      : null;
 
-      await sendEmail({
-        to: profile.email,
-        subject: params.title,
-        react: emailElement,
-      }).catch((e) => console.error('[notifyEmployer] Email failed:', e));
-    }
-
-    if (prefs.pushNotifications === true) {
-      await sendPushNotifications(params.userId, params.title, params.message, params.metadata);
-    }
+    await deliverWithFallback({
+      notificationId: data.id,
+      userId: params.userId,
+      title: params.title,
+      body: params.message,
+      emailElement,
+      userEmail: profile?.email ?? null,
+      metadata: params.metadata,
+    });
 
     return { success: true, data };
   } catch (err) {
@@ -583,6 +655,7 @@ export async function notifyEmployee(params: {
   metadata?: NotificationMetadata;
 }) {
   try {
+    // Step 1: Write in-app row first — guaranteed fallback even if push/email fail
     const { data, error } = await supabaseAdmin
       .from('notifications')
       .insert({
@@ -592,45 +665,110 @@ export async function notifyEmployee(params: {
         message: params.message,
         metadata: params.metadata,
         read: false,
+        delivery_status: 'pending',
         created_at: new Date().toISOString(),
       })
-      .select()
+      .select('id')
       .single();
 
     if (error) throw error;
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('email, full_name, notification_preferences')
+      .select('email, notification_preferences')
       .eq('id', params.userId)
       .single();
 
-    const prefs = profile?.notification_preferences || {};
+    const prefs = (profile?.notification_preferences as Record<string, boolean> | null) ?? {};
     const shouldSendEmail = prefs.emailAlerts !== false;
 
-    if (shouldSendEmail && profile?.email) {
-      const emailElement = buildEmployeeEmailElement(
-        params.type,
-        params.title,
-        params.message,
-        params.metadata ?? {}
-      );
+    const emailElement = shouldSendEmail && profile?.email
+      ? buildEmployeeEmailElement(params.type, params.title, params.message, params.metadata ?? {})
+      : null;
 
-      await sendEmail({
-        to: profile.email,
-        subject: params.title,
-        react: emailElement,
-      }).catch((e) => console.error('[notifyEmployee] Email failed:', e));
-    }
-
-    if (prefs.pushNotifications === true) {
-      await sendPushNotifications(params.userId, params.title, params.message, params.metadata);
-    }
+    await deliverWithFallback({
+      notificationId: data.id,
+      userId: params.userId,
+      title: params.title,
+      body: params.message,
+      emailElement,
+      userEmail: profile?.email ?? null,
+      metadata: params.metadata,
+    });
 
     return { success: true, data };
   } catch (err) {
     console.error('[notifyEmployee] Error:', err);
     return { success: false, error: err };
+  }
+}
+
+/**
+ * Re-attempt delivery for a previously failed notification row.
+ * Resets status to 'pending', re-runs the full fallback chain.
+ */
+export async function redeliverNotification(
+  notificationId: string
+): Promise<{ success: boolean; channel: 'push' | 'email' | 'failed' | 'error' }> {
+  try {
+    const { data: notif, error } = await supabaseAdmin
+      .from('notifications')
+      .select('id, user_id, type, title, message, metadata')
+      .eq('id', notificationId)
+      .single();
+
+    if (error || !notif) return { success: false, channel: 'error' };
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('email, role, notification_preferences')
+      .eq('id', notif.user_id)
+      .single();
+
+    const prefs = (profile?.notification_preferences as Record<string, boolean> | null) ?? {};
+    const shouldSendEmail = prefs.emailAlerts !== false;
+
+    let emailElement: React.ReactElement | null = null;
+    if (shouldSendEmail && profile?.email) {
+      const role = profile?.role as string | undefined;
+      const meta = (notif.metadata ?? {}) as NotificationMetadata;
+      if (role === 'employer') {
+        emailElement = buildEmployerEmailElement(
+          notif.type as EmployerNotificationType,
+          notif.title,
+          notif.message,
+          meta
+        );
+      } else {
+        emailElement = buildEmployeeEmailElement(
+          notif.type as EmployeeNotificationType,
+          notif.title,
+          notif.message,
+          meta
+        );
+      }
+    }
+
+    // Reset before re-attempting so delivered_at / failure_reason are cleared
+    await supabaseAdmin
+      .from('notifications')
+      .update({ delivery_status: 'pending', failure_reason: null, delivered_at: null })
+      .eq('id', notificationId);
+
+    const channel = await deliverWithFallback({
+      notificationId,
+      userId: notif.user_id,
+      title: notif.title,
+      body: notif.message,
+      emailElement,
+      userEmail: profile?.email ?? null,
+      metadata: notif.metadata as NotificationMetadata,
+    });
+
+    return { success: channel !== 'failed', channel };
+  } catch (err) {
+    console.error('[redeliverNotification] Error:', err);
+    return { success: false, channel: 'error' };
   }
 }
 

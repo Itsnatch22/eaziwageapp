@@ -3,6 +3,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { notifyEmployee, notifyEmployer } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -125,6 +126,77 @@ export async function PATCH(
       new_value: { status: newStatus },
       metadata: { employee_id: advance.employee_id, employer_id: advance.employer_id, amount: advance.amount },
     });
+
+    // Notify employee and employer of the status change (fire-and-forget — don't fail the request)
+    void (async () => {
+      try {
+        const [{ data: empOnboarding }, { data: employerRow }] = await Promise.all([
+          supabaseAdmin
+            .from('employee_onboarding')
+            .select('user_id, full_name, currency')
+            .eq('id', advance.employee_id)
+            .maybeSingle(),
+          supabaseAdmin
+            .from('employers')
+            .select('user_id, company_name, contact_person, currency')
+            .eq('id', advance.employer_id)
+            .maybeSingle(),
+        ]);
+
+        const currency: string = empOnboarding?.currency ?? employerRow?.currency ?? 'KES';
+        const employeeName: string = empOnboarding?.full_name ?? 'Employee';
+        const now = new Date().toLocaleString();
+
+        if (empOnboarding?.user_id) {
+          if (newStatus === 'approved') {
+            await notifyEmployee({
+              userId: empOnboarding.user_id,
+              type: 'advance_approval',
+              title: 'Advance Approved',
+              message: `Your advance of ${currency} ${Number(advance.amount).toLocaleString()} has been approved and is being processed.`,
+              metadata: { advanceId: id, advanceAmount: advance.amount, currency, approvedAt: now, employeeName },
+            });
+          } else if (newStatus === 'rejected') {
+            await notifyEmployee({
+              userId: empOnboarding.user_id,
+              type: 'advance_rejected',
+              title: 'Advance Not Approved',
+              message: `Your advance request of ${currency} ${Number(advance.amount).toLocaleString()} was not approved at this time.`,
+              metadata: { advanceId: id, requestedAmount: advance.amount, currency, rejectedAt: now, employeeName },
+            });
+          } else if (newStatus === 'disbursed') {
+            await notifyEmployee({
+              userId: empOnboarding.user_id,
+              type: 'advance_approval',
+              title: 'Advance Disbursed',
+              message: `Your advance of ${currency} ${Number(advance.amount).toLocaleString()} has been disbursed to your account.`,
+              metadata: { advanceId: id, advanceAmount: advance.amount, currency, approvedAt: now, employeeName },
+            });
+          }
+        }
+
+        if (employerRow?.user_id && newStatus !== 'approved') {
+          // Employer only needs a nudge on rejection/disbursal (they saw the request already)
+          await notifyEmployer({
+            userId: employerRow.user_id,
+            type: 'advance_request_received',
+            title: `Advance ${newStatus === 'rejected' ? 'Rejected' : 'Disbursed'}`,
+            message: `${employeeName}'s advance of ${currency} ${Number(advance.amount).toLocaleString()} was ${newStatus}.`,
+            metadata: {
+              advanceId: id,
+              employeeName,
+              requestedAmount: advance.amount,
+              currency,
+              companyName: employerRow.company_name,
+              contactPerson: employerRow.contact_person,
+              requestedAt: now,
+            },
+          });
+        }
+      } catch (notifErr) {
+        console.error('[AdminAdvancesAction] Notification error (non-fatal):', notifErr);
+      }
+    })();
 
     return NextResponse.json({
       success: true,

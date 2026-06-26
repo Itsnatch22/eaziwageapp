@@ -166,3 +166,61 @@ export async function GET(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function PUT(
+  req: NextRequest,
+  { params }: IdRouteContext
+) {
+  try {
+    const rateLimitResponse = await checkAdminRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const { id } = await params;
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { user, adminSupabase } = auth;
+
+    const body = await req.json() as {
+      job_title?: string;
+      department?: string;
+      monthly_salary?: number;
+      employment_type?: string;
+    };
+
+    // Resolve user_id from employees table
+    const { data: emp } = await adminSupabase
+      .from('employees')
+      .select('id, user_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!emp) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (body.job_title !== undefined) payload.job_title = body.job_title;
+    if (body.department !== undefined) payload.department = body.department;
+    if (body.monthly_salary !== undefined) payload.monthly_salary = Number(body.monthly_salary);
+    if (body.employment_type !== undefined) payload.employment_type = body.employment_type;
+
+    // Update employees and employee_onboarding in parallel
+    await Promise.all([
+      adminSupabase.from('employees').update(payload).eq('id', id),
+      adminSupabase.from('employee_onboarding').update(payload).eq('user_id', emp.user_id),
+    ]);
+
+    void adminSupabase.from('system_audit_logs').insert({
+      admin_id:    user.id,
+      admin_name:  user.email,
+      target_id:   id,
+      target_type: 'employee',
+      action:      'update_employment_details',
+      new_value:   payload,
+      created_at:  new Date().toISOString(),
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[PUT /api/admin/employees/[id]] Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

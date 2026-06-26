@@ -80,7 +80,8 @@ export async function GET(
   }
 
   let decryptedBankAccount: string | null = null;
-  if (employer.bank_account_number) {
+  const hasBankAccount = Boolean(employer.bank_account_number);
+  if (hasBankAccount) {
     try {
       const { PII_ENCRYPTION_KEY } = getEnv();
       if (PII_ENCRYPTION_KEY) {
@@ -89,9 +90,12 @@ export async function GET(
           p_key: PII_ENCRYPTION_KEY,
         });
         decryptedBankAccount = dec ?? null;
+      } else {
+        // Key not configured — signal that data exists but can't be shown
+        decryptedBankAccount = '[Encrypted]';
       }
     } catch {
-      // non-fatal — admin sees null rather than encrypted bytes
+      decryptedBankAccount = '[Encrypted]';
     }
   }
 

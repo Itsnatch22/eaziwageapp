@@ -27,6 +27,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface EmployerProfile {
   id: string;
+  user_id?: string;
   company_name: string;
   company_code?: string;
   status: string;
@@ -177,9 +178,10 @@ interface ToggleItemProps {
   description: string;
   checked: boolean;
   onToggle: (checked: boolean) => void;
+  disabled?: boolean;
 }
 
-const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: ToggleItemProps) => (
+const ToggleItem = ({ icon: Icon, label, description, checked, onToggle, disabled }: ToggleItemProps) => (
   <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
     <div className="flex items-center gap-4">
       <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-sm">
@@ -190,7 +192,7 @@ const ToggleItem = ({ icon: Icon, label, description, checked, onToggle }: Toggl
         <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
       </div>
     </div>
-    <Switch checked={checked} onCheckedChange={onToggle} />
+    <Switch checked={checked} onCheckedChange={onToggle} disabled={disabled} />
   </div>
 );
 
@@ -382,9 +384,10 @@ interface EmployerProfileTabProps {
   fullName?: string | null;
   email?: string | null;
   avatarUrl?: string | null;
+  onAvatarChange?: (url: string) => void;
 }
 
-const EmployerProfileTab = ({ employerId, fullName, email, avatarUrl }: EmployerProfileTabProps) => (
+const EmployerProfileTab = ({ employerId, fullName, email, avatarUrl, onAvatarChange }: EmployerProfileTabProps) => (
   <div className="space-y-6">
     <SettingsCard icon={Users} title="Your Profile" description="Manage your personal profile and account settings">
       <div className="flex flex-col items-center mb-8">
@@ -392,6 +395,7 @@ const EmployerProfileTab = ({ employerId, fullName, email, avatarUrl }: Employer
           userId={employerId}
           currentAvatarUrl={avatarUrl ?? undefined}
           fullName={fullName || email || undefined}
+          onUploadSuccess={onAvatarChange}
         />
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
@@ -523,7 +527,7 @@ interface Profile {
 export default function EmployerSettings() {
   const router = useRouter();
   const [notifLoading, setNotifLoading] = useState(false);
-  const { subscribe, unsubscribe } = usePushNotifications();
+  const { subscribe, unsubscribe, status: pushStatus } = usePushNotifications();
 
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1082,10 +1086,11 @@ export default function EmployerSettings() {
             
             {activeTab === 'account' && (
               <EmployerProfileTab
-                employerId={employer?.id}
+                employerId={employer?.user_id ?? employer?.id}
                 fullName={employer?.full_name || employer?.contact_person}
                 email={employer?.contact_email}
                 avatarUrl={employer?.avatar_url}
+                onAvatarChange={(url) => setEmployer(prev => prev ? { ...prev, avatar_url: url } : prev)}
               />
             )}
 
@@ -1475,7 +1480,18 @@ export default function EmployerSettings() {
         description="Real-time alerts directly in your browser"
         checked={(settings as Settings & { pushNotifications?: boolean }).pushNotifications ?? false}
         onToggle={(v) => void handleNotificationUpdate('pushNotifications', v)}
+        disabled={notifLoading || pushStatus === 'unsupported'}
       />
+      {pushStatus === 'denied' && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 pl-1">
+          Push notifications are blocked in your browser settings. Enable them there, or we&apos;ll continue sending you email alerts as a fallback.
+        </p>
+      )}
+      {pushStatus === 'unsupported' && (
+        <p className="text-xs text-slate-400 mt-1 pl-1">
+          Push notifications aren&apos;t supported in this browser. You&apos;ll receive email alerts instead.
+        </p>
+      )}
       {notifLoading && (
         <p className="text-xs text-slate-400 text-center animate-pulse">Saving...</p>
       )}

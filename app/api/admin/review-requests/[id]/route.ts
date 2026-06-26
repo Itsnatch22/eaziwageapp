@@ -99,7 +99,7 @@ export async function PATCH(
         userId: document.user_id,
         type: 'kyc_update',
         title: `KYC Document ${status === 'approved' ? 'Approved' : 'Rejected'}`,
-        message: `Your ${document.document_type.replace(/_/g, ' ')} has been ${status}.${response || internal_notes ? ` Notes: ${response || internal_notes}` : ''}`,
+        message: `Your ${document.document_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())} has been ${status}.${response || internal_notes ? ` Notes: ${response || internal_notes}` : ''}`,
       });
     }
 
@@ -150,12 +150,20 @@ export async function PATCH(
     if (bRequest.user_id) {
       await notifyEmployer({
         userId: bRequest.user_id,
-        type: 'system',
+        type: 'bank_change_outcome',
         title: `Bank Details Change ${status === 'approved' ? 'Approved' : 'Rejected'}`,
         message:
           status === 'approved'
             ? 'Your request to change bank details has been approved and updated.'
             : `Your bank details change request was rejected.${response ? ` Reason: ${response}` : ''}`,
+        metadata: {
+          outcome: status === 'approved' ? 'approved' : 'rejected',
+          requestedBankName: bRequest.new_bank_name ?? 'New Bank',
+          requestedAccountNumber: bRequest.new_account_number ?? '••••••••',
+          currentBankName: bRequest.current_bank_name ?? undefined,
+          reason: response || internal_notes || undefined,
+          effectiveAt: new Date().toLocaleString(),
+        },
       });
     }
 

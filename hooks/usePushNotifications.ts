@@ -46,7 +46,9 @@ export function usePushNotifications() {
         return;
       }
 
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      // Reuse an existing registration to avoid a race between register() and ready
+      const reg = await navigator.serviceWorker.getRegistration('/')
+        ?? await navigator.serviceWorker.register('/sw.js', { scope: '/' });
       await navigator.serviceWorker.ready;
 
       let sub = await reg.pushManager.getSubscription();
@@ -66,6 +68,14 @@ export function usePushNotifications() {
       const supabase = createClient();
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw new Error('User not authenticated.');
+
+      // Purge all stale/dead subscriptions for this user before saving the new one
+      // so 410-Gone push failures don't accumulate in system_push_subscriptions
+      await fetch('/api/push/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clearAll: true }),
+      });
 
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',

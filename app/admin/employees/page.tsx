@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { EmptyState } from '@/app/empty';
-import { 
+import {
   Users, Search, Download, UserCheck, Clock,
-  MoreHorizontal, Eye, CreditCard, 
+  MoreHorizontal, Eye, CreditCard,
   CheckCircle2, XCircle, X, Edit, Shield, Mail, Phone,
   Ban, RefreshCw, FileText, User, Briefcase, MapPin, Calendar, ExternalLink,
+  Smartphone, Building2, Star, Plus, Loader2,
 } from 'lucide-react';
 import { Button }                  from '@/components/ui/button';
 import { Input }                   from '@/components/ui/input';
@@ -87,6 +88,20 @@ interface KycDocument {
   created_at: string;
 }
 
+interface PaymentMethod {
+  id: string;
+  method_type: 'mobile_money' | 'bank_account';
+  provider_name: string;
+  account_name: string | null;
+  account_number: string | null;
+  phone_number: string | null;
+  country_code: string | null;
+  is_default: boolean;
+  is_verified: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
 interface Advance {
   id:          string;
   employer_id: string;
@@ -104,7 +119,7 @@ interface Stats {
   suspended:   number;
 }
 
-type TabKey = 'overview' | 'advances' | 'kyc' | 'actions';
+type TabKey = 'overview' | 'advances' | 'kyc' | 'payment' | 'actions';
 
 type VariantColor = 'green' | 'slate' | 'black';
 
@@ -411,25 +426,37 @@ interface EmployeeDetailModalProps {
   onRefresh: () => void;
 }
 
-const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ 
-  employee, 
+const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
+  employee,
   rates,
-  isOpen, 
-  onClose, 
-  onRefresh, 
+  isOpen,
+  onClose,
+  onRefresh,
 }) => {
-  const [activeTab,      setActiveTab]      = useState<TabKey>('overview');
-  const [loading,        setLoading]        = useState(false);
-  const [employeeDetail, setEmployeeDetail] = useState<Employee | null>(null);
-  const [editMode,       setEditMode]       = useState(false);
-  const [editData,       setEditData]       = useState<EditData>({
+  const [activeTab,        setActiveTab]        = useState<TabKey>('overview');
+  const [loading,          setLoading]          = useState(false);
+  const [employeeDetail,   setEmployeeDetail]   = useState<Employee | null>(null);
+  const [editMode,         setEditMode]         = useState(false);
+  const [editData,         setEditData]         = useState<EditData>({
     job_title:       '',
     department:      '',
     monthly_salary:  0,
     employment_type: 'full-time',
   });
-  const [riskOverride,   setRiskOverride]   = useState<RiskOverride>({ score: 3, reason: '' });
-  const [showRiskModal,  setShowRiskModal]  = useState(false);
+  const [riskOverride,     setRiskOverride]     = useState<RiskOverride>({ score: 3, reason: '' });
+  const [showRiskModal,    setShowRiskModal]    = useState(false);
+  const [paymentMethods,   setPaymentMethods]   = useState<PaymentMethod[]>([]);
+  const [paymentLoading,   setPaymentLoading]   = useState(false);
+  const [showAddPayment,   setShowAddPayment]   = useState(false);
+  const [newPayment,       setNewPayment]       = useState({
+    method_type: 'mobile_money' as 'mobile_money' | 'bank_account',
+    provider_name: '',
+    account_name: '',
+    phone_number: '',
+    account_number: '',
+    country_code: 'KE',
+    is_default: false,
+  });
 
   const fetchEmployeeDetail = useCallback(async () => {
     if (!employee) return;
@@ -456,6 +483,63 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     }
   }, [employee]);
 
+  const fetchPaymentMethods = useCallback(async () => {
+    if (!employee) return;
+    setPaymentLoading(true);
+    try {
+      const res = await fetch(`/api/admin/employees/${employee.id}/payment-methods`);
+      if (res.ok) {
+        const d = await res.json();
+        setPaymentMethods(d.methods ?? []);
+      }
+    } catch {
+      toast.error('Failed to load payment methods');
+    } finally {
+      setPaymentLoading(false);
+    }
+  }, [employee]);
+
+  const handleSetDefault = async (methodId: string) => {
+    if (!employee) return;
+    try {
+      const res = await fetch(`/api/admin/employees/${employee.id}/payment-methods`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_default', id: methodId }),
+      });
+      if (res.ok) {
+        toast.success('Default payment method updated');
+        fetchPaymentMethods();
+      } else {
+        toast.error('Failed to update default');
+      }
+    } catch {
+      toast.error('Failed to update default');
+    }
+  };
+
+  const handleAddPayment = async () => {
+    if (!employee) return;
+    try {
+      const res = await fetch(`/api/admin/employees/${employee.id}/payment-methods`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPayment),
+      });
+      if (res.ok) {
+        toast.success('Payment method added');
+        setShowAddPayment(false);
+        setNewPayment({ method_type: 'mobile_money', provider_name: '', account_name: '', phone_number: '', account_number: '', country_code: 'KE', is_default: false });
+        fetchPaymentMethods();
+      } else {
+        const d = await res.json();
+        toast.error(d.error ?? 'Failed to add payment method');
+      }
+    } catch {
+      toast.error('Failed to add payment method');
+    }
+  };
+
   useEffect(() => {
     if (isOpen && employee?.id) {
       const timer = setTimeout(() => {
@@ -464,6 +548,12 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
       return () => clearTimeout(timer);
     }
   }, [isOpen, employee?.id, fetchEmployeeDetail]);
+
+  useEffect(() => {
+    if (isOpen && employee?.id && activeTab === 'payment') {
+      fetchPaymentMethods();
+    }
+  }, [isOpen, employee?.id, activeTab, fetchPaymentMethods]);
 
   const handleStatusChange = async (newStatus: EmployeeStatus) => {
     if (!employee) return;
@@ -623,7 +713,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
 
         
         <div className="flex border-b border-slate-200 dark:border-slate-700">
-          {(['overview', 'advances', 'kyc', 'actions'] as const).map(tab => (
+          {(['overview', 'advances', 'kyc', 'payment', 'actions'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1033,6 +1123,119 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                   <XCircle className="w-4 h-4 mr-2" /> Reject KYC
                 </Button>
               </div>
+            </div>
+          ) : activeTab === 'payment' ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" /> Payment Methods
+                </h3>
+                <button
+                  onClick={() => setShowAddPayment(v => !v)}
+                  className="flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-700"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Method
+                </button>
+              </div>
+
+              {showAddPayment && (
+                <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl space-y-3 bg-slate-50 dark:bg-slate-800/50">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Add Payment Method</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Type</Label>
+                      <select
+                        className="w-full mt-1 text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-900"
+                        value={newPayment.method_type}
+                        onChange={e => setNewPayment(p => ({ ...p, method_type: e.target.value as 'mobile_money' | 'bank_account' }))}
+                      >
+                        <option value="mobile_money">Mobile Money</option>
+                        <option value="bank_account">Bank Account</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Country Code</Label>
+                      <Input className="mt-1 text-sm h-9" placeholder="KE" value={newPayment.country_code} onChange={e => setNewPayment(p => ({ ...p, country_code: e.target.value.toUpperCase() }))} maxLength={2} />
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Provider</Label>
+                      <Input className="mt-1 text-sm h-9" placeholder={newPayment.method_type === 'mobile_money' ? 'M-PESA, Airtel Money…' : 'KCB, Stanbic, Equity…'} value={newPayment.provider_name} onChange={e => setNewPayment(p => ({ ...p, provider_name: e.target.value }))} />
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Account Name</Label>
+                      <Input className="mt-1 text-sm h-9" placeholder="Full name on account" value={newPayment.account_name} onChange={e => setNewPayment(p => ({ ...p, account_name: e.target.value }))} />
+                    </div>
+                    {newPayment.method_type === 'mobile_money' ? (
+                      <div className="col-span-2">
+                        <Label className="text-xs">Phone Number</Label>
+                        <Input className="mt-1 text-sm h-9" placeholder="+254700000000" value={newPayment.phone_number} onChange={e => setNewPayment(p => ({ ...p, phone_number: e.target.value }))} />
+                      </div>
+                    ) : (
+                      <div className="col-span-2">
+                        <Label className="text-xs">Account Number</Label>
+                        <Input className="mt-1 text-sm h-9" placeholder="Bank account number" value={newPayment.account_number} onChange={e => setNewPayment(p => ({ ...p, account_number: e.target.value }))} />
+                      </div>
+                    )}
+                    <div className="col-span-2 flex items-center gap-2">
+                      <input type="checkbox" id="pm-default" checked={newPayment.is_default} onChange={e => setNewPayment(p => ({ ...p, is_default: e.target.checked }))} className="rounded" />
+                      <Label htmlFor="pm-default" className="text-xs cursor-pointer">Set as default disbursement method</Label>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" onClick={handleAddPayment} className="bg-green-600 hover:bg-green-700 text-white text-xs">Save Method</Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowAddPayment(false)} className="text-xs">Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {paymentLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-green-500 animate-spin" />
+                </div>
+              ) : paymentMethods.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <CreditCard className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No payment methods on file.</p>
+                  <p className="text-xs mt-1">Add one above to set the disbursement destination.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {paymentMethods.map(pm => (
+                    <div key={pm.id} className={cn(
+                      'p-4 rounded-xl border-2 flex items-start gap-3 transition-all',
+                      pm.is_default
+                        ? 'border-green-300 bg-green-50 dark:bg-green-900/20'
+                        : 'border-slate-200 dark:border-slate-700',
+                    )}>
+                      <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                        {pm.method_type === 'mobile_money'
+                          ? <Smartphone className="w-4 h-4 text-green-600" />
+                          : <Building2 className="w-4 h-4 text-blue-600" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-sm text-slate-900 dark:text-white">{pm.provider_name}</p>
+                          {pm.is_default && <span className="text-[10px] font-bold bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 px-2 py-0.5 rounded-full flex items-center gap-1"><Star className="w-3 h-3" /> Default</span>}
+                          {!pm.is_verified && <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Unverified</span>}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {pm.method_type === 'mobile_money' ? pm.phone_number : pm.account_number}
+                          {pm.account_name ? ` · ${pm.account_name}` : ''}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 capitalize">{pm.method_type.replace('_', ' ')} · {pm.country_code}</p>
+                      </div>
+                      {!pm.is_default && (
+                        <button
+                          onClick={() => handleSetDefault(pm.id)}
+                          className="text-xs text-green-600 hover:text-green-700 font-semibold shrink-0"
+                        >
+                          Set Default
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : activeTab === 'actions' ? (
             <div className="space-y-4">

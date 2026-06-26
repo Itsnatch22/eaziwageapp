@@ -2486,7 +2486,8 @@ const AdminProfileTab: React.FC = () => {
             <AvatarUpload
               currentAvatarUrl={profile.avatar_url ?? undefined}
               userId={profile.user_id}
-              onUploadSuccess={() => {
+              onUploadSuccess={(url) => {
+                setProfile(prev => prev ? { ...prev, avatar_url: url } : prev);
                 toast.success('Profile photo updated');
               }}
             />
