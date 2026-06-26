@@ -15,7 +15,7 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 interface Transaction {
   id: string;
   amount: number;
-  type: 'deposit' | 'withdrawal' | 'payout' | 'refund' | 'arrears_payment';
+  transaction_type: 'deposit' | 'withdrawal' | 'payout' | 'refund' | 'arrears_payment';
   status: 'pending' | 'completed' | 'failed';
   reference: string;
   description: string;
@@ -86,8 +86,8 @@ const WalletPage = () => {
     (_table) => void fetchData(),
   );
 
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
+  const getTransactionIcon = (transaction_type: string) => {
+    switch (transaction_type) {
       case 'deposit': return <ArrowDownLeft className="w-4 h-4 text-emerald-500" />;
       case 'payout':  return <ArrowUpRight className="w-4 h-4 text-blue-500" />;
       case 'arrears_payment': return <CheckCircle2 className="w-4 h-4 text-purple-500" />;
@@ -159,7 +159,7 @@ const WalletPage = () => {
                 <div>
                   <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Total Disbursed</p>
                   <p className="text-xl font-bold text-slate-900 dark:text-white">
-                     {formatCurrency(transactions.filter(t => t.type === 'payout' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount), 0), currency)}
+                     {formatCurrency(transactions.filter(t => t.transaction_type === 'payout' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount), 0), currency)}
                   </p>
                 </div>
              </div>
@@ -211,10 +211,10 @@ const WalletPage = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center">
-                            {getTransactionIcon(tx.type)}
+                            {getTransactionIcon(tx.transaction_type)}
                           </div>
                           <span className="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">
-                            {tx.type.replace('_', ' ')}
+                            {tx.transaction_type.replace('_', ' ')}
                           </span>
                         </div>
                       </td>

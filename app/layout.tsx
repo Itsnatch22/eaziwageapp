@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { cn } from "@/lib/utils";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import SessionTimeout from '@/components/SessionTimeout';
+import { Toaster } from "@/components/ui/sonner";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -45,6 +46,7 @@ export default async function RootLayout({
         <OfflineBanner />
         <SessionTimeout />
         {children}
+        <Toaster />
         <Analytics />
       </body>
     </html>

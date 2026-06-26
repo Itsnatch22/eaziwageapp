@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse, NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -15,6 +16,7 @@ export async function PATCH(
   const { id, action } = await context.params;
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
+  const adminUser = auth;
 
   const supabase = await createRouteHandlerClient();
 
@@ -111,6 +113,18 @@ export async function PATCH(
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
+
+    // Audit trail — CBK requires every manual status change to have an attributable reviewer
+    void supabaseAdmin.from('system_audit_logs').insert({
+      admin_id: adminUser.user.id,
+      admin_name: adminUser.user.email ?? adminUser.user.id,
+      target_id: id,
+      target_type: 'advance',
+      action: `advance_${action}d`,
+      old_value: { status: advance.status },
+      new_value: { status: newStatus },
+      metadata: { employee_id: advance.employee_id, employer_id: advance.employer_id, amount: advance.amount },
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
+import { createLogger } from '@/lib/logger';
 
 const env = getEnv();
 const supabaseAdmin = createClient(
@@ -8,9 +9,22 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
+const log = createLogger('fraud-engine');
+
 interface FraudCheckResult {
   isBlocked: boolean;
   alerts: Array<Record<string, unknown>>;
+}
+
+// Retries the rules fetch once after 300 ms — cheap insurance against transient network blips.
+// Only the rules query is retried; all other queries are best-effort or non-fatal.
+async function fetchFraudRules() {
+  const query = () =>
+    supabaseAdmin.from('fraud_rules').select('*').eq('enabled', true);
+  const first = await query();
+  if (!first.error) return first;
+  await new Promise((r) => setTimeout(r, 300));
+  return query();
 }
 
 /**
@@ -29,12 +43,14 @@ export async function runFraudChecks(params: {
 
   try {
 
-    const { data: rules } = await supabaseAdmin
-      .from('fraud_rules')
-      .select('*')
-      .eq('enabled', true);
+    const { data: rules, error: rulesError } = await fetchFraudRules();
 
-    if (!rules) return { isBlocked: false, alerts: [] };
+    if (rulesError) {
+      log.error('Cannot load rules (after retry) — failing closed', { err: rulesError.message, employeeId, employerId });
+      throw Object.assign(new Error('Fraud engine unavailable'), { code: 'FRAUD_ENGINE_UNAVAILABLE' });
+    }
+
+    if (!rules || rules.length === 0) return { isBlocked: false, alerts: [] };
 
 
     const { data: recentAdvances } = await supabaseAdmin
@@ -84,7 +100,7 @@ export async function runFraudChecks(params: {
 
       if (triggered) {
 
-        const { data: alert } = await supabaseAdmin
+        const { data: alert, error: alertError } = await supabaseAdmin
           .from('fraud_alerts')
           .insert({
             rule_id: rule.id,
@@ -102,10 +118,24 @@ export async function runFraudChecks(params: {
           .select()
           .single();
 
+        if (alertError) {
+          log.error('Alert insert failed — flagging advance for manual review', { err: alertError.message, rule_id: rule.id, employeeId, employerId });
+          alerts.push({
+            rule_id: rule.id,
+            severity: rule.severity,
+            description: reason,
+            _unlogged: true // caller should check this and route to manual_review
+          });
+        } else if (alert) {
+          alerts.push(alert);
+        }
 
-        await supabaseAdmin.rpc('increment_rule_trigger', { rule_id: rule.id });
+        try {
+          await supabaseAdmin.rpc('increment_rule_trigger', { rule_id: rule.id });
+        } catch {
+          // Non-critical counter — never gate on this
+        }
 
-        if (alert) alerts.push(alert);
         if (rule.action === 'block') isBlocked = true;
       }
     }
@@ -113,7 +143,7 @@ export async function runFraudChecks(params: {
     return { isBlocked, alerts };
 
   } catch (error) {
-    console.error('[FraudEngine] Error running checks:', error);
-    return { isBlocked: false, alerts: [] }; // Fail open for now, or change to fail closed
+    log.error('Unexpected error — failing closed', { err: error, employeeId, employerId });
+    throw error; // Let the caller decide — never silently approve
   }
 }

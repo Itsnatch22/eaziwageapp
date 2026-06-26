@@ -137,7 +137,7 @@ export function AdvanceRow({
   const styles = statusStyles[advance.status];
 
   return (
-    <div className="flex items-center gap-4 p-4 bg-white/40 dark:bg-slate-800/40 rounded-xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors group">
+    <div role="row" className="flex items-center gap-4 p-4 bg-white/40 dark:bg-slate-800/40 rounded-xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors group">
       
       <div
         className={cn(
@@ -187,7 +187,7 @@ export function AdvanceRow({
 
       <div className="flex items-center gap-1">
         <DropdownMenu>
-          <DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild>
             <button aria-label="Actions" className="p-2 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors">
               <MoreHorizontal className="w-4 h-4" />
             </button>

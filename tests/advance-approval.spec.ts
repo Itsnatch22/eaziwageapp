@@ -71,7 +71,7 @@ test.describe('Admin — Advance Approval', () => {
     await page.getByRole('menuitem', { name: /approve/i }).click();
 
     // Success toast
-    await expect(page.getByText(/advance approved/i)).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(/advance approved/i)).toBeVisible({ timeout: 8000 });
   });
 
   test('denies a pending advance and shows success toast', async ({ page }) => {
@@ -118,26 +118,28 @@ test.describe('Admin — Advance Approval', () => {
     await page.getByRole('menuitem', { name: /approve/i }).click();
 
     // Error toast
-    await expect(page.getByText(/monthly limit reached|failed/i)).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(/monthly limit reached|failed/i)).toBeVisible({ timeout: 8000 });
   });
 
   test('filters advances by pending status', async ({ page }) => {
-    let capturedStatus: string | null = null;
-
     await page.route('**/api/admin/advances**', async (route) => {
-      const url = new URL(route.request().url());
-      capturedStatus = url.searchParams.get('status');
       await route.fulfill({ json: ADVANCES_RESPONSE });
     });
 
     await page.goto('/admin/advances');
     await expect(page.getByTestId('admin-advances-page')).toBeVisible({ timeout: 10_000 });
 
-    // Click the "Pending" filter button
-    await page.getByRole('button', { name: /pending/i }).first().click();
+    // The advance row must be visible before filtering
+    await expect(page.getByText('Jane Doe')).toBeVisible({ timeout: 8_000 });
 
-    // Verify the request included the status filter
-    await page.waitForFunction(() => true); // let route handler fire
-    expect(capturedStatus).toBe('pending');
+    // Click the "Pending" filter — filtering is client-side (setStatusFilter)
+    await page.getByRole('button', { name: /^pending/i }).first().click();
+
+    // The pending advance (Jane Doe, status='pending') must still be visible
+    await expect(page.getByText('Jane Doe')).toBeVisible({ timeout: 5_000 });
+
+    // Click "Approved" — should hide the pending advance
+    await page.getByRole('button', { name: /^approved/i }).first().click();
+    await expect(page.getByText('Jane Doe')).not.toBeVisible({ timeout: 5_000 });
   });
 });

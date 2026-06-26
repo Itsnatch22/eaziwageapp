@@ -61,7 +61,7 @@ export async function GET() {
     // employer_view_own_wallet RLS covers this SELECT
     const { data: wallet, error: walletError } = await supabase
       .from('employer_wallets')
-      .select('id, employer_id, balance, arrears_balance, currency, created_at, updated_at')
+      .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, currency, updated_at')
       .eq('employer_id', employer.id)
       .maybeSingle();
 
@@ -74,8 +74,8 @@ export async function GET() {
       const adminSupabase = createAdminClient();
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
-        .insert({ employer_id: employer.id, balance: 0, arrears_balance: 0, currency: walletCurrency })
-        .select('id, employer_id, balance, arrears_balance, currency, created_at, updated_at')
+        .insert({ employer_id: employer.id, total_advanced: 0, outstanding_liability: 0, total_repaid: 0, currency: walletCurrency, updated_at: new Date().toISOString() })
+        .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, currency, updated_at')
         .single();
       if (createError) throw createError;
       currentWallet = newWallet;
@@ -86,14 +86,27 @@ export async function GET() {
     // employer_view_own_wallet_tx RLS covers this SELECT
     const { data: transactions, error: txError } = await supabase
       .from('wallet_transactions')
-      .select('id, wallet_id, amount, transaction_type, status, description, reference, created_at')
+      .select('id, wallet_id, amount, type, status, description, reference, created_at')
       .eq('wallet_id', currentWallet.id)
       .order('created_at', { ascending: false })
       .limit(20);
 
     if (txError) throw txError;
 
-    return NextResponse.json({ wallet: currentWallet, transactions: transactions || [] });
+    // Balance = net of all completed transactions (deposits positive, payouts negative)
+    const balance = (transactions || []).reduce(
+      (sum, tx) => (tx.status === 'completed' ? sum + Number(tx.amount) : sum),
+      0,
+    );
+
+    return NextResponse.json({
+      wallet: {
+        ...currentWallet,
+        balance,
+        arrears_balance: Number(currentWallet.outstanding_liability),
+      },
+      transactions: (transactions || []).map(tx => ({ ...tx, transaction_type: tx.type })),
+    });
 
   } catch (error: unknown) {
     console.error('[Wallet API Error]', error);
@@ -139,7 +152,7 @@ export async function POST(req: Request) {
     // employer_view_own_wallet RLS covers this SELECT
     const { data: wallet, error: walletError } = await supabase
       .from('employer_wallets')
-      .select('id, employer_id, balance, arrears_balance, currency, created_at, updated_at')
+      .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, currency, updated_at')
       .eq('employer_id', employer.id)
       .maybeSingle();
 
@@ -150,8 +163,8 @@ export async function POST(req: Request) {
       const walletCurrency = onboarding?.currency || getCurrencyFromCountry(onboarding?.country, 'KES');
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
-       .insert({ employer_id: employer.id, balance: 0, arrears_balance: 0, currency: walletCurrency })
-        .select('id, employer_id, balance, arrears_balance, currency, created_at, updated_at')
+        .insert({ employer_id: employer.id, total_advanced: 0, outstanding_liability: 0, total_repaid: 0, currency: walletCurrency, updated_at: new Date().toISOString() })
+        .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, currency, updated_at')
         .single();
       if (createError) return NextResponse.json({ error: 'Failed to create wallet' }, { status: 500 });
       currentWallet = newWallet;

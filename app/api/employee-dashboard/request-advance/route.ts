@@ -7,6 +7,7 @@ import { runFraudChecks } from '@/lib/fraud-engine';
 import { notifyEmployer, notifyAdmin } from '@/lib/notifications';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { advanceLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { requestLogger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -16,13 +17,13 @@ const requestSchema = z.object({
   payment_method_id: z.string().optional().nullable(),
 });
 
-const toMoney = (value: number) => Math.round(value * 100) / 100;
 
-// Use the user-scoped client — RLS on `employees` restricts to own row via user_id
-async function resolveEmployee(supabase: SupabaseClient, userId: string): Promise<{ id: string; organization_id: string | null } | null> {
+// Use the user-scoped client — RLS on `employees` restricts to own row via user_id.
+// employees table has no organization_id — that lives on employers, resolved below.
+async function resolveEmployee(supabase: SupabaseClient, userId: string): Promise<{ id: string } | null> {
   const { data, error } = await supabase
     .from('employees')
-    .select('id, organization_id')
+    .select('id')
     .eq('user_id', userId)
     .maybeSingle();
   if (error || !data) return null;
@@ -32,6 +33,7 @@ async function resolveEmployee(supabase: SupabaseClient, userId: string): Promis
 export async function POST(req: NextRequest) {
   const supabase = await createRouteHandlerClient();
   const adminSupabase = createAdminClient();
+  const log = requestLogger('request-advance', req);
 
   let userId: string | null = null;
   let employeeId: string | null = null;
@@ -40,22 +42,18 @@ export async function POST(req: NextRequest) {
   let parsedPayload: unknown = null;
 
   const errorResponse = (status: number, message: string, meta?: Record<string, unknown>) => {
-    try {
-      console.error('[request-advance] Error response', { message, status, userId, employeeId, employerId, paymentMethodId, payload: parsedPayload, meta });
-    } catch (logErr) {
-      console.error('[request-advance] Failed to log error context', logErr);
-    }
+    log.error(message, { status, userId, employeeId, employerId, paymentMethodId, parsedPayload, ...meta });
     return NextResponse.json({ message }, { status });
   };
 
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      console.error('[request-advance] Unauthorized access attempt', { authError });
+      log.warn('Unauthorized access attempt', { err: authError });
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
     userId = user.id;
-    console.info('[request-advance] Request started', { userId, url: req.url });
+    log.info('Request started', { userId });
 
     const rateLimit = await checkRateLimit(advanceLimiter, `advance:${user.id}`);
     if (!rateLimit.success) {
@@ -71,7 +69,6 @@ export async function POST(req: NextRequest) {
       return errorResponse(404, 'Employee record not found.', { note: 'resolveEmployee returned null' });
     }
     employeeId = employeeRecord.id;
-    const organizationId = employeeRecord.organization_id;
 
     const raw = await req.json().catch(() => null);
     const parsed = requestSchema.safeParse(raw);
@@ -219,26 +216,64 @@ export async function POST(req: NextRequest) {
       return errorResponse(403, 'Your request has been flagged by our security system. Please contact support.', { code: 'FRAUD_BLOCK' });
     }
 
-    const { data: employer } = await supabase
+    // Fetch risk_score from onboarding for fee calculation
+    const { data: onboardingEmployer } = await supabase
       .from('employer_onboarding')
       .select('risk_score')
       .eq('id', employee.employer_id)
       .maybeSingle();
 
-    const { data: employerRecord, error: employerLookupError } = await supabase
+    // Resolve the live employers row and validate it is fully configured.
+    // organization_id is required for the advances.organization_id NOT NULL constraint.
+    const { data: employerRecord, error: employerLookupError } = await adminSupabase
       .from('employers')
-      .select('id')
+      .select('id, organization_id, status, ewa_enabled, disbursements_frozen, is_defaulted, auto_approve')
       .eq('onboarding_id', employee.employer_id)
       .maybeSingle();
 
     if (employerLookupError || !employerRecord) {
       return errorResponse(500, 'Failed to resolve employer record', { employerLookupError });
     }
+    if (employerRecord.status !== 'approved') {
+      return errorResponse(403, 'Your employer account is not yet fully activated. Please contact support.');
+    }
+    if (employerRecord.ewa_enabled === false) {
+      return errorResponse(403, 'EWA is not currently enabled for your employer.');
+    }
+    if (employerRecord.disbursements_frozen) {
+      return errorResponse(403, 'Disbursements are currently frozen for your employer. Please contact support.', { code: 'EMPLOYER_FROZEN' });
+    }
+    if (employerRecord.is_defaulted) {
+      return errorResponse(403, 'Your employer account has a default. Please contact support.', { code: 'EMPLOYER_DEFAULTED' });
+    }
+    if (!employerRecord.organization_id) {
+      return errorResponse(400, 'Your employer account is not fully configured. Please contact support.', { code: 'EMPLOYER_ORG_NOT_SET' });
+    }
+
+    // Resolve organization for currency and frozen check
+    const { data: organization, error: orgError } = await adminSupabase
+      .from('organizations')
+      .select('id, currency, is_frozen')
+      .eq('id', employerRecord.organization_id)
+      .maybeSingle();
+
+    if (orgError || !organization) {
+      return errorResponse(500, 'Failed to resolve organization', { orgError, organization_id: employerRecord.organization_id });
+    }
+    if (organization.is_frozen) {
+      return errorResponse(403, 'Platform operations are currently paused. Please contact support.', { code: 'ORG_FROZEN' });
+    }
 
     const liveEmployerId = employerRecord.id;
 
-    const feePercentage = toMoney(calculateFeePercentage(Number(employer?.risk_score ?? 3)));
-    const feeAmount = toMoney((requestedAmount * feePercentage) / 100);
+    // Integer-subunit arithmetic: integer × integer has no IEEE 754 error.
+    // feePct is the rate in centi-percent (e.g. 4.70% → 470); amountMinor is cents.
+    // Their product stays within Number.MAX_SAFE_INTEGER for any realistic advance size.
+    const feePct        = Math.round(calculateFeePercentage(Number(onboardingEmployer?.risk_score ?? 3)) * 100);
+    const amountMinor   = Math.round(requestedAmount * 100);
+    const feeMinor      = Math.round(amountMinor * feePct / 10000);
+    const feePercentage = feePct / 100;
+    const feeAmount     = feeMinor / 100;
 
     const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
     const random = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -287,24 +322,26 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = {
-      employee_id: employeeId,
-      organization_id: organizationId ?? null,
-      amount: requestedAmount,
+      employee_id:    employeeId,
+      organization_id: organization.id,       // resolved via employers.organization_id — never null here
+      employer_id:    liveEmployerId,
+      amount:         requestedAmount,
+      currency:       organization.currency,  // from organizations, not employers (no currency col there)
       fee_percentage: feePercentage,
-      fee_amount: feeAmount,
+      fee_amount:     feeAmount,
       disbursement_method: parsed.data.disbursement_method,
       payment_method_id: paymentMethodId,
       payment_method_snapshot: {
-        id: pm.id,
-        method_type: pm.method_type,
-        provider_name: pm.provider_name,
+        id:             pm.id,
+        method_type:    pm.method_type,
+        provider_name:  pm.provider_name,
         account_number: pm.account_number,
-        phone_number: pm.phone_number,
+        phone_number:   pm.phone_number,
       },
-      status: 'pending',
+      status:        'pending',
+      auto_approved: employerRecord.auto_approve ?? false,
       reference,
-      requested_at: new Date().toISOString(),
-      employer_id: liveEmployerId,
+      requested_at:  new Date().toISOString(),
     };
 
     const { data: inserted, error: insertError } = await supabase
@@ -324,43 +361,46 @@ export async function POST(req: NextRequest) {
         .in('id', fraudResult.alerts.map((a) => a.id));
     }
 
-    try {
-      const { data: employerAdmins } = await supabase
-        .from('employer_onboarding')
-        .select('user_id, company_name')
-        .eq('id', employee.employer_id);
+    log.info('Advance created', { userId, employeeId, employerId, advanceId: inserted.id, amount: requestedAmount });
 
-      if (employerAdmins && employerAdmins.length > 0) {
-        const requesterName = (user.user_metadata?.full_name as string | undefined) || user.email || 'An employee';
-        await notifyEmployer({
-          userId: employerAdmins[0].user_id,
-          type: 'advance',
-          title: 'New Advance Request',
-          message: `${requesterName} has requested an advance of ${requestedAmount}. Please review it in your dashboard.`,
-          metadata: { advance_id: inserted.id, amount: requestedAmount },
-        });
+    // Fire notifications after responding — Pusher/Resend latency must not block the employee.
+    void (async () => {
+      try {
+        const { data: employerAdmins } = await supabase
+          .from('employer_onboarding')
+          .select('user_id, company_name')
+          .eq('id', employee.employer_id);
+
+        if (employerAdmins && employerAdmins.length > 0) {
+          const requesterName = (user.user_metadata?.full_name as string | undefined) || user.email || 'An employee';
+          await notifyEmployer({
+            userId: employerAdmins[0].user_id,
+            type: 'advance',
+            title: 'New Advance Request',
+            message: `${requesterName} has requested an advance of ${requestedAmount}. Please review it in your dashboard.`,
+            metadata: { advance_id: inserted.id, amount: requestedAmount },
+          });
+        }
+
+        if (fraudResult.alerts.length > 0) {
+          await notifyAdmin({
+            type: 'flagged_advance',
+            title: 'Fraud Alert: Flagged Advance',
+            message: `A new advance request (ID: ${inserted.id}) has been flagged with ${fraudResult.alerts.length} alerts.`,
+            metadata: { advance_id: inserted.id, alerts: fraudResult.alerts },
+          });
+        }
+      } catch (notifyErr) {
+        log.error('Notification failed', { err: notifyErr, advanceId: inserted?.id });
       }
-
-      if (fraudResult.alerts.length > 0) {
-        await notifyAdmin({
-          type: 'flagged_advance',
-          title: 'Fraud Alert: Flagged Advance',
-          message: `A new advance request (ID: ${inserted.id}) has been flagged with ${fraudResult.alerts.length} alerts.`,
-          metadata: { advance_id: inserted.id, alerts: fraudResult.alerts },
-        });
-      }
-    } catch (notifyErr) {
-      console.error('[request-advance] Notification failed:', notifyErr, { userId, employeeId, employerId, insertedId: inserted?.id });
-    }
-
-    console.info('[request-advance] Advance created', { userId, employeeId, employerId, advanceId: inserted.id, amount: requestedAmount });
+    })();
 
     return NextResponse.json(
       { message: 'Advance request submitted successfully.', data: inserted },
       { status: 201 },
     );
   } catch (err) {
-    console.error('[request-advance] Unexpected error', err, { userId, employeeId, employerId, paymentMethodId, payload: parsedPayload });
+    log.error('Unexpected error', { err, userId, employeeId, employerId, paymentMethodId, parsedPayload });
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }

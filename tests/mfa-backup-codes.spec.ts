@@ -72,8 +72,11 @@ test.describe('Employee — MFA Backup Codes', () => {
 
     await page.goto('/dashboards/employee-dashboard/settings');
 
+    // Navigate to the Security tab — MFA data is only fetched + rendered there
+    await page.getByRole('button', { name: /^security$/i }).click();
+
     // Find and click the "Manage" button to open the MFA modal
-    await page.getByRole('button', { name: /manage/i }).first().click();
+    await page.getByRole('button', { name: /^manage$/i }).first().click();
 
     // MFA modal should be visible
     await expect(page.getByText(/manage mfa.*backup codes/i)).toBeVisible({ timeout: 8_000 });
@@ -109,8 +112,9 @@ test.describe('Employee — MFA Backup Codes', () => {
     });
 
     await page.goto('/dashboards/employee-dashboard/settings');
+    await page.getByRole('button', { name: /^security$/i }).click();
 
-    await page.getByRole('button', { name: /manage/i }).first().click();
+    await page.getByRole('button', { name: /^manage$/i }).first().click();
     await expect(page.getByText(/manage mfa.*backup codes/i)).toBeVisible({ timeout: 8_000 });
 
     await page.getByRole('button', { name: /generate backup codes/i }).click();
@@ -135,7 +139,8 @@ test.describe('Employee — MFA Backup Codes', () => {
     });
 
     await page.goto('/dashboards/employee-dashboard/settings');
-    await page.getByRole('button', { name: /manage/i }).first().click();
+    await page.getByRole('button', { name: /^security$/i }).click();
+    await page.getByRole('button', { name: /^manage$/i }).first().click();
     await expect(page.getByText(/manage mfa.*backup codes/i)).toBeVisible({ timeout: 8_000 });
     await page.getByRole('button', { name: /generate backup codes/i }).click();
 
@@ -158,7 +163,8 @@ test.describe('Employee — MFA Backup Codes', () => {
     });
 
     await page.goto('/dashboards/employee-dashboard/settings');
-    await page.getByRole('button', { name: /manage/i }).first().click();
+    await page.getByRole('button', { name: /^security$/i }).click();
+    await page.getByRole('button', { name: /^manage$/i }).first().click();
     await expect(page.getByText(/manage mfa.*backup codes/i)).toBeVisible({ timeout: 8_000 });
 
     await page.getByRole('button', { name: /generate backup codes/i }).click();

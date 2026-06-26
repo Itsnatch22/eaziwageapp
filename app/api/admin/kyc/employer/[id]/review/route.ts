@@ -126,12 +126,36 @@ export async function PATCH(
 
     const primaryStatus = toPrimaryEmployerStatus(status);
 
+    // Resolve organization_id — required by advances.organization_id NOT NULL.
+    // Look up by country_code first, then country name. Non-fatal if not found (logged).
+    const COUNTRY_CODE_MAP: Record<string, string> = {
+      'Kenya': 'KE', 'Uganda': 'UG', 'Tanzania': 'TZ', 'Rwanda': 'RW',
+    };
+    const employerCountryCode = COUNTRY_CODE_MAP[employer.country ?? ''] ?? null;
+    let resolvedOrgId: string | null = existingEmployer
+      ? ((await adminSupabase.from('employers').select('organization_id').eq('id', existingEmployer.id).maybeSingle()).data?.organization_id ?? null)
+      : null;
+    if (!resolvedOrgId) {
+      // Try by country_code, then by country name
+      const byCode = employerCountryCode
+        ? (await adminSupabase.from('organizations').select('id').eq('country_code', employerCountryCode).maybeSingle()).data?.id
+        : null;
+      const byName = !byCode && employer.country
+        ? (await adminSupabase.from('organizations').select('id').eq('country', employer.country).maybeSingle()).data?.id
+        : null;
+      resolvedOrgId = byCode ?? byName ?? null;
+    }
+    if (!resolvedOrgId) {
+      console.warn(`[Employer KYC Review] No organization found for country=${employer.country}. advances will fail until organization_id is set manually.`);
+    }
+
     const syncPayload = {
       user_id:             employer.user_id,
       company_name:        employer.company_name || 'Unknown company',
       company_code:        canonicalCode,
       employer_code:       canonicalCode,
       onboarding_id:       employer.id,
+      organization_id:     resolvedOrgId,
       email:               employer.contact_email || profileRow?.email || `${employer.user_id}@placeholder.eaziwage.com`,
       phone:               employer.contact_phone || profileRow?.phone || null,
       status:              primaryStatus,
@@ -156,25 +180,48 @@ export async function PATCH(
     console.log(`[Employer KYC Review] employers sync: ${existingEmployer ? 'UPDATE' : 'INSERT'} for user ${employer.user_id}`);
 
     // Step 2 — Upsert employers row BEFORE touching profiles (avoids FK violation).
-    const { error: syncError } = existingEmployer
-      ? await adminSupabase.from('employers').update(syncPayload).eq('id', existingEmployer.id)
-      : await adminSupabase.from('employers').insert({
-          ...syncPayload,
-          employer_id: employer.user_id,
-          created_at: new Date().toISOString(),
-        });
+    // Capture the live employers.id so we can explicitly stamp employee_onboarding below.
+    // The DB trigger (trg_employers_stamp_live_employer_id) also does this, but we do it
+    // explicitly here too because the approval trigger fires before this INSERT exists.
+    let liveEmployersId: string | null = existingEmployer?.id ?? null;
 
-    if (syncError) {
-      console.error('[Employer KYC Review] employers sync failed:', syncError);
-      // Non-fatal — status was already updated; log and continue so the admin isn't blocked.
-      // The employers row can be created via the status route once the error is resolved.
+    if (existingEmployer) {
+      const { error: syncError } = await adminSupabase.from('employers').update(syncPayload).eq('id', existingEmployer.id);
+      if (syncError) {
+        console.error('[Employer KYC Review] employers UPDATE failed:', syncError);
+      }
     } else {
-      // Step 3 — profiles.company_code update is safe now: employers row is committed.
+      const { data: newEmployer, error: syncError } = await adminSupabase
+        .from('employers')
+        .insert({ ...syncPayload, employer_id: employer.user_id, created_at: new Date().toISOString() })
+        .select('id')
+        .single();
+      if (syncError) {
+        console.error('[Employer KYC Review] employers INSERT failed:', syncError);
+        // Non-fatal — continue so admin isn't blocked
+      } else {
+        liveEmployersId = newEmployer?.id ?? null;
+      }
+    }
+
+    if (liveEmployersId) {
+      // Step 3a — Stamp live_employer_id on any employee_onboarding rows that were
+      // submitted before this employer was approved (the DB trigger covers going-forward;
+      // this explicit call covers the window between the approval UPDATE and this INSERT).
+      const { error: stampError } = await adminSupabase
+        .from('employee_onboarding')
+        .update({ live_employer_id: liveEmployersId })
+        .eq('employer_id', employer.id)
+        .is('live_employer_id', null);
+      if (stampError) {
+        console.error('[Employer KYC Review] live_employer_id stamp failed:', stampError.message);
+      }
+
+      // Step 3b — profiles.company_code update is safe now: employers row is committed.
       const { error: profileCodeError } = await adminSupabase
         .from('profiles')
         .update({ company_code: canonicalCode })
         .eq('id', employer.user_id);
-
       if (profileCodeError) {
         console.error('[Employer KYC Review] profiles.company_code update failed:', profileCodeError.message);
       }
@@ -193,6 +240,17 @@ export async function PATCH(
       status === 'approved'
         ? `${employer.company_name} has been activated. You can now proceed with full platform setup.`
         : `Your onboarding submission was rejected.${notes ? ` Reason: ${notes}` : ''}`,
+  });
+
+  // Audit trail — record every KYC decision with reviewer identity and reason
+  void adminSupabase.from('system_audit_logs').insert({
+    admin_id: user.id,
+    admin_name: user.email ?? user.id,
+    target_id: appId,
+    target_type: 'employer_onboarding',
+    action: `kyc_${status}`,
+    new_value: { status, notes: notes || null },
+    metadata: { company_name: employer.company_name, country: employer.country },
   });
 
   return NextResponse.json({

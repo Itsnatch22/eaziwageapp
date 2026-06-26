@@ -157,39 +157,18 @@ export async function PATCH(
       }
     }
 
-    async function resolveEmployerId(ref: string | undefined) {
+    async function resolveEmployerId(ref: string | undefined): Promise<string | null> {
       if (!ref) return null;
 
-      const { data: byId } = await adminSupabase
-        .from('employers')
-        .select('id')
-        .eq('id', ref)
-        .maybeSingle();
-      if (byId?.id) return byId.id;
+      const { data, error } = await adminSupabase
+        .rpc('resolve_live_employer_id', { p_ref: ref });
 
-      const { data: onboardingEmployer } = await adminSupabase
-        .from('employer_onboarding')
-        .select('user_id')
-        .eq('id', ref)
-        .maybeSingle();
-
-      if (onboardingEmployer?.user_id) {
-        const { data: byEmployerUser } = await adminSupabase
-          .from('employers')
-          .select('id')
-          .eq('user_id', onboardingEmployer.user_id)
-          .maybeSingle();
-        if (byEmployerUser?.id) return byEmployerUser.id;
+      if (error || !data) {
+        console.error('[resolveEmployerId] RPC failed:', error?.message);
+        return null;
       }
 
-      const { data: byEmployerRef } = await adminSupabase
-        .from('employers')
-        .select('id')
-        .eq('employer_id', ref)
-        .maybeSingle();
-      if (byEmployerRef?.id) return byEmployerRef.id;
-
-      return null;
+      return data as string;
     }
 
     if (status === 'approved' || status === 'active') {
@@ -212,7 +191,10 @@ export async function PATCH(
         const resolvedEmployerId = await resolveEmployerId(onboardingRecord.employer_id);
         if (!resolvedEmployerId) {
           console.error('[PATCH status] no employer record found for onboarding id:', onboardingRecord.employer_id);
-          return NextResponse.json({ error: 'Employer record not found for onboarding id. Please create/approve the employer first.' }, { status: 400 });
+          return NextResponse.json({
+            error: 'Employer account is not fully set up. The employer must be approved through the admin panel before employees can request advances.',
+            code: 'EMPLOYER_NOT_PROMOTED'
+          }, { status: 400 });
         }
 
         upsertPayload.employer_id = resolvedEmployerId;
@@ -318,10 +300,9 @@ export async function PATCH(
       admin_name: adminProfile?.full_name || 'Admin',
       target_id: userId,
       target_type: 'employee',
-      action: 'account_status',
-      new_status: status,
+      action: `employee_status_${status}`,
+      new_value: { status },
       reason: reason || null,
-      created_at: new Date().toISOString(),
     });
 
 

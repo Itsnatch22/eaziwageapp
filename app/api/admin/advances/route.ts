@@ -29,12 +29,9 @@ interface AdvanceRow {
   requested_at: string | null;
   approved_at: string | null;
   employer_id: string;
-  employees?: { country?: string | null };
+  employees?: { id?: string; full_name?: string | null; employee_code?: string | null; country?: string | null } | null;
+  employers?: { id?: string; company_name?: string | null } | null;
 }
-
-interface EmployeeRow   { id: string; user_id: string | null; employee_code: string | null }
-interface EmployerRow   { id: string; user_id: string | null; company_name: string | null }
-interface ProfileRow    { id: string; full_name: string | null }
 
 export async function GET(req: NextRequest) {
   const rateLimitResponse = await checkAdminRateLimit(req);
@@ -66,7 +63,10 @@ export async function GET(req: NextRequest) {
     let query = supabaseAdmin
       .from('advances')
       .select(
-        'id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount, disbursement_method, status, created_at, requested_at, approved_at, employer_id, employees!advances_employee_id_fkey(country)',
+        `id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount,
+        disbursement_method, status, created_at, requested_at, approved_at, employer_id,
+        employees!advances_employee_id_fkey(id, full_name, employee_code, country),
+        employers!advances_employer_id_fkey(id, company_name)`,
         { count: 'exact' },
       )
       .order('created_at', { ascending: false })
@@ -82,51 +82,15 @@ export async function GET(req: NextRequest) {
 
     const typedAdvances = (advances ?? []) as AdvanceRow[];
 
-    const employeeIds = typedAdvances.map((a) => a.employee_id);
-    const employerIds = typedAdvances.map((a) => a.employer_id).filter(Boolean);
-
-    let employeeById      = new Map<string, EmployeeRow>();
-    let employerById      = new Map<string, EmployerRow>();
-    let profilesByUserId  = new Map<string, ProfileRow>();
-
-    if (employeeIds.length > 0) {
-      const { data: employees } = await supabaseAdmin
-        .from('employees')
-        .select('id, user_id, employee_code')
-        .in('id', employeeIds);
-
-      employeeById = new Map(((employees ?? []) as EmployeeRow[]).map((e) => [e.id, e]));
-
-      const profileIds = (employees ?? []).map((e) => e.user_id).filter((id): id is string => Boolean(id));
-      if (profileIds.length > 0) {
-        const { data: profiles } = await supabaseAdmin
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', profileIds);
-
-        profilesByUserId = new Map(((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p]));
-      }
-    }
-
-    if (employerIds.length > 0) {
-      const { data: employers } = await supabaseAdmin
-        .from('employers')
-        .select('id, company_name')
-        .in('id', employerIds);
-
-      employerById = new Map(((employers ?? []) as EmployerRow[]).map((e) => [e.id, e]));
-    }
-
     let payload = typedAdvances.map((a) => {
-      const employee       = employeeById.get(a.employee_id);
-      const employer       = employerById.get(a.employer_id);
-      const profile        = employee?.user_id ? profilesByUserId.get(employee.user_id) : null;
-      const sourceCurrency = getCurrencyFromCountry(a.employees?.country, 'KES');
+      const employee       = a.employees;
+      const employer       = a.employers;
+      const sourceCurrency = getCurrencyFromCountry(employee?.country, 'KES');
 
       return {
         ...a,
         currency:      sourceCurrency,
-        employee_name: profile?.full_name || employee?.employee_code || 'Employee',
+        employee_name: employee?.full_name || employee?.employee_code || 'Employee',
         employee_code: employee?.employee_code || null,
         employer_name: employer?.company_name || 'Unknown',
       };

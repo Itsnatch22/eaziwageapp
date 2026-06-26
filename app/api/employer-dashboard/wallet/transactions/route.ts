@@ -26,7 +26,7 @@ export async function GET() {
 
   const { data: wallet } = await supabase
     .from('employer_wallets')
-    .select('id, balance, currency')
+    .select('id, outstanding_liability, currency')
     .eq('employer_id', employer.id)
     .maybeSingle();
 
@@ -36,7 +36,7 @@ export async function GET() {
 
   const { data: transactions, error } = await supabase
     .from('wallet_transactions')
-    .select('id, wallet_id, amount, transaction_type, status, description, reference, created_at')
+    .select('id, wallet_id, amount, type, status, description, reference, created_at')
     .eq('wallet_id', wallet.id)
     .order('created_at', { ascending: false })
     .limit(100);
@@ -46,9 +46,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch wallet transactions' }, { status: 500 });
   }
 
+  const balance = (transactions || []).reduce(
+    (sum, tx) => (tx.status === 'completed' ? sum + Number(tx.amount) : sum),
+    0,
+  );
+
   return NextResponse.json({
-    balance: wallet.balance,
+    balance,
     currency: wallet.currency,
-    transactions: transactions || []
+    transactions: (transactions || []).map(tx => ({ ...tx, transaction_type: tx.type })),
   });
 }

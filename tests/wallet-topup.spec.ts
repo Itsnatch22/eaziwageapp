@@ -38,10 +38,19 @@ const WALLET_RESPONSE = {
 
 test.describe('Employer — Wallet Top-up', () => {
   test('submits a top-up request and shows success toast', async ({ page }) => {
-    // Mock wallet data
+    await page.route('**/api/employer-dashboard/status', async (route) => {
+      await route.fulfill({ json: { status: 'active' } });
+    });
+    await page.route('**/api/employer-dashboard/profile', async (route) => {
+      await route.fulfill({ json: { profile: { id: 'employer-test-id', company_name: 'Test Corp' } } });
+    });
+
+    // Mock wallet data — GET and POST in one handler to avoid LIFO override
     await page.route('**/api/employer-dashboard/wallet', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ json: WALLET_RESPONSE });
+      } else if (route.request().method() === 'POST') {
+        await route.fulfill({ json: { success: true } });
       } else {
         await route.continue();
       }
@@ -50,15 +59,6 @@ test.describe('Employer — Wallet Top-up', () => {
     // Mock wallet transactions endpoint
     await page.route('**/api/employer-dashboard/wallet/transactions', async (route) => {
       await route.fulfill({ json: { transactions: WALLET_RESPONSE.transactions, balance: 25000, currency: 'KES' } });
-    });
-
-    // Mock top-up POST
-    await page.route('**/api/employer-dashboard/wallet', async (route) => {
-      if (route.request().method() === 'POST') {
-        await route.fulfill({ json: { success: true } });
-      } else {
-        await route.continue();
-      }
     });
 
     await page.goto('/dashboards/employer-dashboard/wallet');
@@ -81,6 +81,12 @@ test.describe('Employer — Wallet Top-up', () => {
   });
 
   test('shows validation error for zero amount', async ({ page }) => {
+    await page.route('**/api/employer-dashboard/status', async (route) => {
+      await route.fulfill({ json: { status: 'active' } });
+    });
+    await page.route('**/api/employer-dashboard/profile', async (route) => {
+      await route.fulfill({ json: { profile: { id: 'employer-test-id', company_name: 'Test Corp' } } });
+    });
     await page.route('**/api/employer-dashboard/wallet', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ json: WALLET_RESPONSE });
@@ -102,6 +108,12 @@ test.describe('Employer — Wallet Top-up', () => {
   });
 
   test('shows error toast when top-up POST fails', async ({ page }) => {
+    await page.route('**/api/employer-dashboard/status', async (route) => {
+      await route.fulfill({ json: { status: 'active' } });
+    });
+    await page.route('**/api/employer-dashboard/profile', async (route) => {
+      await route.fulfill({ json: { profile: { id: 'employer-test-id', company_name: 'Test Corp' } } });
+    });
     await page.route('**/api/employer-dashboard/wallet', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ json: WALLET_RESPONSE });
@@ -124,6 +136,12 @@ test.describe('Employer — Wallet Top-up', () => {
   });
 
   test('displays existing wallet balance and transactions', async ({ page }) => {
+    await page.route('**/api/employer-dashboard/status', async (route) => {
+      await route.fulfill({ json: { status: 'active' } });
+    });
+    await page.route('**/api/employer-dashboard/profile', async (route) => {
+      await route.fulfill({ json: { profile: { id: 'employer-test-id', company_name: 'Test Corp' } } });
+    });
     await page.route('**/api/employer-dashboard/wallet', async (route) => {
       await route.fulfill({ json: WALLET_RESPONSE });
     });

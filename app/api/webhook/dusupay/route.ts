@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dusupay, PayoutStatus } from '@/lib/dusupay';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyEmployee, notifyEmployer } from '@/lib/notifications';
+import { requestLogger, type Logger } from '@/lib/logger';
 
 interface DusupayWebhookPayload {
   merchant_reference?: string;
@@ -16,20 +17,22 @@ interface DusupayWebhookPayload {
 
 export async function POST(req: NextRequest) {
   const ip = (req.headers.get('x-real-ip')?.trim() || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()) ?? 'unknown';
-  console.log(`[Dusupay Webhook] Received request from ${ip}`);
+  const log = requestLogger('webhook-dusupay', req).child({ ip });
+
+  log.info('Webhook received');
 
   try {
     const rawBody = await req.text();
     const signature = req.headers.get('dusupay-signature') ?? '';
 
     if (!signature || !dusupay.verifyWebhookSignature(rawBody, signature)) {
-      console.error('[Dusupay Webhook] Invalid or missing signature');
+      log.warn('Invalid or missing signature');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = JSON.parse(rawBody) as Record<string, unknown>;
     const { event, payload } = dusupay.parseWebhook(body) as { event: string; payload: DusupayWebhookPayload };
-    
+
     const merchantReference = payload.merchant_reference || payload.transaction_id;
     const internalReference = payload.internal_reference || payload.dusupay_reference || '';
     const transactionStatus = payload.transaction_status || payload.status;
@@ -37,8 +40,24 @@ export async function POST(req: NextRequest) {
     const currency = payload.currency;
 
     if (!merchantReference) {
-      console.error('[Dusupay Webhook] Missing reference');
+      log.error('Missing merchant reference');
       return NextResponse.json({ error: 'Missing reference' }, { status: 400 });
+    }
+
+    // Narrow context — every log line below includes event + merchantRef for easy correlation.
+    const mlog = log.child({ event, merchantRef: merchantReference });
+
+    // Idempotency: check stored state BEFORE upserting so we read the pre-existing status.
+    const { data: existingTx } = await supabaseAdmin
+      .from('dusupay_transactions')
+      .select('status')
+      .eq('merchant_reference', merchantReference)
+      .eq('event_type', event)
+      .maybeSingle();
+
+    if (existingTx?.status === 'COMPLETED') {
+      mlog.info('Already processed — skipping');
+      return NextResponse.json({ received: true }, { status: 200 });
     }
 
     await supabaseAdmin.from('dusupay_transactions').upsert({
@@ -52,22 +71,39 @@ export async function POST(req: NextRequest) {
     }, { onConflict: 'merchant_reference' });
 
     if (event.startsWith('collection.')) {
-      await handleCollectionEvent(event, payload, merchantReference, internalReference);
-    } 
-    else {
-      await handlePayoutEvent(event, payload, merchantReference, internalReference);
+      await handleCollectionEvent(event, payload, merchantReference, internalReference, mlog);
+    } else {
+      await handlePayoutEvent(event, payload, merchantReference, internalReference, mlog);
     }
 
     return NextResponse.json({ received: true }, { status: 200 });
 
   } catch (error: unknown) {
-    console.error('[Dusupay Webhook] Fatal error:', error);
+    log.error('Fatal error', { err: error });
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-async function handleCollectionEvent(event: string, payload: DusupayWebhookPayload, merchantRef: string, internalRef: string) {
+async function handleCollectionEvent(
+  event: string,
+  payload: DusupayWebhookPayload,
+  merchantRef: string,
+  internalRef: string,
+  log: Logger,
+) {
   if (!merchantRef.startsWith('DEP-')) return;
+
+  // Terminal status guard: skip if wallet_transactions already has a completed row for this reference.
+  const { data: existingWalletTx } = await supabaseAdmin
+    .from('wallet_transactions')
+    .select('status')
+    .eq('reference', merchantRef)
+    .maybeSingle();
+
+  if (existingWalletTx?.status === 'completed') {
+    log.info('Wallet transaction already completed — skipping');
+    return;
+  }
 
   const parts = merchantRef.split('-');
   const employerId = parts[1];
@@ -84,7 +120,7 @@ async function handleCollectionEvent(event: string, payload: DusupayWebhookPaylo
   if (!wallet) {
     const { data: newWallet } = await supabaseAdmin
       .from('employer_wallets')
-      .insert({ employer_id: employerId, balance: 0 })
+      .insert({ employer_id: employerId, total_advanced: 0, outstanding_liability: 0, total_repaid: 0, currency: 'KES', updated_at: new Date().toISOString() })
       .select('id')
       .single();
     if (!newWallet) return;
@@ -93,12 +129,12 @@ async function handleCollectionEvent(event: string, payload: DusupayWebhookPaylo
   const walletId = wallet?.id || (await supabaseAdmin.from('employer_wallets').select('id').eq('employer_id', employerId).single()).data?.id;
 
   const status = (event === 'collection.completed' || payload.status === 'COMPLETED') ? 'completed' : 'failed';
-  
+
   await supabaseAdmin
     .from('wallet_transactions')
     .upsert({
       wallet_id: walletId,
-      amount: amount, // Positive for deposits
+      amount: amount,
       type: 'deposit',
       status: status,
       reference: merchantRef,
@@ -119,17 +155,17 @@ async function handleCollectionEvent(event: string, payload: DusupayWebhookPaylo
         userId: employer.user_id,
         type: 'system',
         title: status === 'completed' ? 'Wallet Funded' : 'Funding Failed',
-        message: status === 'completed' 
+        message: status === 'completed'
           ? `Your wallet has been successfully funded with ${amount}. You can now disburse advances.`
           : `We couldn't process your wallet funding of ${amount}. Please check your payment details.`,
         metadata: { amount, status, reference: merchantRef }
       });
     }
   } catch (notifyErr) {
-    console.error('[webhook-collection] Notification failed:', notifyErr);
+    log.error('Employer notification failed', { err: notifyErr, employerId });
   }
 
-  console.log(`[Dusupay Webhook] Wallet funding ${status} for Employer: ${employerId}`);
+  log.info('Wallet funding processed', { employerId, amount, status });
 }
 
 interface AdvancePayoutRow {
@@ -149,9 +185,15 @@ function getOnboardingUserId(
   return onboarding.user_id ?? undefined;
 }
 
-async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, merchantRef: string, internalRef: string) {
+async function handlePayoutEvent(
+  event: string,
+  payload: DusupayWebhookPayload,
+  merchantRef: string,
+  internalRef: string,
+  log: Logger,
+) {
   const isCompleted = event === 'transaction.completed' || (payload.status as string) === PayoutStatus.COMPLETED;
-  const isFailed = ['transaction.failed', 'request.failed'].includes(event) || 
+  const isFailed = ['transaction.failed', 'request.failed'].includes(event) ||
                    [PayoutStatus.FAILED, PayoutStatus.CANCELLED].map(s => s as string).includes(payload.status || '');
   const newStatus = isCompleted ? 'completed' : isFailed ? 'failed' : 'processing';
 
@@ -162,59 +204,81 @@ async function handlePayoutEvent(event: string, payload: DusupayWebhookPayload, 
     .single();
 
   if (advanceError) {
-    console.error('[webhook-payout] Failed to fetch advance for reference', merchantRef, advanceError);
+    log.error('Failed to fetch advance', { err: advanceError });
   }
 
   const advance = advanceData as AdvancePayoutRow | null;
 
-  if (advance && !['completed', 'failed', 'repaid'].includes(advance.status)) {
-    await supabaseAdmin.from('advances').update({
-      status: newStatus,
-      internal_reference: internalRef,
-      ...(isCompleted && { disbursed_at: new Date().toISOString() })
-    }).eq('id', advance.id);
+  if (!advance) {
+    log.error('No advance found for reference');
+    return;
+  }
 
-    try {
-      const employeeUserId = getOnboardingUserId(advance.employees);
+  if (['completed', 'failed', 'repaid'].includes(advance.status)) {
+    log.info('Advance already in terminal status — skipping', { advanceId: advance.id, currentStatus: advance.status });
+    return;
+  }
 
-      if (employeeUserId) {
-        await notifyEmployee({
-          userId: employeeUserId,
-          type: 'advance_approval',
-          title: isCompleted ? 'Funds Received!' : 'Disbursement Failed',
-          message: isCompleted 
-            ? `Your advance of ${advance.amount} has been successfully sent to your mobile wallet/account.`
-            : `There was an issue sending your advance of ${advance.amount}. Please contact support.`,
-          metadata: { advance_id: advance.id, status: newStatus }
-        });
-      } else {
-        console.warn('[webhook-payout] No employee user_id resolved for advance', advance.id);
-      }
-    } catch (notifyErr) {
-      console.error('[webhook-payout] Notification failed:', notifyErr);
+  await supabaseAdmin.from('advances').update({
+    status: newStatus,
+    internal_reference: internalRef,
+    ...(isCompleted && { disbursed_at: new Date().toISOString() })
+  }).eq('id', advance.id);
+
+  log.info('Advance status updated', { advanceId: advance.id, newStatus });
+
+  // Audit trail — CBK compliance requires a record of every status transition
+  void supabaseAdmin.from('system_audit_logs').insert({
+    admin_id: advance.employer_id,
+    admin_name: 'system:dusupay-webhook',
+    target_id: advance.id,
+    target_type: 'advance',
+    action: `advance_${newStatus}`,
+    old_value: { status: advance.status },
+    new_value: { status: newStatus, internal_reference: internalRef },
+    metadata: { event, merchant_reference: merchantRef },
+  }).then(({ error }) => {
+    if (error) log.error('Audit log insert failed', { err: error, advanceId: advance.id });
+  });
+
+  try {
+    const employeeUserId = getOnboardingUserId(advance.employees);
+
+    if (employeeUserId) {
+      await notifyEmployee({
+        userId: employeeUserId,
+        type: 'advance_approval',
+        title: isCompleted ? 'Funds Received!' : 'Disbursement Failed',
+        message: isCompleted
+          ? `Your advance of ${advance.amount} has been successfully sent to your mobile wallet/account.`
+          : `There was an issue sending your advance of ${advance.amount}. Please contact support.`,
+        metadata: { advance_id: advance.id, status: newStatus }
+      });
+    } else {
+      log.warn('No employee user_id resolved — notification skipped', { advanceId: advance.id });
     }
+  } catch (notifyErr) {
+    log.error('Employee notification failed', { err: notifyErr, advanceId: advance.id });
+  }
 
-    if (isCompleted && advance.employer_id) {
-      const { data: wallet } = await supabaseAdmin
-        .from('employer_wallets')
-        .select('id')
-        .eq('employer_id', advance.employer_id)
-        .single();
+  if (isCompleted && advance.employer_id) {
+    const { data: wallet } = await supabaseAdmin
+      .from('employer_wallets')
+      .select('id')
+      .eq('employer_id', advance.employer_id)
+      .single();
 
-      if (wallet) {
-        await supabaseAdmin.from('wallet_transactions').upsert({
-          wallet_id: wallet.id,
-          amount: -Number(advance.amount),
-          type: 'payout',
-          status: 'completed',
-          reference: `PAY-${merchantRef}`,
-          internal_reference: internalRef,
-          description: `Disbursement for Advance #${advance.id}`,
-          metadata: { advance_id: advance.id }
-        }, { onConflict: 'reference' });
-      }
+    if (wallet) {
+      await supabaseAdmin.from('wallet_transactions').upsert({
+        wallet_id: wallet.id,
+        amount: -Number(advance.amount),
+        type: 'payout',
+        status: 'completed',
+        reference: `PAY-${merchantRef}`,
+        internal_reference: internalRef,
+        description: `Disbursement for Advance #${advance.id}`,
+        metadata: { advance_id: advance.id }
+      }, { onConflict: 'reference' });
     }
-  } else if (!advance) {
-    console.error('[webhook-payout] No advance found for reference', merchantRef);
   }
 }

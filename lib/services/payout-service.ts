@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../supabaseAdmin';
 import { dusupayClient } from '../dusupay/client';
 import { PayoutMethod, Currency } from '../dusupay/types';
 import { generateMerchantReference } from '../dusupay/utils';
+import { runFraudChecks } from '../fraud-engine';
 
 export class PayoutService {
   async fundEmployerWallet(
@@ -40,40 +41,15 @@ export class PayoutService {
   }
 
   async reserveFunds(employerId: string, amount: number, advanceId: string) {
-    const { data: wallet, error: walletError } = await supabaseAdmin
-      .from('employer_wallets')
-      .select('id, balance, arrears_balance')
-      .eq('employer_id', employerId)
-      .single();
+  const { data, error } = await supabaseAdmin.rpc('reserve_employer_funds', {
+    p_employer_id: employerId,
+    p_amount: amount,
+    p_advance_id: advanceId,
+  });
 
-    if (walletError || !wallet) {
-      throw new Error('Employer wallet not found');
-    }
-
-    if (wallet.balance < amount) {
-      throw new Error('Insufficient balance in employer wallet');
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('wallet_transactions')
-      .insert({
-        wallet_id: wallet.id,
-        amount: -amount,
-        type: 'payout',
-        status: 'pending',
-        reference: `ADV-RESERVE-${advanceId}`,
-        description: `Reserved for advance ${advanceId}`,
-        metadata: { advance_id: advanceId }
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to reserve funds: ${error.message}`);
-    }
-
-    return data;
-  }
+  if (error) throw new Error(`Failed to reserve funds: ${error.message}`);
+  return data; // returns wallet_transaction id
+}
 
   /**
    * Disburse an approved advance to an employee via DusuPay.
@@ -212,13 +188,18 @@ export class PayoutService {
       }
 
       const effectiveMaxPercent = toNumber(ees?.max_advance_percentage ?? employer?.advance_limit_percent, 50);
-      const maxAllowed = (toNumber(employee?.monthly_salary) * effectiveMaxPercent) / 100;
-      if (advanceAmount > maxAllowed) {
+      // Integer-cent arithmetic — avoids float imprecision on salary × percent
+      const salaryMinor = Math.round(toNumber(employee?.monthly_salary) * 100);
+      const maxAllowedMinor = Math.floor(salaryMinor * effectiveMaxPercent / 100);
+      const advanceMinor = Math.round(advanceAmount * 100);
+      if (advanceMinor > maxAllowedMinor) {
+        const maxAllowed = maxAllowedMinor / 100;
         return { eligible: false, rejectionReason: `Requested amount exceeds limit of ${maxAllowed}`, fraudFlags: [] };
       }
 
       const effectiveMin = toNumber(ees?.min_advance_amount ?? employer?.min_advance_amount, 500);
-      if (advanceAmount < effectiveMin) {
+      const effectiveMinMinor = Math.round(effectiveMin * 100);
+      if (advanceMinor < effectiveMinMinor) {
         return { eligible: false, rejectionReason: `Amount below minimum of ${effectiveMin}`, fraudFlags: [] };
       }
 
@@ -269,6 +250,23 @@ export class PayoutService {
 
     const fraudFlags: FraudFlagInput[] = [...eligibility.fraudFlags];
 
+    try {
+      const engineResult = await runFraudChecks({
+        userId: advance.employee_id,
+        employeeId: advance.employee_id,
+        employerId: advance.employer_id,
+        amount: advanceAmount,
+      });
+      if (engineResult.isBlocked) {
+        fraudFlags.push({ flagType: 'engine_block', severity: 'critical', description: 'Blocked by fraud rules engine' });
+      }
+    } catch {
+      await supabaseAdmin.from('advances')
+        .update({ status: 'fraud_review', reason: 'Fraud engine unavailable' })
+        .eq('id', advanceId);
+      throw new Error('Fraud engine unavailable — advance held for manual review');
+    }
+
     const { data: paymentMethod } = await supabaseAdmin
       .from('payment_methods')
       .select('id, method_type, provider_name, account_number, phone_number, account_name, country_code, is_verified, is_active')
@@ -304,6 +302,17 @@ export class PayoutService {
         .from('advances')
         .update({ status: 'fraud_review', fraud_flag_id: flagRecord.id, auto_approved: false })
         .eq('id', advanceId);
+
+      void supabaseAdmin.from('system_audit_logs').insert({
+        admin_id: advance.employer_id,
+        admin_name: 'system:fraud-engine',
+        target_id: advanceId,
+        target_type: 'advance',
+        action: 'advance_fraud_review',
+        old_value: { status: 'pending' },
+        new_value: { status: 'fraud_review', fraud_flag_id: flagRecord.id },
+        metadata: { flags: fraudFlags, employee_id: advance.employee_id },
+      });
 
       return { success: false, status: 'fraud_review', heldForFraudReview: true, fraudFlagId: flagRecord.id };
     }
@@ -368,6 +377,18 @@ export class PayoutService {
       internal_reference: payoutResponse.data?.internal_reference ?? null,
       disbursed_at: new Date().toISOString(),
     }).eq('id', advanceId);
+
+    // Audit trail — required for CBK 5-year transaction retention
+    void supabaseAdmin.from('system_audit_logs').insert({
+      admin_id: advance.employer_id,
+      admin_name: 'system:payout-service',
+      target_id: advanceId,
+      target_type: 'advance',
+      action: 'advance_disbursed',
+      old_value: { status: 'pending' },
+      new_value: { status: 'completed', merchant_reference: merchantReference, amount: advanceAmount, net_amount: netAmount },
+      metadata: { employee_id: advance.employee_id, employer_id: advance.employer_id, currency: advance.currency },
+    });
 
     return {
       success: true,
