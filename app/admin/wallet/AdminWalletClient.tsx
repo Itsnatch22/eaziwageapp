@@ -96,14 +96,17 @@ function getSyncStatusIndicator(lastReconciledAt: string | null): {
   }
 }
 
-function formatDateTimeCompact(dateString: string): string {
+function formatDateTimeCompact(dateString: string | null | undefined): string {
+  if (!dateString) return '—';
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-US', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
   });
 }
 
@@ -287,7 +290,7 @@ function TransactionTable({
           </thead>
           <tbody>
             {pageTransactions.length === 0 ? (
-              <tr>
+              <tr key="empty">
                 <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                   No transactions recorded yet.
                 </td>

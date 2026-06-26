@@ -4,7 +4,7 @@ import { checkAdminRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
-type RiskRating = 'low' | 'medium' | 'high' | 'critical';
+type RiskRating = 'A' | 'B' | 'C' | 'D';
 type LocalCurrency = 'KES' | 'UGX' | 'TZS' | 'RWF';
 
 interface TopUpRequestMetadata {
@@ -51,6 +51,35 @@ interface TopUpRequestsResponse {
   adminWallet: AdminWallet;
 }
 
+interface EnrichedRow {
+  id: string;
+  wallet_id: string;
+  amount: number;
+  usd_amount: number | null;
+  rate_snapshot: number | null;
+  local_currency: LocalCurrency | null;
+  status: string;
+  reference: string | null;
+  description: string | null;
+  metadata: TopUpRequestMetadata;
+  created_at: string;
+  employer_wallets?: {
+    employer_id: string;
+    total_advanced: number;
+    outstanding_liability: number;
+    total_repaid: number;
+    currency: string;
+    employers?: {
+      company_name: string;
+      company_code: string;
+      country: string;
+      contact_person: string | null;
+      risk_score: number | null;
+      risk_rating: RiskRating | null;
+    } | null;
+  } | null;
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsResponse | { error: string }>> {
   try {
     const rateLimitResponse = await checkAdminRateLimit(req);
@@ -60,6 +89,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
     if (auth instanceof NextResponse) return auth;
     const { adminSupabase } = auth;
 
+    // Single collapsed relation — wallet_transactions → employer_wallets → employers
     const { data: rows, error } = await adminSupabase
       .from('wallet_transactions')
       .select(`
@@ -75,14 +105,12 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
         metadata,
         created_at,
         employer_wallets!wallet_id (
-          id,
           employer_id,
-          balance,
-          currency
-        ),
-        employer_wallets!wallet_id (
+          total_advanced,
+          outstanding_liability,
+          total_repaid,
+          currency,
           employers!employer_id (
-            id,
             company_name,
             company_code,
             country,
@@ -97,57 +125,38 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
       .order('created_at', { ascending: false })
       .limit(100);
 
-    if (error) throw error;
-
-    interface EnrichedRow {
-      id: string;
-      wallet_id: string;
-      amount: number;
-      usd_amount: number | null;
-      rate_snapshot: number | null;
-      local_currency: LocalCurrency | null;
-      status: string;
-      reference: string | null;
-      description: string | null;
-      metadata: TopUpRequestMetadata;
-      created_at: string;
-      employer_wallets?: Array<{
-        employer_id: string;
-        balance: number;
-        currency: string;
-        employers?: Array<{
-          company_name: string;
-          company_code: string;
-          country: string;
-          contact_person: string | null;
-          risk_score: number | null;
-          risk_rating: RiskRating | null;
-        }>;
-      }>;
+    if (error) {
+      console.error('[Admin TopUp Requests GET] Supabase query error:', error);
+      throw error;
     }
 
-    const enrichedRequests: TopUpRequest[] = (rows ?? []).map((row: EnrichedRow) => ({
-      id: row.id,
-      wallet_id: row.wallet_id,
-      amount: row.amount,
-      usd_amount: row.usd_amount,
-      rate_snapshot: row.rate_snapshot,
-      local_currency: row.local_currency,
-      status: row.status,
-      reference: row.reference,
-      description: row.description,
-      metadata: row.metadata,
-      created_at: row.created_at,
-      employer_id: row.employer_wallets?.[0]?.employer_id ?? '',
-      company_name: row.employer_wallets?.[0]?.employers?.[0]?.company_name ?? 'Unknown',
-      company_code: row.employer_wallets?.[0]?.employers?.[0]?.company_code ?? '',
-      country: row.employer_wallets?.[0]?.employers?.[0]?.country ?? '',
-      contact_person: row.employer_wallets?.[0]?.employers?.[0]?.contact_person ?? null,
-      risk_score: row.employer_wallets?.[0]?.employers?.[0]?.risk_score ?? null,
-      risk_rating: row.employer_wallets?.[0]?.employers?.[0]?.risk_rating ?? null,
-      current_wallet_balance: row.employer_wallets?.[0]?.balance ?? 0,
-      wallet_currency: row.employer_wallets?.[0]?.currency ?? 'KES',
-    }));
+    const enrichedRequests: TopUpRequest[] = ((rows ?? []) as unknown as EnrichedRow[]).map((row) => {
+      const wallet = row.employer_wallets;
+      const employer = wallet?.employers;
+
+      return {
+        id: row.id,
+        wallet_id: row.wallet_id,
+        amount: row.amount,
+        usd_amount: row.usd_amount,
+        rate_snapshot: row.rate_snapshot,
+        local_currency: row.local_currency,
+        status: row.status,
+        reference: row.reference,
+        description: row.description,
+        metadata: row.metadata,
+        created_at: row.created_at,
+        employer_id: wallet?.employer_id ?? '',
+        company_name: employer?.company_name ?? 'Unknown',
+        company_code: employer?.company_code ?? '',
+        country: employer?.country ?? '',
+        contact_person: employer?.contact_person ?? null,
+        risk_score: employer?.risk_score ?? null,
+        risk_rating: employer?.risk_rating ?? null,
+        current_wallet_balance: (wallet?.total_advanced ?? 0) - (wallet?.total_repaid ?? 0) - (wallet?.outstanding_liability ?? 0),
+        wallet_currency: wallet?.currency ?? 'KES',
+      };
+    });
 
     const { data: adminWalletRow, error: walletError } = await adminSupabase
       .from('admin_wallets')
@@ -159,7 +168,13 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
 
     return NextResponse.json({
       requests: enrichedRequests,
-      adminWallet: adminWalletRow ?? { id: '', name: 'Main Stanbic Source', balance: 0, currency: 'USD', last_reconciled_at: null },
+      adminWallet: adminWalletRow ?? {
+        id: '',
+        name: 'Main Stanbic Source',
+        balance: 0,
+        currency: 'USD',
+        last_reconciled_at: null,
+      },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

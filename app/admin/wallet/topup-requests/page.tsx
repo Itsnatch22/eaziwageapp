@@ -6,7 +6,7 @@ import TopUpRequestsClient from './TopUpRequestsClient';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
-type RiskRating = 'low' | 'medium' | 'high' | 'critical';
+type RiskRating = 'A' | 'B' | 'C' | 'D';
 type LocalCurrency = 'KES' | 'UGX' | 'TZS' | 'RWF';
 type TopUpStatus = 'pending' | 'completed' | 'failed';
 
@@ -78,14 +78,12 @@ async function fetchTopUpData() {
         metadata,
         created_at,
         employer_wallets!wallet_id (
-          id,
           employer_id,
-          balance,
-          currency
-        ),
-        employer_wallets!wallet_id (
+          total_advanced,
+          outstanding_liability,
+          total_repaid,
+          currency,
           employers!employer_id (
-            id,
             company_name,
             company_code,
             country,
@@ -100,7 +98,10 @@ async function fetchTopUpData() {
       .order('created_at', { ascending: false })
       .limit(100);
 
-    if (error) throw error;
+    if (error) {
+      console.error('[TopUp] Supabase query error:', JSON.stringify(error));
+      throw error;
+    }
 
     interface EnrichedRow {
       id: string;
@@ -114,43 +115,49 @@ async function fetchTopUpData() {
       description: string | null;
       metadata: TopUpRequestMetadata;
       created_at: string;
-      employer_wallets?: Array<{
+      employer_wallets?: {
         employer_id: string;
-        balance: number;
+        total_advanced: number;
+        outstanding_liability: number;
+        total_repaid: number;
         currency: string;
-        employers?: Array<{
+        employers?: {
           company_name: string;
           company_code: string;
           country: string;
           contact_person: string | null;
           risk_score: number | null;
           risk_rating: RiskRating | null;
-        }>;
-      }>;
+        } | null;
+      } | null;
     }
 
-    const enrichedRequests: TopUpRequest[] = (rows ?? []).map((row: EnrichedRow) => ({
-      id: row.id as string,
-      wallet_id: row.wallet_id as string,
-      amount: row.amount as number,
-      usd_amount: row.usd_amount as number | null,
-      rate_snapshot: row.rate_snapshot as number | null,
-      local_currency: row.local_currency as LocalCurrency | null,
-      status: row.status as TopUpStatus,
-      reference: row.reference as string | null,
-      description: row.description as string | null,
-      metadata: row.metadata as TopUpRequestMetadata,
-      created_at: row.created_at as string,
-      employer_id: row.employer_wallets?.[0]?.employer_id ?? '',
-      company_name: row.employer_wallets?.[0]?.employers?.[0]?.company_name ?? 'Unknown',
-      company_code: row.employer_wallets?.[0]?.employers?.[0]?.company_code ?? '',
-      country: row.employer_wallets?.[0]?.employers?.[0]?.country ?? '',
-      contact_person: row.employer_wallets?.[0]?.employers?.[0]?.contact_person ?? null,
-      risk_score: row.employer_wallets?.[0]?.employers?.[0]?.risk_score ?? null,
-      risk_rating: row.employer_wallets?.[0]?.employers?.[0]?.risk_rating ?? null,
-      current_wallet_balance: row.employer_wallets?.[0]?.balance ?? 0,
-      wallet_currency: row.employer_wallets?.[0]?.currency ?? 'KES',
-    }));
+    const enrichedRequests: TopUpRequest[] = ((rows ?? []) as unknown as EnrichedRow[]).map((row) => {
+      const wallet = row.employer_wallets;
+      const employer = wallet?.employers;
+      return {
+        id: row.id,
+        wallet_id: row.wallet_id,
+        amount: row.amount,
+        usd_amount: row.usd_amount,
+        rate_snapshot: row.rate_snapshot,
+        local_currency: row.local_currency,
+        status: row.status as TopUpStatus,
+        reference: row.reference,
+        description: row.description,
+        metadata: row.metadata,
+        created_at: row.created_at,
+        employer_id: wallet?.employer_id ?? '',
+        company_name: employer?.company_name ?? 'Unknown',
+        company_code: employer?.company_code ?? '',
+        country: employer?.country ?? '',
+        contact_person: employer?.contact_person ?? null,
+        risk_score: employer?.risk_score ?? null,
+        risk_rating: employer?.risk_rating ?? null,
+        current_wallet_balance: (wallet?.total_advanced ?? 0) - (wallet?.total_repaid ?? 0) - (wallet?.outstanding_liability ?? 0),
+        wallet_currency: wallet?.currency ?? 'KES',
+      };
+    });
 
     const { data: adminWalletRow, error: walletError } = await supabaseAdmin
       .from('admin_wallets')

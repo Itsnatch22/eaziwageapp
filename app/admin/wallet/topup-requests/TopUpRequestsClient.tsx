@@ -5,7 +5,7 @@ import { AlertCircle, Wallet, CheckCircle2, XCircle, Clock, Zap } from 'lucide-r
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 
-type RiskRating = 'low' | 'medium' | 'high' | 'critical';
+type RiskRating = 'A' | 'B' | 'C' | 'D';
 type LocalCurrency = 'KES' | 'UGX' | 'TZS' | 'RWF';
 type TopUpStatus = 'pending' | 'completed' | 'failed';
 
@@ -60,19 +60,21 @@ const COUNTRY_FLAGS: Record<string, string> = {
   Rwanda: '🇷🇼',
 };
 
-const RISK_COLORS: Record<RiskRating, { bg: string; text: string; border: string }> = {
-  low: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
-  medium: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  high: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-  critical: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+const RISK_GRADE: Record<RiskRating, { label: string; badge: string; pill: string }> = {
+  A: { label: 'Low Risk',       badge: 'bg-emerald-500 text-white', pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' },
+  B: { label: 'Medium Risk',    badge: 'bg-blue-500 text-white',    pill: 'bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
+  C: { label: 'High Risk',      badge: 'bg-amber-500 text-white',   pill: 'bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' },
+  D: { label: 'Very High Risk', badge: 'bg-red-500 text-white',     pill: 'bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-300' },
 };
 
-function formatCurrency(amount: number, currency: string): string {
+function formatCurrency(amount: number | null | undefined, currency: string): string {
+  if (amount === null || amount === undefined) return '—';
+  const isUSD = currency === 'USD';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency === 'USD' ? 'USD' : 'KES',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: currency === 'USD' ? 2 : 0,
+    currency: isUSD ? 'USD' : 'KES',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: isUSD ? 2 : 0,
   }).format(amount);
 }
 
@@ -381,17 +383,15 @@ export default function TopUpRequestsClient({
                       </td>
 
                       <td className="px-6 py-4 text-center">
-                        {request.risk_rating && (
-                          <span
-                            className={cn(
-                              'inline-block px-3 py-1 rounded-full text-xs font-semibold border',
-                              RISK_COLORS[request.risk_rating].bg,
-                              RISK_COLORS[request.risk_rating].text,
-                              RISK_COLORS[request.risk_rating].border
-                            )}
-                          >
-                            {request.risk_rating.charAt(0).toUpperCase() + request.risk_rating.slice(1)}
+                        {request.risk_rating && RISK_GRADE[request.risk_rating] ? (
+                          <span className={cn('px-2 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1', RISK_GRADE[request.risk_rating].pill)}>
+                            <span className={cn('w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold', RISK_GRADE[request.risk_rating].badge)}>
+                              {request.risk_rating}
+                            </span>
+                            {RISK_GRADE[request.risk_rating].label}
                           </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
                         )}
                       </td>
 

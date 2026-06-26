@@ -13,16 +13,26 @@ interface ExchangeRate {
 
 async function fetchInitialData() {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/admin/wallet/sync`,
-      { cache: 'no-store' }
-    );
+    const { data: wallet, error: walletError } = await supabaseAdmin
+      .from('admin_wallets')
+      .select('id, name, balance, currency, last_reconciled_at, updated_at')
+      .eq('name', 'Main Stanbic Source')
+      .maybeSingle();
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch wallet data');
+    if (walletError) throw walletError;
+
+    let transactions: Array<Record<string, unknown>> = [];
+    if (wallet?.id) {
+      const { data: txs } = await supabaseAdmin
+        .from('admin_wallet_transactions')
+        .select('id, admin_wallet_id, amount, type, status, reference, description, metadata, created_at')
+        .eq('admin_wallet_id', wallet.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      transactions = (txs ?? []) as Array<Record<string, unknown>>;
     }
 
-    return await response.json();
+    return { wallet: wallet ?? null, transactions };
   } catch (error) {
     console.error('Error fetching wallet data:', error);
     return { wallet: null, transactions: [] };
@@ -74,7 +84,7 @@ export default async function AdminWalletPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <Suspense fallback={<WalletSkeleton />}>
-        <AdminWalletClient initialWallet={walletData.wallet} initialTransactions={walletData.transactions} exchangeRates={exchangeRates} />
+        <AdminWalletClient initialWallet={walletData.wallet} initialTransactions={walletData.transactions as never} exchangeRates={exchangeRates} />
       </Suspense>
     </div>
   );

@@ -2,14 +2,9 @@ import { Redis } from '@upstash/redis';
 import { getEnv } from '@/env';
 
 /**
- * Lightweight Stanbic integration helper
- * - fetches OAuth/token from STANBIC_TOKEN_URL (if configured)
- * - caches token in Upstash Redis (using UPSTASH_REDIS_REST_URL/TOKEN)
- * - exposes helper to build Stanbic base URL
- *
- * NOTE: This module is defensive. It does not assume a specific token response
- * shape beyond common fields (access_token, expires_in). Adjust parsing if the
- * Stanbic sandbox/prod token endpoint uses a different schema.
+ * Stanbic Bank Integration Helper (Updated for Account Balance API)
+ * - Uses correct sandbox token and balance endpoints
+ * - Robust token caching in Upstash Redis
  */
 
 const env = getEnv();
@@ -23,7 +18,10 @@ const TOKEN_CACHE_KEY = 'stanbic:access_token';
 
 export function getStanbicBaseUrl(): string {
   return (
-    env.STANBIC_SANDBOX_URL_ENDPOINT ?? env.STANBIC_SANDBOX_BASE_URL ?? env.STANBIC_BASE_URL ?? 'https://sandbox.stanbicbank.co.ke/'
+    env.STANBIC_SANDBOX_URL_ENDPOINT ??
+    env.STANBIC_SANDBOX_BASE_URL ??
+    env.STANBIC_BASE_URL ??
+    'https://sandbox.connect.stanbicbank.co.ke/api/sandbox/balance/'
   );
 }
 
@@ -45,12 +43,7 @@ async function cacheStanbicToken(token: string, ttlSeconds: number) {
   }
 }
 
-/**
- * Fetch a fresh token from the configured STANBIC_TOKEN_URL.
- * Uses the configured STANBIC_API_KEY or STANBIC_SANDBOX_API_KEY as a bearer
- * if present. Caller should prefer getStanbicToken() which will cache results.
- */
-export async function fetchStanbicToken(): Promise<{ token: string; expiresIn: number } > {
+export async function fetchStanbicToken(): Promise<{ token: string; expiresIn: number }> {
   const tokenUrl = env.STANBIC_TOKEN_URL;
   if (!tokenUrl) throw new Error('STANBIC_TOKEN_URL not configured');
 
@@ -58,64 +51,50 @@ export async function fetchStanbicToken(): Promise<{ token: string; expiresIn: n
   const clientSecret = env.STANBIC_CLIENT_SECRET ?? '';
 
   if (!clientId || !clientSecret) {
-    throw new Error('STANBIC_API_KEY/STANBIC_CLIENT_SECRET not configured for token request');
+    throw new Error('STANBIC_API_KEY / STANBIC_CLIENT_SECRET not configured');
   }
-
-  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/x-www-form-urlencoded',
-    Authorization: `Basic ${basicAuth}`,
   };
-
-  const body = new URLSearchParams({
+  
+const body = new URLSearchParams({
     grant_type: 'client_credentials',
-    scope: 'payments',
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: 'payments',   // ← From your screenshot
   });
 
-  let resp: Response;
-  try {
-    resp = await fetch(tokenUrl, {
-      method: 'POST',
-      headers,
-      body: body.toString(),
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to fetch Stanbic token: ${msg}`);
-  }
+  const resp = await fetch(tokenUrl, {
+    method: 'POST',
+    headers,
+    body: body.toString(),
+  });
 
   if (!resp.ok) {
-    const body = await resp.text().catch(() => '(unreadable body)');
-    throw new Error(`Stanbic token endpoint returned ${resp.status}: ${body}`);
+    const bodyText = await resp.text().catch(() => '(unreadable)');
+    throw new Error(`Stanbic token endpoint returned ${resp.status}: ${bodyText}`);
   }
 
-  const dataRaw = await resp.json().catch(() => null) as unknown;
-  const data = (dataRaw && typeof dataRaw === 'object') ? (dataRaw as Record<string, unknown>) : null;
+  const data = (await resp.json().catch(() => null)) as Record<string, unknown> | null;
   if (!data) throw new Error('Stanbic token endpoint returned invalid JSON');
 
-   const token = typeof data['access_token'] === 'string' ? data['access_token']
-    : typeof data['token'] === 'string' ? data['token']
-    : typeof data['accessToken'] === 'string' ? data['accessToken']
-    : typeof data['access'] === 'string' ? data['access']
+  const token =
+    typeof data.access_token === 'string' ? data.access_token
+    : typeof data.token === 'string' ? data.token
+    : typeof data.accessToken === 'string' ? data.accessToken
     : null;
 
-  const expiresInRaw = data['expires_in'] ?? data['expiresIn'] ?? 3600;
-  const expiresIn = Number(expiresInRaw);
+  const expiresIn = Number(data.expires_in ?? data.expiresIn ?? 3600);
 
-  if (!token) throw new Error('Stanbic token response did not include an access token');
+  if (!token) throw new Error('Stanbic token response did not include access_token');
 
   return { token, expiresIn: Number.isFinite(expiresIn) ? expiresIn : 3600 };
 }
 
-/**
- * Public helper: getStanbicToken
- * - returns cached token when available
- * - otherwise fetches fresh token and caches it in Upstash Redis
- */
 export async function getStanbicToken(): Promise<string> {
-   const cached = await getCachedStanbicToken();
+  const cached = await getCachedStanbicToken();
   if (cached) return cached;
 
   const { token, expiresIn } = await fetchStanbicToken();
@@ -126,22 +105,27 @@ export async function getStanbicToken(): Promise<string> {
   return token;
 }
 
-/**
- * Build Authorization header for Stanbic API calls. Prefer token if configured.
- * If token endpoint is not configured, fall back to API key as Bearer.
- */
 export async function getStanbicAuthHeader(): Promise<Record<string, string>> {
-  try {
-    if (env.STANBIC_TOKEN_URL) {
-      const t = await getStanbicToken();
-      return { Authorization: `Bearer ${t}` };
+  const tokenUrl = env.STANBIC_TOKEN_URL;
+
+  if (tokenUrl) {
+    try {
+      const token = await getStanbicToken();
+      console.log('[Stanbic Client] ✅ Using OAuth2 Bearer token');
+      return { Authorization: `Bearer ${token}` };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[Stanbic Client] ❌ Token retrieval failed:', msg);
+      throw new Error(`Stanbic OAuth failed: ${msg}`);
     }
-  } catch (err) {
-    console.error('[Stanbic Client] Token retrieval failed:', err instanceof Error ? err.message : String(err));
   }
 
+  // Fallback to raw API key (rarely used)
   const apiKey = env.STANBIC_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? '';
-  if (apiKey) return { Authorization: `Bearer ${apiKey}` };
+  if (apiKey) {
+    console.warn('[Stanbic Client] Using raw API key as Bearer');
+    return { Authorization: `Bearer ${apiKey}` };
+  }
 
-  return {};
+  throw new Error('No Stanbic authentication method configured');
 }

@@ -24,6 +24,32 @@ interface Notification {
   metadata?:  Record<string, unknown>;
 }
 
+function getNotificationAction(notif: Notification): { label: string; href: string } | null {
+  const meta = notif.metadata ?? {};
+  const title = notif.title.toLowerCase();
+
+  switch (notif.type) {
+    case 'review_request':
+      if (meta.wallet_transaction_id) return { label: 'View Request', href: '/admin/wallet/topup-requests' };
+      if (title.includes('kyc') || title.includes('document')) return { label: 'View KYC', href: '/admin/kyc-review' };
+      return { label: 'View', href: '/admin' };
+
+    case 'employer_kyc':
+      if (title.includes('bank')) return { label: 'Review Bank Change', href: '/admin/review-requests' };
+      return { label: 'Review Onboarding', href: '/admin/kyc-review' };
+
+    case 'flagged_advance':
+      return { label: 'View Advance', href: '/admin/advances' };
+
+    case 'system_alert':
+      if (title.includes('risk') || title.includes('fraud')) return { label: 'View Risk Alerts', href: '/admin/fraud-detection' };
+      return null;
+
+    default:
+      return null;
+  }
+}
+
 const NotificationIcon = ({ type }: { type: string }) => {
   const config = {
     review_request:  { icon: Shield,        bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-600 dark:text-green-400' },
@@ -279,35 +305,18 @@ export default function AdminNotificationsPage() {
                       {notif.message}
                     </p>
                     <div className="flex items-center gap-3">
-                      {notif.type === 'review_request' && (
-                        <Button 
-                          size="sm" 
-                          className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs rounded-lg"
-                          asChild
-                        >
-                          <Link href="/admin/kyc-review">Review Application</Link>
-                        </Button>
-                      )}
-                      {notif.type === 'employer_kyc' && (
-                        <Button 
-                          size="sm" 
-                          className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs rounded-lg"
-                          asChild
-                        >
-                          <Link href={notif.title.toLowerCase().includes('bank') ? '/admin/review-requests' : '/admin/kyc-review'}>
-                            {notif.title.toLowerCase().includes('bank') ? 'Review Bank Change' : 'Review Onboarding'}
-                          </Link>
-                        </Button>
-                      )}
-                      {notif.type === 'system_alert' && notif.title.toLowerCase().includes('risk') && (
-                        <Button 
-                          size="sm" 
-                          className="bg-blue-600 hover:bg-blue-700 text-white h-8 text-xs rounded-lg"
-                          asChild
-                        >
-                          <Link href="/admin/fraud-detection">View Risk Alerts</Link>
-                        </Button>
-                      )}
+                      {getNotificationAction(notif) && (() => {
+                        const action = getNotificationAction(notif)!;
+                        return (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs rounded-lg"
+                            asChild
+                          >
+                            <Link href={action.href}>{action.label}</Link>
+                          </Button>
+                        );
+                      })()}
                       {!notif.read && (
                         <button 
                           onClick={(e) => {
