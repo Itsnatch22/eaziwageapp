@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import SessionTimeout from '@/components/SessionTimeout';
 import { Toaster } from "@/components/ui/sonner";
+import { AuthRefresher } from "@/components/AuthRefresher";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -43,6 +44,7 @@ export default async function RootLayout({
         suppressHydrationWarning
         className={`${ibmPlexMono.variable} ${playfairDisplay.variable} antialiased`}
       >
+        <AuthRefresher />
         <OfflineBanner />
         <SessionTimeout />
         {children}

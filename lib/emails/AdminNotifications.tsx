@@ -729,3 +729,168 @@ export function DocumentUploadNotificationEmail({
 }
 
 export { NewKYCDocumentEmail as DocumentApprovedEmail };
+
+export interface AdminSystemAlertEmailProps {
+  title: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+  dashboardUrl?: string;
+}
+
+export function AdminSystemAlertEmail({
+  title,
+  message,
+  metadata,
+  dashboardUrl = 'https://app.eaziwage.com/admin',
+}: AdminSystemAlertEmailProps) {
+  const metaEntries = metadata
+    ? Object.entries(metadata).filter(
+        ([k]) => !['error_log_id', 'severity', 'stack'].includes(k)
+      )
+    : [];
+
+  return (
+    <EmailLayout
+      previewText={title}
+      accentColor="#475569"
+      portalLabel="Admin Portal"
+    >
+      <AlertBanner variant="neutral" icon="🔔" label="System Alert" />
+
+      <Heading style={styles.heading}>{title}</Heading>
+
+      <Text style={styles.text}>{message}</Text>
+
+      {metaEntries.length > 0 && (
+        <InfoBox title="Details">
+          {metaEntries.map(([k, v]) => (
+            <MetaRow
+              key={k}
+              label={k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+              value={String(v ?? '—')}
+            />
+          ))}
+        </InfoBox>
+      )}
+
+      <Section style={styles.buttonContainer}>
+        <Button style={styles.button} href={dashboardUrl}>
+          View Admin Dashboard
+        </Button>
+      </Section>
+    </EmailLayout>
+  );
+}
+
+export interface ErrorAlertEmailProps {
+  role: 'employer' | 'employee';
+  url: string | null;
+  message: string | null;
+  digest: string | null;
+  errorLogId: string;
+  severity: 'critical' | 'high' | 'low';
+  logsUrl: string;
+}
+
+export function ErrorAlertEmail({
+  role,
+  url,
+  message,
+  digest,
+  errorLogId,
+  severity,
+  logsUrl,
+}: ErrorAlertEmailProps) {
+  const severityConfig = {
+    critical: {
+      accentColor: '#b91c1c',
+      bannerVariant: 'danger' as const,
+      bannerIcon: '🚨',
+      bannerLabel: 'Critical Error',
+      heading: 'Critical error in the ' + role + ' portal',
+    },
+    high: {
+      accentColor: '#d97706',
+      bannerVariant: 'warning' as const,
+      bannerIcon: '⚠️',
+      bannerLabel: 'Application Error',
+      heading: 'Error in the ' + role + ' portal',
+    },
+    low: {
+      accentColor: '#64748b',
+      bannerVariant: 'neutral' as const,
+      bannerIcon: 'ℹ️',
+      bannerLabel: 'Error Logged',
+      heading: 'Low-severity error logged',
+    },
+  };
+
+  const cfg = severityConfig[severity];
+  const truncatedMessage = message ? message.slice(0, 200) : null;
+  const roleLabel = role === 'employer' ? 'Employer Portal' : 'Employee Portal';
+
+  return (
+    <EmailLayout
+      previewText={`[${cfg.bannerLabel}] Error on ${url ?? 'unknown route'} — ${roleLabel}`}
+      accentColor={cfg.accentColor}
+      portalLabel="Admin Portal"
+    >
+      <AlertBanner variant={cfg.bannerVariant} icon={cfg.bannerIcon} label={cfg.bannerLabel} />
+
+      <Heading style={styles.heading}>{cfg.heading}</Heading>
+
+      <Text style={styles.text}>
+        A <strong>{roleLabel}</strong> error was captured and logged. Review the details below
+        and visit the error logs to investigate further.
+      </Text>
+
+      <InfoBox title="Error Details">
+        <MetaRow label="Portal"     value={roleLabel} />
+        <MetaRow label="Route"      value={url ?? '—'} />
+        <MetaRow label="Severity"   value={<StatusPill label={severity.toUpperCase()} variant={severity === 'critical' ? 'red' : severity === 'high' ? 'yellow' : 'gray'} />} />
+        <MetaRow label="Logged At"  value={new Date().toLocaleString()} />
+        {digest && (
+          <MetaRow
+            label="Error ID"
+            value={
+              <span style={{ fontFamily: 'monospace', fontSize: '11px', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#475569' }}>
+                {digest}
+              </span>
+            }
+          />
+        )}
+        <MetaRow
+          label="Log Entry"
+          value={
+            <span style={{ fontFamily: 'monospace', fontSize: '11px', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#475569' }}>
+              {errorLogId.slice(0, 8).toUpperCase()}
+            </span>
+          }
+        />
+      </InfoBox>
+
+      {truncatedMessage && (
+        <InfoBox variant={severity === 'critical' ? 'danger' : 'default'} title="Error Message">
+          <Text style={{ ...styles.mutedText, margin: 0, fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.6' }}>
+            {truncatedMessage}
+            {message && message.length > 200 ? '…' : ''}
+          </Text>
+        </InfoBox>
+      )}
+
+      <Section style={styles.buttonContainer}>
+        <Button
+          style={severity === 'critical' ? styles.buttonDanger : styles.button}
+          href={logsUrl}
+        >
+          View Error Logs
+        </Button>
+      </Section>
+
+      <Text style={styles.mutedText}>
+        This notification was sent because an error occurred in a user-facing portal.
+        Low-severity errors are visible in the logs dashboard but do not trigger email alerts.
+      </Text>
+    </EmailLayout>
+  );
+}

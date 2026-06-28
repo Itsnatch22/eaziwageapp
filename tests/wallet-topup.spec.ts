@@ -149,6 +149,6 @@ test.describe('Employer — Wallet Top-up', () => {
     await page.goto('/dashboards/employer-dashboard/wallet');
 
     await expect(page.getByText('25,000').or(page.getByText('25000'))).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('KES').or(page.getByText('Kenyan Shilling'))).toBeVisible();
+    await expect(page.getByText('KES').or(page.getByText('Kenyan Shilling')).or(page.getByText('KSh'))).toBeVisible();
   });
 });

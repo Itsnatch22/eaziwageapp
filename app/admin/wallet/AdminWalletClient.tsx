@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, RefreshCw, AlertTriangle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
@@ -78,22 +78,47 @@ interface AdminWalletClientProps {
 function getSyncStatusIndicator(lastReconciledAt: string | null): {
   color: string;
   label: string;
+  minutesAgo: number | null;
+  isStale: boolean;
 } {
   if (!lastReconciledAt) {
-    return { color: 'bg-red-500', label: 'Never synced' };
+    return { color: 'bg-red-500', label: 'Never synced', minutesAgo: null, isStale: true };
   }
 
   const now = new Date();
   const lastSync = new Date(lastReconciledAt);
-  const hoursDiff = (now.getTime() - lastSync.getTime()) / (1000 * 60 * 60);
+  const minutesAgo = Math.floor((now.getTime() - lastSync.getTime()) / (1000 * 60));
+  const hoursDiff = minutesAgo / 60;
 
   if (hoursDiff < 2) {
-    return { color: 'bg-green-500', label: 'Synced recently' };
+    return { color: 'bg-green-500', label: 'Synced recently', minutesAgo, isStale: false };
   } else if (hoursDiff < 24) {
-    return { color: 'bg-amber-500', label: 'Synced 2-24 hours ago' };
+    return { color: 'bg-amber-500', label: 'Synced 2-24 hours ago', minutesAgo, isStale: true };
   } else {
-    return { color: 'bg-red-500', label: 'Synced >24 hours ago' };
+    return { color: 'bg-red-500', label: 'Synced >24 hours ago', minutesAgo, isStale: true };
   }
+}
+
+function formatStaleness(minutesAgo: number | null): string {
+  if (minutesAgo === null) return 'never synced';
+  if (minutesAgo < 60) return `${minutesAgo} minute${minutesAgo === 1 ? '' : 's'} ago`;
+  const h = Math.floor(minutesAgo / 60);
+  const m = minutesAgo % 60;
+  if (h < 24) return m > 0 ? `${h}h ${m}m ago` : `${h} hour${h === 1 ? '' : 's'} ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? '' : 's'} ago`;
+}
+
+function formatAsOfEAT(lastReconciledAt: string | null): string {
+  if (!lastReconciledAt) return '';
+  const date = new Date(lastReconciledAt);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('en-US', {
+    timeZone: 'Africa/Nairobi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 function formatDateTimeCompact(dateString: string | null | undefined): string {
@@ -371,6 +396,7 @@ export default function AdminWalletClient({
   const [syncError, setSyncError] = useState('');
   const [syncConflict, setSyncConflict] = useState<SyncConflictResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [nextSyncIn, setNextSyncIn] = useState(30);
 
   const handleSync = useCallback(async () => {
     setIsSyncing(true);
@@ -473,6 +499,56 @@ export default function AdminWalletClient({
     [wallet?.last_reconciled_at]
   );
 
+  // Part 1 — silent UI data refresh every 60s (GET only, no toasts, no loading state)
+  useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        const res = await fetch('/api/admin/wallet/sync', { method: 'GET' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.wallet) setWallet(data.wallet);
+        if (data.transactions) setTransactions(data.transactions);
+      } catch {
+        // silent fail — background refresh must never surface errors
+      }
+    };
+    const interval = setInterval(fetchLatest, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Part 2 — auto Stanbic bank sync every 30 minutes (POST via handleSync)
+  useEffect(() => {
+    const autoSync = async () => {
+      if (isSyncing) return;      // manual sync already running
+      if (syncConflict) return;   // unresolved conflict — admin must clear first
+      if (!wallet) return;        // nothing to sync against
+
+      // Guard: skip if a sync already happened in the last 25 minutes
+      if (wallet.last_reconciled_at) {
+        const minutesSinceSync =
+          (Date.now() - new Date(wallet.last_reconciled_at).getTime()) / 60_000;
+        if (minutesSinceSync < 25) return;
+      }
+
+      await handleSync();
+    };
+    const interval = setInterval(autoSync, 30 * 60_000);
+    return () => clearInterval(interval);
+  }, [isSyncing, syncConflict, wallet, handleSync]);
+
+  // Part 4 — countdown timer (ticks every minute, resets at 0)
+  useEffect(() => {
+    const countdown = setInterval(() => {
+      setNextSyncIn((prev) => (prev <= 1 ? 30 : prev - 1));
+    }, 60_000);
+    return () => clearInterval(countdown);
+  }, []);
+
+  // Reset countdown whenever a sync completes (manual or auto)
+  useEffect(() => {
+    setNextSyncIn(30);
+  }, [wallet?.last_reconciled_at]);
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 px-4 py-6">
       <div className="flex items-start gap-4">
@@ -508,6 +584,38 @@ export default function AdminWalletClient({
         </div>
       )}
 
+      {syncStatus.isStale && (
+        <div className={`p-3 rounded-lg flex items-center gap-3 border ${
+          syncStatus.color === 'bg-red-500'
+            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+            : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+        }`}>
+          <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${
+            syncStatus.color === 'bg-red-500'
+              ? 'text-red-500 dark:text-red-400'
+              : 'text-amber-500 dark:text-amber-400'
+          }`} />
+          <p className={`text-sm flex-1 ${
+            syncStatus.color === 'bg-red-500'
+              ? 'text-red-800 dark:text-red-200'
+              : 'text-amber-800 dark:text-amber-200'
+          }`}>
+            Balance last synced <span className="font-semibold">{formatStaleness(syncStatus.minutesAgo)}</span> — may not reflect current Stanbic balance
+          </p>
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
+              syncStatus.color === 'bg-red-500'
+                ? 'bg-red-100 dark:bg-red-800/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-700/50'
+                : 'bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-700/50'
+            }`}
+          >
+            {isSyncing ? 'Syncing…' : 'Sync Now'}
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-8 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-start justify-between mb-6">
@@ -522,6 +630,18 @@ export default function AdminWalletClient({
                 </p>
               </div>
             </div>
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                </span>
+                Live
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Next auto-sync in {nextSyncIn}m
+              </p>
+            </div>
           </div>
 
           {wallet ? (
@@ -530,7 +650,14 @@ export default function AdminWalletClient({
                 <p className="text-5xl font-bold text-slate-900 dark:text-white mb-2">
                   {formatCurrency(wallet.balance, wallet.currency)}
                 </p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{wallet.currency}</p>
+                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                  <span>{wallet.currency}</span>
+                  {wallet.last_reconciled_at && (
+                    <span className="text-slate-400 dark:text-slate-500">
+                      · As of {formatAsOfEAT(wallet.last_reconciled_at)} EAT
+                    </span>
+                  )}
+                </div>
               </div>
 
               {syncError && (

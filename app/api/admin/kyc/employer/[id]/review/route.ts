@@ -171,6 +171,10 @@ export async function PATCH(
       risk_score:          employer.risk_score ?? 3.0,
       risk_rating:         employer.risk_rating || 'B',
       is_verified:         true,
+      // PROMOTION PATH — intentionally reads employer_onboarding to populate employers
+      // This is the ONLY place where employer_onboarding values are mapped to employers columns
+      // max_advance_percentage → advance_limit_percent
+      // cooldown_period → cooldown_days
       advance_limit_percent: Number(employer.max_advance_percentage ?? 50),
       cooldown_days:        Number(employer.cooldown_period ?? 7),
       min_advance_amount:   Number(employer.min_advance_amount ?? 500),

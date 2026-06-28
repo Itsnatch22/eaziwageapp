@@ -16,8 +16,8 @@ interface EmailLayoutProps {
   previewText: string;
   recipientEmail?: string;
   children: React.ReactNode;
-  
   accentColor?: string;
+  portalLabel?: 'Admin Portal' | 'Employee Portal' | 'Employer Portal' | 'EaziWage Security';
 }
 
 const BRAND_GREEN = '#16a34a';
@@ -29,6 +29,7 @@ export default function EmailLayout({
   recipientEmail,
   children,
   accentColor = BRAND_GREEN,
+  portalLabel = 'Admin Portal',
 }: EmailLayoutProps) {
   return (
     <Html lang="en" dir="ltr">
@@ -57,7 +58,7 @@ export default function EmailLayout({
                 </div>
               </Column>
               <Column align="right">
-                <span style={styles.adminBadge}>Admin Portal</span>
+                <span style={styles.adminBadge}>{portalLabel}</span>
               </Column>
             </Row>
           </Section>

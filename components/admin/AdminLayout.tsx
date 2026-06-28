@@ -368,7 +368,6 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
                 role="admin"
                 userId={userProfile.id}
                 apiPath="/api/admin/notifications"
-                pusherChannel="admin-notifications"
                 viewAllHref="/admin/notifications"
                 primaryColor="purple-600"
               />

@@ -82,15 +82,17 @@ export async function PATCH(
         max_advance_amount: Number(employeeEwa.max_advance_amount ?? effective.max_advance_amount),
       };
     } else {
-      const { data: employerOnboarding } = await supabase
+      // SCHEMA: eligibility columns live in employers (advance_limit_percent, cooldown_days),
+      // not in employer_onboarding (max_advance_percentage, cooldown_period). Do not swap.
+      const { data: employerRecord } = await supabase
         .from('employers')
-        .select('max_advance_percentage, min_advance_amount, max_advance_amount')
+        .select('advance_limit_percent, min_advance_amount, max_advance_amount')
         .eq('id', advance.employer_id)
         .maybeSingle();
-      if (employerOnboarding) {
-        effective.max_advance_percentage = employerOnboarding.max_advance_percentage ?? effective.max_advance_percentage;
-        effective.min_advance_amount = Number(employerOnboarding.min_advance_amount ?? effective.min_advance_amount);
-        effective.max_advance_amount = Number(employerOnboarding.max_advance_amount ?? effective.max_advance_amount);
+      if (employerRecord) {
+        effective.max_advance_percentage = employerRecord.advance_limit_percent ?? effective.max_advance_percentage;
+        effective.min_advance_amount = Number(employerRecord.min_advance_amount ?? effective.min_advance_amount);
+        effective.max_advance_amount = Number(employerRecord.max_advance_amount ?? effective.max_advance_amount);
       }
     }
 

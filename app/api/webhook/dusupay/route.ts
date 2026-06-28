@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dusupay, PayoutStatus } from '@/lib/dusupay';
+import { dusupay } from '@/lib/dusupay';
+import { PayoutStatus } from '@/lib/dusupay/types';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyEmployee, notifyEmployer } from '@/lib/notifications';
 import { requestLogger, type Logger } from '@/lib/logger';

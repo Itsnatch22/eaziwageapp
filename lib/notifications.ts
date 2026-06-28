@@ -27,6 +27,8 @@ import {
   BankChangeRequestEmail,
   FraudAlertEmail,
   DocumentUploadNotificationEmail,
+  ErrorAlertEmail,
+  AdminSystemAlertEmail,
 } from './emails/AdminNotifications';
 
 import {
@@ -195,12 +197,29 @@ function buildAdminEmailElement(
       });
 
     case 'system_alert':
+      if (m.error_log_id) {
+        return React.createElement(ErrorAlertEmail, {
+          role: m.role === 'employer' ? 'employer' : 'employee',
+          url: m.url ?? null,
+          message: m.message ?? null,
+          digest: m.digest ?? null,
+          errorLogId: String(m.error_log_id),
+          severity: m.severity === 'critical' ? 'critical' : m.severity === 'high' ? 'high' : 'low',
+          logsUrl: `${adminDashboard}/logs`,
+        });
+      }
+      return React.createElement(AdminSystemAlertEmail, {
+        title,
+        message,
+        metadata: metadata as Record<string, unknown>,
+        dashboardUrl: adminDashboard,
+      });
+
     default:
-      return React.createElement(DocumentUploadNotificationEmail, {
-        uploaderName: 'System',
-        uploaderRole: 'employee',
-        documentType: 'system',
-        uploadedAt: new Date().toLocaleString(),
+      return React.createElement(AdminSystemAlertEmail, {
+        title,
+        message,
+        metadata: metadata as Record<string, unknown>,
         dashboardUrl: adminDashboard,
       });
   }
@@ -565,7 +584,7 @@ export async function notifyAdmin(params: {
       new_employer:    ns.email_new_employer  !== false,
       employer_kyc:    ns.email_new_employer  !== false,
       flagged_advance: ns.email_fraud_alert   !== false,
-      system_alert:    ns.email_daily_summary !== false,
+      system_alert:    ns.email_fraud_alert   !== false,
       review_request:  ns.email_large_advance !== false,
       bank_change:     ns.email_fraud_alert   !== false,
     };
@@ -578,7 +597,7 @@ export async function notifyAdmin(params: {
         params.metadata ?? {}
       );
       await sendEmail({
-        to: env.ADMIN_NOTIFICATION_EMAIL ?? 'admin@eaziwage.com',
+        to: (ns.fraud_alert_emails as string) || env.ADMIN_NOTIFICATION_EMAIL || 'support@eaziwage.com',
         subject: `[Admin] ${params.title}`,
         react: emailElement,
       });

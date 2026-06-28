@@ -95,11 +95,15 @@ if (typeof window !== 'undefined') {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state change:', event);
-      
-      if (session?.user) {
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        await syncUser(session.user);
+        window.dispatchEvent(new CustomEvent('auth:signed-in'));
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         await syncUser(session.user);
       } else if (event === 'SIGNED_OUT') {
         setState({ user: null, loading: false });
+        window.location.href = '/';
       } else {
         setState({ loading: false });
       }

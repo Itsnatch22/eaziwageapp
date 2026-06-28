@@ -141,18 +141,21 @@ export async function GET() {
       cooldown_period: Number(employeeEwa.cooldown_period ?? effective.cooldown_period),
     };
   } else {
-    const { data: employerOnboarding } = await supabase
-      .from('employer_onboarding')
-      .select('max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period')
-      .eq('id', employee.employer_id)
+    // SCHEMA: advance eligibility lives in employers (advance_limit_percent, cooldown_days),
+    // not in employer_onboarding (max_advance_percentage, cooldown_period). Do not swap.
+    const { data: employerRow } = await supabase
+      .from('employers')
+      .select('advance_limit_percent, min_advance_amount, max_advance_amount, cooldown_days')
+      .eq('onboarding_id', employee.employer_id)
       .maybeSingle();
 
-    if (employerOnboarding) {
-      effective.max_advance_percentage = employerOnboarding.max_advance_percentage ?? effective.max_advance_percentage;
-      effective.min_advance_amount = Number(employerOnboarding.min_advance_amount ?? effective.min_advance_amount);
-      effective.max_advance_amount = Number(employerOnboarding.max_advance_amount ?? effective.max_advance_amount);
-      effective.cooldown_period = Number(employerOnboarding.cooldown_period ?? effective.cooldown_period);
+    if (employerRow) {
+      effective.max_advance_percentage = employerRow.advance_limit_percent ?? effective.max_advance_percentage;
+      effective.min_advance_amount = Number(employerRow.min_advance_amount ?? effective.min_advance_amount);
+      effective.max_advance_amount = Number(employerRow.max_advance_amount ?? effective.max_advance_amount);
+      effective.cooldown_period = Number(employerRow.cooldown_days ?? effective.cooldown_period);
     }
+    // No employers row — use hardcoded defaults initialised above.
   }
 
 

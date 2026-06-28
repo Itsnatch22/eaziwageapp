@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 
@@ -36,5 +37,6 @@ export async function logout() {
     redirect('/error')
   }
 
+  revalidatePath('/', 'layout');
   redirect('/')
 }

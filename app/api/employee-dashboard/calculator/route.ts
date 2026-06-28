@@ -1,3 +1,6 @@
+// SCHEMA NOTE: employer_onboarding uses max_advance_percentage + cooldown_period
+// employers uses advance_limit_percent + cooldown_days
+// Do not swap these — they are different columns on different tables
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry, calculateFeePercentage } from '@/lib/utils';
@@ -76,23 +79,15 @@ export async function GET() {
         min_advance_amount = Number(employersRow.min_advance_amount ?? min_advance_amount);
         cooldown_days = Number(employersRow.cooldown_days ?? cooldown_days);
         max_monthly_advances = Number(employersRow.max_monthly_advances ?? max_monthly_advances);
-      } else {
-        // Fall back to employer_onboarding
-        const { data: eoRow } = await supabase
-          .from('employer_onboarding')
-          .select('max_advance_percentage, min_advance_amount, cooldown_period')
-          .eq('id', employee.employer_id)
-          .maybeSingle();
-
-        if (eoRow) {
-          advance_limit_percent = eoRow.max_advance_percentage ?? advance_limit_percent;
-          min_advance_amount = Number(eoRow.min_advance_amount ?? min_advance_amount);
-          cooldown_days = Number(eoRow.cooldown_period ?? cooldown_days);
-        }
       }
+      // No employers row — use hardcoded defaults initialised above.
+      // Never fall back to employer_onboarding for max_advance_percentage/cooldown_period:
+      // those are onboarding-time snapshots; live eligibility config lives in employers only.
     }
 
-    // 5. Fetch risk_score and payroll_cycle from employer_onboarding
+    // 5. Fetch display/fee metadata from employer_onboarding.
+    //    risk_score and payroll_cycle are NOT eligibility columns — reading them from
+    //    employer_onboarding is intentional (they are KYC-time metadata, not live config).
     const { data: employerOnboarding } = await supabase
       .from('employer_onboarding')
       .select('risk_score, payroll_cycle, country')

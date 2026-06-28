@@ -24,7 +24,6 @@ interface NotificationDropdownProps {
   role: 'admin' | 'employer' | 'employee';
   userId: string;
   apiPath: string;
-  pusherChannel: string;
   viewAllHref: string;
   primaryColor: string; // e.g. "primary", "green-600", "purple-600"
 }

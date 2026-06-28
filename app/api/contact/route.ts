@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
-import ContactNotification from "@/emails/ContactNotification";
-import ContactAutoReply from "@/emails/ContactAutoReply";
+import ContactNotification from "@/lib/emails/ContactNotification";
+import ContactAutoReply from "@/lib/emails/ContactAutoReply";
 import { contactSchema } from "@/lib/validations/contact";
 import { contactLimiter, checkRateLimit } from "@/lib/rate-limit";
 import { getEnv } from "@/env";

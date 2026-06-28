@@ -25,7 +25,7 @@ export async function proxy(req: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://etfytrhduspebpvybljq.supabase.co",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.pusher.com wss://*.pusher.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
     "frame-src 'self' https://www.google.com",
     "object-src 'none'",
     "base-uri 'self'",

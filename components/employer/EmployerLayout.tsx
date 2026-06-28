@@ -364,7 +364,6 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
                 role="employer"
                 userId={user.id}
                 apiPath="/api/employer-dashboard/notifications"
-                pusherChannel={`employer-${user.id}`}
                 viewAllHref="/dashboards/employer-dashboard/notifications"
                 primaryColor="blue-600"
               />

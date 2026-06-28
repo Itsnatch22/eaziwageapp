@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const auth = await requireAdmin();
     if (auth instanceof NextResponse) return auth;
     const { adminSupabase } = auth;
-    const { data, error } = await adminSupabase.from('legal_documents').select('*').eq('is_active', true);
+    const { data, error } = await adminSupabase.from('legal_documents').select('*').eq('is_active', 1);
     if (error) throw error;
     return NextResponse.json(data || []);
   } catch (error) {

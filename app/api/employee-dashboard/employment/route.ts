@@ -1,3 +1,6 @@
+// SCHEMA NOTE: employer_onboarding uses max_advance_percentage + cooldown_period
+// employers uses advance_limit_percent + cooldown_days
+// Do not swap these — they are different columns on different tables
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
@@ -31,8 +34,7 @@ export async function GET() {
         status,
         employer_id,
         employer_onboarding (
-          company_name,
-          max_advance_percentage
+          company_name
         )
       `)
       .eq('user_id', user.id)
@@ -74,29 +76,27 @@ export async function GET() {
       throw policyError;
     }
 
-    type EmployerOnboarding = {
-  company_name: string;
-  max_advance_percentage: number;
-};
+    const { data: employeeEwa } = await adminSupabase
+      .from('employee_ewa_settings')
+      .select('max_advance_percentage')
+      .eq('employee_id', liveEmployeeId)
+      .maybeSingle();
 
-
-const { data: employeeEwa } = await adminSupabase
-   .from('employee_ewa_settings')
-   .select('max_advance_percentage')
-   .eq('employee_id', liveEmployeeId)
-   .maybeSingle();
-
-let effectivePct = policy?.withdrawal_limit_percent ?? 50;
-if (employeeEwa && employeeEwa.max_advance_percentage) {
-  effectivePct = employeeEwa.max_advance_percentage;
-} else if (onboarding && onboarding.employer_onboarding) {
-  const eo = Array.isArray(onboarding.employer_onboarding) 
-    ? onboarding.employer_onboarding[0] 
-    : onboarding.employer_onboarding;
-  if (eo && (eo as EmployerOnboarding).max_advance_percentage) {
-    effectivePct = (eo as EmployerOnboarding).max_advance_percentage;
-  }
-}
+    let effectivePct = policy?.withdrawal_limit_percent ?? 50;
+    if (employeeEwa && employeeEwa.max_advance_percentage) {
+      effectivePct = employeeEwa.max_advance_percentage;
+    } else {
+      // SCHEMA: read advance_limit_percent from employers (live config), not employer_onboarding.
+      // employer_onboarding.max_advance_percentage is an onboarding-time snapshot only.
+      const { data: employerLive } = await adminSupabase
+        .from('employers')
+        .select('advance_limit_percent')
+        .eq('onboarding_id', onboarding.employer_id)
+        .maybeSingle();
+      if (employerLive?.advance_limit_percent) {
+        effectivePct = employerLive.advance_limit_percent;
+      }
+    }
 
     return NextResponse.json({
       employment: employmentData,

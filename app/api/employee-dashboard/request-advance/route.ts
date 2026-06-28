@@ -1,3 +1,6 @@
+// SCHEMA NOTE: employer_onboarding uses max_advance_percentage + cooldown_period
+// employers uses advance_limit_percent + cooldown_days
+// Do not swap these — they are different columns on different tables
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { calculateFeePercentage } from '@/lib/utils';
@@ -63,13 +66,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resolve the live employees.id — all advance-table queries must use this FK
-    const employeeRecord = await resolveEmployee(supabase, user.id);
-    if (!employeeRecord) {
-      return errorResponse(404, 'Employee record not found.', { note: 'resolveEmployee returned null' });
-    }
-    employeeId = employeeRecord.id;
-
     const raw = await req.json().catch(() => null);
     const parsed = requestSchema.safeParse(raw);
     parsedPayload = parsed.success ? parsed.data : raw;
@@ -77,6 +73,13 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return errorResponse(422, 'Validation failed', { issues: parsed.error.issues });
     }
+
+    // Resolve the live employees.id — all advance-table queries must use this FK
+    const employeeRecord = await resolveEmployee(supabase, user.id);
+    if (!employeeRecord) {
+      return errorResponse(404, 'Employee record not found.', { note: 'resolveEmployee returned null' });
+    }
+    employeeId = employeeRecord.id;
 
     const { data: employee, error: employeeError } = await supabase
       .from('employee_onboarding')
@@ -216,7 +219,9 @@ export async function POST(req: NextRequest) {
       return errorResponse(403, 'Your request has been flagged by our security system. Please contact support.', { code: 'FRAUD_BLOCK' });
     }
 
-    // Fetch risk_score from onboarding for fee calculation
+    // Fetch risk_score from employer_onboarding for fee calculation only.
+    // risk_score is KYC-time metadata, not an advance eligibility column — reading
+    // from employer_onboarding here is intentional (same value promoted to employers.risk_score).
     const { data: onboardingEmployer } = await supabase
       .from('employer_onboarding')
       .select('risk_score')
