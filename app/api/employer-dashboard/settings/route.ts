@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { getAdvanceLimit } from '@/lib/utils';
+import { EmployerProfileUpdateSchema } from '@/lib/validations/route-schemas';
 
 export const runtime = 'nodejs';
 
@@ -136,10 +137,14 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const input = await req.json().catch(() => null);
-  if (!input || typeof input !== 'object') {
-    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+  const settingsParsed = EmployerProfileUpdateSchema.safeParse(await req.json().catch(() => null));
+  if (!settingsParsed.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', issues: settingsParsed.error.issues },
+      { status: 422 },
+    );
   }
+  const input = settingsParsed.data;
 
   const { data: existing, error: existingError } = await supabase
     .from('employers')

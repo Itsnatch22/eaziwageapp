@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { WalletTopupRequestSchema } from '@/lib/validations/route-schemas';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 
@@ -144,9 +145,14 @@ export async function POST(req: Request) {
 
     const onboarding = Array.isArray(employer.employer_onboarding) ? employer.employer_onboarding[0] : employer.employer_onboarding;
 
-    const body = await req.json().catch(() => null);
-    const amount = Number(body?.amount ?? 0);
-    if (!amount || amount <= 0) return NextResponse.json({ error: 'Invalid amount' }, { status: 422 });
+    const walletParsed = WalletTopupRequestSchema.safeParse(await req.json().catch(() => null));
+    if (!walletParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: walletParsed.error.issues },
+        { status: 422 },
+      );
+    }
+    const { amount } = walletParsed.data;
 
 
     // employer_view_own_wallet RLS covers this SELECT

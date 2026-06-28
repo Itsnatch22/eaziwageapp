@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { StanbicDepositSchema } from '@/lib/validations/route-schemas';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,13 +10,17 @@ export async function POST(req: NextRequest) {
 
     const auth = await requireAdmin();
     if (auth instanceof NextResponse) return auth;
-    const { adminSupabase } = auth;
+    const { adminSupabase, user } = auth;
 
-    const { amount, reference, description } = await req.json();
-
-    if (!amount) {
-      return NextResponse.json({ error: 'Missing amount' }, { status: 400 });
+    const raw = await req.json().catch(() => null);
+    const parsed = StanbicDepositSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: parsed.error.issues },
+        { status: 422 },
+      );
     }
+    const { amount, reference, description } = parsed.data;
 
     const { data: wallet, error: walletError } = await adminSupabase
       .from('admin_wallets')
@@ -35,6 +40,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (txError) throw txError;
+
+    void adminSupabase.from('system_audit_logs').insert({
+      admin_id: user.id,
+      admin_name: user.email,
+      target_id: wallet.id,
+      target_type: 'admin_wallet',
+      action: 'stanbic_deposit_recorded',
+      old_value: null,
+      new_value: { amount, reference: reference || `STANBIC-${Date.now()}` },
+      metadata: { description },
+    }).then(({ error }) => { if (error) console.error('[audit] stanbic_deposit_recorded:', error); });
 
     return NextResponse.json({ success: true });
 

@@ -8,6 +8,8 @@ import { rateLimiter, checkRateLimit }     from '@/lib/rate-limit';
 import { sendAccountLockedEmail }          from '@/lib/security-alerts';
 import type { LoginContext }               from '@/lib/security-alerts';
 import { handleLoginSecurity }             from '@/lib/security-service';
+import { normalizeAppRole, resolveRoleFromTables } from '@/lib/server/resolve-user-role';
+import type { AppRole }                    from '@/lib/server/resolve-user-role';
 
 
 const env = getEnv();
@@ -50,16 +52,6 @@ const LoginSchema = z.object({
 });
 
 type LoginInput = z.infer<typeof LoginSchema>;
-type AppRole = 'admin' | 'employer' | 'employee';
-
-function normalizeAppRole(value: unknown): AppRole | null {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === 'admin' || normalized === 'employer' || normalized === 'employee') {
-    return normalized;
-  }
-  return null;
-}
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -212,11 +204,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const input: LoginInput = parsed.data;
-  console.log('[login] Email:', input.email);
 
   const captchaOk = await verifyRecaptcha(input.recaptcha_token, ip);
   if (!captchaOk) {
-    console.log('[login] BLOCKED: reCAPTCHA failed for', input.email);
+    console.log('[login] BLOCKED: reCAPTCHA failed, IP:', ip);
     return NextResponse.json(
       { error: 'Security check failed. Please refresh and try again.' },
       { status: 403, headers: rateResult.headers },
@@ -263,7 +254,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     adminRecord = adminLookup;
     console.log('[login] Admin found in system_admins:', adminRecord?.id);
   } else {
-    console.log('[login] Querying profiles for:', input.email);
+    console.log('[login] Querying profiles table');
     const { data, error } = await supabaseAdmin
       .from('profiles')
       .select('id, full_name, role, role_normalized, email_verified, locked_until, failed_login_attempts, is_admin')
@@ -292,7 +283,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  console.log('[login] Attempting Supabase auth for:', input.email);
+  console.log('[login] Attempting Supabase auth, IP:', ip);
   const res = NextResponse.next();
   const supabaseAuth = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -345,7 +336,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { user } = authData;
-  console.log('[login] Auth SUCCESS for user:', user.id, user.email);
+  console.log('[login] Auth SUCCESS for user:', user.id);
 
   if (!isAdmin && profileRecord && !profileRecord.email_verified) {
     const authEmailVerified = Boolean(user.email_confirmed_at);
@@ -364,7 +355,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!isAdmin && profileRecord && !profileRecord.email_verified) {
-    console.log('[login] BLOCKED: Email not verified for', input.email);
+    console.log('[login] BLOCKED: Email not verified, userId:', user.id);
     return NextResponse.json(
       {
         error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
@@ -407,78 +398,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (normalizedRole) {
       responseRole = normalizedRole;
     } else {
-      const [{ data: employerOnboarding }, { data: employerRecord }, { data: employeeOnboarding }, { data: employeeRecord }] =
-        await Promise.all([
-          supabaseAdmin
-            .from('employer_onboarding')
-            .select('id')
-            .eq('user_id', profileRecord.id)
-            .limit(1)
-            .maybeSingle(),
-          supabaseAdmin
-            .from('employers')
-            .select('id')
-            .eq('user_id', profileRecord.id)
-            .limit(1)
-            .maybeSingle(),
-          supabaseAdmin
-            .from('employee_onboarding')
-            .select('id')
-            .eq('user_id', profileRecord.id)
-            .limit(1)
-            .maybeSingle(),
-          supabaseAdmin
-            .from('employees')
-            .select('id')
-            .eq('user_id', profileRecord.id)
-            .limit(1)
-            .maybeSingle(),
-        ]);
-
       responseRole =
-        employerOnboarding || employerRecord
-          ? 'employer'
-          : employeeOnboarding || employeeRecord
-            ? 'employee'
-            : normalizeAppRole(user.user_metadata?.role) ?? 'employee';
+        await resolveRoleFromTables(supabaseAdmin, profileRecord.id) ??
+        normalizeAppRole(user.user_metadata?.role) ??
+        'employee';
     }
     console.log('[login] Role set to:', responseRole);
   } else {
-    console.warn(`[login] No profile found for authenticated user ${user.email} (${user.id})`);
-    const [{ data: employerOnboarding }, { data: employerRecord }, { data: employeeOnboarding }, { data: employeeRecord }] =
-      await Promise.all([
-        supabaseAdmin
-          .from('employer_onboarding')
-          .select('id')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle(),
-        supabaseAdmin
-          .from('employers')
-          .select('id')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle(),
-        supabaseAdmin
-          .from('employee_onboarding')
-          .select('id')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle(),
-        supabaseAdmin
-          .from('employees')
-          .select('id')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle(),
-      ]);
-
+    console.warn('[login] No profile found for authenticated user, userId:', user.id);
     responseRole =
-      employerOnboarding || employerRecord
-        ? 'employer'
-        : employeeOnboarding || employeeRecord
-          ? 'employee'
-          : normalizeAppRole(user.user_metadata?.role) ?? 'employee';
+      await resolveRoleFromTables(supabaseAdmin, user.id) ??
+      normalizeAppRole(user.user_metadata?.role) ??
+      'employee';
     console.log('[login] Role fallback to:', responseRole);
   }
   console.log('[login] === LOGIN SUCCESS ===');

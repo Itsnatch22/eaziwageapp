@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { ReviewRequestPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer, notifyEmployee } from '@/lib/notifications';
 
 interface ReviewRequestPayload {
@@ -30,18 +31,15 @@ export async function PATCH(
   if (auth instanceof NextResponse) return auth;
   const { adminSupabase, user: adminUser } = auth;
 
-  let body: ReviewRequestPayload;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  const raw = await req.json().catch(() => null);
+  const rrParsed = ReviewRequestPatchSchema.safeParse(raw);
+  if (!rrParsed.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', issues: rrParsed.error.issues },
+      { status: 422 },
+    );
   }
-
-  const { status, response, internal_notes, type } = body;
-
-  if (!type) {
-    return NextResponse.json({ error: 'Missing request type' }, { status: 400 });
-  }
+  const { status, response, internal_notes, type } = rrParsed.data;
 
   if (type === 'risk_score') {
     const { data: request, error: updateError } = await adminSupabase
@@ -73,6 +71,17 @@ export async function PATCH(
       });
     }
 
+    void adminSupabase.from('system_audit_logs').insert({
+      admin_id: adminUser.id,
+      admin_name: adminUser.email,
+      target_id: requestId,
+      target_type: 'risk_review_request',
+      action: 'risk_review_resolved',
+      old_value: null,
+      new_value: { status },
+      metadata: { internal_notes },
+    }).then(({ error }) => { if (error) console.error('[audit] risk_review_resolved:', error); });
+
     return NextResponse.json({ message: 'Request updated successfully', data: request });
   }
 
@@ -86,7 +95,7 @@ export async function PATCH(
         reviewed_by: adminUser.id,
       })
       .eq('id', requestId)
-      .select('*')
+      .select('id, user_id, document_type, status, reviewer_notes, reviewed_at, reviewed_by, created_at, updated_at')
       .single();
 
     if (updateError) {
@@ -103,13 +112,24 @@ export async function PATCH(
       });
     }
 
+    void adminSupabase.from('system_audit_logs').insert({
+      admin_id: adminUser.id,
+      admin_name: adminUser.email,
+      target_id: requestId,
+      target_type: 'kyc_document',
+      action: `kyc_review_${status}`,
+      old_value: null,
+      new_value: { status },
+      metadata: { reviewer_notes: response || internal_notes },
+    }).then(({ error }) => { if (error) console.error('[audit] kyc_review_resolved:', error); });
+
     return NextResponse.json({ message: 'Request updated successfully', data: document });
   }
 
   if (type === 'bank_change') {
     const { data: bRequest, error: fetchError } = await adminSupabase
       .from('bank_change_requests')
-      .select('*')
+      .select('id, employer_id, user_id, current_bank_name, current_account_number, new_bank_name, new_account_number, status')
       .eq('id', requestId)
       .single();
 
@@ -166,6 +186,17 @@ export async function PATCH(
         },
       });
     }
+
+    void adminSupabase.from('system_audit_logs').insert({
+      admin_id: adminUser.id,
+      admin_name: adminUser.email,
+      target_id: requestId,
+      target_type: 'bank_change_request',
+      action: `bank_change_${status}`,
+      old_value: { bank_name: bRequest.current_bank_name, account_number: bRequest.current_account_number },
+      new_value: status === 'approved' ? { bank_name: bRequest.new_bank_name, account_number: bRequest.new_account_number } : null,
+      metadata: { employer_id: bRequest.employer_id, reason: response || internal_notes },
+    }).then(({ error }) => { if (error) console.error('[audit] bank_change_resolved:', error); });
 
     return NextResponse.json({ message: 'Request updated successfully', data: updatedRequest });
   }

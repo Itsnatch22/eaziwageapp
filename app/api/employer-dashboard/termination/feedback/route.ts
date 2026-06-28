@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { TerminationFeedbackSchema } from '@/lib/validations/route-schemas';
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,11 +13,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { reason, other_reason, additional_comments } = await req.json();
-
-    if (!reason) {
-      return NextResponse.json({ error: 'Reason is required' }, { status: 400 });
+    const fbParsed = TerminationFeedbackSchema.safeParse(await req.json().catch(() => null));
+    if (!fbParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: fbParsed.error.issues },
+        { status: 422 },
+      );
     }
+    const { reason, other_reason, additional_comments } = fbParsed.data;
 
     const { data: employer } = await adminSupabase
       .from('employers')

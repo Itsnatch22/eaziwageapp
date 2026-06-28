@@ -42,10 +42,13 @@ export async function GET(
     const { data: liveEmployee } = await adminSupabase
       .from('employees')
       .select(`
-        *,
-        employers!employer_id (
-          company_name
-        )
+        id, user_id, employer_id, employee_code, full_name, email, phone, country,
+        job_title, department, hire_date, termination_date, monthly_salary,
+        advance_limit, earned_wages, employment_type, status, kyc_status, risk_score,
+        id_document_front, id_document_back, selfie, address_proof,
+        payslip_1, payslip_2, bank_statement, employment_contract,
+        created_at, updated_at,
+        employers!employer_id ( company_name )
       `)
       .eq('id', id)
       .maybeSingle();
@@ -54,7 +57,7 @@ export async function GET(
 
     const { data: empProfile, error: profileErr } = await adminSupabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, email, phone, company_code, metadata, created_at')
       .eq('id', userId)
       .maybeSingle();
 
@@ -65,10 +68,10 @@ export async function GET(
     const { data: onboarding } = await adminSupabase
       .from('employee_onboarding')
       .select(`
-        *,
-        employer:employer_onboarding!employer_id (
-          company_name
-        )
+        id, user_id, status, employer_id, employee_code, full_name, country,
+        job_title, department, start_date, monthly_salary, advance_limit,
+        earned_wages, employment_type, national_id, updated_at,
+        employer:employer_onboarding!employer_id ( company_name )
       `)
       .eq('user_id', userId)
       .maybeSingle();
@@ -144,7 +147,7 @@ export async function GET(
       status: liveStatus,
       kyc_status: liveEmployee?.kyc_status || onboarding?.status || 'pending',
       risk_score: liveEmployee?.risk_score ?? empProfile?.metadata?.risk_score ?? null,
-      employer_name: liveEmployee?.employers?.company_name || onboarding?.employer?.company_name || 'Unlinked',
+      employer_name: (liveEmployee?.employers as { company_name?: string } | null)?.company_name || (onboarding?.employer as { company_name?: string } | null)?.company_name || 'Unlinked',
       id_document_front: Boolean(liveEmployee?.id_document_front),
       id_document_back: Boolean(liveEmployee?.id_document_back),
       selfie: Boolean(liveEmployee?.selfie),

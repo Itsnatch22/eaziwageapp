@@ -178,7 +178,7 @@ export async function PATCH(
 
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
-  const { adminSupabase } = auth;
+  const { adminSupabase, user } = auth;
 
   const body = await req.json();
   const {
@@ -260,6 +260,17 @@ export async function PATCH(
     read: false,
     created_at: new Date().toISOString(),
   });
+
+  void adminSupabase.from('system_audit_logs').insert({
+    admin_id: user.id,
+    admin_name: user.email,
+    target_id: id,
+    target_type: 'employer',
+    action: 'employer_risk_updated',
+    old_value: null,
+    new_value: { risk_score, risk_rating, status },
+    metadata: { override_reason },
+  }).then(({ error }) => { if (error) console.error('[audit] employer_risk_updated:', error); });
 
   return NextResponse.json({ message: 'Employer updated successfully' });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { EmployeeKycPatchSchema } from '@/lib/validations/route-schemas';
 import { isAdminRole, UserRole } from '@/lib/validations/kyc-validation';
 import { notifyEmployee } from '@/lib/notifications';
 import { createAdminClient } from '@/lib/supabaseAdmin';
@@ -14,7 +15,15 @@ export async function PATCH(
     if (rateLimitResponse) return rateLimitResponse;
 
     const { id } = await params;
-    const { kyc_status, reason } = await req.json();
+    const raw = await req.json().catch(() => null);
+    const kycParsed = EmployeeKycPatchSchema.safeParse(raw);
+    if (!kycParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: kycParsed.error.issues },
+        { status: 422 },
+      );
+    }
+    const { kyc_status, reason } = kycParsed.data;
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 

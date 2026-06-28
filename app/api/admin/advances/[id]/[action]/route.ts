@@ -28,7 +28,7 @@ export async function PATCH(
   try {
     const { data: advance, error: getError } = await supabase
       .from('advances')
-      .select('*')
+      .select('id, status, employee_id, employer_id, amount, fee_amount, approved_at')
       .eq('id', id)
       .maybeSingle();
 

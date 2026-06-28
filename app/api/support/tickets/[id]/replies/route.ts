@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
+import { SupportReplySchema } from '@/lib/validations/route-schemas';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export async function GET(
@@ -56,8 +57,14 @@ export async function POST(
 ): Promise<NextResponse> {
   try {
     const { id } = await params;
-    const body = await req.json();
-    const message = (body?.message || '').toString().trim();
+    const replyParsed = SupportReplySchema.safeParse(await req.json().catch(() => null));
+    if (!replyParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: replyParsed.error.issues },
+        { status: 422 },
+      );
+    }
+    const message = replyParsed.data.message.trim();
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });

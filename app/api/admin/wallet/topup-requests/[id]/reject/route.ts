@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { TopupRejectSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
@@ -18,8 +19,9 @@ export async function PATCH(
     if (auth instanceof NextResponse) return auth;
     const { user, adminSupabase } = auth;
 
-    const body = await request.json().catch(() => ({})) as { reason?: string };
-    const reason: string = body.reason ?? '';
+    const raw = await request.json().catch(() => ({}));
+    const parsed = TopupRejectSchema.safeParse(raw);
+    const reason: string = parsed.success ? (parsed.data.reason ?? '') : '';
 
     const { data: tx, error: txError } = await adminSupabase
       .from('wallet_transactions')

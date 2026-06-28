@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { EmployerStatusPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer } from '@/lib/notifications';
 
 // Produces a code satisfying employers.company_code check: ^[A-Z0-9]{3,20}$
@@ -38,18 +39,15 @@ export async function PATCH(
     .eq('id', user.id)
     .maybeSingle<{ full_name: string | null }>();
 
-  const body = await req.json();
-  const { status, employer_code, min_advance_amount, initial_credit_limit, reason } = body as {
-    status: string;
-    employer_code?: string;
-    min_advance_amount?: number;
-    initial_credit_limit?: number;
-    reason?: string;
-  };
-
-  if (!['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'].includes(status)) {
-    return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+  const raw = await req.json().catch(() => null);
+  const statusParsed = EmployerStatusPatchSchema.safeParse(raw);
+  if (!statusParsed.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', issues: statusParsed.error.issues },
+      { status: 422 },
+    );
   }
+  const { status, employer_code, min_advance_amount, initial_credit_limit, reason } = statusParsed.data;
 
   console.log(`[PATCH employer status] Attempting update for ID: ${id} to status: ${status}`);
 

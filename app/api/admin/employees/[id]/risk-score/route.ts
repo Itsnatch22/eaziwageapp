@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { EmployeeRiskScorePatchSchema } from '@/lib/validations/route-schemas';
 
 export const runtime = 'nodejs';
 
@@ -17,11 +18,15 @@ export async function PATCH(
     if (auth instanceof NextResponse) return auth;
     const { user, adminSupabase } = auth;
 
-    const { risk_score, reason } = await req.json() as { risk_score: number; reason?: string };
-
-    if (typeof risk_score !== 'number' || risk_score < 0 || risk_score > 5) {
-      return NextResponse.json({ error: 'risk_score must be a number between 0 and 5' }, { status: 400 });
+    const raw = await req.json().catch(() => null);
+    const rsParsed = EmployeeRiskScorePatchSchema.safeParse(raw);
+    if (!rsParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: rsParsed.error.issues },
+        { status: 422 },
+      );
     }
+    const { risk_score, reason } = rsParsed.data;
 
     const { data: emp } = await adminSupabase
       .from('employees')

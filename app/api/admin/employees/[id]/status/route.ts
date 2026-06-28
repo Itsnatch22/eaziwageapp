@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { EmployeeStatusPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployee } from '@/lib/notifications';
 import { activateUser, deactivateUser } from '@/lib/activation';
 import { createAdminClient } from '@/lib/supabaseAdmin';
@@ -60,7 +61,15 @@ export async function PATCH(
     if (rateLimitResponse) return rateLimitResponse;
 
     const { id } = await params;
-    const { status, reason } = await req.json() as { status?: string; reason?: string };
+    const raw = await req.json().catch(() => null);
+    const statusParsed = EmployeeStatusPatchSchema.safeParse(raw);
+    if (!statusParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: statusParsed.error.issues },
+        { status: 422 },
+      );
+    }
+    const { status, reason } = statusParsed.data;
     const supabase = await createRouteHandlerClient();
     const adminSupabase = createAdminClient();
 
@@ -71,14 +80,10 @@ export async function PATCH(
     if (!isAdmin) {
       return NextResponse.json({ error: 'Forbidden. Admin access required.' }, { status: 403 });
     }
-
-    if (status !== 'active' && status !== 'approved' && status !== 'pending' && status !== 'rejected' && status !== 'suspended') {
-      return NextResponse.json({ error: 'Invalid employee status' }, { status: 400 });
-    }
     
     const { data: initialOnboardingRecord, error: fetchError } = await adminSupabase
       .from('employee_onboarding')
-      .select('*')
+      .select('id, user_id, employer_id, employee_code, full_name, email, phone, job_title, department, monthly_salary, start_date, employment_type')
       .or(`id.eq.${id},user_id.eq.${id}`)
       .maybeSingle();
     let onboardingRecord = initialOnboardingRecord;
@@ -102,7 +107,7 @@ export async function PATCH(
     if (!onboardingRecord && initialEmployeeRecord?.user_id) {
       const { data: fallbackOnboarding, error: fallbackError } = await adminSupabase
         .from('employee_onboarding')
-        .select('*')
+        .select('id, user_id, employer_id, employee_code, full_name, email, phone, job_title, department, monthly_salary, start_date, employment_type')
         .eq('user_id', initialEmployeeRecord.user_id)
         .maybeSingle();
 

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     const { data: logs, error } = await adminSupabase
       .from('system_audit_logs')
-      .select('*')
+      .select('id, admin_id, admin_name, target_id, target_type, action, old_value, new_value, metadata, created_at')
       .eq('target_id', targetId)
       .order('created_at', { ascending: false });
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { PushSubscribeSchema } from '@/lib/validations/route-schemas';
 
 export const runtime = 'nodejs';
 
@@ -10,9 +11,14 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await req.json();
-    const subscription = body?.subscription;
-    if (!subscription) return NextResponse.json({ error: 'Missing subscription' }, { status: 400 });
+    const subParsed = PushSubscribeSchema.safeParse(await req.json().catch(() => null));
+    if (!subParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: subParsed.error.issues },
+        { status: 422 },
+      );
+    }
+    const { subscription } = subParsed.data;
 
 
     const adminSupabase = createAdminClient();

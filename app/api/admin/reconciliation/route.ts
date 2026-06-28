@@ -3,8 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-reconciliation:${ip}`);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { payoutService } from '@/lib/services/payout-service';
+import { FundEmployerSchema } from '@/lib/validations/route-schemas';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
@@ -40,11 +41,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
-    const { employerId, amount, description } = await req.json();
-
-    if (!employerId || !amount) {
-      return NextResponse.json({ error: 'Missing employerId or amount' }, { status: 400 });
+    const raw = await req.json().catch(() => null);
+    const parsed = FundEmployerSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: parsed.error.issues },
+        { status: 422 },
+      );
     }
+    const { employerId, amount, description } = parsed.data;
 
     const result = await payoutService.fundEmployerWallet(
       employerId,
@@ -52,6 +57,17 @@ export async function POST(req: NextRequest) {
       user.id,
       description
     );
+
+    void supabaseAdmin.from('system_audit_logs').insert({
+      admin_id: user.id,
+      admin_name: user.email,
+      target_id: employerId,
+      target_type: 'employer',
+      action: 'employer_wallet_funded',
+      old_value: null,
+      new_value: { amount },
+      metadata: { description },
+    }).then(({ error }) => { if (error) console.error('[audit] employer_wallet_funded:', error); });
 
     return NextResponse.json({ success: true, result });
 

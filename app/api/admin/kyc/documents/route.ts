@@ -253,7 +253,7 @@ export async function GET(req: NextRequest) {
 
     const { data: unlinkedProfiles } = await adminSupabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, email, role, company_code, created_at')
       .eq('role', 'employee')
       .is('company_code', null)
       .order('created_at', { ascending: false });

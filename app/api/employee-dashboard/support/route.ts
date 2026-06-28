@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEnv } from '@/env';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { SupportTicketCreateSchema } from '@/lib/validations/route-schemas';
 import React from 'react';
 import { sendEmail } from '@/lib/email-service';
 import AdminSupportNotification from '@/lib/emails/AdminSupportNotification';
@@ -43,11 +44,14 @@ export async function POST(req: NextRequest) {
     const rate = await checkRateLimit(contactLimiter, `support:${user.id}`);
     if (!rate.success) return NextResponse.json({ error: 'Too many support requests. Please wait before submitting again.' }, { status: 429 });
 
-    const { subject, message, category } = await req.json();
-
-    if (!subject || !message) {
-      return NextResponse.json({ error: 'Subject and message are required' }, { status: 400 });
+    const ticketParsed = SupportTicketCreateSchema.safeParse(await req.json().catch(() => null));
+    if (!ticketParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: ticketParsed.error.issues },
+        { status: 422 },
+      );
     }
+    const { subject, message, category } = ticketParsed.data;
 
     const { data: ticket, error: ticketError } = await adminSupabase
       .from('support_tickets')

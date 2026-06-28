@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createClient } from '@supabase/supabase-js';
+import { EmployerNotificationPrefsSchema } from '@/lib/validations/route-schemas';
 import { getEnv } from '@/env';
 
 export const runtime = 'nodejs';
@@ -51,16 +52,15 @@ export async function PUT(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await req.json();
-    const { emailNotifications, advanceAlerts, payrollReminders, weeklyReports, pushNotifications } = body;
-
-
-    const fields = { emailNotifications, advanceAlerts, payrollReminders, weeklyReports, pushNotifications };
-    for (const [key, val] of Object.entries(fields)) {
-      if (typeof val !== 'boolean') {
-        return NextResponse.json({ error: `Invalid value for ${key}` }, { status: 400 });
-      }
+    const prefParsed = EmployerNotificationPrefsSchema.safeParse(await req.json().catch(() => null));
+    if (!prefParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: prefParsed.error.issues },
+        { status: 422 },
+      );
     }
+    const { emailNotifications, advanceAlerts, payrollReminders, weeklyReports, pushNotifications } = prefParsed.data;
+    const fields = { emailNotifications, advanceAlerts, payrollReminders, weeklyReports, pushNotifications };
 
     const admin = getAdmin();
     const { error } = await admin

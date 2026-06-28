@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { randomBytes } from "crypto";
-
-type AppRole = "admin" | "employer" | "employee";
-
-function normalizeAppRole(value: unknown): AppRole | null {
-  if (typeof value !== "string") return null;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "admin" || normalized === "employer" || normalized === "employee") {
-    return normalized;
-  }
-  return null;
-}
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeAppRole, resolveRoleFromTables } from "@/lib/server/resolve-user-role";
+import type { AppRole } from "@/lib/server/resolve-user-role";
 
 export async function proxy(req: NextRequest) {
   // Per-request nonce for CSP — prevents inline script injection attacks.
@@ -80,8 +72,32 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/dashboards/employer-dashboard") ||
     pathname.startsWith("/dashboards/employee-dashboard");
 
+  // API paths that require a logged-in session. /api/internal/* and /api/auth/* are excluded:
+  // internal routes authenticate via CRON_SECRET bearer token (validated in the handler),
+  // and auth routes must be reachable before login.
+  const isProtectedApi =
+    pathname.startsWith("/api/admin/") ||
+    pathname.startsWith("/api/employer-dashboard/") ||
+    pathname.startsWith("/api/employee-dashboard/");
+
   if (!user && isDashboard) {
     return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  // Defense-in-depth: stop anonymous requests to protected API paths at the edge.
+  // Route handlers (requireAdmin / requireEmployee etc.) are still the primary auth
+  // mechanism and perform role enforcement. This layer only blocks requests with no
+  // session cookie AND no Authorization header. Requests bearing a CRON_SECRET
+  // bearer token have no session but do have the header — they pass through and are
+  // validated by the handler itself.
+  if (!user && isProtectedApi) {
+    const hasBearerToken = req.headers.get("authorization")?.startsWith("Bearer ");
+    if (!hasBearerToken) {
+      return NextResponse.json(
+        { error: "Unauthorized", code: "NO_SESSION" },
+        { status: 401 },
+      );
+    }
   }
 
   if (user) {
@@ -132,40 +148,9 @@ export async function proxy(req: NextRequest) {
       }
 
       if (!role) {
-        const [{ data: employerOnboarding }, { data: employerRecord }, { data: employeeOnboarding }, { data: employeeRecord }] =
-          await Promise.all([
-            supabase
-              .from("employer_onboarding")
-              .select("id, status")
-              .eq("user_id", user.id)
-              .limit(1)
-              .maybeSingle<{ id: string; status: string }>(),
-            supabase
-              .from("employers")
-              .select("id")
-              .eq("user_id", user.id)
-              .limit(1)
-              .maybeSingle<{ id: string }>(),
-            supabase
-              .from("employee_onboarding")
-              .select("id")
-              .eq("user_id", user.id)
-              .limit(1)
-              .maybeSingle<{ id: string }>(),
-            supabase
-              .from("employees")
-              .select("id")
-              .eq("user_id", user.id)
-              .limit(1)
-              .maybeSingle<{ id: string }>(),
-          ]);
-
         role =
-          employerOnboarding || employerRecord
-            ? "employer"
-            : employeeOnboarding || employeeRecord
-              ? "employee"
-              : normalizeAppRole(user.user_metadata?.role);
+          await resolveRoleFromTables(supabase as SupabaseClient, user.id) ??
+          normalizeAppRole(user.user_metadata?.role);
       }
     }
 
@@ -254,6 +239,19 @@ export async function proxy(req: NextRequest) {
     ) {
       const dest = role === "admin" ? "/admin" : "/dashboards/employer-dashboard";
       return NextResponse.redirect(new URL(dest, req.url));
+    }
+
+    // API path role enforcement — mirrors the page-level redirects above.
+    // Returns JSON 403 instead of redirecting because API clients don't follow HTML redirects.
+    // Individual route handlers (requireAdmin etc.) remain the primary auth gate.
+    if (pathname.startsWith("/api/admin/") && role !== "admin") {
+      return NextResponse.json({ error: "Forbidden", code: "WRONG_ROLE" }, { status: 403 });
+    }
+    if (pathname.startsWith("/api/employer-dashboard/") && role !== "employer") {
+      return NextResponse.json({ error: "Forbidden", code: "WRONG_ROLE" }, { status: 403 });
+    }
+    if (pathname.startsWith("/api/employee-dashboard/") && role !== "employee") {
+      return NextResponse.json({ error: "Forbidden", code: "WRONG_ROLE" }, { status: 403 });
     }
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { getEnv } from '@/env';
+import { PushUnsubscribeSchema } from '@/lib/validations/route-schemas';
 
 export const runtime = 'nodejs';
 
@@ -10,9 +11,14 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await req.json();
-    const endpoint: string | undefined = body?.endpoint;
-    const clearAll: boolean = body?.clearAll === true;
+    const unsubParsed = PushUnsubscribeSchema.safeParse(await req.json().catch(() => null));
+    if (!unsubParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: unsubParsed.error.issues },
+        { status: 422 },
+      );
+    }
+    const { endpoint, clearAll = false } = unsubParsed.data;
 
     if (!clearAll && !endpoint) return NextResponse.json({ error: 'Missing endpoint' }, { status: 400 });
 

@@ -16,13 +16,16 @@ const redis = new Redis({
 
 const TOKEN_CACHE_KEY = 'stanbic:access_token';
 
-export function getStanbicBaseUrl(): string {
+export function getStanbicBalanceUrl(): string {
+  // The balance API has no path or query parameters — the account is resolved
+  // server-side from the OAuth client credentials (client_id = subscription key).
+  // Spec: GET / relative to basePath /api/sandbox/balance
   return (
     env.STANBIC_SANDBOX_URL_ENDPOINT ??
     env.STANBIC_SANDBOX_BASE_URL ??
     env.STANBIC_BASE_URL ??
-    'https://sandbox.connect.stanbicbank.co.ke/api/sandbox/balance/'
-  );
+    'https://sandbox.connect.stanbicbank.co.ke/api/sandbox/balance'
+  ).replace(/([^/])$/, '$1/'); // ensure trailing slash to match the spec's GET /
 }
 
 export async function getCachedStanbicToken(): Promise<string | null> {
@@ -107,12 +110,19 @@ export async function getStanbicToken(): Promise<string> {
 
 export async function getStanbicAuthHeader(): Promise<Record<string, string>> {
   const tokenUrl = env.STANBIC_TOKEN_URL;
+  // Azure API Management requires the subscription key on every request alongside
+  // the OAuth Bearer token. Without it the gateway returns HTTP 200 with an empty body.
+  const subscriptionKey = env.STANBIC_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? '';
 
   if (tokenUrl) {
     try {
       const token = await getStanbicToken();
       console.log('[Stanbic Client] ✅ Using OAuth2 Bearer token');
-      return { Authorization: `Bearer ${token}` };
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (subscriptionKey) {
+        headers['Ocp-Apim-Subscription-Key'] = subscriptionKey;
+      }
+      return headers;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[Stanbic Client] ❌ Token retrieval failed:', msg);
@@ -121,10 +131,12 @@ export async function getStanbicAuthHeader(): Promise<Record<string, string>> {
   }
 
   // Fallback to raw API key (rarely used)
-  const apiKey = env.STANBIC_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? '';
-  if (apiKey) {
+  if (subscriptionKey) {
     console.warn('[Stanbic Client] Using raw API key as Bearer');
-    return { Authorization: `Bearer ${apiKey}` };
+    return {
+      Authorization: `Bearer ${subscriptionKey}`,
+      'Ocp-Apim-Subscription-Key': subscriptionKey,
+    };
   }
 
   throw new Error('No Stanbic authentication method configured');

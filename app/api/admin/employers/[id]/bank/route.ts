@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { EmployerBankPatchSchema } from '@/lib/validations/route-schemas';
 
 export async function PATCH(
   req: NextRequest,
@@ -19,18 +20,17 @@ export async function PATCH(
 
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
-  const { adminSupabase } = auth;
+  const { adminSupabase, user } = auth;
 
-  const body = await req.json();
-  const { bank_name, bank_account_number, reason } = body as {
-    bank_name: string;
-    bank_account_number: string;
-    reason?: string;
-  };
-
-  if (!bank_name || !bank_account_number) {
-    return NextResponse.json({ error: 'Bank name and account number are required' }, { status: 400 });
+  const raw = await req.json().catch(() => null);
+  const bankParsed = EmployerBankPatchSchema.safeParse(raw);
+  if (!bankParsed.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', issues: bankParsed.error.issues },
+      { status: 422 },
+    );
   }
+  const { bank_name, bank_account_number, reason } = bankParsed.data;
 
   const { data: employer, error: fetchError } = await adminSupabase
     .from('employer_onboarding')
@@ -72,6 +72,17 @@ export async function PATCH(
     read: false,
     created_at: new Date().toISOString(),
   });
+
+  void adminSupabase.from('system_audit_logs').insert({
+    admin_id: user.id,
+    admin_name: user.email,
+    target_id: id,
+    target_type: 'employer',
+    action: 'employer_bank_updated',
+    old_value: null,
+    new_value: { bank_name, bank_account_number },
+    metadata: { reason },
+  }).then(({ error }) => { if (error) console.error('[audit] employer_bank_updated:', error); });
 
   return NextResponse.json({ message: 'Bank details updated successfully' });
 }

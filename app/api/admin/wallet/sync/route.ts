@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
-import { getStanbicAuthHeader, getStanbicBaseUrl } from '@/lib/stanbic/client';
+import { getStanbicAuthHeader, getStanbicBalanceUrl } from '@/lib/stanbic/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface StanbicBalanceResponse {
-  availableBalance?: string[] | string | number;
+  availableBalance?: string[] | string | number;  // Actual format from Stanbic
   currency?: string;
-  balance?: string | number;
+  balance?: string | number;                      // Fallback
   accountNumber?: string;
   account_number?: string;
 }
@@ -26,25 +26,42 @@ function isRecord(obj: unknown): obj is Record<string, unknown> {
   return typeof obj === 'object' && obj !== null;
 }
 
-function isStanbicResponse(payload: unknown): payload is StanbicBalanceResponse {
-  if (!isRecord(payload)) return false;
-  const p = payload as Record<string, unknown>;
-  return (
-    typeof p.availableBalance !== 'undefined' ||
-    typeof p.balance !== 'undefined'
-  );
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function normalizeBalance(raw: unknown): number | null {
-  if (Array.isArray(raw) && raw.length > 0) {
-    raw = raw[0];
-  }
-  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
+  if (raw === null || raw === undefined || raw === '') return null;
 
-  const n = typeof raw === 'string' ? parseFloat(raw) : Number(raw);
-  const rounded = Number(n.toFixed(2));
-  return Number.isFinite(rounded) && rounded >= 0 ? rounded : null;
+  // Stanbic returns availableBalance as the string "[100000.00]" — a stringified
+  // single-element array. Strip the brackets before parsing.
+  if (typeof raw === 'string') {
+    const stripped = raw.trim().replace(/^\[|\]$/g, '').trim();
+    const n = parseFloat(stripped);
+    const rounded = Number(n.toFixed(2));
+    return Number.isFinite(rounded) && rounded >= 0 ? rounded : null;
+  }
+
+  if (typeof raw === 'number') {
+    const rounded = Number(raw.toFixed(2));
+    return Number.isFinite(rounded) && rounded >= 0 ? rounded : null;
+  }
+
+  // Actual array (rawBalanceResponse schema): take first element's availableBalance
+  if (Array.isArray(raw) && raw.length > 0) {
+    const first = raw[0];
+    return normalizeBalance(
+      isRecord(first)
+        ? (first.availableBalance ?? first.bookedBalance ?? first.balance)
+        : first
+    );
+  }
+
+  // Nested object fallback
+  if (isRecord(raw)) {
+    return normalizeBalance(
+      raw.availableBalance ?? raw.balance ?? raw.available ?? raw.amount
+    );
+  }
+
+  return null;
 }
 
 function isSuspiciousDrop(previous: number, incoming: number): boolean {
@@ -105,6 +122,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (auth instanceof NextResponse) return auth;
     const { adminSupabase } = auth;
 
+    // ─── Authentication ─────────────────────────────────────
     let authHeader: Record<string, string>;
     try {
       authHeader = await getStanbicAuthHeader();
@@ -117,17 +135,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const url = getStanbicBaseUrl();
-    console.log(`[Stanbic API] Calling balance endpoint: ${url}`);
+    let url: string;
+    try {
+      url = getStanbicBalanceUrl();
+    } catch (urlErr) {
+      const m = urlErr instanceof Error ? urlErr.message : String(urlErr);
+      return NextResponse.json({ error: m }, { status: 500 });
+    }
+    console.log(`[Stanbic API] Calling balance endpoint (GET): ${url}`);
 
+    // ─── Fetch from Stanbic ─────────────────────────────────────
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const timeout = setTimeout(() => controller.abort(), 30_000); // 30s timeout
 
     let stanbicRes: Response;
     try {
       stanbicRes = await fetch(url, {
-        method: 'GET',
-        headers: { ...authHeader, Accept: 'application/json' },
+        method: 'GET', // Confirmed by your schema
+        headers: { 
+          ...authHeader, 
+          Accept: 'application/json' 
+        },
         signal: controller.signal,
       });
     } catch (fetchErr) {
@@ -140,41 +168,56 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!stanbicRes.ok) {
       const body = await stanbicRes.text().catch(() => '');
-      console.error(`[Stanbic API] HTTP ${stanbicRes.status}:`, body.slice(0, 300));
-      return NextResponse.json({ error: `Stanbic API returned ${stanbicRes.status}` }, { status: 502 });
+      console.error(`[Stanbic API] HTTP ${stanbicRes.status}:`, body.slice(0, 500));
+      return NextResponse.json(
+        { error: `Stanbic API returned ${stanbicRes.status}`, raw: body },
+        { status: 502 }
+      );
     }
 
-    const parsed = await stanbicRes.json().catch(() => null);
+    // ─── Parse Response ────────────────────────────────────────
+    let parsed: any = {};
+    try {
+      const rawText = await stanbicRes.text();
+      console.log('[Stanbic API] Raw response text:', rawText);
+
+      if (rawText.trim()) {
+        parsed = JSON.parse(rawText);
+      } else {
+        // Empty body with 200 usually means the subscription key header was missing
+        // or the account number is not in the URL. Log response headers to diagnose.
+        const headerDump: Record<string, string> = {};
+        stanbicRes.headers.forEach((v, k) => { headerDump[k] = v; });
+        console.warn('[Stanbic API] Empty body — response headers:', JSON.stringify(headerDump));
+      }
+    } catch (parseErr) {
+      console.error('[Stanbic API] JSON parse error');
+    }
+
+    console.log('[Stanbic API] Parsed response:', JSON.stringify(parsed, null, 2));
+
     if (!isRecord(parsed)) {
-      return NextResponse.json({ error: 'Invalid JSON from Stanbic' }, { status: 502 });
-    }
-
-    console.log('[Stanbic API] Raw response:', JSON.stringify(parsed));
-
-    if (!isStanbicResponse(parsed)) {
-      console.error('[Stanbic API] Unexpected payload shape:', parsed);
-      return NextResponse.json({ error: 'Unexpected Stanbic response shape' }, { status: 502 });
-    }
-
-    // Extract balance
-    const rawBalance = parsed.availableBalance ?? parsed.balance;
-    const normalizedBalance = normalizeBalance(rawBalance);
-
-    if (normalizedBalance === null) {
       return NextResponse.json({ 
-        error: 'Stanbic returned invalid balance', 
+        error: 'Invalid response format from Stanbic', 
         raw: parsed 
       }, { status: 502 });
     }
 
-    // Determine currency (prefer response, fallback to existing wallet, then USD)
-    let currency = parsed.currency;
-    if (!currency) {
-      // We'll get it from the existing wallet record below
-      currency = 'USD';
+    // Extract balance (handles array ["123.45"], string, number, etc.)
+    let rawBalance: unknown = parsed.availableBalance ?? parsed.balance;
+    const normalizedBalance = normalizeBalance(rawBalance);
+
+    if (normalizedBalance === null) {
+      return NextResponse.json({
+        error: 'Stanbic returned a response with no balance data',
+        raw: parsed,
+        note: Object.keys(parsed).length === 0
+          ? 'Empty response {} — the sandbox account may have no balance configured. Log into the Stanbic developer portal and verify the account linked to your API key has a test balance set.'
+          : 'Response received but availableBalance field is missing or zero.',
+      }, { status: 502 });
     }
 
-    // Fetch existing wallet
+    // ─── Update Database ───────────────────────────────────────
     const { data: existingWallet, error: existingError } = await adminSupabase
       .from('admin_wallets')
       .select('id, name, balance, currency')
@@ -186,8 +229,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Admin wallet record not found' }, { status: 500 });
     }
 
-    // Use wallet's currency if Stanbic doesn't return one
-    const finalCurrency = currency || existingWallet.currency || 'USD';
+    const finalCurrency = parsed.currency || existingWallet.currency || 'USD';
 
     // Suspicious drop protection
     if (isSuspiciousDrop(existingWallet.balance, normalizedBalance)) {
@@ -204,7 +246,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const nowIso = new Date().toISOString();
 
-    // Update wallet
+    // Update wallet balance
     const { error: updateError } = await adminSupabase
       .from('admin_wallets')
       .update({
@@ -217,8 +259,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (updateError) throw updateError;
 
-    // Record transaction
+    // Record sync transaction
     const syncRef = `SYNC-${Date.now()}-${existingWallet.id.slice(0, 8).toUpperCase()}`;
+
     const txPayload = {
       admin_wallet_id: existingWallet.id,
       amount: normalizedBalance,
@@ -229,6 +272,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       metadata: {
         raw_response: parsed,
         currency: finalCurrency,
+        source: 'stanbic_balance_api',
       },
     };
 
@@ -238,6 +282,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (txInsertError) throw txInsertError;
 
+    console.log(`[Stanbic Sync] Success - New balance: ${normalizedBalance} ${finalCurrency}`);
+
     return NextResponse.json({
       success: true,
       wallet: {
@@ -246,7 +292,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         currency: finalCurrency,
         last_reconciled_at: nowIso,
       },
-      transaction: txPayload,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

@@ -1,6 +1,7 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
+import { EmployerProfileUpdateSchema } from '@/lib/validations/route-schemas';
 
 export const runtime = 'nodejs';
 
@@ -90,7 +91,14 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const body = await req.json();
+    const profileParsed = EmployerProfileUpdateSchema.safeParse(await req.json().catch(() => null));
+    if (!profileParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: profileParsed.error.issues },
+        { status: 422 },
+      );
+    }
+    const body = profileParsed.data;
     
     const { error: onboardingError } = await supabase
       .from('employer_onboarding')

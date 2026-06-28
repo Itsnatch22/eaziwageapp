@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, { params }: IdRouteContext) {
 
     const { data: ewaSettings, error: ewaError } = await adminSupabase
       .from('employee_ewa_settings')
-      .select('*')
+      .select('id, employee_id, employee_onboarding_id, employer_id, ewa_enabled, max_advance_percentage, min_advance_amount, max_advance_amount, cooldown_period, updated_at, updated_by')
       .eq('employee_id', id)
       .maybeSingle();
 

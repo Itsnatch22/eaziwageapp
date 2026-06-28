@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
+import { PasswordChangeSchema } from "@/lib/validations/route-schemas";
 
 export const runtime = "nodejs";
 
@@ -16,11 +17,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { newPassword } = await req.json();
-
-    if (!newPassword || newPassword.length < 8) {
-        return NextResponse.json({ error: "Password must be at least 8 characters long." }, { status: 400 });
+    const pwParsed = PasswordChangeSchema.safeParse(await req.json().catch(() => null));
+    if (!pwParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: pwParsed.error.issues },
+        { status: 422 },
+      );
     }
+    const { newPassword } = pwParsed.data;
 
     const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword

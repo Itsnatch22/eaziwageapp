@@ -75,11 +75,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { recaptcha_token } = parsed.data;
 
   const isRecaptchaValid = await verifyRecaptcha(recaptcha_token, ip);
-  console.log('[forgot-password] reCAPTCHA validation:', { 
-    email: normalizedEmail, 
-    ip, 
-    valid: isRecaptchaValid 
-  });
+  console.log('[forgot-password] reCAPTCHA validation:', { ip, valid: isRecaptchaValid });
   
   if (!isRecaptchaValid) {
     return NextResponse.json(
@@ -95,11 +91,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .limit(1)
     .maybeSingle<{ id: string; full_name: string | null; email: string }>();
 
-  console.log('[forgot-password] Profile lookup:', { 
-    email: normalizedEmail, 
-    found: !!profile,
-    profileError: profileError?.message 
-  });
+  console.log('[forgot-password] Profile lookup:', { found: !!profile, error: profileError?.message });
 
   if (!profile) {
     console.log('[forgot-password] No profile found - returning success to prevent enumeration');
@@ -163,7 +155,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  console.log('[forgot-password] Sending email to:', profile.email);
+  console.log('[forgot-password] Sending reset email, userId:', profile.id);
   
   const { data: emailData, error: emailError } = await resend.emails.send({
     from:    FROM_EMAIL,
@@ -176,8 +168,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (emailError) {
     console.error('[forgot-password] Email send FAILED:', {
       error: emailError,
-      to: profile.email,
-      from: FROM_EMAIL,
+      userId: profile.id,
     });
     
     return NextResponse.json(
@@ -187,7 +178,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   console.log('[forgot-password] Email sent successfully:', {
-    to: profile.email,
+    userId: profile.id,
     emailId: emailData?.id,
   });
 

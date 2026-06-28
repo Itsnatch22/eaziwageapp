@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient }             from '@supabase/supabase-js';
 import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 interface EmployeeSearchRow {
   id?: string;
@@ -12,6 +13,9 @@ interface EmployeeSearchRow {
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+
   const { searchParams } = new URL(req.url);
   const query = searchParams.get('q');
 

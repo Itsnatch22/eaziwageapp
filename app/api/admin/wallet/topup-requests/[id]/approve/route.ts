@@ -110,6 +110,17 @@ export async function PATCH(
       console.error('[TopUp Approve] notifyEmployer failed:', notifyErr);
     }
 
+    void adminSupabase.from('system_audit_logs').insert({
+      admin_id: user.id,
+      admin_name: user.email,
+      target_id: id,
+      target_type: 'wallet_transaction',
+      action: 'wallet_topup_approved',
+      old_value: { status: 'pending' },
+      new_value: { status: 'completed', amount: tx.amount },
+      metadata: { employer_id: employerId, reference: tx.reference },
+    }).then(({ error }) => { if (error) console.error('[audit] wallet_topup_approved:', error); });
+
     return NextResponse.json({ success: true, funded: true, request_id: id });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

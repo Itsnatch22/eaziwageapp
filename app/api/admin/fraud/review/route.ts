@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { FraudReviewBodySchema } from '@/lib/validations/route-schemas';
 
 export const runtime = 'nodejs';
 
@@ -48,19 +49,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (auth instanceof NextResponse) return auth;
     const { user, adminSupabase } = auth;
 
-    const body: unknown = await req.json().catch(() => null);
-    if (!isReviewAction(body)) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-    }
-
-    const { flagId, advanceId, action, notes } = body;
-
-    if (notes.trim().length < 5) {
+    const raw = await req.json().catch(() => null);
+    const parsed = FraudReviewBodySchema.safeParse(raw);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Review notes are required (minimum 5 characters)' },
-        { status: 422 }
+        { error: 'Validation failed', issues: parsed.error.issues },
+        { status: 422 },
       );
     }
+
+    const { flagId, advanceId, action, notes } = parsed.data;
 
      const { data: existingFlag, error: flagFetchError } = await adminSupabase
       .from('fraud_flags')
@@ -114,6 +112,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       if (advanceUpdateError) throw advanceUpdateError;
 
+      void adminSupabase.from('system_audit_logs').insert({
+        admin_id: user.id,
+        admin_name: user.email,
+        target_id: advanceId,
+        target_type: 'advance',
+        action: 'fraud_flag_cleared',
+        old_value: { flag_status: existingFlag.status },
+        new_value: { flag_status: 'cleared', advance_status: 'pending' },
+        metadata: { flagId, notes },
+      }).then(({ error }) => { if (error) console.error('[audit] fraud_flag_cleared:', error); });
+
       const response: ReviewResponse = {
         success: true,
         flagId,
@@ -147,6 +156,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .eq('id', advanceId);
 
       if (advanceUpdateError) throw advanceUpdateError;
+
+      void adminSupabase.from('system_audit_logs').insert({
+        admin_id: user.id,
+        admin_name: user.email,
+        target_id: advanceId,
+        target_type: 'advance',
+        action: 'fraud_confirmed',
+        old_value: { flag_status: existingFlag.status },
+        new_value: { flag_status: 'confirmed_fraud', advance_status: 'rejected' },
+        metadata: { flagId, notes },
+      }).then(({ error }) => { if (error) console.error('[audit] fraud_confirmed:', error); });
 
       const response: ReviewResponse = {
         success: true,

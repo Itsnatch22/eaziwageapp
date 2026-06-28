@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { KycDocQuerySchema } from '@/lib/validations/route-schemas';
 import { notifyEmployee } from '@/lib/notifications';
 
 type LogLevel = 'info' | 'warn' | 'error';
@@ -42,8 +43,17 @@ export async function PATCH(
 ): Promise<NextResponse> {
   const { id: docId } = await params;
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status');
-  const notes = searchParams.get('notes') || '';
+  const queryParsed = KycDocQuerySchema.safeParse({
+    status: searchParams.get('status'),
+    notes: searchParams.get('notes') ?? undefined,
+  });
+  if (!queryParsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid query params', issues: queryParsed.error.issues },
+      { status: 422 },
+    );
+  }
+  const { status, notes } = queryParsed.data;
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const rateResult = await checkRateLimit(apiLimiter, `admin-kyc-review:${ip}`);
@@ -83,10 +93,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden. Admin access required.' }, { status: 403 });
   }
 
-  if (!['approved', 'rejected'].includes(status || '')) {
-    log('warn', 'validation', 'Invalid status value provided', { docId, userId: user.id, status });
-    return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-  }
 
   const { data: reviewedDoc, error: updateError } = await adminSupabase
     .from('employee_kyc_documents')
@@ -229,6 +235,17 @@ export async function PATCH(
   }
 
   log('info', 'realtime', 'Pusher removed; relying on Supabase Realtime for event delivery', { docId: doc.id, userId: doc.user_id, employerId: employeeOnboarding?.employer_id, onboardingStatus });
+
+  void adminSupabase.from('system_audit_logs').insert({
+    admin_id: user.id,
+    admin_name: user.email,
+    target_id: docId,
+    target_type: 'kyc_document',
+    action: `kyc_document_${status}`,
+    old_value: null,
+    new_value: { status, document_type: doc.document_type },
+    metadata: { notes, onboarding_status: onboardingStatus, user_id: doc.user_id },
+  }).then(({ error: auditErr }) => { if (auditErr) console.error('[audit] kyc_document_reviewed:', auditErr); });
 
   return NextResponse.json({
     message: 'Document reviewed successfully',

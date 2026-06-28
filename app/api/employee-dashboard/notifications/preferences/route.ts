@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
+import { EmployeeNotificationPrefsSchema } from "@/lib/validations/route-schemas";
 
 export const runtime = "nodejs";
 
@@ -59,7 +60,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { emailAlerts, pushNotifications } = await req.json();
+    const prefParsed = EmployeeNotificationPrefsSchema.safeParse(await req.json().catch(() => null));
+    if (!prefParsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', issues: prefParsed.error.issues },
+        { status: 422 },
+      );
+    }
+    const { emailAlerts, pushNotifications } = prefParsed.data;
 
     if (typeof emailAlerts !== 'boolean' || typeof pushNotifications !== 'boolean') {
       return NextResponse.json({ error: "Invalid preferences format" }, { status: 400 });

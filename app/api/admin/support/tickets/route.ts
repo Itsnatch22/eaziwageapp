@@ -13,7 +13,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { data: tickets, error } = await adminSupabase
       .from('support_tickets')
-      .select('*')
+      .select('id, user_id, subject, message, category, status, created_at, updated_at')
       .order('created_at', { ascending: false })
       .limit(100);
 
