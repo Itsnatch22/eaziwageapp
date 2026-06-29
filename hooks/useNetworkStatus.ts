@@ -14,7 +14,7 @@ export function useNetworkStatus(): NetworkStatus {
   const verifyConnectivity = useCallback(async () => {
     setIsChecking(true);
     try {
-      const res = await fetch("/api/admin/check-api-health", {
+      const res = await fetch("/api/ping", {
         method: "HEAD",
         cache: "no-store",
       });
