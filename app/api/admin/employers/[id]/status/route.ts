@@ -3,6 +3,9 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { EmployerStatusPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer } from '@/lib/notifications';
+import { getEnv } from '@/env';
+
+const env = getEnv();
 
 // Produces a code satisfying employers.company_code check: ^[A-Z0-9]{3,20}$
 function generatePrimaryCompanyCode(sourceId: string): string {
@@ -203,6 +206,30 @@ export async function PATCH(
     if (syncError) {
       console.error('[PATCH employer status] Primary employers sync error:', syncError);
       return NextResponse.json({ error: 'Employer status updated, but primary employer sync failed' }, { status: 500 });
+    }
+
+    // On a fresh insert existingEmployer is null — resolve the just-created row's id.
+    const { data: resolvedEmployer } = await adminSupabase
+      .from('employers')
+      .select('id')
+      .eq('user_id', employer.user_id)
+      .maybeSingle();
+
+    const employerLiveId = existingEmployer?.id ?? resolvedEmployer?.id;
+
+    if (status === 'approved' && employerLiveId && env.PII_ENCRYPTION_KEY) {
+      try {
+        await adminSupabase.rpc('promote_employer_bank_account', {
+          p_onboarding_id: activeId,
+          p_employer_id:   employerLiveId,
+          p_key:           env.PII_ENCRYPTION_KEY,
+        });
+        console.log(`[PATCH employer status] Bank account promoted for employer ${activeId}`);
+      } catch (bankErr) {
+        // Non-blocking — approval proceeds even if promotion fails.
+        // Bank account can be promoted manually via the admin panel if needed.
+        console.error('[PATCH employer status] Bank account promotion failed:', bankErr);
+      }
     }
 
     // profiles.company_code update is safe now — employers row is committed.
