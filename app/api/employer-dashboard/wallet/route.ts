@@ -181,12 +181,17 @@ export async function POST(req: Request) {
     const reference = `DEP-${employer.id}-${Date.now()}`;
     
 
-    const employerCurrency = currentWallet.currency;
+    // Prefer the wallet's stored currency; fall back to onboarding data so local_currency is never null.
+    const employerCurrency =
+      currentWallet.currency ||
+      onboarding?.currency ||
+      getCurrencyFromCountry(onboarding?.country, 'KES');
+
     const { data: rateRow } = await adminSupabase
       .from('exchange_rates')
       .select('rate_to_usd')
       .eq('currency_code', employerCurrency)
-      .single();
+      .maybeSingle();
 
     const rateSnapshot = rateRow?.rate_to_usd ?? null;
     const usdAmount = rateSnapshot ? Number((amount / rateSnapshot).toFixed(6)) : null;

@@ -19,9 +19,13 @@ export async function PATCH(
 
     const { data: tx, error: txError } = await adminSupabase
       .from('wallet_transactions')
-      .select('id, wallet_id, amount, type, status, reference, description, metadata')
+      .select('id, wallet_id, amount, type, status, reference, description, metadata, local_currency, usd_amount, rate_snapshot')
       .eq('id', id)
-      .maybeSingle();
+      .maybeSingle() as { data: {
+        id: string; wallet_id: string; amount: number; type: string; status: string;
+        reference: string | null; description: string | null; metadata: Record<string, unknown> | null;
+        local_currency: string | null; usd_amount: number | null; rate_snapshot: number | null;
+      } | null; error: unknown };
 
     if (txError) throw txError;
     if (!tx) return NextResponse.json({ error: 'Top-up request not found' }, { status: 404 });
@@ -55,10 +59,13 @@ export async function PATCH(
       .maybeSingle();
     if (adminWalletErr || !adminWallet) throw adminWalletErr || new Error('Admin wallet not found');
 
-     const { error: rpcError } = await adminSupabase.rpc('fund_employer_from_admin', {
+    // Admin wallet is USD-denominated. Deduct the USD equivalent, not the local amount.
+    const amountToDeductUSD = tx.usd_amount ?? tx.amount;
+
+    const { error: rpcError } = await adminSupabase.rpc('fund_employer_from_admin', {
       p_employer_id: employerId,
       p_admin_wallet_id: adminWallet.id,
-      p_amount: tx.amount,
+      p_amount: amountToDeductUSD,
       p_description: tx.description || `Top-up approved ${tx.reference ?? ''}`,
       p_admin_id: user.id,
     });
@@ -117,7 +124,7 @@ export async function PATCH(
       target_type: 'wallet_transaction',
       action: 'wallet_topup_approved',
       old_value: { status: 'pending' },
-      new_value: { status: 'completed', amount: tx.amount },
+      new_value: { status: 'completed', local_amount: tx.amount, local_currency: tx.local_currency, usd_amount: amountToDeductUSD },
       metadata: { employer_id: employerId, reference: tx.reference },
     }).then(({ error }) => { if (error) console.error('[audit] wallet_topup_approved:', error); });
 
