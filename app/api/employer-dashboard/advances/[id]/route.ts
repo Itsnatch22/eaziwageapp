@@ -162,7 +162,7 @@ export async function PATCH(
     }
 
     try {
-      await payoutService.reserveFunds(employer.onboarding_id, target.amount, id);
+      await payoutService.reserveFunds(employer.id, target.amount, id);
 
       const { error: updateError } = await supabase
         .from('advances')
