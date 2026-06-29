@@ -1,6 +1,7 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { triggerSyncSchema } from '@/lib/validations/payroll-validation';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -248,6 +249,31 @@ const { data: syncLog, error: logErr } = await supabase
     })
     .eq('id', integration_id);
 
+  // Propagate gross salary to employee records for valid rows
+  const validRows = rows.filter((r) => r.row_status === 'valid' && r.gross_salary > 0);
+  for (const row of validRows) {
+    const salaryPatch = { monthly_salary: row.gross_salary, updated_at: now };
+
+    const [empResult, onbResult] = await Promise.all([
+      supabaseAdmin
+        .from('employees')
+        .update(salaryPatch)
+        .eq('employee_code', row.employee_code)
+        .eq('employer_id', employer.id),
+      supabaseAdmin
+        .from('employee_onboarding')
+        .update(salaryPatch)
+        .eq('employee_code', row.employee_code)
+        .eq('employer_id', onboarding_id),
+    ]);
+
+    if (empResult.error) {
+      console.error('[payroll/sync] salary update employees error', row.employee_code, empResult.error.message);
+    }
+    if (onbResult.error) {
+      console.error('[payroll/sync] salary update employee_onboarding error', row.employee_code, onbResult.error.message);
+    }
+  }
 
   return NextResponse.json({
     message:          syncStatus === 'success'

@@ -161,6 +161,29 @@ async function handleRepaymentCollection(
     metadata: { schedule_id: schedule.id, amount, reference: merchantRef, advance_id: schedule.advance_id },
   }).catch(() => {});
 
+  // Notify employer — look up user_id from employers table
+  void (async () => {
+    try {
+      const { data: employer } = await supabaseAdmin
+        .from('employers')
+        .select('user_id, company_name')
+        .eq('id', schedule.employer_id)
+        .maybeSingle();
+
+      if (employer?.user_id) {
+        await notifyEmployer({
+          userId: employer.user_id,
+          type: 'system',
+          title: isPaid ? 'Repayment Confirmed' : 'Partial Repayment Received',
+          message: `Your repayment of ${amount} has been received and confirmed. Reference: ${merchantRef}`,
+          metadata: { schedule_id: schedule.id, amount, reference: merchantRef, companyName: employer.company_name },
+        });
+      }
+    } catch (notifyErr) {
+      log.error('Employer repayment notification failed (non-fatal)', { err: notifyErr });
+    }
+  })();
+
   log.info('Repayment reconciliation complete', { scheduleId: schedule.id, isPaid, amount });
 }
 

@@ -207,8 +207,8 @@ export class PayoutService {
     const advanceAmount = toNumber(advance.amount);
     const netAmount = toNumber(advance.net_amount, advanceAmount);
 
-    if (advance.status !== 'pending') {
-      throw new Error(`Advance not in pending status: ${advance.status}`);
+    if (!['pending', 'approved'].includes((advance.status as string) ?? '')) {
+      throw new Error(`Advance not in disbursable status: ${advance.status}`);
     }
 
     // Atomically claim this advance before any async work to prevent concurrent disbursements
@@ -216,7 +216,7 @@ export class PayoutService {
       .from('advances')
       .update({ status: 'processing', updated_at: new Date().toISOString() })
       .eq('id', advanceId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'approved'])
       .select('id')
       .maybeSingle();
 

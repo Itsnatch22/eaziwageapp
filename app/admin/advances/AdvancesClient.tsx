@@ -1,10 +1,10 @@
 "use client"
 import React,{ useState, useEffect, useCallback } from 'react';
 import { EmptyState } from '@/app/empty';
-import { 
+import {
   CreditCard, Search, CheckCircle2, XCircle, Clock, Eye,
   MoreHorizontal, Wallet, ArrowUpRight, RefreshCw, AlertTriangle,
-  DollarSign
+  DollarSign, RotateCcw, BadgeCheck
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ExportButton } from '@/components/ui/ExportButton';
@@ -14,6 +14,7 @@ import {
 import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type VariantColor = 'purple' | 'green' | 'amber' | 'red' | 'blue';
 
@@ -66,6 +67,8 @@ interface AdvanceDetailModalProps {
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onDisburse: (id: string) => void;
+  onMarkRepaid: (id: string) => void;
+  onRetryDisbursement: (id: string) => void;
 }
 
 interface GradientIconBoxProps {
@@ -124,6 +127,8 @@ interface AdvanceRowProps {
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onDisburse: (id: string) => void;
+  onMarkRepaid: (id: string) => void;
+  onRetryDisbursement: (id: string) => void;
 }
 
 export function AdvanceRow({
@@ -133,6 +138,8 @@ export function AdvanceRow({
   onApprove,
   onReject,
   onDisburse,
+  onMarkRepaid,
+  onRetryDisbursement,
 }: AdvanceRowProps) {
   const styles = statusStyles[advance.status];
 
@@ -222,6 +229,24 @@ export function AdvanceRow({
                 className="text-purple-600"
               >
                 <ArrowUpRight className="w-4 h-4 mr-2" /> Disburse
+              </DropdownMenuItem>
+            )}
+
+            {advance.status === 'failed' && (
+              <DropdownMenuItem
+                onClick={() => onRetryDisbursement(advance.id)}
+                className="text-amber-600"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" /> Retry Disbursement
+              </DropdownMenuItem>
+            )}
+
+            {advance.status === 'completed' && (
+              <DropdownMenuItem
+                onClick={() => onMarkRepaid(advance.id)}
+                className="text-emerald-600"
+              >
+                <BadgeCheck className="w-4 h-4 mr-2" /> Mark Repaid
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -339,6 +364,8 @@ export function AdvanceDetailModal({
   onApprove,
   onReject,
   onDisburse,
+  onMarkRepaid,
+  onRetryDisbursement,
   isOpen,
   loading = false,
 }: AdvanceDetailModalProps) {
@@ -447,12 +474,30 @@ export function AdvanceDetailModal({
             </>
           )}
           {advance.status === 'approved' && (
-            <button 
-              onClick={() => onDisburse(advance.id)} 
+            <button
+              onClick={() => onDisburse(advance.id)}
               disabled={loading}
               className="bg-purple-600 hover:bg-purple-700 text-white flex-1"
             >
               <ArrowUpRight className="w-4 h-4 mr-2" /> Disburse Now
+            </button>
+          )}
+          {advance.status === 'failed' && (
+            <button
+              onClick={() => onRetryDisbursement(advance.id)}
+              disabled={loading}
+              className="bg-amber-600 hover:bg-amber-700 text-white flex-1"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" /> Retry Disbursement
+            </button>
+          )}
+          {advance.status === 'completed' && (
+            <button
+              onClick={() => onMarkRepaid(advance.id)}
+              disabled={loading}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1"
+            >
+              <BadgeCheck className="w-4 h-4 mr-2" /> Mark Repaid
             </button>
           )}
         </div>
@@ -491,6 +536,12 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
   useEffect(() => {
     Promise.resolve().then(() => void fetchAdvances({ silent: true }));
   }, [fetchAdvances]);
+
+  // Scope to active advances only — repaid is terminal and no longer needs live updates
+  useRealtimeRefresh(
+    [{ table: 'advances', event: '*', filter: 'status=neq.repaid' }],
+    () => void fetchAdvances({ silent: true }),
+  );
 
   const handleApprove = async(id: string) => {
     setActionLoading(true);
@@ -558,6 +609,50 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
       setActionLoading(false);
     }
   }
+
+  const handleMarkRepaid = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/advances/${id}/repayment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        toast.success('Advance marked as repaid and reconciled');
+        fetchAdvances();
+        setShowDetailModal(false);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Failed to mark advance as repaid');
+      }
+    } catch {
+      toast.error('An error occurred while marking the advance as repaid');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRetryDisbursement = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/advances/${id}/retry-disbursement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        toast.success('Disbursement retry initiated successfully');
+        fetchAdvances();
+        setShowDetailModal(false);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Disbursement retry failed');
+      }
+    } catch {
+      toast.error('An error occurred while retrying disbursement');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const filteredAdvances = advances.filter((adv: Advance) => {
     if (statusFilter && adv.status !== statusFilter) return false;
@@ -680,8 +775,8 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
               </div>
               
               {filteredAdvances.map(advance => (
-                <AdvanceRow 
-                  key={advance.id} 
+                <AdvanceRow
+                  key={advance.id}
                   advance={advance}
                   rates={rates}
                   onViewDetails={(a) => {
@@ -691,6 +786,8 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
                   onApprove={handleApprove}
                   onReject={handleReject}
                   onDisburse={handleDisburse}
+                  onMarkRepaid={handleMarkRepaid}
+                  onRetryDisbursement={handleRetryDisbursement}
                 />
               ))}
             </div>
@@ -715,6 +812,8 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
         onApprove={handleApprove}
         onReject={handleReject}
         onDisburse={handleDisburse}
+        onMarkRepaid={handleMarkRepaid}
+        onRetryDisbursement={handleRetryDisbursement}
         loading={actionLoading}
       />
     </>

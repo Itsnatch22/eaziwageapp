@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { EmptyState } from '@/app/empty';
 import {
   TrendingUp, AlertCircle,
@@ -13,6 +13,8 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { createClient } from '@/lib/supabase/client';
 
 type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'completed' | 'rejected' | string;
 type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
@@ -75,25 +77,45 @@ export default function Transactions() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+
+  const fetchAdvances = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const txRes = await fetch('/api/employee-dashboard/transactions');
+      if (txRes.ok) {
+        const txData = await txRes.json();
+        setAdvances(Array.isArray(txData) ? txData : []);
+      }
+    } catch {
+      toast.error('Failed to sync transactions');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchAdvances = async (options?: { silent?: boolean }) => {
-      if (!options?.silent) setLoading(true);
-      try {
-        const txRes = await fetch('/api/employee-dashboard/transactions');
-        if (txRes.ok) {
-          const txData = await txRes.json();
-          const advancesData = Array.isArray(txData) ? txData : [];
-          setAdvances(advancesData);
-        }
-      } catch {
-        toast.error('Failed to sync transactions');
-      } finally {
-        setLoading(false);
+    const init = async () => {
+      await fetchAdvances({ silent: true });
+      // Resolve employee ID for Realtime filter — done once after initial load
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: emp } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setEmployeeId(emp?.id ?? null);
       }
     };
-    void fetchAdvances({ silent: true });
-  }, []);
+    void init();
+  }, [fetchAdvances]);
+
+  useRealtimeRefresh(
+    employeeId ? [{ table: 'advances', event: 'UPDATE', filter: `employee_id=eq.${employeeId}` }] : [],
+    () => void fetchAdvances({ silent: true }),
+  );
 
   const allItems: TransactionItem[] = advances
     .map((a) => ({ id: a.id, type: 'advance' as const, amount: a.amount, status: a.status, method: a.disbursement_method, created_at: a.created_at }))

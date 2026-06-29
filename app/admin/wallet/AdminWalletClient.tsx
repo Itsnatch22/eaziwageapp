@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import Link from 'next/link';
 import { ArrowLeft, RefreshCw, AlertTriangle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
@@ -508,22 +509,33 @@ export default function AdminWalletClient({
     [wallet?.last_reconciled_at]
   );
 
-  // Part 1 — silent UI data refresh every 60s (GET only, no toasts, no loading state)
+  // Silent data refresh — called both on interval and on Realtime events
+  const fetchLatest = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/wallet/sync', { method: 'GET' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.wallet) setWallet(data.wallet);
+      if (data.transactions) setTransactions(data.transactions);
+    } catch {
+      // silent fail — background refresh must never surface errors
+    }
+  }, []);
+
+  // Part 1 — silent UI data refresh every 60s
   useEffect(() => {
-    const fetchLatest = async () => {
-      try {
-        const res = await fetch('/api/admin/wallet/sync', { method: 'GET' });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.wallet) setWallet(data.wallet);
-        if (data.transactions) setTransactions(data.transactions);
-      } catch {
-        // silent fail — background refresh must never surface errors
-      }
-    };
     const interval = setInterval(fetchLatest, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchLatest]);
+
+  // Realtime subscriptions — balance and transaction list update live after sync or funding approval
+  useRealtimeRefresh(
+    wallet?.id ? [
+      { table: 'admin_wallets',             filter: `id=eq.${wallet.id}` },
+      { table: 'admin_wallet_transactions',  filter: `admin_wallet_id=eq.${wallet.id}` },
+    ] : [],
+    () => void fetchLatest(),
+  );
 
   // Part 2 — auto Stanbic bank sync every 30 minutes (POST via handleSync)
   useEffect(() => {

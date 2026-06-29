@@ -17,6 +17,7 @@ import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { cn, formatCurrency, formatDateTime } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { createClient } from '@/lib/supabase/client';
 
 type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'rejected' | 'repaid' | string;
 
@@ -95,6 +96,7 @@ export default function EmployerAdvancesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'approved' | 'disbursed' | 'rejected'>('');
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
+  const [employerId, setEmployerId] = useState<string | null>(null);
 
   const fetchAdvances = useCallback(async () => {
     const res = await fetch('/api/employer-dashboard/advances');
@@ -105,10 +107,10 @@ export default function EmployerAdvancesPage() {
     setAdvances(Array.isArray(data) ? (data as AdvanceItem[]) : []);
   }, []);
 
-  // Refresh when an employee submits a new advance or admin changes status
+  // Scoped to this employer's advances only — UPDATE covers status changes from admin/disbursement
   useRealtimeRefresh(
-    [{ table: 'advances', event: '*' }],
-    (_table) => void fetchAdvances(),
+    employerId ? [{ table: 'advances', event: 'UPDATE', filter: `employer_id=eq.${employerId}` }] : [],
+    () => void fetchAdvances(),
   );
 
   useEffect(() => {
@@ -132,6 +134,18 @@ export default function EmployerAdvancesPage() {
               }
             : null,
         );
+
+        // Resolve employer ID for Realtime filter
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: emp } = await supabase
+            .from('employers')
+            .select('id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          setEmployerId(emp?.id ?? null);
+        }
       } catch (error: unknown) {
         toast.error((error as Error)?.message || 'Failed to load advances');
       } finally {

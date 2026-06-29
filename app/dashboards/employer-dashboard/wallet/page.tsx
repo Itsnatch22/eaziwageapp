@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Wallet, TrendingUp, History, Download, CreditCard, ArrowUpRight, 
-  ArrowDownLeft, Plus, Calendar, AlertCircle, Info, Loader2, CheckCircle2
+import {
+  Wallet, TrendingUp, History, Download, CreditCard, ArrowUpRight,
+  ArrowDownLeft, Plus, Calendar, AlertCircle, Info, Loader2, CheckCircle2,
+  Copy, ClipboardCheck, FileText
 } from 'lucide-react';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ interface Transaction {
 
 interface WalletData {
   id: string;
+  employer_id: string;
   balance: number;
   arrears_balance: number;
   currency: string;
@@ -35,6 +37,23 @@ interface EmployerProfile {
   company_code?: string;
 }
 
+interface RepaymentSchedule {
+  id: string;
+  advance_id: string;
+  employee_name: string;
+  repayment_amount: number;
+  currency: string;
+  due_date: string;
+  status: 'pending' | 'overdue' | 'partial';
+  paid_amount: number;
+  repayment_reference: string;
+}
+
+interface BankDetails {
+  bank_name: string | null;
+  bank_account: string | null;
+}
+
 const WalletPage = () => {
   const { currency } = useCurrency();
   const [wallet, setWallet] = useState<WalletData | null>(null);
@@ -44,15 +63,25 @@ const WalletPage = () => {
   const [topUpAmount, setTopUpAmount] = useState<number>(0);
   const [submittingTopUp, setSubmittingTopUp] = useState(false);
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
+  const [repaymentSchedules, setRepaymentSchedules] = useState<RepaymentSchedule[]>([]);
+  const [bankDetails, setBankDetails] = useState<BankDetails>({ bank_name: null, bank_account: null });
+  const [copiedRef, setCopiedRef] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, key: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedRef(key);
+      setTimeout(() => setCopiedRef(null), 2000);
+    }).catch(() => toast.error('Copy failed'));
+  };
 
   const fetchData = useCallback(async () => {
-
     await Promise.resolve();
     setLoading(true);
     try {
-      const [walletRes, profileRes] = await Promise.all([
+      const [walletRes, profileRes, repaymentRes] = await Promise.all([
         fetch('/api/employer-dashboard/wallet'),
-        fetch('/api/employer-dashboard/profile')
+        fetch('/api/employer-dashboard/profile'),
+        fetch('/api/employer-dashboard/repayment-schedules'),
       ]);
 
       if (walletRes.ok) {
@@ -64,6 +93,12 @@ const WalletPage = () => {
       if (profileRes.ok) {
         const data = await profileRes.json();
         setEmployer(data.profile);
+      }
+
+      if (repaymentRes.ok) {
+        const data = await repaymentRes.json();
+        setRepaymentSchedules(data.schedules ?? []);
+        setBankDetails(data.bank_details ?? { bank_name: null, bank_account: null });
       }
     } catch (err) {
       console.error('Failed to load wallet data', err);
@@ -77,11 +112,12 @@ const WalletPage = () => {
     Promise.resolve().then(() => fetchData());
   }, [fetchData]);
 
-  // Refresh when admin funds the wallet or a payout goes through
+  // Refresh when admin funds the wallet, a payout goes through, or a repayment schedule changes
   useRealtimeRefresh(
     wallet?.id ? [
-      { table: 'employer_wallets',   filter: `id=eq.${wallet.id}` },
+      { table: 'employer_wallets',    filter: `id=eq.${wallet.id}` },
       { table: 'wallet_transactions', filter: `wallet_id=eq.${wallet.id}` },
+      { table: 'repayment_schedules', filter: `employer_id=eq.${wallet.employer_id}` },
     ] : [],
     (_table) => void fetchData(),
   );
@@ -240,7 +276,135 @@ const WalletPage = () => {
           )}
         </div>
 
-        
+        {/* ── Upcoming Repayments ─────────────────────────────────────────── */}
+        {!loading && repaymentSchedules.length > 0 && (
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-3xl border border-amber-200/60 dark:border-amber-700/30 overflow-hidden">
+            <div className="p-6 border-b border-amber-200/50 dark:border-amber-700/30 flex items-center justify-between bg-amber-50/40 dark:bg-amber-900/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 dark:bg-amber-500/20 rounded-xl flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Upcoming Repayments</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Transfer using the exact reference below — our system matches by reference code
+                  </p>
+                </div>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                {repaymentSchedules.length} due
+              </span>
+            </div>
+
+            {/* Summary banner */}
+            <div className="mx-6 mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200/60 dark:border-amber-700/30">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  You have{' '}
+                  <span className="font-bold">
+                    {repaymentSchedules[0]?.currency ?? 'KES'}{' '}
+                    {repaymentSchedules.reduce((s, r) => s + r.repayment_amount - r.paid_amount, 0).toLocaleString()}
+                  </span>{' '}
+                  in outstanding advance repayments. Transfer to{' '}
+                  {bankDetails.bank_name ?? 'the EaziWage repayment account'} using the references below to clear your balance.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {repaymentSchedules.map((schedule) => {
+                const isOverdue = schedule.status === 'overdue' ||
+                  new Date(schedule.due_date) < new Date();
+                const daysOverdue = isOverdue
+                  ? Math.floor((Date.now() - new Date(schedule.due_date).getTime()) / (1000 * 60 * 60 * 24))
+                  : 0;
+
+                return (
+                  <div key={schedule.id} className="border border-slate-200/60 dark:border-slate-700/40 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Employee</p>
+                        <p className="font-semibold text-slate-900 dark:text-white">{schedule.employee_name}</p>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Amount Due</p>
+                        <p className="text-xl font-bold text-slate-900 dark:text-white">
+                          {schedule.currency} {(schedule.repayment_amount - schedule.paid_amount).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Due Date</p>
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          {new Date(schedule.due_date).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {isOverdue ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300">
+                            OVERDUE{daysOverdue > 0 ? ` — ${daysOverdue}d` : ''}
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                            PENDING
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Payment instructions */}
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">How to repay</p>
+                      <div className="space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+                        <p>Transfer <span className="font-bold">{schedule.currency} {(schedule.repayment_amount - schedule.paid_amount).toLocaleString()}</span> to:</p>
+                        <p>Bank: <span className="font-semibold">{bankDetails.bank_name ?? 'Contact admin for bank details'}</span></p>
+                        {bankDetails.bank_account && (
+                          <p>Account: <span className="font-semibold">{bankDetails.bank_account}</span></p>
+                        )}
+                      </div>
+
+                      {/* Reference — the most critical element */}
+                      <div className="pt-1">
+                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                          Payment Reference <span className="text-red-500">*must include this</span>
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-sm font-bold text-slate-900 dark:text-white tracking-wider break-all">
+                            {schedule.repayment_reference}
+                          </code>
+                          <button
+                            onClick={() => copyToClipboard(schedule.repayment_reference, `ref-${schedule.id}`)}
+                            className="shrink-0 p-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
+                            title="Copy reference"
+                          >
+                            {copiedRef === `ref-${schedule.id}`
+                              ? <ClipboardCheck className="w-4 h-4" />
+                              : <Copy className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => copyToClipboard(String(schedule.repayment_amount - schedule.paid_amount), `amt-${schedule.id}`)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          {copiedRef === `amt-${schedule.id}` ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          Copy Amount
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+
         {showTopUpModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowTopUpModal(false)}>
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>

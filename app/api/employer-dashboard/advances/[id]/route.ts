@@ -1,8 +1,9 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { notifyEmployee } from '@/lib/notifications';
+import { notifyEmployee, notifyAdmin } from '@/lib/notifications';
 import { payoutService } from '@/lib/services/payout-service';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -171,8 +172,33 @@ export async function PATCH(
 
       if (updateError) throw updateError;
 
-      payoutService.disburseAdvance(id).catch(err => {
-        console.error(`[Advance Approval] Disbursement failed for ${id}:`, err);
+      payoutService.disburseAdvance(id).catch(async (err) => {
+        const reason = err instanceof Error ? err.message : 'Disbursement failed';
+        console.error(`[Advance Approval] Disbursement failed for ${id}:`, reason);
+
+        // Mark as failed so it doesn't sit at 'approved' forever
+        await supabaseAdmin
+          .from('advances')
+          .update({ status: 'failed', reason })
+          .eq('id', id)
+          .eq('status', 'approved');
+
+        void notifyAdmin({
+          type: 'system_alert',
+          title: 'Advance Disbursement Failed',
+          message: `Advance ${id} was approved but disbursement failed: ${reason}. Manual intervention required.`,
+          metadata: { advance_id: id, employer_id: employer.id, reason },
+        }).catch(() => {});
+
+        if (employeeUserId) {
+          void notifyEmployee({
+            userId: employeeUserId,
+            type: 'advance_approval',
+            title: 'Disbursement Delayed',
+            message: 'Your advance was approved but there was a delay sending the funds. Our team has been notified and will resolve this shortly.',
+            metadata: { advance_id: id },
+          }).catch(() => {});
+        }
       });
 
     } catch (err: unknown) {

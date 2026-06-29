@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,10 +59,17 @@ function fmt(amount: number, currency: string) {
 type Action = 'mark_paid' | 'mark_waived' | 'send_reminder';
 
 export default function RepaymentsClient({ schedules }: { schedules: RepaymentSchedule[] }) {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [localStatuses, setLocalStatuses] = useState<Record<string, RepaymentSchedule['status']>>({});
+
+  // Re-render from server when any active schedule changes (new, overdue flip, payment received)
+  useRealtimeRefresh(
+    [{ table: 'repayment_schedules', event: '*', filter: 'status=in.(pending,overdue,partial)' }],
+    () => router.refresh(),
+  );
 
   const filtered = useMemo(() => {
     return schedules.filter((s) => {

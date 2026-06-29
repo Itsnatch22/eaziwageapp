@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import * as faceapi from "face-api.js";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -580,9 +581,12 @@ export default function Onboarding() {
 
   const [capturingFaceId, setCapturingFaceId] = useState(false);
   const [faceIdCaptured, setFaceIdCaptured] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [modelLoaded, setModelLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const detectionInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [uploadingFile, setUploadingFile] = useState<OnboardingDocKey | null>(
     null,
@@ -862,8 +866,45 @@ export default function Onboarding() {
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      if (detectionInterval.current) clearInterval(detectionInterval.current);
     };
   }, []);
+
+  // Load tiny face detector model when step 2 mounts — fail open so model errors never block onboarding.
+  useEffect(() => {
+    if (currentStep !== 2 || modelLoaded) return;
+    faceapi.nets.tinyFaceDetector
+      .loadFromUri("/models")
+      .then(() => setModelLoaded(true))
+      .catch(() => {
+        console.warn("[FaceCapture] Model failed to load, skipping detection");
+        setModelLoaded(true); // fail open — allow capture without detection
+        setFaceDetected(true);
+      });
+  }, [currentStep, modelLoaded]);
+
+  // Run detection loop while camera is active.
+  useEffect(() => {
+    if (!capturingFaceId || !modelLoaded) return;
+
+    detectionInterval.current = setInterval(async () => {
+      if (!videoRef.current) return;
+      try {
+        const detection = await faceapi.detectSingleFace(
+          videoRef.current,
+          new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }),
+        );
+        setFaceDetected(!!detection);
+      } catch {
+        // Video not ready yet — ignore and wait for next tick
+      }
+    }, 300);
+
+    return () => {
+      if (detectionInterval.current) clearInterval(detectionInterval.current);
+      setFaceDetected(false);
+    };
+  }, [capturingFaceId, modelLoaded]);
 
   const startFaceCapture = async () => {
     try {
@@ -1013,7 +1054,7 @@ export default function Onboarding() {
       case 1:
         return agreedToTerms;
       case 2:
-        return true;
+        return faceIdCaptured && !!uploadedFiles.face_id;
       case 3:
         return !!(
           formData.national_id &&
@@ -1213,6 +1254,16 @@ export default function Onboarding() {
                       <div className="w-[70%] h-[80%] border-2 border-white/30 rounded-[100%] shadow-[0_0_0_1000px_rgba(0,0,0,0.4)]" />
                     </div>
                     <canvas ref={canvasRef} className="hidden" />
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                      <div className={cn(
+                        "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all",
+                        faceDetected
+                          ? "bg-emerald-500 text-white"
+                          : "bg-black/50 text-white/70"
+                      )}>
+                        {faceDetected ? "✓ Face detected" : "Position your face in the oval"}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex gap-4">
                     <Button
@@ -1224,7 +1275,7 @@ export default function Onboarding() {
                     </Button>
                     <Button
                       onClick={captureFaceId}
-                      disabled={uploadingFile === "face_id"}
+                      disabled={uploadingFile === "face_id" || !faceDetected}
                       className="flex-1 h-12 rounded-2xl bg-primary text-white font-black uppercase tracking-widest"
                     >
                       {uploadingFile === "face_id" ? (
@@ -1246,9 +1297,6 @@ export default function Onboarding() {
                   >
                     <Camera className="w-5 h-5 mr-2" /> Start Camera
                   </Button>
-                  <p className="mt-6 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    Or skip this step for now
-                  </p>
                 </div>
               )}
             </div>
