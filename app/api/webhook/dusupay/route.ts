@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dusupay } from '@/lib/dusupay';
 import { PayoutStatus } from '@/lib/dusupay/types';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { notifyEmployee, notifyEmployer } from '@/lib/notifications';
+import { notifyEmployee, notifyEmployer, notifyAdmin } from '@/lib/notifications';
+import { parseRepaymentReference } from '@/lib/repayment/utils';
 import { requestLogger, type Logger } from '@/lib/logger';
 
 interface DusupayWebhookPayload {
@@ -85,6 +86,84 @@ export async function POST(req: NextRequest) {
   }
 }
 
+async function handleRepaymentCollection(
+  merchantRef: string,
+  internalRef: string,
+  amount: number,
+  log: Logger,
+): Promise<void> {
+  const parsed = parseRepaymentReference(merchantRef);
+  if (!parsed.isRepayment) return;
+
+  const { data: schedule } = await supabaseAdmin
+    .from('repayment_schedules')
+    .select('id, advance_id, employer_id, repayment_amount, status')
+    .eq('repayment_reference', merchantRef)
+    .maybeSingle();
+
+  if (!schedule) {
+    log.error('No repayment schedule found for EWA-REP reference', { merchantRef });
+    return;
+  }
+
+  // Idempotency — never call repay_advance_to_admin for an already-paid schedule
+  if (schedule.status === 'paid') {
+    log.info('Repayment schedule already paid — skipping', { scheduleId: schedule.id });
+    return;
+  }
+
+  // Financial integrity: call RPC first. Only update schedule if RPC succeeds.
+  const { error: rpcError } = await supabaseAdmin.rpc('repay_advance_to_admin', {
+    p_advance_id: schedule.advance_id,
+    p_amount:     amount,
+  });
+
+  if (rpcError) {
+    log.error('repay_advance_to_admin RPC failed', { err: rpcError, scheduleId: schedule.id });
+    void notifyAdmin({
+      type: 'system_alert',
+      title: '❌ Repayment RPC Failed',
+      message: `repay_advance_to_admin failed for advance ${schedule.advance_id}. Amount: ${amount}. Reference: ${merchantRef}. Manual intervention required.`,
+      metadata: {
+        schedule_id: schedule.id,
+        advance_id:  schedule.advance_id,
+        amount,
+        reference:   merchantRef,
+        error:       rpcError.message,
+      },
+    }).catch(() => {});
+    // Do NOT update schedule — leave it pending so the next webhook retry can reprocess
+    return;
+  }
+
+  const isPaid = amount >= Number(schedule.repayment_amount);
+
+  const { error: scheduleUpdateError } = await supabaseAdmin
+    .from('repayment_schedules')
+    .update({
+      status:            isPaid ? 'paid' : 'partial',
+      paid_amount:       amount,
+      paid_at:           new Date().toISOString(),
+      payment_reference: internalRef,
+      updated_at:        new Date().toISOString(),
+    })
+    .eq('id', schedule.id);
+
+  if (scheduleUpdateError) {
+    // RPC already ran — financial state is correct. Log for reconciliation.
+    log.error('Schedule update failed after successful RPC', { err: scheduleUpdateError, scheduleId: schedule.id });
+  }
+
+  void notifyAdmin({
+    type: 'system_alert',
+    title: '✅ Repayment Received',
+    message: `${amount} received from employer. Reference: ${merchantRef}. Advance ${schedule.advance_id} marked ${isPaid ? 'repaid' : 'partially repaid'}.`,
+    metadata: { schedule_id: schedule.id, amount, reference: merchantRef, advance_id: schedule.advance_id },
+  }).catch(() => {});
+
+  log.info('Repayment reconciliation complete', { scheduleId: schedule.id, isPaid, amount });
+}
+
 async function handleCollectionEvent(
   event: string,
   payload: DusupayWebhookPayload,
@@ -92,6 +171,17 @@ async function handleCollectionEvent(
   internalRef: string,
   log: Logger,
 ) {
+  // Repayment collections (employer paying back an advance) are distinct from
+  // wallet top-ups (DEP-). Route them before the DEP- guard.
+  if (merchantRef.startsWith('EWA-REP-')) {
+    if (event !== 'collection.completed') {
+      log.info('EWA-REP non-completion event — skipping', { event });
+      return;
+    }
+    await handleRepaymentCollection(merchantRef, internalRef, Number(payload.amount), log);
+    return; // never fall through to DEP- logic
+  }
+
   if (!merchantRef.startsWith('DEP-')) return;
 
   // Terminal status guard: skip if wallet_transactions already has a completed row for this reference.

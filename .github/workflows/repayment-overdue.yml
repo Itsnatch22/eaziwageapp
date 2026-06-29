@@ -1,0 +1,27 @@
+name: Repayment Overdue Check
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # 05:00 UTC = 08:00 EAT daily
+  workflow_dispatch:        # allows manual trigger from GitHub Actions tab
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark overdue repayment schedules
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://app.eaziwage.com/api/cron/repayment-overdue)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Response: $BODY"
+          echo "Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Overdue check failed with status $HTTP_CODE"
+            exit 1
+          fi

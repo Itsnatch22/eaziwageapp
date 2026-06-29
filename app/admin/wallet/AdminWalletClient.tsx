@@ -33,6 +33,8 @@ interface AdminWalletTransaction {
   description: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  local_currency: string | null;
+  usd_amount: number | null;
 }
 
 interface SyncSuccessResponse {
@@ -276,10 +278,12 @@ function TransactionTable({
   transactions,
   currentPage,
   onPageChange,
+  walletCurrency,
 }: {
   transactions: AdminWalletTransaction[];
   currentPage: number;
   onPageChange: (page: number) => void;
+  walletCurrency: string;
 }) {
   const itemsPerPage = 10;
   const totalPages = Math.ceil(transactions.length / itemsPerPage);
@@ -323,6 +327,12 @@ function TransactionTable({
             ) : (
               pageTransactions.map((tx) => {
                 const isCredit = tx.amount > 0;
+                // The admin wallet is USD-denominated, but individual transactions
+                // (e.g. employer top-ups) may be in the employer's local currency.
+                const displayCurrency = tx.local_currency ?? walletCurrency;
+                const displayAmount = tx.local_currency
+                  ? tx.amount            // already in local currency
+                  : tx.usd_amount ?? tx.amount; // fall back to usd_amount, then raw amount
                 return (
                   <tr key={tx.id} className="border-t border-slate-200/50 dark:border-slate-700/30 hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
@@ -332,10 +342,7 @@ function TransactionTable({
                       {TX_TYPE_LABELS[tx.type]}
                     </td>
                     <td className={`px-4 py-3 font-semibold ${isCredit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {isCredit ? '+' : '−'}${Math.abs(tx.amount).toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {isCredit ? '+' : '−'}{formatCurrency(Math.abs(displayAmount), displayCurrency)}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getStatusBadgeColor(tx.status)}`}>
@@ -480,6 +487,8 @@ export default function AdminWalletClient({
           description: data.description || null,
           metadata: null,
           created_at: new Date().toISOString(),
+          local_currency: null,  // Stanbic deposits are in USD — no local currency conversion
+          usd_amount: null,
         };
 
         setTransactions([newTransaction, ...transactions]);
@@ -733,6 +742,7 @@ export default function AdminWalletClient({
           transactions={transactions}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
+          walletCurrency={wallet?.currency ?? 'USD'}
         />
       </div>
 

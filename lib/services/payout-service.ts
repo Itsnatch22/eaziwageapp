@@ -3,6 +3,77 @@ import { dusupayClient } from '../dusupay/client';
 import { PayoutMethod, Currency } from '../dusupay/types';
 import { generateMerchantReference } from '../dusupay/utils';
 import { runFraudChecks } from '../fraud-engine';
+import { generateRepaymentReference } from '../repayment/utils';
+import { notifyAdmin } from '../notifications';
+
+// ─── Repayment schedule helpers ──────────────────────────────────────────────
+
+type ScheduleAdvanceInput = {
+  id: string;
+  employer_id: string;
+  employee_id: string;
+  amount: number | string | null;
+  currency?: string | null;
+  organization_id?: string | null;
+};
+
+function calculateDueDate(disbursedAt: Date, payrollCycle: string | null): Date {
+  const due = new Date(disbursedAt);
+  switch (payrollCycle?.toLowerCase()) {
+    case 'weekly':
+      due.setDate(due.getDate() + 7);
+      break;
+    case 'bi-weekly':
+    case 'biweekly':
+      due.setDate(due.getDate() + 14);
+      break;
+    case 'monthly':
+    default:
+      due.setMonth(due.getMonth() + 1);
+      due.setDate(1); // first of next month
+      break;
+  }
+  return due;
+}
+
+async function createRepaymentSchedule(
+  advance: ScheduleAdvanceInput,
+  disbursedAt: Date,
+  supabase: typeof supabaseAdmin,
+): Promise<void> {
+  const { data: employer } = await supabase
+    .from('employers')
+    .select('payroll_cycle, id')
+    .eq('id', advance.employer_id)
+    .single();
+
+  if (!employer) throw new Error(`Employer ${advance.employer_id} not found for repayment schedule`);
+
+  const dueDate = calculateDueDate(disbursedAt, employer.payroll_cycle);
+
+  const reference = generateRepaymentReference(advance.employer_id, advance.id, dueDate);
+
+  const insertPayload: Record<string, unknown> = {
+    advance_id:           advance.id,
+    employer_id:          advance.employer_id,
+    employee_id:          advance.employee_id,
+    repayment_amount:     advance.amount,
+    currency:             advance.currency ?? 'KES',
+    due_date:             dueDate.toISOString().split('T')[0],
+    payroll_cycle:        employer.payroll_cycle ?? 'monthly',
+    repayment_reference:  reference,
+    status:               'pending',
+    paid_amount:          0,
+  };
+  if (advance.organization_id) {
+    insertPayload.organization_id = advance.organization_id;
+  }
+
+  const { error } = await supabase.from('repayment_schedules').insert(insertPayload);
+  if (error) throw new Error(`Failed to create repayment schedule: ${error.message}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export class PayoutService {
   async fundEmployerWallet(
@@ -371,12 +442,27 @@ export class PayoutService {
       throw new Error(reason);
     }
 
+    const disbursedAt = new Date();
     await supabaseAdmin.from('advances').update({
       status: 'completed',
       reference: merchantReference,
       internal_reference: payoutResponse.data?.internal_reference ?? null,
-      disbursed_at: new Date().toISOString(),
+      disbursed_at: disbursedAt.toISOString(),
     }).eq('id', advanceId);
+
+    // Create repayment schedule — non-blocking. Advance is already disbursed; a
+    // schedule creation failure must never roll back or fail the disbursement.
+    try {
+      await createRepaymentSchedule(advance as ScheduleAdvanceInput, disbursedAt, supabaseAdmin);
+    } catch (scheduleErr) {
+      console.error('[disburseAdvance] Repayment schedule creation failed:', scheduleErr);
+      void notifyAdmin({
+        type: 'system_alert',
+        title: 'Repayment Schedule Creation Failed',
+        message: `Failed to create repayment schedule for advance ${advanceId}. Manual schedule creation required.`,
+        metadata: { advance_id: advanceId, employer_id: advance.employer_id, error: String(scheduleErr) },
+      });
+    }
 
     // Audit trail — required for CBK 5-year transaction retention
     void supabaseAdmin.from('system_audit_logs').insert({
@@ -405,11 +491,27 @@ export class PayoutService {
   async handleRepayment(advanceId: string, amount: number) {
     const { data, error } = await supabaseAdmin.rpc('repay_advance_to_admin', {
       p_advance_id: advanceId,
-      p_amount: amount
+      p_amount: amount,
     });
 
     if (error) {
       throw new Error(`Repayment failed: ${error.message}`);
+    }
+
+    const { error: scheduleError } = await supabaseAdmin
+      .from('repayment_schedules')
+      .update({
+        status:     'paid',
+        paid_amount: amount,
+        paid_at:    new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('advance_id', advanceId)
+      .eq('status', 'pending'); // never overwrite an already-paid record
+
+    if (scheduleError) {
+      console.error('[handleRepayment] Failed to update repayment schedule:', scheduleError);
+      // Non-blocking — repayment RPC already succeeded
     }
 
     return data;
