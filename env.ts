@@ -14,7 +14,7 @@ interface EnvConfig {
   UPSTASH_REDIS_REST_URL: string;
   UPSTASH_REDIS_REST_TOKEN: string;
   RESEND_API_KEY: string;
-  PII_ENCRYPTION_KEY?: string;
+  PII_ENCRYPTION_KEY: string;
   ADMIN_PASSWORD?: string;
   ADMIN_NOTIFICATION_EMAIL?: string;
   PUSH_VAPID_CONTACT?: string;
@@ -94,7 +94,9 @@ export function validateEnv(): EnvConfig {
       errors.push('RESEND_API_KEY is not defined');
     }
 
-    if (process.env.PII_ENCRYPTION_KEY && process.env.PII_ENCRYPTION_KEY.length < 16) {
+    if (!process.env.PII_ENCRYPTION_KEY) {
+      errors.push('PII_ENCRYPTION_KEY is not defined');
+    } else if (process.env.PII_ENCRYPTION_KEY.length < 16) {
       errors.push('PII_ENCRYPTION_KEY is too short (minimum 16 characters)');
     }
 
@@ -139,7 +141,7 @@ export function validateEnv(): EnvConfig {
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL!,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN!,
     RESEND_API_KEY: process.env.RESEND_API_KEY!,
-    PII_ENCRYPTION_KEY: process.env.PII_ENCRYPTION_KEY,
+    PII_ENCRYPTION_KEY: process.env.PII_ENCRYPTION_KEY!,
     ADMIN_NOTIFICATION_EMAIL: process.env.ADMIN_NOTIFICATION_EMAIL,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     PUSH_VAPID_CONTACT: process.env.PUSH_VAPID_CONTACT,

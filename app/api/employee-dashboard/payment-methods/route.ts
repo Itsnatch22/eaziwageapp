@@ -85,7 +85,8 @@ export async function POST(req: NextRequest) {
       const id = body.id as string | undefined;
       if (!id) return NextResponse.json({ error: 'Missing id for request_verification' }, { status: 400 });
 
-      const { data: pm, error: pmError } = await adminSupabase.from('payment_methods').select('id, employee_id, is_verified, phone_number, account_number').eq('id', id).maybeSingle();
+      // account_number / phone_number are always null post-trigger — do not select them
+      const { data: pm, error: pmError } = await adminSupabase.from('payment_methods').select('id, employee_id, is_verified').eq('id', id).maybeSingle();
       if (pmError) return NextResponse.json({ error: pmError.message }, { status: 500 });
       if (!pm) return NextResponse.json({ error: 'Payment method not found' }, { status: 404 });
 
@@ -108,8 +109,18 @@ export async function POST(req: NextRequest) {
 
       if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
 
+      // Decrypt PII server-side — plaintext columns are always null post-trigger
+      const { PII_ENCRYPTION_KEY } = getEnv();
+      const { data: piiRows, error: piiError } = await adminSupabase.rpc('get_payment_method_pii', {
+        p_payment_method_id: id,
+        p_key: PII_ENCRYPTION_KEY,
+      });
 
-      const phoneNumber = pm.phone_number ?? pm.account_number;
+      if (piiError || !piiRows?.[0]) {
+        return NextResponse.json({ error: 'Could not retrieve payment method details' }, { status: 500 });
+      }
+
+      const phoneNumber = piiRows[0].phone_number ?? piiRows[0].account_number;
 
       if (!phoneNumber) {
         return NextResponse.json({ error: 'No phone number on record to send OTP' }, { status: 422 });
@@ -117,7 +128,7 @@ export async function POST(req: NextRequest) {
 
       try {
         await sendOtpSms(phoneNumber, otp);
-        console.info('[payment-methods] OTP sent via Twilio to', phoneNumber);
+        console.info('[payment-methods] OTP sent via Twilio'); // do not log phone number — PII
       } catch (smsErr) {
         console.error('[payment-methods] Twilio SMS failed', smsErr);
         return NextResponse.json({ error: 'Failed to send verification SMS. Try again.' }, { status: 500 });
@@ -206,7 +217,9 @@ export async function POST(req: NextRequest) {
 
       console.info('[payment-methods] Payment method verified', { id, before_is_verified: before?.is_verified, after_is_verified: updated?.is_verified, user: user.id });
 
-      await adminSupabase.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: before?.employee_id, action: 'verified', new_data: updated }]);
+      // Strip PII fields from audit — they are null post-trigger anyway, but be explicit
+      const { account_number: _a, phone_number: _p, ...auditSafeUpdated } = (updated ?? {}) as Record<string, unknown>;
+      await adminSupabase.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: before?.employee_id, action: 'verified', new_data: auditSafeUpdated }]);
 
       return NextResponse.json({ success: true, method: updated });
     }

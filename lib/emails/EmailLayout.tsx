@@ -3,6 +3,7 @@ import {
   Container,
   Head,
   Html,
+  Img,
   Preview,
   Section,
   Text,
@@ -23,6 +24,8 @@ interface EmailLayoutProps {
 const BRAND_GREEN = '#16a34a';
 const BRAND_DARK  = '#0f172a';
 const BRAND_LIGHT = '#f0fdf4';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com';
 
 export default function EmailLayout({
   previewText,
@@ -51,9 +54,13 @@ export default function EmailLayout({
               <Column>
                 
                 <div style={styles.logoContainer}>
-                  <div style={{ ...styles.logoMark, backgroundColor: accentColor }}>
-                    <span style={styles.logoMarkText}>EW</span>
-                  </div>
+                  <Img
+                    src={`${APP_URL}/logo.png`}
+                    alt="EaziWage"
+                    width={36}
+                    height={36}
+                    style={{ borderRadius: '8px', display: 'block' }}
+                  />
                   <span style={styles.logoText}>EaziWage</span>
                 </div>
               </Column>
