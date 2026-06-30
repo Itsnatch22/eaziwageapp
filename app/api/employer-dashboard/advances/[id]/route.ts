@@ -87,7 +87,7 @@ export async function PATCH(
 
   const action = parsed.data.action;
   const nowIso = new Date().toISOString();
-  
+
   if (action === 'approve') {
 
     // target.employees.user_id is already fetched in the advance select above
@@ -96,11 +96,20 @@ export async function PATCH(
       ? employeeEntry[0]?.user_id
       : (employeeEntry as { user_id?: string | null } | null)?.user_id;
 
+    // BUGFIX: don't let a missing user_id link silently flow through as a
+    // fake 0 salary further down (it used to surface as a confusing
+    // "Monthly limit reached" error masking a data-integrity problem).
+    if (!employeeUserId) {
+      console.error(`[Advance Approval] No linked user_id for employee ${target.employee_id}, advance ${id}`);
+      return NextResponse.json(
+        { error: 'Employee account is not fully linked. Contact support.' },
+        { status: 422 },
+      );
+    }
+
     const [{ data: employerOnboardingRow }, { data: employeeOnboardingRow }, { data: empRow }] = await Promise.all([
       supabase.from('employer_onboarding').select('company_name').eq('id', employer.onboarding_id).maybeSingle(),
-      employeeUserId
-        ? supabase.from('employee_onboarding').select('full_name').eq('user_id', employeeUserId).maybeSingle()
-        : Promise.resolve({ data: null }),
+      supabase.from('employee_onboarding').select('full_name').eq('user_id', employeeUserId).maybeSingle(),
       supabase.from('employee_onboarding').select('monthly_salary').eq('user_id', employeeUserId).maybeSingle(),
     ]);
 
@@ -168,14 +177,36 @@ export async function PATCH(
     }
 
     try {
-      await payoutService.reserveFunds(employer.id, target.amount, id);
-
-      const { error: updateError } = await supabase
+      // BUGFIX: atomically claim the advance BEFORE reserving funds. The old
+      // order (reserve funds, then update status) let two concurrent
+      // requests on the same advance both pass the earlier read and both
+      // reserve + disburse. The `.eq('status', 'pending')` guard here means
+      // only one concurrent request can ever flip the row — the other gets
+      // back `claimed === null` and is rejected with 409.
+      const { data: claimed, error: claimError } = await supabase
         .from('advances')
         .update({ status: 'approved', approved_at: nowIso, approved_by: user.id })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select('id')
+        .maybeSingle();
 
-      if (updateError) throw updateError;
+      if (claimError) throw claimError;
+      if (!claimed) {
+        return NextResponse.json({ error: 'Advance already processed' }, { status: 409 });
+      }
+
+      try {
+        await payoutService.reserveFunds(employer.id, target.amount, id);
+      } catch (reserveErr) {
+        // Couldn't reserve funds — release the claim so the advance isn't
+        // stuck "approved" with no reservation behind it.
+        await supabase
+          .from('advances')
+          .update({ status: 'pending', approved_at: null, approved_by: null })
+          .eq('id', id);
+        throw reserveErr;
+      }
 
       payoutService.disburseAdvance(id).catch(async (err) => {
         const reason = err instanceof Error ? err.message : 'Disbursement failed';
@@ -239,16 +270,16 @@ export async function PATCH(
   try {
     const targetRow = target as AdvanceRow;
     const employee = targetRow.employees;
-    const employeeUserId = Array.isArray(employee) 
-      ? employee[0]?.user_id 
+    const employeeUserId = Array.isArray(employee)
+      ? employee[0]?.user_id
       : employee?.user_id;
-    
+
     if (employeeUserId) {
         await notifyEmployee({
             userId: employeeUserId,
             type: 'advance_approval',
             title: action === 'approve' ? 'Advance Approved!' : 'Advance Rejected',
-            message: action === 'approve' 
+            message: action === 'approve'
                 ? 'Your advance request has been approved and is now being processed for disbursement.'
                 : 'Your advance request was not approved. Check your dashboard for details.',
             metadata: { advance_id: id, status: action === 'approve' ? 'approved' : 'denied' }

@@ -140,14 +140,27 @@ export class PayoutService {
       .select(`
         *,
         e:employees(id, full_name, kyc_status, status:status, risk_score, employer_id, country, monthly_salary),
-        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access),
-        ees:employee_ewa_settings(ewa_enabled, max_advance_percentage, max_advance_amount, min_advance_amount, cooldown_period)
+        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access)
       `)
       .eq('id', advanceId)
       .maybeSingle();
 
     if (advanceError || !advanceRow) {
       throw new Error(`Advance not found: ${advanceError?.message || 'missing'}`);
+    }
+
+    // employee_ewa_settings has no FK to advances (it relates via employees),
+    // so it can't be embedded in the select above — fetch it separately.
+    const { data: eesData, error: eesError } = await supabaseAdmin
+      .from('employee_ewa_settings')
+      .select('ewa_enabled, max_advance_percentage, max_advance_amount, min_advance_amount, cooldown_period')
+      .eq('employee_id', advanceRow.employee_id)
+      .maybeSingle();
+    const ees = eesData as EESRow | null;
+
+    if (eesError) {
+      // Not fatal — downstream code falls back to employer-level settings via `??`.
+      console.error(`[disburseAdvance] Failed to fetch employee_ewa_settings for advance ${advanceId}:`, eesError.message);
     }
 
     interface AdvanceRow {
@@ -198,7 +211,7 @@ export class PayoutService {
     const advance = advanceRow as unknown as AdvanceRow;
     const employee = firstRow(advanceRow.e as unknown as EmployeeRow | EmployeeRow[]);
     const employer = firstRow(advanceRow.er as unknown as EmployerRow | EmployerRow[]);
-    const ees = firstRow(advanceRow.ees as unknown as EESRow | EESRow[]);
+    // ees fetched separately above — already a single row or null, no unwrap needed
 
     const advanceAmount = toNumber(advance.amount);
     const netAmount = toNumber(advance.net_amount, advanceAmount);
