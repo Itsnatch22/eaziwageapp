@@ -96,11 +96,16 @@ export async function PATCH(
       ? employeeEntry[0]?.user_id
       : (employeeEntry as { user_id?: string | null } | null)?.user_id;
 
-    const { data: empRow } = await supabase
-      .from('employee_onboarding')
-      .select('monthly_salary')
-      .eq('user_id', employeeUserId)
-      .maybeSingle();
+    const [{ data: employerOnboardingRow }, { data: employeeOnboardingRow }, { data: empRow }] = await Promise.all([
+      supabase.from('employer_onboarding').select('company_name').eq('id', employer.onboarding_id).maybeSingle(),
+      employeeUserId
+        ? supabase.from('employee_onboarding').select('full_name').eq('user_id', employeeUserId).maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase.from('employee_onboarding').select('monthly_salary').eq('user_id', employeeUserId).maybeSingle(),
+    ]);
+
+    const employerName = employerOnboardingRow?.company_name ?? 'Unknown Company';
+    const employeeName = (employeeOnboardingRow as { full_name?: string | null } | null)?.full_name ?? 'Unknown Employee';
 
     // employee_ewa_settings.employee_id → employees.id (target.employee_id is advances.employee_id → employees.id)
     const { data: employeeEwa } = await supabase
@@ -183,11 +188,25 @@ export async function PATCH(
           .eq('id', id)
           .eq('status', 'approved');
 
+        // Release the wallet reservation so the employer's available balance
+        // isn't permanently understated by this phantom reservation.
+        const { error: releaseError } = await supabaseAdmin.rpc('release_employer_reservation', {
+          p_employer_id: employer.id,
+          p_amount: target.amount,
+          p_advance_id: id,
+        });
+
+        if (releaseError) {
+          console.error(`[Advance Approval] Failed to release reservation for ${id}:`, releaseError.message);
+          // Best-effort cleanup — don't throw. Admin alert below provides visibility
+          // for manual recovery if needed.
+        }
+
         void notifyAdmin({
           type: 'system_alert',
           title: 'Advance Disbursement Failed',
-          message: `Advance ${id} was approved but disbursement failed: ${reason}. Manual intervention required.`,
-          metadata: { advance_id: id, employer_id: employer.id, reason },
+          message: `Advance for ${employeeName} (${employerName}) failed: ${reason}. Manual intervention required. `,
+          metadata: { advance_id: id, employer_id: employer.id, employee_name: employeeName, employer_name: employerName, reason },
         }).catch(() => {});
 
         if (employeeUserId) {

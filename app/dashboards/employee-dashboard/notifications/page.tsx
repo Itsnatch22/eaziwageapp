@@ -127,6 +127,22 @@ export default function EmployeeNotificationsPage() {
         }
     };
 
+    const deleteAll = async () => {
+        setNotifications([]);
+        try {
+            const res = await fetch('/api/employee-dashboard/notifications?all=true', { method: 'DELETE' });
+            if (res.ok) {
+                toast.success('All notifications cleared');
+            } else {
+                await fetchNotifications();
+                toast.error('Failed to clear notifications');
+            }
+        } catch {
+            await fetchNotifications();
+            toast.error('Failed to clear notifications');
+        }
+    };
+
     const getIcon = (type: string) => {
         switch (type) {
             case 'advance': return <CreditCard className="w-5 h-5 text-primary" />;
@@ -158,18 +174,28 @@ export default function EmployeeNotificationsPage() {
 
                     <div className="flex items-center gap-2">
                         {unreadCount > 0 && (
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
+                            <Button
+                                variant="outline"
+                                size="sm"
                                 className="rounded-xl border-slate-200 dark:border-slate-700 font-bold text-xs uppercase tracking-wider"
                                 onClick={() => markAsRead()}
                             >
                                 <Check className="w-4 h-4 mr-2" /> Mark all read
                             </Button>
                         )}
-                        <Button 
-                            variant="outline" 
-                            size="sm" 
+                        {notifications.length > 0 && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-xl border-red-200 dark:border-red-800/50 font-bold text-xs uppercase tracking-wider text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                onClick={() => void deleteAll()}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" /> Delete all
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="sm"
                             className="w-10 h-10 p-0 rounded-xl border-slate-200 dark:border-slate-700"
                             onClick={fetchNotifications}
                         >

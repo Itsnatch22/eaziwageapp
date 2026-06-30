@@ -45,7 +45,7 @@ export const NotificationDropdown = ({
   }, []);
 
 
-  const { notifications, loading, unreadCount, markAsRead, deleteNotification } = useNotifications({ userId, apiPath, onToast: (n: Notification) => {
+  const { notifications, loading, unreadCount, markAsRead, deleteNotification, deleteAll } = useNotifications({ userId, apiPath, onToast: (n: Notification) => {
     toast(n.title, { description: n.message, icon: <Bell className={cn("w-5 h-5", `text-${primaryColor}`)} /> });
   } });
 
@@ -108,14 +108,24 @@ export const NotificationDropdown = ({
               <h3 className="font-bold text-slate-900 dark:text-white">Notifications</h3>
               <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stay Updated</p>
             </div>
-            {unreadCount > 0 && (
-              <button 
-                onClick={() => markAsRead()}
-                className="text-[10px] font-black uppercase text-primary hover:opacity-80 transition-opacity"
-              >
-                Mark all as read
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={() => markAsRead()}
+                  className="text-[10px] font-black uppercase text-primary hover:opacity-80 transition-opacity"
+                >
+                  Mark all read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={() => void deleteAll()}
+                  className="text-[10px] font-black uppercase text-red-500 hover:opacity-80 transition-opacity"
+                >
+                  Delete all
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="max-h-96 overflow-y-auto custom-scrollbar">

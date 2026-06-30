@@ -102,14 +102,15 @@ export async function DELETE(req: NextRequest) {
 
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
+        const all = searchParams.get('all') === 'true';
 
-        if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
+        if (!id && !all) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
-        const { error } = await supabase
-            .from('notifications')
-            .delete()
-            .eq('id', id)
-            .eq('user_id', user.id);
+        const query = all
+            ? supabase.from('notifications').delete().eq('user_id', user.id)
+            : supabase.from('notifications').delete().eq('id', id!).eq('user_id', user.id);
+
+        const { error } = await query;
 
         if (error) {
             console.error('[notifications DELETE] Delete error:', error);

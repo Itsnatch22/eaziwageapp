@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react"
 import {
   Building2, Users, CreditCard, Bell,
   Shield, Clock, Save, AlertCircle, CheckCircle2,
-  Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight,
+  Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight, ChevronLeft,
   FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
   MessageSquare, Phone, MapPin, Globe, X, Loader2,
   LucideIcon, User, Smartphone, History
@@ -546,6 +546,8 @@ export default function EmployerSettings() {
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [logPage, setLogPage] = useState(1);
+  const LOGS_PER_PAGE = 5;
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
 
@@ -685,6 +687,7 @@ export default function EmployerSettings() {
         if (logsRes.ok) {
           const data = await logsRes.json();
           setActivityLogs(data.logs || []);
+          setLogPage(1);
         }
         
         if (mfaRes.ok) {
@@ -1710,31 +1713,60 @@ export default function EmployerSettings() {
                     </div>
                   ) : activityLogs.length === 0 ? (
                     <p className="text-xs text-slate-500 text-center py-4">No recent security events.</p>
-                  ) : (
-                    <div className="divide-y divide-slate-100 dark:divide-white/5">
-                      {activityLogs.map((log, idx) => (
-                        <div key={idx} className="py-3 flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">
-                              {log.action.replace('_', ' ')}
-                            </p>
-                            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
-                              {new Date(log.created_at).toLocaleString()}
-                            </p>
-                            {log.metadata && (
-                              <p className="text-[10px] text-slate-400 mt-1">
-                                {log.metadata.device_name && `Device: ${log.metadata.device_name}`}
-                                {log.metadata.location && ` • Location: ${log.metadata.location}`}
-                              </p>
-                            )}
-                          </div>
-                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest ml-3">
-                            {log.metadata?.ip || 'Verified'}
-                          </span>
+                  ) : (() => {
+                    const totalPages = Math.ceil(activityLogs.length / LOGS_PER_PAGE);
+                    const pageStart = (logPage - 1) * LOGS_PER_PAGE;
+                    const pageLogs = activityLogs.slice(pageStart, pageStart + LOGS_PER_PAGE);
+                    return (
+                      <>
+                        <div className="divide-y divide-slate-100 dark:divide-white/5">
+                          {pageLogs.map((log, idx) => (
+                            <div key={idx} className="py-3 flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">
+                                  {log.action.replace(/_/g, ' ')}
+                                </p>
+                                <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">
+                                  {new Date(log.created_at).toLocaleString()}
+                                </p>
+                                {log.metadata && (
+                                  <p className="text-[10px] text-slate-400 mt-1">
+                                    {log.metadata.device_name && `Device: ${log.metadata.device_name}`}
+                                    {log.metadata.location && ` • Location: ${log.metadata.location}`}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest ml-3">
+                                {log.metadata?.ip || 'Verified'}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-between pt-4 mt-2 border-t border-slate-100 dark:border-white/5">
+                            <button
+                              onClick={() => setLogPage((p) => Math.max(1, p - 1))}
+                              disabled={logPage === 1}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <ChevronLeft className="w-4 h-4" /> Previous
+                            </button>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              Page {logPage} of {totalPages}
+                            </span>
+                            <button
+                              onClick={() => setLogPage((p) => Math.min(totalPages, p + 1))}
+                              disabled={logPage === totalPages}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Next <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </SettingsCard>
 
                 <SettingsCard icon={Lock} title="Password" description="Update your account password">

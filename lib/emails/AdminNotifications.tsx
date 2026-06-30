@@ -743,10 +743,16 @@ export function AdminSystemAlertEmail({
   metadata,
   dashboardUrl = 'https://app.eaziwage.com/admin',
 }: AdminSystemAlertEmailProps) {
-  const metaEntries = metadata
-    ? Object.entries(metadata).filter(
-        ([k]) => !['error_log_id', 'severity', 'stack'].includes(k)
-      )
+  // UUID reference fields shown in a secondary, muted section so admins can
+  // cross-reference in Supabase without them dominating the email at a glance.
+  const REFERENCE_KEYS = new Set(['advance_id', 'employer_id', 'employee_id', 'error_log_id']);
+  const HIDDEN_KEYS    = new Set(['severity', 'stack']);
+
+  const primaryEntries  = metadata
+    ? Object.entries(metadata).filter(([k]) => !REFERENCE_KEYS.has(k) && !HIDDEN_KEYS.has(k))
+    : [];
+  const referenceEntries = metadata
+    ? Object.entries(metadata).filter(([k]) => REFERENCE_KEYS.has(k) && !HIDDEN_KEYS.has(k))
     : [];
 
   return (
@@ -761,13 +767,29 @@ export function AdminSystemAlertEmail({
 
       <Text style={styles.text}>{message}</Text>
 
-      {metaEntries.length > 0 && (
+      {primaryEntries.length > 0 && (
         <InfoBox title="Details">
-          {metaEntries.map(([k, v]) => (
+          {primaryEntries.map(([k, v]) => (
             <MetaRow
               key={k}
               label={k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
               value={String(v ?? '—')}
+            />
+          ))}
+        </InfoBox>
+      )}
+
+      {referenceEntries.length > 0 && (
+        <InfoBox title="Reference IDs">
+          {referenceEntries.map(([k, v]) => (
+            <MetaRow
+              key={k}
+              label={k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+              value={
+                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8' }}>
+                  {String(v ?? '—')}
+                </span>
+              }
             />
           ))}
         </InfoBox>

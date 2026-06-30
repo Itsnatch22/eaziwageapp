@@ -13,8 +13,10 @@ interface DusupayWebhookPayload {
   dusupay_reference?: string;
   transaction_status?: string;
   status?: string;
-  amount?: number | string;
-  currency?: string;
+  transaction_amount?: number | string;
+  transaction_currency?: string;
+  net_amount?: number | string;
+  charges?: number | string;
 }
 
 export async function POST(req: NextRequest) {
@@ -38,8 +40,13 @@ export async function POST(req: NextRequest) {
     const merchantReference = payload.merchant_reference || payload.transaction_id;
     const internalReference = payload.internal_reference || payload.dusupay_reference || '';
     const transactionStatus = payload.transaction_status || payload.status;
-    const amount = Number(payload.amount);
-    const currency = payload.currency;
+    const amount = Number(payload.transaction_amount);
+    const currency = payload.transaction_currency;
+
+    if (!Number.isFinite(amount)) {
+      log.error('Webhook payload missing or invalid transaction_amount', { payload });
+      return NextResponse.json({ error: 'Invalid transaction amount in payload' }, { status: 400 });
+    }
 
     if (!merchantReference) {
       log.error('Missing merchant reference');
@@ -201,7 +208,18 @@ async function handleCollectionEvent(
       log.info('EWA-REP non-completion event — skipping', { event });
       return;
     }
-    await handleRepaymentCollection(merchantRef, internalRef, Number(payload.amount), log);
+    const repaymentAmount = Number(payload.transaction_amount);
+    if (!Number.isFinite(repaymentAmount)) {
+      log.error('EWA-REP webhook missing valid transaction_amount — skipping repayment RPC', { merchantRef, payload });
+      void notifyAdmin({
+        type: 'system_alert',
+        title: '❌ Repayment Webhook Malformed',
+        message: `Repayment webhook for ${merchantRef} had no valid amount. Manual review required.`,
+        metadata: { merchantRef, payload },
+      }).catch(() => {});
+      return;
+    }
+    await handleRepaymentCollection(merchantRef, internalRef, repaymentAmount, log);
     return; // never fall through to DEP- logic
   }
 
@@ -221,7 +239,12 @@ async function handleCollectionEvent(
 
   const parts = merchantRef.split('-');
   const employerId = parts[1];
-  const amount = Number(payload.amount);
+  const amount = Number(payload.transaction_amount);
+
+  if (!Number.isFinite(amount)) {
+    log.error('DEP- webhook missing valid transaction_amount', { merchantRef, payload });
+    return;
+  }
 
   if (!employerId) return;
 

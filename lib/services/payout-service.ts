@@ -138,15 +138,15 @@ export class PayoutService {
     const { data: advanceRow, error: advanceError } = await supabaseAdmin
       .from('advances')
       .select(`
-        a:advances(*),
+        *,
         e:employees(id, full_name, kyc_status, status:status, risk_score, employer_id, country, monthly_salary),
         er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access),
         ees:employee_ewa_settings(ewa_enabled, max_advance_percentage, max_advance_amount, min_advance_amount, cooldown_period)
       `)
-      .eq('a.id', advanceId)
+      .eq('id', advanceId)
       .maybeSingle();
 
-    if (advanceError || !advanceRow || !advanceRow.a) {
+    if (advanceError || !advanceRow) {
       throw new Error(`Advance not found: ${advanceError?.message || 'missing'}`);
     }
 
@@ -195,14 +195,10 @@ export class PayoutService {
       cooldown_period?: number | string | null;
     }
 
-    const advance = firstRow(advanceRow.a as unknown as AdvanceRow | AdvanceRow[]);
+    const advance = advanceRow as unknown as AdvanceRow;
     const employee = firstRow(advanceRow.e as unknown as EmployeeRow | EmployeeRow[]);
     const employer = firstRow(advanceRow.er as unknown as EmployerRow | EmployerRow[]);
     const ees = firstRow(advanceRow.ees as unknown as EESRow | EESRow[]);
-
-    if (!advance) {
-      throw new Error('Advance not found: missing advance details');
-    }
 
     const advanceAmount = toNumber(advance.amount);
     const netAmount = toNumber(advance.net_amount, advanceAmount);

@@ -119,7 +119,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     token: env.UPSTASH_REDIS_REST_TOKEN,
   });
 
-  const CACHE_TTL = 60; // 1 minute cache
+  const CACHE_TTL = 15; // 15-second cache — keeps reads fast without staling after disbursements
   const cacheKey = `employer:reports:${user.id}:${period}:${month ?? 'none'}`;
 
   try {
@@ -182,81 +182,105 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const onboardingEmployerId = employer.onboarding_id;
   const currency = getCurrencyFromCountry(employer.country ?? registrationCountryCode, 'KES');
 
-  let employeeRows: { id: string; status: string }[] = [];
+  // Resolve all employee IDs for this employer.
+  // Primary: employees table (normalized). Fallback: employee_onboarding (legacy).
+  // We query by employee_id when fetching advances to bypass the employer_id
+  // ambiguity — some advances still carry employer_onboarding.id there.
+  let allEmployeeIds: string[] = [];
+  let activeCount = 0;
+
   try {
-    const { data: employees, error: empErr } = await supabase
+    const { data: empRows } = await supabase
       .from('employees')
       .select('id, status')
       .eq('employer_id', employerId);
 
-    if (empErr) {
-      console.error('[reports] Error fetching employees:', empErr);
-
-      employeeRows = [];
+    if (empRows && empRows.length > 0) {
+      allEmployeeIds = (empRows as { id: string; status: string }[]).map((e) => e.id);
+      activeCount = (empRows as { id: string; status: string }[])
+        .filter((e) => e.status === 'Active' || e.status === 'approved').length;
     } else {
-      employeeRows = (employees ?? []) as { id: string; status: string }[];
+      // Fallback: pull from employee_onboarding using both employer IDs
+      const onboardingIds = [employerId, onboardingEmployerId].filter(Boolean) as string[];
+      const { data: onbRows } = await supabase
+        .from('employee_onboarding')
+        .select('id, status')
+        .in('employer_id', onboardingIds);
+
+      if (onbRows && onbRows.length > 0) {
+        allEmployeeIds = (onbRows as { id: string; status: string }[]).map((e) => e.id);
+        activeCount = (onbRows as { id: string; status: string }[])
+          .filter((e) => e.status === 'Active' || e.status === 'approved').length;
+      }
     }
   } catch (err) {
     console.error('[reports] Exception fetching employees:', err);
-    employeeRows = [];
   }
 
-  const allEmployeeIds = employeeRows.map((e) => e.id);
-  const activeCount = employeeRows.filter((e) => e.status === 'Active' || e.status === 'approved').length;
+  // Compute advance summary directly — avoids get_employer_advance_summary RPC which
+  // filters by advances.employer_id and misses rows still carrying onboarding IDs.
+  const DISBURSED_STATUSES = ['completed', 'repaid'] as const;
+  const PENDING_STATUSES   = ['pending', 'approved', 'processing'] as const;
+  const DENIED_STATUSES    = ['rejected', 'failed'] as const;
 
-  let summary = {
-    total_count: 0,
-    disbursed_count: 0,
-    pending_count: 0,
-    denied_count: 0,
-    total_amount: 0,
-    total_fees: 0,
-    avg_amount: 0,
-    by_mobile_money: 0,
-    by_bank_transfer: 0,
-    unique_employees_with_advances: 0
-  };
-
-  try {
-    const { data: rpcData, error: rpcErr } = await supabase
-      .rpc('get_employer_advance_summary', {
-        p_employer_id: employerId,
-        p_from: range.from.toISOString(),
-        p_to: range.to.toISOString()
-      });
-
-    if (rpcErr) {
-      console.error('[reports] RPC Error (current):', rpcErr);
-    } else if (rpcData) {
-      summary = rpcData;
-    }
-  } catch (err) {
-    console.error('[reports] RPC Exception (current):', err);
+  function computeSummary(rows: Array<{ amount: unknown; fee_amount: unknown; disbursement_method: string | null; status: string; employee_id: string }>) {
+    const disbursed = rows.filter((r) => (DISBURSED_STATUSES as readonly string[]).includes(r.status));
+    const totalAmount = disbursed.reduce((s, r) => s + Number(r.amount ?? 0), 0);
+    const totalFees   = disbursed.reduce((s, r) => s + Number(r.fee_amount ?? 0), 0);
+    return {
+      total_count:                    rows.length,
+      disbursed_count:                disbursed.length,
+      pending_count:                  rows.filter((r) => (PENDING_STATUSES as readonly string[]).includes(r.status)).length,
+      denied_count:                   rows.filter((r) => (DENIED_STATUSES  as readonly string[]).includes(r.status)).length,
+      total_amount:                   totalAmount,
+      total_fees:                     totalFees,
+      avg_amount:                     disbursed.length > 0 ? totalAmount / disbursed.length : 0,
+      by_mobile_money:                disbursed.filter((r) => r.disbursement_method === 'mobile_money').length,
+      by_bank_transfer:               disbursed.filter((r) => r.disbursement_method !== 'mobile_money' && r.disbursement_method != null).length,
+      unique_employees_with_advances: new Set(disbursed.map((r) => r.employee_id).filter(Boolean)).size,
+    };
   }
 
-  let prevSummary = {
-    total_amount: 0,
-    total_fees: 0
-  };
+  type AdvanceRow = { amount: unknown; fee_amount: unknown; disbursement_method: string | null; status: string; employee_id: string };
 
-  try {
-    const { data: prevRpcData, error: prevRpcErr } = await supabase
-      .rpc('get_employer_advance_summary', {
-        p_employer_id: employerId,
-        p_from: prevRange.from.toISOString(),
-        p_to: prevRange.to.toISOString()
-      });
+  let summary = computeSummary([]);
+  let prevSummary = { total_amount: 0, total_fees: 0 };
 
-    if (prevRpcErr) {
-      console.error('[reports] RPC Error (previous):', prevRpcErr);
-    } else if (prevRpcData) {
-      prevSummary = {
-        total_amount: prevRpcData.total_amount,
-        total_fees: prevRpcData.total_fees
-      };
+  if (allEmployeeIds.length > 0) {
+    try {
+      const { data: advRows, error: advErr } = await supabase
+        .from('advances')
+        .select('amount, fee_amount, disbursement_method, status, employee_id')
+        .in('employee_id', allEmployeeIds)
+        .gte('created_at', range.from.toISOString())
+        .lte('created_at', range.to.toISOString());
+
+      if (advErr) {
+        console.error('[reports] Error fetching advances (current):', advErr);
+      } else {
+        summary = computeSummary((advRows ?? []) as AdvanceRow[]);
+      }
+    } catch (err) {
+      console.error('[reports] Exception fetching advances (current):', err);
     }
-  } catch (err) {
-    console.error('[reports] RPC Exception (previous):', err);
+
+    try {
+      const { data: prevRows, error: prevErr } = await supabase
+        .from('advances')
+        .select('amount, fee_amount, status, employee_id, disbursement_method')
+        .in('employee_id', allEmployeeIds)
+        .gte('created_at', prevRange.from.toISOString())
+        .lte('created_at', prevRange.to.toISOString());
+
+      if (prevErr) {
+        console.error('[reports] Error fetching advances (previous):', prevErr);
+      } else {
+        const prev = computeSummary((prevRows ?? []) as AdvanceRow[]);
+        prevSummary = { total_amount: prev.total_amount, total_fees: prev.total_fees };
+      }
+    } catch (err) {
+      console.error('[reports] Exception fetching advances (previous):', err);
+    }
   }
 
   const totalEmployees   = allEmployeeIds.length;
@@ -273,7 +297,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .from('advances')
         .select('amount, status, created_at')
         .in('employee_id', allEmployeeIds)
-        .in('status', ['disbursed', 'approved'])
+        .in('status', ['completed', 'repaid'])
         .gte('created_at', trendFrom.toISOString());
 
 

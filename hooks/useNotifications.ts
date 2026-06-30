@@ -106,7 +106,18 @@ export function useNotifications({ userId, apiPath, onToast }: UseNotificationsO
     }
   }, [apiPath, fetchNotifications]);
 
+  const deleteAll = useCallback(async () => {
+    setNotifications([]);
+    try {
+      await fetch(`${apiPath}?all=true`, { method: 'DELETE' });
+      toast.success('All notifications cleared');
+    } catch (err) {
+      console.error('deleteAll failed', err);
+      void fetchNotifications();
+    }
+  }, [apiPath, fetchNotifications]);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  return { notifications, loading, unreadCount, markAsRead, deleteNotification, refresh: fetchNotifications };
+  return { notifications, loading, unreadCount, markAsRead, deleteNotification, deleteAll, refresh: fetchNotifications };
 }
