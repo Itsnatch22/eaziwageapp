@@ -19,7 +19,7 @@ export async function GET() {
     token: env.UPSTASH_REDIS_REST_TOKEN,
   });
 
-  const CACHE_TTL = 60; 
+  const CACHE_TTL = 10;
   const cacheKey = `employee:overview:${user.id}`;
 
   try {
@@ -161,7 +161,7 @@ export async function GET() {
 
   const maxAccessPct = (Number(effective.max_advance_percentage) || 50) / 100;
   const totalAdvances = (advances || [])
-    .filter(a => ['approved', 'disbursed'].includes(a.status))
+    .filter(a => ['pending', 'processing', 'approved', 'disbursed'].includes(a.status))
     .reduce((sum, a) => sum + Number(a.amount), 0);
 
   let advanceLimit = Math.max(0, (earnedWages * maxAccessPct) - totalAdvances);
