@@ -218,6 +218,7 @@ export async function POST(req: NextRequest) {
       console.info('[payment-methods] Payment method verified', { id, before_is_verified: before?.is_verified, after_is_verified: updated?.is_verified, user: user.id });
 
       // Strip PII fields from audit — they are null post-trigger anyway, but be explicit
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { account_number: _a, phone_number: _p, ...auditSafeUpdated } = (updated ?? {}) as Record<string, unknown>;
       await adminSupabase.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: before?.employee_id, action: 'verified', new_data: auditSafeUpdated }]);
 

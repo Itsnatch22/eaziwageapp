@@ -5,7 +5,7 @@ const AUTH_FILE = path.join(__dirname, '.auth', 'admin.json');
 
 test.use({ storageState: AUTH_FILE });
 
-test.beforeEach(({ page: _page }) => {
+test.beforeEach(() => {
   test.skip(
     !process.env.TEST_ADMIN_EMAIL,
     'Skipped — set TEST_ADMIN_EMAIL + TEST_ADMIN_PASSWORD in .env.local to run admin tests',

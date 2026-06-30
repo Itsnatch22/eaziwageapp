@@ -567,7 +567,7 @@ export default function AdminWalletClient({
 
   // Reset countdown whenever a sync completes (manual or auto)
   useEffect(() => {
-    setNextSyncIn(30);
+    Promise.resolve().then(() => setNextSyncIn(30));
   }, [wallet?.last_reconciled_at]);
 
   return (

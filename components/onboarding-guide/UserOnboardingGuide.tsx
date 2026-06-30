@@ -119,7 +119,7 @@ export function UserOnboardingGuide({ role, show = true }: UserOnboardingGuidePr
   useEffect(() => {
     if (!userId || !show) return;
     const key = storageKey(role, userId);
-    if (!localStorage.getItem(key)) setVisible(true);
+    if (!localStorage.getItem(key)) Promise.resolve().then(() => setVisible(true));
   }, [userId, role, show]);
 
   const dismiss = (finished = false) => {

@@ -111,7 +111,7 @@ export default function AdvanceCalculatorPage() {
     }
   }, []);
 
-  useEffect(() => { void fetchData(); }, [fetchData]);
+  useEffect(() => { Promise.resolve().then(() => fetchData()); }, [fetchData]);
 
   if (loading) return (
     <EmployeePortalLayout title="Advance Calculator">

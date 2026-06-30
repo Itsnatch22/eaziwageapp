@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, timestamp, jsonb, pgEnum, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, numeric, timestamp, jsonb, pgEnum, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const employeeStatusEnum = pgEnum('employee_status', ['Active', 'Inactive']);
@@ -127,7 +127,7 @@ export const advances = pgTable('advances', {
 
 export const dusupayTransactions = pgTable('dusupay_transactions', {
   id: uuid('id').primaryKey().defaultRandom(),
-  merchant_reference: text('merchant_reference').notNull().unique(),
+  merchant_reference: text('merchant_reference').notNull(),
   internal_reference: text('internal_reference'),
   event_type: text('event_type').notNull(),
   status: text('status').notNull(),
@@ -137,6 +137,7 @@ export const dusupayTransactions = pgTable('dusupay_transactions', {
   created_at: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   merchant_ref_idx: index('dusupay_tx_merchant_ref_idx').on(table.merchant_reference),
+  merchant_ref_event_unique: uniqueIndex('dusupay_transactions_merchant_ref_event_unique').on(table.merchant_reference, table.event_type),
 }));
 
 export const employerWallets = pgTable('employer_wallets', {

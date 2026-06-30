@@ -1,4 +1,4 @@
-import { request, type FullConfig } from '@playwright/test';
+import { request } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -40,7 +40,7 @@ async function loginAndSave(email: string, password: string, filename: string) {
   await apiContext.dispose();
 }
 
-export default async function globalSetup(_config: FullConfig) {
+export default async function globalSetup() {
   await loginAndSave(
     process.env.TEST_ADMIN_EMAIL    ?? '',
     process.env.TEST_ADMIN_PASSWORD ?? '',

@@ -531,7 +531,7 @@ export default function EmployerOnboarding() {
       }
     };
     fetchExistingData();
-  }, [userFullName, userEmail]);
+  }, [userFullName, userEmail, router]);
 
   useEffect(() => {
     fetch("/api/employer-dashboard/sectors")

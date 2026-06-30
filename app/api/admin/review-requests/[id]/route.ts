@@ -4,13 +4,6 @@ import { requireAdmin } from '@/lib/server/admin-auth';
 import { ReviewRequestPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer, notifyEmployee } from '@/lib/notifications';
 
-interface ReviewRequestPayload {
-  status: string;
-  response?: string;
-  internal_notes?: string;
-  type?: string;
-}
-
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -179,7 +172,10 @@ export async function PATCH(
         metadata: {
           outcome: status === 'approved' ? 'approved' : 'rejected',
           requestedBankName: bRequest.new_bank_name ?? 'New Bank',
-          requestedAccountNumber: bRequest.new_account_number ?? '••••••••',
+          // Store only last-4 mask — full account number must never be persisted in notification rows
+          requestedAccountNumber: bRequest.new_account_number && bRequest.new_account_number.length > 4
+            ? `•••• ${bRequest.new_account_number.slice(-4)}`
+            : '••••••••',
           currentBankName: bRequest.current_bank_name ?? undefined,
           reason: response || internal_notes || undefined,
           effectiveAt: new Date().toLocaleString(),
@@ -187,14 +183,17 @@ export async function PATCH(
       });
     }
 
+    const maskAccount = (n: string | null | undefined) =>
+      n && n.length > 4 ? `•••• ${n.slice(-4)}` : '••••••••';
+
     void adminSupabase.from('system_audit_logs').insert({
       admin_id: adminUser.id,
       admin_name: adminUser.email,
       target_id: requestId,
       target_type: 'bank_change_request',
       action: `bank_change_${status}`,
-      old_value: { bank_name: bRequest.current_bank_name, account_number: bRequest.current_account_number },
-      new_value: status === 'approved' ? { bank_name: bRequest.new_bank_name, account_number: bRequest.new_account_number } : null,
+      old_value: { bank_name: bRequest.current_bank_name, account_number: maskAccount(bRequest.current_account_number) },
+      new_value: status === 'approved' ? { bank_name: bRequest.new_bank_name, account_number: maskAccount(bRequest.new_account_number) } : null,
       metadata: { employer_id: bRequest.employer_id, reason: response || internal_notes },
     }).then(({ error }) => { if (error) console.error('[audit] bank_change_resolved:', error); });
 

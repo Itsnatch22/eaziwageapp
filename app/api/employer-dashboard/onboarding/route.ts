@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
     employment_contract_template,
     // PII — written via upsert_employer_onboarding_pii RPC, not stored raw
     bank_account_number,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     tax_id,
     ...fields
   } = parsed.data;

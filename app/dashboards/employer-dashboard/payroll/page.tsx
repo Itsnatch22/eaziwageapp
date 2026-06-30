@@ -743,7 +743,7 @@ export default function EmployerPayroll() {
 
   useEffect(() => {
     Promise.resolve().then(() => fetchData());
-    void fetchSimulator();
+    Promise.resolve().then(() => fetchSimulator());
   }, [fetchData, fetchSimulator]);
 
   const downloadTemplate = () => {

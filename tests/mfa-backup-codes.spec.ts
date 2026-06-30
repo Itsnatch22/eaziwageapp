@@ -5,7 +5,7 @@ const AUTH_FILE = path.join(__dirname, '.auth', 'employee.json');
 
 test.use({ storageState: AUTH_FILE });
 
-test.beforeEach(({ page: _page }) => {
+test.beforeEach(() => {
   test.skip(
     !process.env.TEST_EMPLOYEE_EMAIL,
     'Skipped — set TEST_EMPLOYEE_EMAIL + TEST_EMPLOYEE_PASSWORD in .env.local to run employee tests',
@@ -25,8 +25,6 @@ const MFA_STATUS_ENABLED = {
     },
   ],
 };
-
-const MFA_STATUS_DISABLED = { enabled: false, factors: [] };
 
 const MOCK_BACKUP_CODES = [
   'ABCD-EFGH', '1234-5678', 'WXYZ-MNOP', 'QRST-UVWX',

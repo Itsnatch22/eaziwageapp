@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       amount: amount,
       currency: currency,
       raw_payload: body,
-    }, { onConflict: 'merchant_reference' });
+    }, { onConflict: 'merchant_reference,event_type' });
 
     if (event.startsWith('collection.')) {
       await handleCollectionEvent(event, payload, merchantReference, internalReference, mlog);
@@ -209,12 +209,12 @@ async function handleCollectionEvent(
       return;
     }
     const repaymentAmount = Number(payload.transaction_amount);
-    if (!Number.isFinite(repaymentAmount)) {
-      log.error('EWA-REP webhook missing valid transaction_amount — skipping repayment RPC', { merchantRef, payload });
+    if (!Number.isFinite(repaymentAmount) || repaymentAmount <= 0) {
+      log.error('EWA-REP webhook missing or zero transaction_amount — skipping repayment RPC', { merchantRef, payload });
       void notifyAdmin({
         type: 'system_alert',
         title: '❌ Repayment Webhook Malformed',
-        message: `Repayment webhook for ${merchantRef} had no valid amount. Manual review required.`,
+        message: `Repayment webhook for ${merchantRef} had no valid amount (got: ${repaymentAmount}). Manual review required.`,
         metadata: { merchantRef, payload },
       }).catch(() => {});
       return;

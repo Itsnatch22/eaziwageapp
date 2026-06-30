@@ -8,12 +8,20 @@
  *   advance_limit_percent, cooldown_days, min_advance_amount, processing_fee
  *   ewa_enabled, disbursements_frozen, is_defaulted, auto_approve, weekend_access
  *
+ * v_employer_config (view) → PREFERRED for read queries that need both tables.
+ *   Joins employers ← employer_onboarding and presents everything under employers
+ *   column names with COALESCE fallbacks. Use EMPLOYER_CONFIG_VIEW for the table name.
+ *   Do NOT write through this view — writes still go to the underlying tables.
+ *
  * NEVER read advance eligibility columns from employer_onboarding
  * NEVER write operational settings to employer_onboarding
  *
  * Canonical column names per table — always reference these constants so that
  * IDE rename and grep can track every usage across the codebase.
  */
+
+/** Stable name for the unified employer config view (migration 20240004). */
+export const EMPLOYER_CONFIG_VIEW = 'v_employer_config' as const;
 
 export const ONBOARDING_COLUMNS = {
   advanceLimitPercent: 'max_advance_percentage', // employer_onboarding

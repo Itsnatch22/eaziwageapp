@@ -5,7 +5,7 @@ const AUTH_FILE = path.join(__dirname, '.auth', 'employer.json');
 
 test.use({ storageState: AUTH_FILE });
 
-test.beforeEach(({ page: _page }) => {
+test.beforeEach(() => {
   test.skip(
     !process.env.TEST_EMPLOYER_EMAIL,
     'Skipped — set TEST_EMPLOYER_EMAIL + TEST_EMPLOYER_PASSWORD in .env.local to run employer tests',

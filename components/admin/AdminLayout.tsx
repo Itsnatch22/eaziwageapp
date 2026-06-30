@@ -27,7 +27,6 @@ import {
   Wifi,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from '@/lib/supabase/client';
 import { toast } from "sonner";
 import { ChatWindow } from "../layout/ChatWindow";
 import { NotificationDropdown } from "../layout/NotificationDropdown";

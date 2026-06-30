@@ -4,10 +4,11 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
 export default function SessionTimeout() {
   const router = useRouter();
   const timerRef = useRef<number | null>(null);
-  const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
   useEffect(() => {
     const reset = () => {

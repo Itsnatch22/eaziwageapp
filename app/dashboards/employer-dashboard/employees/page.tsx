@@ -912,7 +912,7 @@ const EmployeeViewModal: React.FC<{
 
   React.useEffect(() => {
     if (!isOpen || !employee?.id) return;
-    setPmLoading(true);
+    Promise.resolve().then(() => setPmLoading(true));
     fetch(`/api/employer-dashboard/employees/${employee.id}/payment-methods`)
       .then(r => r.ok ? r.json() : { methods: [] })
       .then(d => setPaymentMethods(d.methods ?? []))

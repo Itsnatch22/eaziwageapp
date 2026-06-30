@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Activity, CheckCircle2, AlertTriangle, XCircle, RefreshCw,
   Server, CreditCard, Smartphone, Database, Clock3, Gauge,
-  Radio, Layers3,
+  Radio,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

@@ -416,7 +416,7 @@ export class PayoutService {
       throw new Error(reason);
     }
 
-    await supabaseAdmin.from('dusupay_transactions').insert({
+    await supabaseAdmin.from('dusupay_transactions').upsert({
       merchant_reference: merchantReference,
       internal_reference: payoutResponse.data?.internal_reference,
       event_type: 'payout_initiated',
@@ -424,7 +424,7 @@ export class PayoutService {
       amount: netAmount,
       currency: advance.currency,
       raw_payload: payoutResponse
-    });
+    }, { onConflict: 'merchant_reference,event_type' });
 
     try {
       await supabaseAdmin.rpc('increment_employer_liability', {

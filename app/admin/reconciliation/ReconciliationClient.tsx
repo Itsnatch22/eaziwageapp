@@ -222,7 +222,7 @@ export default function AdminReconciliation() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { Promise.resolve().then(() => fetchData()); }, []);
 
   const handleExport = () => {
     if (!data?.by_employer?.length) return;

@@ -44,6 +44,7 @@ export async function createPaymentMethod(supabaseClient: SupabaseClient, employ
   }
 
   // Strip PII from audit — account_number/phone_number are null post-trigger but be explicit
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { account_number: _a, phone_number: _p, ...auditSafeData } = data as Record<string, unknown>;
   await supabaseClient
     .from('payment_method_audit')

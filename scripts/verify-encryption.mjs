@@ -95,7 +95,7 @@ async function ensureHelperFunction() {
   // If it errors with "function does not exist", create it
   if (error?.message?.includes('does not exist')) {
     console.log('🔧  Creating debug_decrypt helper function...');
-    const { error: createErr } = await supabase.from('_migrations').select().limit(0); // ping
+    await supabase.from('_migrations').select().limit(0); // ping
     // Use raw SQL via the REST API isn't possible without service key SQL exec
     // Just warn the user instead
     console.warn('⚠️  debug_decrypt RPC not found. Create it manually in Supabase SQL editor:');

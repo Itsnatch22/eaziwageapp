@@ -186,7 +186,7 @@ export default function EmployeeSettings() {
   const [backupLoading, setBackupLoading] = useState(false);
 
   useEffect(() => {
-    if (activeTab === 'security') setLogPage(0);
+    if (activeTab === 'security') Promise.resolve().then(() => setLogPage(0));
   }, [activeTab]);
 
   useEffect(() => {

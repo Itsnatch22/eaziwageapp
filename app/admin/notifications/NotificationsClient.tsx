@@ -160,7 +160,7 @@ export default function AdminNotificationsPage() {
   }, [fetchNotifications]);
 
   useEffect(() => {
-    fetchHealth();
+    Promise.resolve().then(() => fetchHealth());
   }, [fetchHealth]);
 
   const markAsRead = async (ids: string[]) => {

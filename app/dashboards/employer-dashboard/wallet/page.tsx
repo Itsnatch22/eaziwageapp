@@ -119,6 +119,7 @@ const WalletPage = () => {
       { table: 'wallet_transactions', filter: `wallet_id=eq.${wallet.id}` },
       { table: 'repayment_schedules', filter: `employer_id=eq.${wallet.employer_id}` },
     ] : [],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_table) => void fetchData(),
   );
 
@@ -317,7 +318,7 @@ const WalletPage = () => {
                 const isOverdue = schedule.status === 'overdue' ||
                   new Date(schedule.due_date) < new Date();
                 const daysOverdue = isOverdue
-                  ? Math.floor((Date.now() - new Date(schedule.due_date).getTime()) / (1000 * 60 * 60 * 24))
+                  ? Math.floor((new Date().getTime() - new Date(schedule.due_date).getTime()) / (1000 * 60 * 60 * 24))
                   : 0;
 
                 return (

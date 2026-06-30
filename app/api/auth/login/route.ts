@@ -9,7 +9,6 @@ import { sendAccountLockedEmail }          from '@/lib/security-alerts';
 import type { LoginContext }               from '@/lib/security-alerts';
 import { handleLoginSecurity }             from '@/lib/security-service';
 import { normalizeAppRole, resolveRoleFromTables } from '@/lib/server/resolve-user-role';
-import type { AppRole }                    from '@/lib/server/resolve-user-role';
 
 
 const env = getEnv();

@@ -4,7 +4,7 @@ import React, { useState, useCallback, useTransition } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle, CheckCircle2, Clock, Search, ChevronDown, ChevronUp,
-  ArrowLeft, Shield, Users, Activity, BarChart3
+  ArrowLeft, Activity, BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -554,7 +554,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
 
   useEffect(() => {
     if (isOpen && employee?.id && activeTab === 'payment') {
-      fetchPaymentMethods();
+      Promise.resolve().then(() => fetchPaymentMethods());
     }
   }, [isOpen, employee?.id, activeTab, fetchPaymentMethods]);
 

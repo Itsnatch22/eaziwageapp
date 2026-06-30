@@ -613,28 +613,28 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: IconType; label: string; 
   </div>
 );
 
+const NoPreview = ({ hasUrl, documentUrl }: { hasUrl: boolean; documentUrl: string | undefined }) => (
+  <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400">
+    <FileText className="w-12 h-12 opacity-40" />
+    <p className="text-sm font-medium">Preview unavailable</p>
+    {hasUrl && (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => window.open(documentUrl ?? '', '_blank', 'noopener,noreferrer')}
+        className="rounded-xl"
+      >
+        <ExternalLink className="w-4 h-4 mr-2" />
+        Open in new tab
+      </Button>
+    )}
+  </div>
+);
+
 const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
   const previewKind = getDocumentPreviewKind(doc);
   const [imgError, setImgError] = useState(false);
   const hasUrl = !!doc.document_url;
-
-  const NoPreview = () => (
-    <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400">
-      <FileText className="w-12 h-12 opacity-40" />
-      <p className="text-sm font-medium">Preview unavailable</p>
-      {hasUrl && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open(doc.document_url!, '_blank', 'noopener,noreferrer')}
-          className="rounded-xl"
-        >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          Open in new tab
-        </Button>
-      )}
-    </div>
-  );
 
   return (
     <div className="lg:col-span-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
@@ -661,7 +661,7 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
 
       <div className="h-105 lg:h-140 bg-slate-200/70 dark:bg-slate-950">
         {!hasUrl || imgError ? (
-          <NoPreview />
+          <NoPreview hasUrl={hasUrl} documentUrl={doc.document_url ?? undefined} />
         ) : previewKind === 'image' ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -206,6 +206,7 @@ export default function EmployeeDashboardPage() {
       { table: 'employee_ewa_settings', filter: `user_id=eq.${user.id}` },
       { table: 'employee_onboarding',   filter: `user_id=eq.${user.id}` },
     ] : [],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_table) => void fetchStats({ silent: true }),
   );
 

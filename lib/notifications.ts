@@ -26,7 +26,6 @@ import {
   NewKYCDocumentEmail,
   BankChangeRequestEmail,
   FraudAlertEmail,
-  DocumentUploadNotificationEmail,
   ErrorAlertEmail,
   AdminSystemAlertEmail,
 } from './emails/AdminNotifications';

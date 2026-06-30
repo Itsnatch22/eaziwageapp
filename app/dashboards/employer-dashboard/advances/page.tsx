@@ -116,6 +116,21 @@ export default function EmployerAdvancesPage() {
   useEffect(() => {
     const boot = async () => {
       try {
+        // Resolve employerId FIRST so the realtime subscription is established
+        // as early as possible — before we even fire the data fetches. This
+        // ensures the subscription is live before the user can approve an advance
+        // and before any background disbursement failure UPDATE can be missed.
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: emp } = await supabase
+            .from('employers')
+            .select('id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          setEmployerId(emp?.id ?? null);
+        }
+
         const [advancesRes, employerRes] = await Promise.all([
           fetch('/api/employer-dashboard/advances'),
           fetch('/api/employer-dashboard/profile'),
@@ -134,18 +149,6 @@ export default function EmployerAdvancesPage() {
               }
             : null,
         );
-
-        // Resolve employer ID for Realtime filter
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: emp } = await supabase
-            .from('employers')
-            .select('id')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          setEmployerId(emp?.id ?? null);
-        }
       } catch (error: unknown) {
         toast.error((error as Error)?.message || 'Failed to load advances');
       } finally {
@@ -166,7 +169,7 @@ export default function EmployerAdvancesPage() {
       const data: Record<string, string> = await res.json();
       if (!res.ok) throw new Error(data?.error || data?.message || 'Action failed');
 
-      toast.success(action === 'approve' ? 'Advance approved' : 'Advance rejected');
+      toast.success(action === 'approve' ? 'Advance approved — processing disbursement...' : 'Advance rejected');
       await fetchAdvances();
     } catch (error: unknown) {
       toast.error((error as Error)?.message || 'Action failed');

@@ -15,29 +15,11 @@ type AdvanceStatus =
   | 'fraud_review'
   | 'rejected';
 
-interface ReviewAction {
-  flagId: string;
-  advanceId: string;
-  action: 'clear' | 'confirm_fraud';
-  notes: string;
-}
-
 interface ReviewResponse {
   success: boolean;
   flagId: string;
   newFlagStatus: FraudFlagStatus;
   newAdvanceStatus: AdvanceStatus;
-}
-
-function isReviewAction(body: unknown): body is ReviewAction {
-  if (!body || typeof body !== 'object') return false;
-  const b = body as Record<string, unknown>;
-  return (
-    typeof b.flagId === 'string' && b.flagId.length > 0 &&
-    typeof b.advanceId === 'string' && b.advanceId.length > 0 &&
-    (b.action === 'clear' || b.action === 'confirm_fraud') &&
-    typeof b.notes === 'string'
-  );
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
