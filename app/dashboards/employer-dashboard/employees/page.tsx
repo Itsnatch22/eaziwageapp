@@ -1060,37 +1060,37 @@ const EmployeeViewModal: React.FC<{
               <p className="text-xs text-slate-400 animate-pulse">Loading…</p>
             ) : paymentMethods.length === 0 ? (
               <p className="text-xs text-slate-400">No payment method set. Employee has not added a disbursement account yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {paymentMethods.map(pm => (
-                  <div key={pm.id} className={cn(
-                    'flex items-center gap-3 p-3 rounded-lg border text-sm',
-                    pm.is_default
-                      ? 'border-primary/30 bg-primary/5 dark:bg-primary/10'
-                      : 'border-slate-200 dark:border-slate-700',
-                  )}>
-                    <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0">
-                      {pm.method_type === 'mobile_money'
-                        ? <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                        : <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-900 dark:text-white truncate">
-                        {pm.provider_name}
-                        {pm.is_default && <span className="ml-2 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Default</span>}
-                      </p>
-                      <p className="text-xs text-slate-500 truncate">
-                        {pm.method_type === 'mobile_money' ? pm.phone_number : pm.account_number}
-                        {pm.account_name ? ` · ${pm.account_name}` : ''}
-                      </p>
-                    </div>
-                    {!pm.is_verified && (
-                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full shrink-0">Unverified</span>
-                    )}
+            ) : (() => {
+              // API orders by is_default desc, so [0] is the primary method (or the only one).
+              const pm = paymentMethods[0];
+              return (
+                <div className={cn(
+                  'flex items-center gap-3 p-3 rounded-lg border text-sm',
+                  pm.is_default
+                    ? 'border-primary/30 bg-primary/5 dark:bg-primary/10'
+                    : 'border-slate-200 dark:border-slate-700',
+                )}>
+                  <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0">
+                    {pm.method_type === 'mobile_money'
+                      ? <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                      : <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-900 dark:text-white truncate">
+                      {pm.provider_name}
+                      {pm.is_default && <span className="ml-2 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Default</span>}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {pm.method_type === 'mobile_money' ? pm.phone_number : pm.account_number}
+                      {pm.account_name ? ` · ${pm.account_name}` : ''}
+                    </p>
+                  </div>
+                  {!pm.is_verified && (
+                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full shrink-0">Unverified</span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
         <div className="flex gap-3 p-6 border-t border-slate-200 dark:border-slate-700">

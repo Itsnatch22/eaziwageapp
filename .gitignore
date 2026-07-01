@@ -57,3 +57,6 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 /tests/.auth/
+
+# local-only project notes for Claude Code
+CLAUDE.md

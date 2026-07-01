@@ -422,7 +422,7 @@ export default function RequestAdvance() {
             icon={Shield}
             label="Maximum Limit"
             value={formatCurrency(employee?.advance_limit || 0, currency)}
-            subtext="Based on risk score"
+            subtext="Based on wages earned"
             accent="#10b981"
           />
           <MetricCard

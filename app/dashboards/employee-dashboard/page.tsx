@@ -18,6 +18,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
 import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardingGuide';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { createClient } from '@/lib/supabase/client';
 
 
 
@@ -171,6 +172,7 @@ export default function EmployeeDashboardPage() {
   const [employee, setEmployee] = useState<EmployeeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [liveEmployeeId, setLiveEmployeeId] = useState<string | null>(null);
   const router = useRouter();
 
 
@@ -198,14 +200,32 @@ export default function EmployeeDashboardPage() {
     void fetchStats({ silent: true });
   }, [fetchStats]);
 
+  // Resolve the live employees.id for the advances/EWA realtime filters below —
+  // those tables key on employees.id, not the auth user id. employee_onboarding
+  // is the exception: it genuinely has a user_id column.
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+    supabase
+      .from('employees')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setLiveEmployeeId(data?.id ?? null));
+  }, [user?.id]);
+
   // Refresh dashboard when any relevant record changes — advance status, EWA
-  // settings, or KYC status. All filtered to this employee's user_id.
+  // settings, or KYC status.
   useRealtimeRefresh(
-    user?.id ? [
-      { table: 'advances',              filter: `employee_id=eq.${user.id}` },
-      { table: 'employee_ewa_settings', filter: `user_id=eq.${user.id}` },
-      { table: 'employee_onboarding',   filter: `user_id=eq.${user.id}` },
-    ] : [],
+    [
+      ...(liveEmployeeId ? [
+        { table: 'advances',              filter: `employee_id=eq.${liveEmployeeId}` },
+        { table: 'employee_ewa_settings', filter: `employee_id=eq.${liveEmployeeId}` },
+      ] : []),
+      ...(user?.id ? [
+        { table: 'employee_onboarding', filter: `user_id=eq.${user.id}` },
+      ] : []),
+    ],
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_table) => void fetchStats({ silent: true }),
   );
@@ -294,11 +314,11 @@ export default function EmployeeDashboardPage() {
               
               <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-emerald-400/50 to-transparent" />
 
-              <SpeedDial 
-                value={advanceLimit} 
-                max={earnedWages || 10000} 
-                currency={currency} 
-                isMonthlyProgress={true} 
+              <SpeedDial
+                value={earnedWages}
+                max={earnedWages || 10000}
+                currency={currency}
+                isMonthlyProgress={true}
               />
 
               <div className="flex items-center justify-center gap-8 py-2">

@@ -41,7 +41,7 @@ export async function PUT(
 
   const { data: employee, error: empError } = await supabase
     .from('employee_onboarding')
-    .select('id, employer_id')
+    .select('id, employer_id, user_id')
     .eq('id', employeeId)
     .eq('employer_id', employer.onboarding_id)
     .maybeSingle();
@@ -53,6 +53,23 @@ export async function PUT(
   if (!employee) {
     return NextResponse.json(
       { error: 'Employee not found or does not belong to your organization.' },
+      { status: 404 },
+    );
+  }
+
+  const { data: liveEmployee, error: liveEmployeeError } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('user_id', employee.user_id)
+    .maybeSingle();
+
+  if (liveEmployeeError) {
+    return NextResponse.json({ error: liveEmployeeError.message }, { status: 500 });
+  }
+
+  if (!liveEmployee) {
+    return NextResponse.json(
+      { error: 'Employee has not been activated yet. EWA settings require an active employee record.' },
       { status: 404 },
     );
   }
@@ -84,8 +101,10 @@ export async function PUT(
     .from('employee_ewa_settings')
     .upsert(
       {
+        employee_id: liveEmployee.id,
         employee_onboarding_id: employee.id,
         employer_id: employer.onboarding_id,
+        employer_live_id: employer.id,
         ewa_enabled: data.ewa_enabled,
         max_advance_percentage: data.max_advance_percentage,
         min_advance_amount: data.min_advance_amount,
