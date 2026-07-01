@@ -100,12 +100,20 @@ export async function GET(req: Request) {
   console.log('[credit-overview] Fetching advances for', employeeIds.length, 'employees');
   console.log('[credit-overview] Date range:', range.from, 'to', range.to);
 
-  const [outstandingQuery, monthQuery] = await Promise.all([
+  // "Outstanding Credit" reads from employer_wallets.outstanding_liability instead of
+  // re-summing the advances table. That column is the webhook-maintained ledger
+  // (updated in near-real-time as DusuPay settles disbursements/repayments — see
+  // app/api/webhook/dusupay/route.ts) and is the same figure the wallet page's
+  // "Arrears Balance" already uses. A live SUM over advances.status here would drift
+  // from it (e.g. it'd miss advances still in 'processing' that the ledger already
+  // counted at disbursement time) and give the impression of two disagreeing numbers
+  // for the same thing.
+  const [walletQuery, monthQuery] = await Promise.all([
     supabase
-      .from('advances')
-      .select('amount')
-      .in('employee_id', employeeIds)
-      .in('status', ['approved', 'disbursed']),
+      .from('employer_wallets')
+      .select('outstanding_liability')
+      .eq('employer_id', employer.id)
+      .maybeSingle(),
     supabase
       .from('advances')
       .select('amount')
@@ -115,12 +123,12 @@ export async function GET(req: Request) {
       .lte('created_at', range.to),
   ]);
 
-  if (outstandingQuery.error) {
-    console.error('[credit-overview] Outstanding advances query error:', outstandingQuery.error);
-    return NextResponse.json({ error: 'Failed to fetch outstanding advances' }, { status: 500 });
+  if (walletQuery.error) {
+    console.error('[credit-overview] Wallet query error:', walletQuery.error);
+    return NextResponse.json({ error: 'Failed to fetch employer wallet' }, { status: 500 });
   }
 
-  console.log('[credit-overview]  Outstanding advances found:', outstandingQuery.data?.length ?? 0);
+  console.log('[credit-overview] ✓ Outstanding liability:', walletQuery.data?.outstanding_liability ?? 0);
 
   if (monthQuery.error) {
     console.error('[credit-overview] Month advances query error:', monthQuery.error);
@@ -133,7 +141,7 @@ export async function GET(req: Request) {
     return sum + Number(row.amount ?? 0);
   }, 0);
 
-  const totalOutstandingCredit = sumAmounts((outstandingQuery.data ?? []) as AdvanceAmountRow[]);
+  const totalOutstandingCredit = Number(walletQuery.data?.outstanding_liability ?? 0);
   const monthDisbursedAmount = sumAmounts((monthQuery.data ?? []) as AdvanceAmountRow[]);
   const remainingMonthlyLimit = Math.max(0, companyCreditLimit - monthDisbursedAmount);
   const availableCompanyCredit = Math.max(0, companyCreditLimit - totalOutstandingCredit);

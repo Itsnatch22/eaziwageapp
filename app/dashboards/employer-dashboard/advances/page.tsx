@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, useCallback, type ComponentType } from 'react';
 import {
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   CreditCard,
   Download,
@@ -88,9 +90,32 @@ interface EmployerData {
   };
 }
 
+interface AdvanceStats {
+  total: number;
+  totalAmount: number;
+  pendingCount: number;
+  pendingAmount: number;
+  approvedCount: number;
+  avgFee: number;
+}
+
+const EMPTY_STATS: AdvanceStats = {
+  total: 0,
+  totalAmount: 0,
+  pendingCount: 0,
+  pendingAmount: 0,
+  approvedCount: 0,
+  avgFee: 0,
+};
+
+const PAGE_SIZE = 50;
+
 export default function EmployerAdvancesPage() {
   const { currency } = useCurrency();
   const [advances, setAdvances] = useState<AdvanceItem[]>([]);
+  const [stats, setStats] = useState<AdvanceStats>(EMPTY_STATS);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -98,28 +123,29 @@ export default function EmployerAdvancesPage() {
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   const [employerId, setEmployerId] = useState<string | null>(null);
 
-  const fetchAdvances = useCallback(async () => {
-    const res = await fetch('/api/employer-dashboard/advances');
+  const fetchAdvances = useCallback(async (pageToLoad: number) => {
+    const res = await fetch(`/api/employer-dashboard/advances?page=${pageToLoad}&pageSize=${PAGE_SIZE}`);
     const data: unknown = await res.json();
     if (!res.ok) {
       throw new Error((data as { error?: string })?.error || 'Failed to load advances');
     }
-    setAdvances(Array.isArray(data) ? (data as AdvanceItem[]) : []);
+    const body = data as { advances?: AdvanceItem[]; total?: number; stats?: AdvanceStats };
+    setAdvances(Array.isArray(body.advances) ? body.advances : []);
+    setTotal(body.total ?? 0);
+    setStats(body.stats ?? EMPTY_STATS);
   }, []);
 
   // Scoped to this employer's advances only — UPDATE covers status changes from admin/disbursement
   useRealtimeRefresh(
     employerId ? [{ table: 'advances', event: 'UPDATE', filter: `employer_id=eq.${employerId}` }] : [],
-    () => void fetchAdvances(),
+    () => void fetchAdvances(page),
   );
 
+  // Resolve employerId + employer profile once on mount — separate from the
+  // paginated advances fetch below so switching pages doesn't re-resolve these.
   useEffect(() => {
     const boot = async () => {
       try {
-        // Resolve employerId FIRST so the realtime subscription is established
-        // as early as possible — before we even fire the data fetches. This
-        // ensures the subscription is live before the user can approve an advance
-        // and before any background disbursement failure UPDATE can be missed.
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -131,16 +157,8 @@ export default function EmployerAdvancesPage() {
           setEmployerId(emp?.id ?? null);
         }
 
-        const [advancesRes, employerRes] = await Promise.all([
-          fetch('/api/employer-dashboard/advances'),
-          fetch('/api/employer-dashboard/profile'),
-        ]);
-
-        const advancesData: unknown = await advancesRes.json();
+        const employerRes = await fetch('/api/employer-dashboard/profile');
         const employerData: EmployerData = await employerRes.json();
-
-        if (!advancesRes.ok) throw new Error((advancesData as { error?: string })?.error || 'Failed to load advances');
-        setAdvances(Array.isArray(advancesData) ? (advancesData as AdvanceItem[]) : []);
         setEmployer(
           employerData?.profile
             ? {
@@ -150,13 +168,19 @@ export default function EmployerAdvancesPage() {
             : null,
         );
       } catch (error: unknown) {
-        toast.error((error as Error)?.message || 'Failed to load advances');
-      } finally {
-        setLoading(false);
+        toast.error((error as Error)?.message || 'Failed to load employer profile');
       }
     };
     boot();
   }, []);
+
+  // Runs on mount (page 1) and again whenever the user changes page.
+  useEffect(() => {
+    setLoading(true);
+    fetchAdvances(page)
+      .catch((error: unknown) => toast.error((error as Error)?.message || 'Failed to load advances'))
+      .finally(() => setLoading(false));
+  }, [page, fetchAdvances]);
 
   const handleAction = async (id: string, action: 'approve' | 'reject' | 'deny') => {
     setActingId(id);
@@ -170,13 +194,20 @@ export default function EmployerAdvancesPage() {
       if (!res.ok) throw new Error(data?.error || data?.message || 'Action failed');
 
       toast.success(action === 'approve' ? 'Advance approved — processing disbursement...' : 'Advance rejected');
-      await fetchAdvances();
+      await fetchAdvances(page);
     } catch (error: unknown) {
       toast.error((error as Error)?.message || 'Action failed');
     } finally {
       setActingId(null);
     }
   };
+
+  // Search/status filtering happens client-side over the current page only
+  // (the list itself is server-paginated). Jump back to page 1 whenever a
+  // filter changes so results aren't scoped to whatever page was open before.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
 
   const filteredAdvances = useMemo(() => {
     return advances.filter((a) => {
@@ -191,23 +222,9 @@ export default function EmployerAdvancesPage() {
     });
   }, [advances, searchTerm, statusFilter]);
 
-  const stats = useMemo(() => {
-    const pending = advances.filter((a) => a.status === 'pending');
-    const approved = advances.filter((a) => a.status === 'approved' || a.status === 'disbursed');
-    return {
-      total: advances.length,
-      totalAmount: advances.reduce((sum, a) => sum + Number(a.amount || 0), 0),
-      pendingCount: pending.length,
-      pendingAmount: pending.reduce((sum, a) => sum + Number(a.amount || 0), 0),
-      approvedCount: approved.length,
-      avgFee:
-        advances.length > 0
-          ? (
-              advances.reduce((sum, a) => sum + Number(a.fee_percentage || 0), 0) / advances.length
-            ).toFixed(2)
-          : '0.00',
-    };
-  }, [advances]);
+  // stats now comes from the server (computed across the employer's full advance
+  // history, not just the current page — see fetchAdvances/EMPTY_STATS above).
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <EmployerPortalLayout employer={employer}>
@@ -255,7 +272,7 @@ export default function EmployerAdvancesPage() {
           <MetricCard
             icon={TrendingUp}
             label="Average Fee"
-            value={`${stats.avgFee}%`}
+            value={`${stats.avgFee.toFixed(2)}%`}
             subtext="Across all requests"
             valueColor="text-blue-600"
           />
@@ -380,6 +397,37 @@ export default function EmployerAdvancesPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {!loading && total > 0 && (
+            <div className="flex items-center justify-between gap-4 p-4 border-t border-slate-200/50 dark:border-slate-700/30">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                <span className="text-sm text-slate-600 dark:text-slate-300 px-2">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </div>

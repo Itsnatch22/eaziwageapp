@@ -5,6 +5,7 @@ import { generateMerchantReference } from '../dusupay/utils';
 import { runFraudChecks } from '../fraud-engine';
 import { generateRepaymentReference } from '../repayment/utils';
 import { notifyAdmin } from '../notifications';
+import { getEnv } from '@/env';
 
 // ─── Repayment schedule helpers ──────────────────────────────────────────────
 
@@ -401,10 +402,25 @@ export class PayoutService {
 
     const merchantReference = generateMerchantReference(advanceId);
 
-    const pm = paymentMethod!; 
+    const pm = paymentMethod!;
+
+    // account_number/phone_number on payment_methods are always null post-insert —
+    // a DB trigger nulls the plaintext columns and stores ciphertext in
+    // account_number_encrypted/phone_number_encrypted. Must decrypt via RPC, same
+    // as lib/paymentMethodsService.ts's listPaymentMethods().
+    const { PII_ENCRYPTION_KEY } = getEnv();
+    const { data: piiRows, error: piiError } = await supabaseAdmin.rpc('get_payment_method_pii', {
+      p_payment_method_id: pm.id,
+      p_key: PII_ENCRYPTION_KEY,
+    });
+
+    if (piiError || !piiRows?.[0]) {
+      await supabaseAdmin.from('advances').update({ status: 'failed', reason: 'Could not retrieve payment method details' }).eq('id', advanceId);
+      throw new Error('Could not retrieve payment method details');
+    }
 
     const payoutMethod = (pm.method_type === 'mobile_money') ? PayoutMethod.MOBILE_MONEY : PayoutMethod.BANK;
-    const account = pm.method_type === 'bank' ? pm.account_number : pm.phone_number;
+    const account = pm.method_type === 'bank_account' ? piiRows[0].account_number : piiRows[0].phone_number;
 
     if (!account) {
       await supabaseAdmin.from('advances').update({ status: 'failed', reason: 'Missing account for payout' }).eq('id', advanceId);

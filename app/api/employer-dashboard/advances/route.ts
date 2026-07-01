@@ -50,7 +50,13 @@ export async function GET(req: NextRequest) {
   }
 
   if (!employer) {
-    return NextResponse.json([]);
+    return NextResponse.json({
+      advances: [],
+      total: 0,
+      page: 1,
+      pageSize: 50,
+      stats: { total: 0, totalAmount: 0, pendingCount: 0, pendingAmount: 0, approvedCount: 0, avgFee: 0 },
+    });
   }
 
   const { data: employeeRows, error: employeesError } = await supabase
@@ -65,7 +71,13 @@ export async function GET(req: NextRequest) {
   const typedEmployees = (employeeRows ?? []) as EmployeeRow[];
   const employeeIds = typedEmployees.map((e) => e.id);
   if (employeeIds.length === 0) {
-    return NextResponse.json([]);
+    return NextResponse.json({
+      advances: [],
+      total: 0,
+      page: 1,
+      pageSize: 50,
+      stats: { total: 0, totalAmount: 0, pendingCount: 0, pendingAmount: 0, approvedCount: 0, avgFee: 0 },
+    });
   }
 
   // BUGFIX: this endpoint had no pagination — `.order()` with no `.range()`
@@ -77,10 +89,39 @@ export async function GET(req: NextRequest) {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const { data: advances, error: advancesError } = await supabase
+  // Two queries on purpose: the page-level query below pulls full rows for the 50
+  // being displayed; this one pulls only status/amount/fee_percentage across the
+  // employer's whole advance history so the summary cards stay accurate once the
+  // list itself is paginated (they'd otherwise silently reflect page 1 only).
+  const { data: statsRows, error: statsError } = await supabase
+    .from('advances')
+    .select('status, amount, fee_percentage')
+    .in('employee_id', employeeIds);
+
+  if (statsError) {
+    return NextResponse.json({ error: statsError.message }, { status: 500 });
+  }
+
+  const allRows = statsRows ?? [];
+  const pending = allRows.filter((a) => a.status === 'pending');
+  const approved = allRows.filter((a) => a.status === 'approved' || a.status === 'disbursed');
+  const stats = {
+    total: allRows.length,
+    totalAmount: allRows.reduce((sum, a) => sum + Number(a.amount || 0), 0),
+    pendingCount: pending.length,
+    pendingAmount: pending.reduce((sum, a) => sum + Number(a.amount || 0), 0),
+    approvedCount: approved.length,
+    avgFee:
+      allRows.length > 0
+        ? allRows.reduce((sum, a) => sum + Number(a.fee_percentage || 0), 0) / allRows.length
+        : 0,
+  };
+
+  const { data: advances, error: advancesError, count } = await supabase
     .from('advances')
     .select(
       'id, employee_id, amount, fee_amount, fee_percentage, net_amount, disbursement_method, status, created_at, requested_at, approved_at',
+      { count: 'exact' },
     )
     .in('employee_id', employeeIds)
     .order('created_at', { ascending: false })
@@ -119,5 +160,5 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json(payload);
+  return NextResponse.json({ advances: payload, total: count ?? payload.length, page, pageSize, stats });
 }
