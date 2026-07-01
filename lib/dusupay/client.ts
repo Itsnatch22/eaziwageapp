@@ -15,15 +15,21 @@ export class DusupayClient {
 
   constructor() {
     this.environment = (process.env.DUSUPAY_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox';
-    
+
+    // Same credential env vars as lib/dusupay.ts — there's only one DusuPay
+    // account, not separate sandbox/production key pairs configured anywhere.
+    this.publicKey = process.env.DUSUPAY_PUBLIC_KEY || '';
+    this.secretKey = process.env.DUSUPAY_SECRET_KEY || '';
+
     if (this.environment === 'production') {
-      this.publicKey = process.env.DUSUPAY_PRODUCTION_PUBLIC_KEY || '';
-      this.secretKey = process.env.DUSUPAY_PRODUCTION_SECRET_KEY || '';
       this.baseUrl = process.env.DUSUPAY_PRODUCTION_BASE_URL || 'https://payments.dusupay.com';
     } else {
-      this.publicKey = process.env.DUSUPAY_SANDBOX_PUBLIC_KEY || '';
-      this.secretKey = process.env.DUSUPAY_SANDBOX_SECRET_KEY || '';
-      this.baseUrl = process.env.DUSUPAY_SANDBOX_BASE_URL || 'https://sdbxportal.dusupay.com/';
+      // NOT sdbxportal.dusupay.com — that's DusuPay's human merchant web portal
+      // (redirects to an Oracle APEX login page) and 404s as HTML on API paths
+      // like /payout/send-funds, which is what caused the "Unexpected token '<'"
+      // JSON-parse crash. sandboxapi.dusupay.com is the actual API host, and is
+      // what lib/dusupay.ts (the webhook/verify client) already uses correctly.
+      this.baseUrl = process.env.DUSUPAY_SANDBOX_BASE_URL || 'https://sandboxapi.dusupay.com';
     }
   }
 
@@ -46,10 +52,21 @@ export class DusupayClient {
       },
     });
 
-    const data = await response.json();
-    
+    const rawBody = await response.text();
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      // A non-JSON body means we hit the wrong host/path (e.g. a portal login
+      // page or a generic 404), not a DusuPay API error — surface that clearly
+      // instead of letting the JSON.parse SyntaxError leak out as-is.
+      throw new Error(
+        `DusuPay API returned a non-JSON response (status ${response.status}) from ${url}: ${rawBody.slice(0, 200)}`,
+      );
+    }
+
     if (!response.ok) {
-      throw new Error(data.message || `DusuPay API error: ${response.status}`);
+      throw new Error((data.message as string | undefined) || `DusuPay API error: ${response.status}`);
     }
 
     return data as T;
