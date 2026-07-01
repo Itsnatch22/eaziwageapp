@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
-import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { requireAdmin } from '@/lib/server/admin-auth';
 import { notifyEmployer } from '@/lib/notifications';
 import { activateUser, deactivateUser } from '@/lib/activation';
 
@@ -36,30 +33,11 @@ export async function PATCH(
     );
   }
 
-  const supabase = await createRouteHandlerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) {
+    return auth;
   }
-
-  const env = getEnv();
-  const adminSupabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const { data: adminProfile } = await adminSupabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!adminProfile || !isAdminRole(UserRoleEnum.parse(adminProfile.role.toLowerCase()))) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const { user, adminSupabase } = auth;
 
   if (!['approved', 'rejected'].includes(status || '')) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
@@ -70,17 +48,21 @@ export async function PATCH(
     .from('employer_onboarding')
     .update({
       status,
-      reviewer_notes: notes,
+      review_notes: notes,
       updated_at: new Date().toISOString(),
     })
     .select(
-      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_amount, max_advance_percentage, cooldown_period'
+      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_percentage, cooldown_period'
     )
     .eq('id', appId);
 
-  if (updateError || !reviewedRows || reviewedRows.length === 0) {
+  if (updateError) {
     console.error('[Employer KYC Review] Update error:', updateError);
     return NextResponse.json({ error: 'Failed to update employer' }, { status: 500 });
+  }
+
+  if (!reviewedRows || reviewedRows.length === 0) {
+    return NextResponse.json({ error: 'Employer onboarding record not found' }, { status: 404 });
   }
 
   const employer = reviewedRows[0];
@@ -117,10 +99,10 @@ export async function PATCH(
     }
 
     // Ensure min advance amount is set
-    if (!employer.max_advance_amount || Number(employer.max_advance_amount) <= 0) {
+    if (!employer.min_advance_amount || Number(employer.min_advance_amount) <= 0) {
       await adminSupabase
         .from('employer_onboarding')
-        .update({ max_advance_amount: 500000, updated_at: new Date().toISOString() })
+        .update({ min_advance_amount: 500, updated_at: new Date().toISOString() })
         .eq('id', employer.id);
     }
 

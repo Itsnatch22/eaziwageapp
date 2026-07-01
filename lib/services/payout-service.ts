@@ -246,7 +246,7 @@ export class PayoutService {
     const checkEmployeeEligibility = async (): Promise<EligibilityCheckResult> => {
       const flags: FraudFlagInput[] = [];
 
-      if (employee?.status !== 'active') {
+      if (employee?.status !== 'Active') {
         return { eligible: false, rejectionReason: 'Employee is not active', fraudFlags: [] };
       }
       if (employee?.kyc_status !== 'approved') {

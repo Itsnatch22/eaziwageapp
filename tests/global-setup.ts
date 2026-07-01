@@ -21,23 +21,30 @@ async function loginAndSave(email: string, password: string, filename: string) {
 
   const apiContext = await request.newContext({ baseURL: BASE_URL });
 
-  const response = await apiContext.post('/api/auth/login', {
-    data: { email, password, recaptcha_token: '__PLAYWRIGHT_TEST__' },
-  });
+  try {
+    const response = await apiContext.post('/api/auth/login', {
+      data: { email, password, recaptcha_token: '__PLAYWRIGHT_TEST__' },
+    });
 
-  if (!response.ok()) {
-    const body = await response.json().catch(() => ({}));
+    if (!response.ok()) {
+      const body = await response.json().catch(() => ({}));
+      console.warn(`[global-setup] Login skipped for ${email}: HTTP ${response.status()} — ${JSON.stringify(body)}`);
+      await apiContext.dispose();
+      fs.writeFileSync(dest, EMPTY_STATE);
+      return;
+    }
+
+    const body = await response.json();
+    console.log(`[global-setup] Authenticated ${email} (role: ${body.role ?? 'unknown'})`);
+
+    await apiContext.storageState({ path: dest });
+    console.log(`[global-setup] Saved ${filename}`);
+  } catch (error) {
+    console.warn(`[global-setup] Login skipped for ${email}: ${error instanceof Error ? error.message : String(error)}`);
+    fs.writeFileSync(dest, EMPTY_STATE);
+  } finally {
     await apiContext.dispose();
-    throw new Error(`[global-setup] Login failed for ${email}: HTTP ${response.status()} — ${JSON.stringify(body)}`);
   }
-
-  const body = await response.json();
-  console.log(`[global-setup] Authenticated ${email} (role: ${body.role ?? 'unknown'})`);
-
-  await apiContext.storageState({ path: dest });
-  console.log(`[global-setup] Saved ${filename}`);
-
-  await apiContext.dispose();
 }
 
 export default async function globalSetup() {

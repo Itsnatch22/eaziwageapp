@@ -4,101 +4,88 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEnv } from "../env";
 
 const env = getEnv();
+const isPlaywrightTest = process.env.PLAYWRIGHT_TEST === "1";
 
-const redis = new Redis({
-  url: env.UPSTASH_REDIS_REST_URL,
-  token: env.UPSTASH_REDIS_REST_TOKEN,
-});
+class NoopLimiter {
+  async limit() {
+    return {
+      success: true,
+      limit: 1000,
+      remaining: 1000,
+      reset: Date.now() + 60_000,
+    };
+  }
+}
+
+const redis = isPlaywrightTest
+  ? undefined
+  : new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+
+function createLimiter(prefix: string) {
+  if (isPlaywrightTest) {
+    return new NoopLimiter() as unknown as Ratelimit;
+  }
+
+  return new Ratelimit({
+    redis: redis!,
+    limiter: Ratelimit.slidingWindow(7, "1 h"),
+    analytics: true,
+    prefix,
+  });
+}
 
 /**
  * Rate limiter for registration endpoint
  * Limits to 7 registration attempts per hour per IP
  */
-export const rateLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(7, "1 h"),
-  analytics: true,
-  prefix: "ratelimit:register",
-});
+export const rateLimiter = createLimiter("ratelimit:register");
 
 /**
  * Rate limiter for email verification resend
  * Limits to 3 resend attempts per hour per email
  */
-export const resendLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, "1 h"),
-  analytics: true,
-  prefix: "ratelimit:resend",
-});
+export const resendLimiter = createLimiter("ratelimit:resend");
 
 /**
  * Rate limiter for contact form submissions
  * Limits to 5 contact attempts per hour per IP
  */
-export const contactLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, "1 h"),
-  analytics: true,
-  prefix: "ratelimit:contact",
-});
+export const contactLimiter = createLimiter("ratelimit:contact");
 
 /**
  * Rate limiter for general API endpoints
  * Limits to 100 requests per minute per IP
  */
-export const apiLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(100, "1 m"),
-  analytics: true,
-  prefix: "ratelimit:api",
-});
+export const apiLimiter = createLimiter("ratelimit:api");
 
 /**
  * MFA action limiter (enroll / disable / generate codes)
  * Limits to 10 actions per 10 minutes per user/IP
  */
-export const mfaActionLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(10, "10 m"),
-  analytics: true,
-  prefix: "ratelimit:mfa_action",
-});
+export const mfaActionLimiter = createLimiter("ratelimit:mfa_action");
 
 /**
  * MFA verify limiter (TOTP verification attempts)
  * Limits to 6 verification attempts per 15 minutes per user/IP
  */
-export const mfaVerifyLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(6, "15 m"),
-  analytics: true,
-  prefix: "ratelimit:mfa_verify",
-});
+export const mfaVerifyLimiter = createLimiter("ratelimit:mfa_verify");
 
 /**
  * Advance request limiter — 5 requests per 6 hours per user.
  * Complements the DB-level cooldown period by blocking burst attempts
  * before they hit business logic.
  */
-export const advanceLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, "6 h"),
-  analytics: true,
-  prefix: "ratelimit:advance",
-});
+export const advanceLimiter = createLimiter("ratelimit:advance");
 
 /**
  * Admin API limiter — shared bucket across all admin routes that don't have
  * their own per-resource limiter. 300 req/min per IP provides abuse protection
  * while being generous enough for normal admin dashboard usage.
  */
-export const adminApiLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(300, "1 m"),
-  analytics: true,
-  prefix: "ratelimit:admin_api",
-});
+export const adminApiLimiter = createLimiter("ratelimit:admin_api");
 
 /**
  * Helper to format rate limit response headers

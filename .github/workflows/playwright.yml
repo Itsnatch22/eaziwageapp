@@ -20,8 +20,35 @@ jobs:
     - name: Run Playwright tests
       run: npx playwright test
       env:
+        CI: true
+        PLAYWRIGHT_TEST: 1
+        # Must point at a real Supabase project — no fallback. A fake URL here would let
+        # env validation pass while every login in global-setup.ts silently fails against
+        # a nonexistent host, masking a missing-secret problem instead of surfacing it.
         NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        # Seeded test accounts in the same Supabase project — global-setup.ts logs in as
+        # each role and skips auth-gated tests gracefully if a credential is missing.
+        TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+        TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+        TEST_EMPLOYER_EMAIL: ${{ secrets.TEST_EMPLOYER_EMAIL }}
+        TEST_EMPLOYER_PASSWORD: ${{ secrets.TEST_EMPLOYER_PASSWORD }}
+        TEST_EMPLOYEE_EMAIL: ${{ secrets.TEST_EMPLOYEE_EMAIL }}
+        TEST_EMPLOYEE_PASSWORD: ${{ secrets.TEST_EMPLOYEE_PASSWORD }}
+        # Below: never exercised against a real external service in these tests (reCAPTCHA is
+        # bypassed via the PLAYWRIGHT_TEST sentinel, rate limiting is a no-op, DusuPay webhook
+        # signing is self-consistent test-signs/server-verifies) — dummy values only need to
+        # satisfy env.ts's format/length validation.
+        NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${{ vars.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || 'test-site-key' }}
+        RECAPTCHA_SECRET_KEY: ${{ secrets.RECAPTCHA_SECRET_KEY || 'test-secret' }}
+        UPSTASH_REDIS_REST_URL: ${{ vars.UPSTASH_REDIS_REST_URL || 'https://example.upstash.io' }}
+        UPSTASH_REDIS_REST_TOKEN: ${{ vars.UPSTASH_REDIS_REST_TOKEN || 'test-token' }}
+        RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 'test-resend' }}
+        PII_ENCRYPTION_KEY: ${{ secrets.PII_ENCRYPTION_KEY || '1234567890123456' }}
+        ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'test-admin-password' }}
+        STANBIC_SANDBOX_API_KEY: ${{ secrets.STANBIC_SANDBOX_API_KEY || 'test-stanbic' }}
+        DUSUPAY_WEBHOOK_SECRET: ${{ secrets.DUSUPAY_WEBHOOK_SECRET || 'test-dusupay-secret' }}
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:

@@ -28,7 +28,7 @@ function hasAuth(file: string): boolean {
 // ─── No-auth guard ────────────────────────────────────────────────────────────
 
 test('calculator: no auth → 401', async ({ request }) => {
-  const res = await request.get('/api/employer-dashboard/calculator');
+  const res = await request.get('/api/employee-dashboard/calculator');
   expect(res.status()).toBe(401);
 });
 
@@ -44,7 +44,7 @@ test.describe('employee — calculator uses employers table columns', () => {
   });
 
   test('calculator returns advance_limit_percent (employers column, not max_advance_percentage)', async ({ request }) => {
-    const res = await request.get('/api/employer-dashboard/calculator');
+    const res = await request.get('/api/employee-dashboard/calculator');
     // 200 → authenticated and employee record found; 404 → no employee record (acceptable)
     if (res.status() === 404) return;
     expect(res.status()).toBe(200);
@@ -58,7 +58,7 @@ test.describe('employee — calculator uses employers table columns', () => {
   });
 
   test('calculator returns cooldown_days (employers column, not cooldown_period)', async ({ request }) => {
-    const res = await request.get('/api/employer-dashboard/calculator');
+    const res = await request.get('/api/employee-dashboard/calculator');
     if (res.status() === 404) return;
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -70,7 +70,7 @@ test.describe('employee — calculator uses employers table columns', () => {
   });
 
   test('advance limit is calculated using advance_limit_percent × monthly_salary', async ({ request }) => {
-    const res = await request.get('/api/employer-dashboard/calculator');
+    const res = await request.get('/api/employee-dashboard/calculator');
     if (res.status() === 404) return;
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -86,7 +86,7 @@ test.describe('employee — calculator uses employers table columns', () => {
   });
 
   test('cooldown_days_remaining is consistent with cooldown_days', async ({ request }) => {
-    const res = await request.get('/api/employer-dashboard/calculator');
+    const res = await request.get('/api/employee-dashboard/calculator');
     if (res.status() === 404) return;
     expect(res.status()).toBe(200);
     const body = await res.json();
