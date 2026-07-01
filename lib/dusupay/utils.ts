@@ -1,3 +1,5 @@
+import { MOBILE_MONEY_PROVIDERS } from '@/lib/dusupay';
+
 export function generateMerchantReference(advanceId: string): string {
   return `ADV-${advanceId}-${Date.now()}`;
 }
@@ -22,3 +24,19 @@ export const COUNTRY_PROVIDER_PREFIXES: Record<string, string> = {
   'TZ': '255',
   'RW': '250',
 };
+
+/**
+ * Maps a payment method's free-text provider_name (e.g. "Airtel", entered by the
+ * employee at payment-method creation — there's no dropdown tied to DusuPay's real
+ * provider list) to the exact provider_code DusuPay's API expects (e.g. "airtel_ke").
+ * Falls back to the lowercased raw name if there's no match, so an unmapped provider
+ * fails with DusuPay's own "invalid provider_code" error instead of a silent no-op —
+ * that failure is at least diagnosable, unlike this function returning nothing.
+ */
+export function resolveProviderCode(countryCode: string | null | undefined, providerName: string): string {
+  // Strip separators entirely rather than replacing with '_' — "M-Pesa" and "mpesa"
+  // must normalize to the same key ("mpesa") to hit the map below.
+  const key = providerName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const providers = MOBILE_MONEY_PROVIDERS[(countryCode ?? '').toUpperCase()] ?? {};
+  return providers[key] ?? key;
+}

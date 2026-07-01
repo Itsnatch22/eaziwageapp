@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ChatWindow } from "../layout/ChatWindow";
 import { NotificationDropdown } from "../layout/NotificationDropdown";
 import { logout } from "@/actions/auth";
 import Link from "next/link";
@@ -311,10 +310,6 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
   const hour = mounted ? new Date().getHours() : 9;
   const greeting =
     hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
-  const [activeChat, setActiveChat] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
 
   return (
     <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50">
@@ -353,15 +348,6 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
               <kbd className="text-[10px] font-bold opacity-50 ml-1">⌘K</kbd>
             </button>
 
-            <button
-              onClick={() =>
-                setActiveChat({ id: "system-support", name: "Support Channel" })
-              }
-              className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
-            >
-              <MessageSquare className="w-5 h-5" />
-            </button>
-
             {userProfile?.id && (
               <NotificationDropdown
                 role="admin"
@@ -374,15 +360,6 @@ const AdminTopHeader = ({ onMenuClick, userProfile }: TopHeaderProps) => {
           </div>
         </div>
       </div>
-
-      {activeChat && userProfile && (
-        <ChatWindow
-          currentUserId={userProfile.id}
-          otherUserId={activeChat.id}
-          otherUserName={activeChat.name}
-          onClose={() => setActiveChat(null)}
-        />
-      )}
     </header>
   );
 };

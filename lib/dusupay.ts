@@ -46,8 +46,11 @@ export enum Currency {
 }
 
 
+// KE codes confirmed by hand against /data/payment-providers?currency=KES&transaction_type=payout
+// (mpesa was previously mapped to the wrong code, 'safaricom_ke'). TZ/UG/RW are unverified —
+// confirm against the same endpoint before relying on them for a real payout.
 export const MOBILE_MONEY_PROVIDERS: Record<string, Record<string, string>> = {
-  KE: { mpesa: 'safaricom_ke', safaricom: 'safaricom_ke', airtel: 'airtel_ke', airtel_money: 'airtel_ke' },
+  KE: { mpesa: 'mpesa_ke', safaricom: 'mpesa_ke', airtel: 'airtel_ke', airtelmoney: 'airtel_ke' },
   TZ: { mpesa: 'vodacom_tz', vodacom: 'vodacom_tz', airtel: 'airtel_tz', tigo: 'tigo_tz', halopesa: 'halotel_tz' },
   UG: { mtn: 'mtn_ug', airtel: 'airtel_ug' },
   RW: { mtn: 'mtn_rw', airtel: 'airtel_rw' },
@@ -173,7 +176,9 @@ export class DusupayService {
 
   getProviderId(countryCode: string, providerName: string): string | null {
     const providers = MOBILE_MONEY_PROVIDERS[countryCode.toUpperCase()] ?? {};
-    const key = providerName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    // Strip separators entirely (not replace with '_') so "M-Pesa" and "mpesa" both
+    // normalize to "mpesa" — matches lib/dusupay/utils.ts's resolveProviderCode.
+    const key = providerName.toLowerCase().replace(/[^a-z0-9]/g, '');
     return providers[key] ?? null;
   }
 
@@ -201,13 +206,16 @@ export class DusupayService {
       return { success: false, message: `Unknown provider ${providerName} for ${countryCode}`, errorCode: 'INVALID_PROVIDER' };
     }
 
+    // account_number (not msisdn) is the field DusuPay's live API accepts for
+    // MOBILE_MONEY payouts — confirmed by hand against /payout/send-funds;
+    // sending msisdn is rejected with "property msisdn should not exist".
     const payload: PayoutPayload = {
       merchant_reference: reference || this.generateReference(),
       transaction_method: PayoutMethod.MOBILE_MONEY,
       currency: this.getCurrency(countryCode),
       amount,
       provider_code: providerCode,
-      msisdn: phoneNumber,
+      account_number: phoneNumber,
       customer_name: recipientName,
       description: narration || 'EaziWage Advance Disbursement',
     };

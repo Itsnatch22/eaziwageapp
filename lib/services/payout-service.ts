@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../supabaseAdmin';
 import { dusupayClient } from '../dusupay/client';
 import { PayoutMethod, Currency } from '../dusupay/types';
-import { generateMerchantReference } from '../dusupay/utils';
+import { generateMerchantReference, formatPhoneNumber, resolveProviderCode, COUNTRY_PROVIDER_PREFIXES } from '../dusupay/utils';
 import { runFraudChecks } from '../fraud-engine';
 import { generateRepaymentReference } from '../repayment/utils';
 import { notifyAdmin } from '../notifications';
@@ -420,12 +420,28 @@ export class PayoutService {
     }
 
     const payoutMethod = (pm.method_type === 'mobile_money') ? PayoutMethod.MOBILE_MONEY : PayoutMethod.BANK;
-    const account = pm.method_type === 'bank_account' ? piiRows[0].account_number : piiRows[0].phone_number;
+    let account = pm.method_type === 'bank_account' ? piiRows[0].account_number : piiRows[0].phone_number;
 
     if (!account) {
       await supabaseAdmin.from('advances').update({ status: 'failed', reason: 'Missing account for payout' }).eq('id', advanceId);
       throw new Error('Missing account for payout');
     }
+
+    // DusuPay requires mobile money numbers in international format (e.g. 2547...),
+    // but numbers are stored/entered locally (e.g. 07...). Confirmed by hand against
+    // the sandbox API: a local-format number is rejected as "could not be parsed as
+    // a phone number in international format".
+    if (payoutMethod === PayoutMethod.MOBILE_MONEY) {
+      const dialCode = COUNTRY_PROVIDER_PREFIXES[pm.country_code ?? ''] ?? '254';
+      account = formatPhoneNumber(account, dialCode);
+    }
+
+    // provider_name is free text entered at payment-method creation (e.g. "Airtel"),
+    // not one of DusuPay's real provider_code values (e.g. "airtel_ke"). Only resolved
+    // for mobile money — bank provider_code handling is unverified and untouched here.
+    const providerCode = payoutMethod === PayoutMethod.MOBILE_MONEY
+      ? resolveProviderCode(pm.country_code, pm.provider_name)
+      : pm.provider_name;
 
     let payoutResponse;
     try {
@@ -434,7 +450,7 @@ export class PayoutService {
         transaction_method: payoutMethod,
         currency: advance.currency as Currency,
         amount: netAmount,
-        provider_code: pm.provider_name,
+        provider_code: providerCode,
         account_number: account,
         customer_name: employee?.full_name ?? 'EaziWage Employee',
         description: `EaziWage Advance: ${advanceId}`,

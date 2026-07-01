@@ -176,6 +176,7 @@ export default function EmployerAdvancesPage() {
 
   // Runs on mount (page 1) and again whenever the user changes page.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     fetchAdvances(page)
       .catch((error: unknown) => toast.error((error as Error)?.message || 'Failed to load advances'))
@@ -206,6 +207,7 @@ export default function EmployerAdvancesPage() {
   // (the list itself is server-paginated). Jump back to page 1 whenever a
   // filter changes so results aren't scoped to whatever page was open before.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [searchTerm, statusFilter]);
 

@@ -16,7 +16,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { ChatWindow } from '../layout/ChatWindow';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
 import PushClient from '@/components/push/PushClient';
@@ -316,7 +315,6 @@ interface TopHeaderProps {
     } | null;
 }
 const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
-  const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
   const user = useAuthStore((state) => state.user as EmployerUser | null);
   const [mounted, setMounted] = useState(false);
 
@@ -350,14 +348,6 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
           </div>
 
           <div className="flex items-center gap-2">
-            
-            <button
-              onClick={() => setActiveChat({ id: 'admin-support', name: 'EaziWage Support' })}
-              className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
-              aria-label="Messages"
-            >
-              <MessageSquare className="w-5 h-5" />
-            </button>
 
             {user?.id && (
               <NotificationDropdown 
@@ -371,15 +361,6 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
           </div>
         </div>
       </div>
-
-      {activeChat && user && (
-        <ChatWindow 
-          currentUserId={user.id ?? 'unknown-user'}
-          otherUserId={activeChat.id}
-          otherUserName={activeChat.name}
-          onClose={() => setActiveChat(null)}
-        />
-      )}
     </header>
   );
 };

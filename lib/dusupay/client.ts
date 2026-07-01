@@ -85,6 +85,10 @@ export class DusupayClient {
   }
 
   async sendFunds(payout: PayoutRequest): Promise<PayoutResponse> {
+    // account_number is the field DusuPay's live API accepts for both MOBILE_MONEY
+    // and BANK — confirmed by hand against sandboxapi.dusupay.com/payout/send-funds.
+    // Sending `msisdn` at all (even alongside account_number) gets rejected with
+    // "property msisdn should not exist" — their schema has no such field anymore.
     const payload: SendFundsPayload = {
       merchant_reference: payout.merchant_reference,
       transaction_method: payout.transaction_method,
@@ -93,12 +97,10 @@ export class DusupayClient {
       provider_code: payout.provider_code,
       customer_name: payout.customer_name,
       description: payout.description,
+      account_number: payout.account_number,
     };
 
-    if (payout.transaction_method === 'MOBILE_MONEY') {
-      payload.msisdn = payout.account_number;
-    } else {
-      payload.account_number = payout.account_number;
+    if (payout.transaction_method !== 'MOBILE_MONEY') {
       if (payout.bank_code) {
         payload.extra_params = { bank_code: payout.bank_code };
       }
