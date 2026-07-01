@@ -40,7 +40,7 @@ export async function GET(req: Request) {
   console.log('[credit-overview] Fetching employer for user:', user.id);
   const { data: employer, error: employerError } = await supabase
     .from('employers')
-    .select('id, onboarding_id')
+    .select('id, onboarding_id, credit_limit')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -64,14 +64,11 @@ export async function GET(req: Request) {
 
   console.log('[credit-overview] ✓ Employer found:', employer.id);
 
-  const { data: wallet } = await supabase
-    .from('employer_wallets')
-    .select('balance')
-    .eq('employer_id', employer.onboarding_id)
-    .maybeSingle();
-
-  const companyCreditLimit = Number(wallet?.balance ?? 0);
-  console.log('[credit-overview] ✓ Actual wallet balance found:', companyCreditLimit);
+  // Admin-configured monthly cap lives on employers.credit_limit — NOT
+  // employer_wallets (that table has no balance column; it tracks
+  // total_advanced/outstanding_liability, a different concept).
+  const companyCreditLimit = Number(employer.credit_limit ?? 0);
+  console.log('[credit-overview] ✓ Configured credit limit:', companyCreditLimit);
 
   console.log('[credit-overview] Fetching employees for employer:', employer.id);
   const { data: employees, error: employeeError } = await supabase

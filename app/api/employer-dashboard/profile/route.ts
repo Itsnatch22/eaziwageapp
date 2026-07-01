@@ -85,7 +85,7 @@ export async function GET() {
   });
 }
 
-export async function POST(req: Request) {
+export async function PUT(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
-    console.error('[POST /api/employer-dashboard/profile] Error:', error);
+    console.error('[PUT /api/employer-dashboard/profile] Error:', error);
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
