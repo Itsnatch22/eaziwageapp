@@ -1,7 +1,15 @@
 import { MOBILE_MONEY_PROVIDERS } from '@/lib/dusupay';
 
 export function generateMerchantReference(advanceId: string): string {
-  return `ADV-${advanceId}-${Date.now()}`;
+  // DusuPay requires merchant_reference to be <= 36 chars. The old
+  // `ADV-${advanceId}-${Date.now()}` format was ~54 chars (advanceId alone is a
+  // 36-char UUID) and rejected on every call. Stripping the UUID's hyphens and
+  // dropping the timestamp fits comfortably under the limit (3 + 32 = 35 chars)
+  // and, as a side effect, makes the reference deterministic per advance — which
+  // is what "used as an idempotency key" (see CLAUDE.md) actually requires: a
+  // retried disbursement for the same advance now reuses the same reference
+  // instead of minting a new one DusuPay would treat as an unrelated transaction.
+  return `ADV${advanceId.replace(/-/g, '')}`;
 }
 
 export function formatPhoneNumber(phone: string, countryCode: string = '254'): string {
