@@ -169,16 +169,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       supabase
       .from('advances')
   .select('amount, fee_amount, employees!advances_employee_id_fkey(country)')
-  .eq('status', 'disbursed'),
+  .in('status', ['disbursed', 'repaid']),
       supabase
         .from('advances')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'disbursed'),
+        .in('status', ['disbursed', 'repaid']),
       supabase
       .from('advances')
   .select('amount, fee_amount, employees!advances_employee_id_fkey(country)')
   .gte('created_at', startOfMonth)
-  .eq('status', 'disbursed'),
+  .in('status', ['disbursed', 'repaid']),
       supabase
         .from('employers')
         .select('risk_score')

@@ -97,7 +97,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const label = `${months[d.getMonth()]} ${d.getFullYear()}`;
       if (trendMap.has(label)) {
         const stats = trendMap.get(label);
-        if (adv.status === 'disbursed') {
+        if (adv.status === 'disbursed' || adv.status === 'repaid') {
           const currency = resolveCurrency(adv.employees?.country);
           stats.revenue  += convertToUSD(Number(adv.fee_amount || 0), currency, rates);
           stats.disbursed += convertToUSD(Number(adv.amount    || 0), currency, rates);
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           country
         )
       `)
-      .eq('status', 'disbursed');
+      .in('status', ['disbursed', 'repaid']);
 
     if (totalError) throw totalError;
 
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const employerRevenueMap = new Map<string, number>();
     (advancesData as BillingAdvanceRow[] || []).forEach(adv => {
       const employerId = adv.employer_id;
-      if (employerId && adv.status === 'disbursed') {
+      if (employerId && (adv.status === 'disbursed' || adv.status === 'repaid')) {
         const currency = resolveCurrency(adv.employees?.country);
         const current  = employerRevenueMap.get(employerId) || 0;
         employerRevenueMap.set(employerId, current + convertToUSD(Number(adv.fee_amount || 0), currency, rates));
@@ -196,9 +196,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         total_disbursed:         cumulativeDisbursed,
         total_wallet_balance:    totalWalletBalance,
         total_arrears:           totalArrears,
-        top_revenue_generators:  topRevenueGenerators,
       },
       monthlyTrends,
+      topRevenueGenerators,
       walletHealth,
     }, { status: 200, headers: rateResult.headers });
 
