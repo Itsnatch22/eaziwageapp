@@ -115,7 +115,7 @@ export async function PATCH(
 
   const { data: docsForUser, error: docsError } = await adminSupabase
     .from('employee_kyc_documents')
-    .select('status')
+    .select('status, document_type')
     .eq('user_id', doc.user_id);
 
   if (docsError) {
@@ -127,9 +127,52 @@ export async function PATCH(
   const hasRejected = (docsForUser ?? []).some((d) => d.status === 'rejected');
   const allApproved = totalDocs > 0 && (docsForUser ?? []).every((d) => d.status === 'approved');
 
+  // Risk Settings → Verification Requirements: require_id_verification etc.
+  // gate which document *categories* must be present (and approved) before an
+  // application can be marked approved — previously stored but never checked,
+  // so an employee could get approved having submitted only, say, a payslip.
+  const { data: riskRow } = await adminSupabase
+    .from('global_settings')
+    .select('risk_settings')
+    .eq('id', 'default')
+    .maybeSingle();
+  const riskSettings = (riskRow?.risk_settings as {
+    require_id_verification?: boolean;
+    require_face_id?: boolean;
+    require_address_proof?: boolean;
+    require_employment_contract?: boolean;
+  } | null) ?? {};
+
+  const REQUIRED_CATEGORY_TYPES: Record<string, string[]> = {
+    require_id_verification:      ['national_id', 'passport', 'drivers_license'],
+    require_face_id:              ['selfie', 'face_id'],
+    require_address_proof:        ['utility_bill'],
+    require_employment_contract:  ['employment_contract', 'employment_letter'],
+  };
+
+  // require_id_verification defaults ON — the employee onboarding upload flow
+  // (app/dashboards/employee-dashboard/kyc/page.tsx) already always requires
+  // national_id, so this is a no-op by default. The other three default OFF:
+  // that same upload flow has no selfie/utility-bill/employment-contract step
+  // at all, so defaulting them to required would make approval permanently
+  // impossible until an admin explicitly opts in (and adds the matching
+  // upload step for employees to actually satisfy it).
+  const DEFAULT_REQUIRED: Record<string, boolean> = {
+    require_id_verification: true,
+    require_face_id: false,
+    require_address_proof: false,
+    require_employment_contract: false,
+  };
+
+  const approvedTypes = new Set((docsForUser ?? []).filter((d) => d.status === 'approved').map((d) => d.document_type));
+  const missingRequiredCategories = Object.entries(REQUIRED_CATEGORY_TYPES)
+    .filter(([settingKey]) => riskSettings[settingKey as keyof typeof riskSettings] ?? DEFAULT_REQUIRED[settingKey])
+    .filter(([, types]) => !types.some((t) => approvedTypes.has(t)))
+    .map(([settingKey]) => settingKey);
+
   let onboardingStatus: 'approved' | 'rejected' | 'pending' = 'pending';
   if (hasRejected) onboardingStatus = 'rejected';
-  else if (allApproved) onboardingStatus = 'approved';
+  else if (allApproved && missingRequiredCategories.length === 0) onboardingStatus = 'approved';
 
   log('info', 'onboarding_recompute', 'Recomputed onboarding status', {
     docId: doc.id,
@@ -137,6 +180,7 @@ export async function PATCH(
     totalDocs,
     hasRejected,
     allApproved,
+    missingRequiredCategories,
     onboardingStatus,
   });
 

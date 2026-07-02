@@ -19,6 +19,7 @@ import webpush from 'web-push';
 
 import { getEnv } from '@/env';
 import { sendEmail } from './email-service';
+import { sendSms } from './sendOtp';
 
 import {
   NewEmployerRegistrationEmail,
@@ -599,6 +600,32 @@ export async function notifyAdmin(params: {
         to: (ns.fraud_alert_emails as string) || env.ADMIN_NOTIFICATION_EMAIL || 'support@eaziwage.com',
         subject: `[Admin] ${params.title}`,
         react: emailElement,
+      });
+    }
+
+    // SMS toggles — narrower than the email ones (no SMS equivalent of
+    // new_employer/employer_kyc/bank_change), gated separately per type.
+    const smsEnabledByType: Partial<Record<AdminNotificationType, boolean>> = {
+      flagged_advance: ns.sms_fraud_alert === true,
+      system_alert:    ns.sms_system_alert === true,
+      review_request:  ns.sms_large_transaction === true,
+    };
+
+    const smsNumbers = ((ns.admin_sms_numbers as string) || '')
+      .split(',')
+      .map((n: string) => n.trim())
+      .filter(Boolean);
+
+    if (smsEnabledByType[params.type] && smsNumbers.length > 0) {
+      const smsBody = `[EaziWage] ${params.title}: ${params.message}`.slice(0, 300);
+      await Promise.allSettled(
+        smsNumbers.map((number: string) => sendSms(number, smsBody)),
+      ).then((results) => {
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            console.error(`[notifyAdmin] SMS to ${smsNumbers[i]} failed:`, r.reason);
+          }
+        });
       });
     }
 

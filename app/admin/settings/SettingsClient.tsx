@@ -1388,7 +1388,7 @@ const RiskComplianceTab: React.FC<RiskComplianceTabProps> = ({
       </SectionCard>
 
       
-      <SectionCard title="Verification Requirements" icon={UserCheck} description="KYC and verification settings">
+      <SectionCard title="Verification Requirements" icon={UserCheck} description="Gates whether an employee's KYC application can be approved — the last three require the employee onboarding upload flow to actually collect that document type, which it doesn't yet, so they default off">
         <div className="space-y-4">
           <Toggle
             label="Require ID Verification"
@@ -1398,20 +1398,20 @@ const RiskComplianceTab: React.FC<RiskComplianceTabProps> = ({
           />
           <Toggle
             label="Require Face ID"
-            description="Biometric face verification required"
-            enabled={settings.require_face_id ?? true}
+            description="Biometric face verification required — employees have no way to upload this yet"
+            enabled={settings.require_face_id ?? false}
             onChange={(v) => onUpdate({ ...settings, require_face_id: v })}
           />
           <Toggle
             label="Require Address Proof"
-            description="Proof of address document required"
-            enabled={settings.require_address_proof ?? true}
+            description="Proof of address document required — employees have no way to upload this yet"
+            enabled={settings.require_address_proof ?? false}
             onChange={(v) => onUpdate({ ...settings, require_address_proof: v })}
           />
           <Toggle
             label="Require Employment Contract"
-            description="Employment contract upload required"
-            enabled={settings.require_employment_contract ?? true}
+            description="Employment contract upload required — employees have no way to upload this yet"
+            enabled={settings.require_employment_contract ?? false}
             onChange={(v) => onUpdate({ ...settings, require_employment_contract: v })}
           />
           <div className="pt-4 border-t border-slate-200 dark:border-slate-700">

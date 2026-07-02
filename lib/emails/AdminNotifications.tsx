@@ -804,6 +804,85 @@ export function AdminSystemAlertEmail({
   );
 }
 
+export type DigestPeriod = 'daily' | 'weekly';
+
+export interface AdminDigestEmailProps {
+  period: DigestPeriod;
+  rangeLabel: string;
+  newEmployers: number;
+  newEmployees: number;
+  advancesCount: number;
+  totalDisbursedUsd: number;
+  totalFeesUsd: number;
+  pendingReviews: number;
+  openFraudAlerts: number;
+  dashboardUrl?: string;
+}
+
+export function AdminDigestEmail({
+  period,
+  rangeLabel,
+  newEmployers,
+  newEmployees,
+  advancesCount,
+  totalDisbursedUsd,
+  totalFeesUsd,
+  pendingReviews,
+  openFraudAlerts,
+  dashboardUrl = 'https://app.eaziwage.com/admin',
+}: AdminDigestEmailProps) {
+  const periodLabel = period === 'daily' ? 'Daily' : 'Weekly';
+  const fmtUsd = (n: number) => `USD ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  return (
+    <EmailLayout
+      previewText={`${periodLabel} EaziWage summary — ${rangeLabel}`}
+      accentColor="#16a34a"
+    >
+      <AlertBanner variant="neutral" icon="📊" label={`${periodLabel} Summary`} />
+
+      <Heading style={styles.heading}>{periodLabel} platform summary</Heading>
+
+      <Text style={styles.text}>
+        Here&apos;s what happened on EaziWage for <strong>{rangeLabel}</strong>.
+      </Text>
+
+      <InfoBox title="Disbursements">
+        <MetaRow label="Advances Disbursed"  value={String(advancesCount)} />
+        <MetaRow label="Total Disbursed"     value={fmtUsd(totalDisbursedUsd)} />
+        <MetaRow label="Platform Fees Earned" value={fmtUsd(totalFeesUsd)} />
+      </InfoBox>
+
+      <InfoBox title="Growth">
+        <MetaRow label="New Employers"  value={String(newEmployers)} />
+        <MetaRow label="New Employees"  value={String(newEmployees)} />
+      </InfoBox>
+
+      <InfoBox title="Needs Attention" variant={pendingReviews + openFraudAlerts > 0 ? 'warn' : 'default'}>
+        <MetaRow
+          label="Pending Reviews"
+          value={pendingReviews > 0 ? <StatusPill label={String(pendingReviews)} variant="yellow" /> : '0'}
+        />
+        <MetaRow
+          label="Open Fraud Alerts"
+          value={openFraudAlerts > 0 ? <StatusPill label={String(openFraudAlerts)} variant="red" /> : '0'}
+        />
+      </InfoBox>
+
+      <Section style={styles.buttonContainer}>
+        <Button style={styles.button} href={dashboardUrl}>
+          Open Admin Dashboard
+        </Button>
+      </Section>
+
+      <Text style={styles.mutedText}>
+        You&apos;re receiving this because {periodLabel.toLowerCase()} summary emails are enabled in
+        Admin Settings → Notifications. Disable them there if you&apos;d rather not receive this.
+      </Text>
+    </EmailLayout>
+  );
+}
+
 export interface ErrorAlertEmailProps {
   role: 'employer' | 'employee';
   url: string | null;

@@ -25,14 +25,18 @@ const COUNTRY_DIAL_CODES: Record<string, { dialCode: string; localLength: number
  * Falls back to KE if no country code is provided.
  */
 export function normalizeToE164(phone: string, countryCode = 'KE'): string {
-  const digits = phone.replace(/\D/g, ''); 
+  const digits = phone.replace(/\D/g, '');
   const country = COUNTRY_DIAL_CODES[countryCode.toUpperCase()] ?? COUNTRY_DIAL_CODES['KE'];
   const { dialCode, localLength } = country;
 
-  if (phone.startsWith('+') && digits.startsWith(dialCode)) {
+  // Already fully-qualified E.164, possibly for a different one of EaziWage's
+  // supported countries than `countryCode` (e.g. admin-entered SMS numbers
+  // aren't tied to a single employee's country) — accept as-is rather than
+  // forcing a match against this specific country's dial code.
+  if (phone.startsWith('+') && digits.length >= 10 && digits.length <= 15) {
     return `+${digits}`;
   }
-  
+
   if (digits.startsWith(dialCode) && digits.length === dialCode.length + localLength) {
     return `+${digits}`;
   }
@@ -57,9 +61,17 @@ export function normalizeToE164(phone: string, countryCode = 'KE'): string {
  * as test devices in the AT sandbox simulator.
  */
 export async function sendOtpSms(phoneNumber: string, otp: string, countryCode = 'KE'): Promise<void> {
-  const to = normalizeToE164(phoneNumber, countryCode);
-
   const message = `Your EaziWage verification code is: ${otp}. Valid for 10 minutes. Do not share this code with anyone.`;
+  await sendSms(phoneNumber, message, countryCode);
+}
+
+/**
+ * Sends an arbitrary SMS via Africa's Talking — shared by OTP delivery
+ * (sendOtpSms above) and admin alert SMS (lib/notifications.ts's notifyAdmin,
+ * gated by the Notifications tab's sms_* toggles).
+ */
+export async function sendSms(phoneNumber: string, message: string, countryCode = 'KE'): Promise<void> {
+  const to = normalizeToE164(phoneNumber, countryCode);
 
   const options: { to: string; message: string; from?: string } = { to, message };
 

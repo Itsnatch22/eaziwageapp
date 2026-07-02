@@ -1,0 +1,49 @@
+name: Admin Digest Emails
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # daily at 07:00 UTC (10:00 EAT) — daily summary
+    - cron: '0 8 * * 1'   # Mondays at 08:00 UTC — weekly report
+  workflow_dispatch:
+    inputs:
+      period:
+        description: 'Which digest to send'
+        required: true
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - weekly
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine period
+        id: period
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ github.event.inputs.period }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 8 * * 1" ]; then
+            echo "value=weekly" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=daily" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger send-digest-emails route
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://app.eaziwage.com/api/internal/send-digest-emails?period=${{ steps.period.outputs.value }}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Response: $BODY"
+          echo "Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Digest email send failed with status $HTTP_CODE"
+            exit 1
+          fi
