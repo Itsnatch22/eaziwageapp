@@ -61,8 +61,8 @@ const { data: upload, error: uploadErr } = await supabase
      .single();
 
   if (uploadErr || !upload) {
-    console.error('[payroll/upload] upsert upload:', uploadErr?.message);
-    return NextResponse.json({ error: uploadErr?.message ?? 'Failed to create upload record' }, { status: 500 });
+    console.error('[payroll/upload] upsert upload:', uploadErr);
+    return NextResponse.json({ error: 'Failed to create upload record. Please try again.' }, { status: 500 });
   }
 
   const uploadId = upload.id;

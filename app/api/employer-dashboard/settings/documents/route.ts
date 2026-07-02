@@ -121,9 +121,8 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     console.error("Upload error:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
     return NextResponse.json(
-      { error: errorMessage },
+      { error: "Failed to upload document. Please try again." },
       { status: 500 }
     );
   }

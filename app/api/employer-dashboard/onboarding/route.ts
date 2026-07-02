@@ -196,8 +196,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (err: unknown) {
     console.error('[onboarding/submit]', err);
-    const message = err instanceof Error ? err.message : 'Unexpected server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to submit your application. Please try again.' }, { status: 500 });
   }
 }
 
@@ -229,8 +228,8 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unexpected error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[onboarding/PATCH]', err);
+    return NextResponse.json({ error: 'Failed to save progress. Please try again.' }, { status: 500 });
   }
 }
 

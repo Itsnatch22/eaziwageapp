@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { notifyAdmin } from '@/lib/notifications';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -35,7 +36,7 @@ export async function POST(
     .eq('employer_id', employer.id)
     .maybeSingle();
 
-  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
+  if (fetchError) return dbErrorResponse('payday-recoupment/decline', fetchError);
   if (!recoupment) return NextResponse.json({ error: 'Recoupment not found' }, { status: 404 });
   if (recoupment.status !== 'pending_response') {
     return NextResponse.json({ error: `Cannot decline — status is '${recoupment.status}'` }, { status: 409 });
@@ -46,7 +47,7 @@ export async function POST(
     .update({ status: 'declined', responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('id', id);
 
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+  if (updateError) return dbErrorResponse('payday-recoupment/decline', updateError);
 
   await notifyAdmin({
     type: 'system_alert',

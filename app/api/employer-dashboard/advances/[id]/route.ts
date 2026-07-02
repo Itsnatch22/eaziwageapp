@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { notifyEmployee, notifyAdmin } from '@/lib/notifications';
 import { payoutService } from '@/lib/services/payout-service';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -50,7 +51,7 @@ export async function PATCH(
     .maybeSingle();
 
   if (employerError) {
-    return NextResponse.json({ error: employerError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/advances/[id]', employerError);
   }
   if (!employer) {
     return NextResponse.json({ error: 'Advance approvals are available once your account is approved.' }, { status: 403 });
@@ -62,7 +63,7 @@ export async function PATCH(
     .eq('employer_id', employer.id);
 
   if (employeesError) {
-    return NextResponse.json({ error: employeesError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/advances/[id]', employeesError);
   }
 
   const employeeIds = (employeeRows ?? []).map((e: { id: string }) => e.id);
@@ -78,7 +79,7 @@ export async function PATCH(
     .maybeSingle();
 
   if (targetError) {
-    return NextResponse.json({ error: targetError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/advances/[id]', targetError);
   }
 
   if (!target) {
@@ -252,9 +253,8 @@ export async function PATCH(
       });
 
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unable to approve advance';
-      console.error(`[Advance Approval] Error: ${message}`);
-      return NextResponse.json({ error: message }, { status: 400 });
+      console.error('[Advance Approval] Error:', err);
+      return NextResponse.json({ error: 'Unable to approve advance. Please try again.' }, { status: 400 });
     }
   } else {
     const { error: updateError } = await supabase
@@ -263,7 +263,7 @@ export async function PATCH(
       .eq('id', id);
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return dbErrorResponse('employer-dashboard/advances/[id]', updateError);
     }
   }
 

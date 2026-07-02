@@ -1,6 +1,7 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ewaSettingsSchema } from '@/lib/validations/employee-validation';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 
 export async function PUT(
@@ -29,7 +30,7 @@ export async function PUT(
     .maybeSingle();
 
   if (employerError) {
-    return NextResponse.json({ error: employerError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/ewa-settings', employerError);
   }
 
   if (!employer) {
@@ -47,7 +48,7 @@ export async function PUT(
     .maybeSingle();
 
   if (empError) {
-    return NextResponse.json({ error: empError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/ewa-settings', empError);
   }
 
   if (!employee) {
@@ -64,7 +65,7 @@ export async function PUT(
     .maybeSingle();
 
   if (liveEmployeeError) {
-    return NextResponse.json({ error: liveEmployeeError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/ewa-settings', liveEmployeeError);
   }
 
   if (!liveEmployee) {
@@ -117,8 +118,7 @@ export async function PUT(
     );
 
   if (upsertError) {
-    console.error('[ewa-settings/upsert]', upsertError);
-    return NextResponse.json({ error: upsertError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/ewa-settings', upsertError, 'Failed to save EWA settings. Please try again.');
   }
 
   return NextResponse.json({

@@ -111,9 +111,9 @@ export async function POST(req: NextRequest) {
         
         results.success++;
       } catch (err: unknown) {
+        console.error('[Bulk Upload row error]', err);
         results.failed++;
-        const message = err instanceof Error ? err.message : 'Unexpected import error';
-        results.errors.push({ email: emp.email, message });
+        results.errors.push({ email: emp.email, message: 'Failed to import this row. Please check the data and try again.' });
       }
     }
 

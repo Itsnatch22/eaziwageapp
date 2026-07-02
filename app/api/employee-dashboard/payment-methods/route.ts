@@ -13,6 +13,7 @@ import {
   setDefaultPaymentMethod,
 } from '@/lib/paymentMethodsService';
 import { sendOtpSms } from '@/lib/sendOtp';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
 
       // account_number / phone_number are always null post-trigger — do not select them
       const { data: pm, error: pmError } = await adminSupabase.from('payment_methods').select('id, employee_id, is_verified').eq('id', id).maybeSingle();
-      if (pmError) return NextResponse.json({ error: pmError.message }, { status: 500 });
+      if (pmError) return dbErrorResponse('payment-methods/request_verification', pmError);
       if (!pm) return NextResponse.json({ error: 'Payment method not found' }, { status: 404 });
 
       if (pm.employee_id !== employee.id) return NextResponse.json({ error: 'Payment method does not belong to you' }, { status: 403 });
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
         .from('payment_method_verifications')
         .insert([{ payment_method_id: id, otp_hash: otpHash, expires_at: expiresAt }]);
 
-      if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+      if (insertError) return dbErrorResponse('payment-methods/request_verification', insertError);
 
       // Decrypt PII server-side — plaintext columns are always null post-trigger
       const { PII_ENCRYPTION_KEY } = getEnv();
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
         .eq('id', id)
         .eq('employee_id', employee.id)
         .maybeSingle();
-      if (pmRowError) return NextResponse.json({ error: pmRowError.message }, { status: 500 });
+      if (pmRowError) return dbErrorResponse('payment-methods/confirm_verification', pmRowError);
       if (!pmRow) return NextResponse.json({ error: 'Payment method not found' }, { status: 404 });
       if (!pmRow.is_active) return NextResponse.json({ error: 'Payment method is inactive' }, { status: 422 });
       if (pmRow.is_verified) return NextResponse.json({ success: true, message: 'Already verified' });
@@ -213,7 +214,7 @@ export async function POST(req: NextRequest) {
         .select('*')
         .single();
 
-      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+      if (updateError) return dbErrorResponse('payment-methods/confirm_verification', updateError);
 
       console.info('[payment-methods] Payment method verified', { id, before_is_verified: before?.is_verified, after_is_verified: updated?.is_verified, user: user.id });
 

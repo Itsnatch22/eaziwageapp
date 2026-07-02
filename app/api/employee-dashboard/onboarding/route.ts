@@ -7,6 +7,7 @@ import EmployeeKycConfirmation from '@/lib/emails/EmployeeKYCConfirmation';
 import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { getEnv } from '@/env';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -263,8 +264,7 @@ const { data: existing } = await adminSupabase
     : await adminSupabase.from('employee_onboarding').insert(upsertPayload);
 
   if (upsertError) {
-     console.error('[employee/onboarding/submit]', upsertError);
-     return NextResponse.json({ error: upsertError.message }, { status: 500 });
+     return dbErrorResponse('employee/onboarding/submit', upsertError, 'Failed to submit your application. Please try again.');
    }
 
   // Encrypt PII fields via DB function — row must exist before this is called

@@ -3,6 +3,7 @@ import { createRouteHandlerClient as createClient } from '@/utils/supabase/serve
 import { NextRequest, NextResponse } from 'next/server';
 import { connectPayrollSchema } from '@/lib/validations/payroll-validation';
 import { randomBytes } from 'crypto';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -75,8 +76,7 @@ const { data: integrations, error } = await supabase
     return NextResponse.json({ integrations: shaped });
   } catch (err: unknown) {
     console.error('[payroll/connect] unexpected error', err);
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load payroll integrations.' }, { status: 500 });
   }
 }
 
@@ -159,8 +159,7 @@ const { data: existing, error: existingError } = await supabase
         .eq('id', existing.id);
 
       if (updateErr) {
-        console.error('[payroll/connect] update error', updateErr.message);
-        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+        return dbErrorResponse('payroll/connect', updateErr, 'Failed to update the integration. Please try again.');
       }
     } else {
       integrationCode = generateIntegrationCode();
@@ -183,8 +182,7 @@ const { error: insertErr } = await supabase
          });
 
       if (insertErr) {
-        console.error('[payroll/connect] insert:', insertErr.message);
-        return NextResponse.json({ error: insertErr.message }, { status: 500 });
+        return dbErrorResponse('payroll/connect', insertErr, 'Failed to create the integration. Please try again.');
       }
     }
 
@@ -208,8 +206,7 @@ const { error: insertErr } = await supabase
 
   } catch (err: unknown) {
     console.error('[payroll/connect] unexpected error', err);
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to connect payroll integration. Please try again.' }, { status: 500 });
   }
 }
 

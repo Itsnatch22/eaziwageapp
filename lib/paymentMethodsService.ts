@@ -19,7 +19,10 @@ export async function createPaymentMethod(supabaseClient: SupabaseClient, employ
     .select('*')
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('[paymentMethodsService]', error);
+    throw new Error('Payment method operation failed');
+  }
 
   // Explicitly encrypt PII via RPC — the trigger will also do this on INSERT, but we call
   // the RPC directly so the write path is self-documenting and matches employer onboarding.
@@ -60,7 +63,10 @@ export async function listPaymentMethods(supabaseClient: SupabaseClient, employe
     .eq('employee_id', employeeId)
     .order('created_at', { ascending: false });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('[paymentMethodsService]', error);
+    throw new Error('Payment method operation failed');
+  }
 
   const { PII_ENCRYPTION_KEY } = getEnv();
 
@@ -89,7 +95,10 @@ export async function getPaymentMethodById(supabaseClient: SupabaseClient, id: s
     .select('*')
     .eq('id', id)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('[paymentMethodsService]', error);
+    throw new Error('Payment method operation failed');
+  }
   return data as PaymentMethod | null;
 }
 
@@ -110,7 +119,10 @@ export async function setDefaultPaymentMethod(supabaseClient: SupabaseClient, em
     .update({ is_default: false })
     .eq('employee_id', employeeId);
 
-  if (unsetError) throw new Error(unsetError.message);
+  if (unsetError) {
+    console.error('[paymentMethodsService]', unsetError);
+    throw new Error('Payment method operation failed');
+  }
 
   const { data: updated, error } = await supabaseClient
     .from('payment_methods')
@@ -119,7 +131,10 @@ export async function setDefaultPaymentMethod(supabaseClient: SupabaseClient, em
     .select('*')
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('[paymentMethodsService]', error);
+    throw new Error('Payment method operation failed');
+  }
 
   await supabaseClient.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: employeeId, action: 'set_default', new_data: updated }]);
 
@@ -142,7 +157,10 @@ export async function deletePaymentMethod(supabaseClient: SupabaseClient, employ
     .delete()
     .eq('id', id);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('[paymentMethodsService]', error);
+    throw new Error('Payment method operation failed');
+  }
 
   await supabaseClient.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: employeeId, action: 'deleted', old_data: method }]);
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { getAdvanceLimit } from '@/lib/utils';
 import { EmployerProfileUpdateSchema } from '@/lib/validations/route-schemas';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -153,8 +154,7 @@ export async function PUT(req: NextRequest) {
     .maybeSingle();
 
   if (existingError) {
-    console.error('[employer-settings/PUT] Fetch error:', existingError);
-    return NextResponse.json({ error: existingError.message }, { status: 500 });
+    return dbErrorResponse('employer-settings/PUT', existingError);
   }
 
   if (!existing) {
@@ -191,7 +191,7 @@ export async function PUT(req: NextRequest) {
       .eq('id', obFallback.id);
 
     if (obUpdateError) {
-      return NextResponse.json({ error: obUpdateError.message }, { status: 500 });
+      return dbErrorResponse('employer-settings/PUT', obUpdateError, 'Failed to save settings. Please try again.');
     }
 
     return NextResponse.json({ message: 'Settings updated successfully.' });
@@ -227,8 +227,7 @@ export async function PUT(req: NextRequest) {
     .eq('id', existing.onboarding_id);
 
   if (onboardingUpdateError) {
-    console.error('[employer-settings/PUT] Onboarding update error:', onboardingUpdateError);
-    return NextResponse.json({ error: onboardingUpdateError.message }, { status: 500 });
+    return dbErrorResponse('employer-settings/PUT', onboardingUpdateError, 'Failed to save settings. Please try again.');
   }
 
   const { data: updated, error: updateError } = await supabase
@@ -261,8 +260,7 @@ export async function PUT(req: NextRequest) {
     .single();
 
   if (updateError) {
-    console.error('[employer-settings/PUT] Update error:', updateError);
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return dbErrorResponse('employer-settings/PUT', updateError, 'Failed to save settings. Please try again.');
   }
 
 

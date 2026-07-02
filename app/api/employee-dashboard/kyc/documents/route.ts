@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
 
     if (saveError) {
       console.error('[KYC Upload] DB error:', saveError);
-      return NextResponse.json({ error: 'Failed to save document metadata', code: 'SAVE_ERROR', details: saveError }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to save document metadata', code: 'SAVE_ERROR' }, { status: 500 });
     }
 
     const parsedResult = KYCDocumentSchema.safeParse(savedDoc);
@@ -286,16 +286,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(validatedDoc, { status: 201 });
   } catch (err: unknown) {
-    console.error('[KYC POST] Full error object:', JSON.stringify(err, null, 2));
-    const errMessage = err instanceof Error ? err.message : 'Internal server error';
-    const errStack = err instanceof Error ? err.stack : undefined;
-    console.error('[KYC POST] Error message:', errMessage);
-    console.error('[KYC POST] Error stack:', errStack);
-    
-    return NextResponse.json({ 
-        error: errMessage, 
+    console.error('[KYC POST] Unexpected error:', err);
+
+    return NextResponse.json({
+        error: 'Failed to upload document. Please try again.',
         code: 'SERVER_ERROR',
-        details: process.env.NODE_ENV === 'development' ? err : undefined
+        details: process.env.NODE_ENV === 'development' ? String(err) : undefined
     }, { status: 500 });
   }
 }

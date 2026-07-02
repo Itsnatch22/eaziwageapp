@@ -1,5 +1,6 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   if (employerError) {
-    return NextResponse.json({ error: employerError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/advances', employerError);
   }
 
   if (!employer) {
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
     .eq('employer_id', employer.id);
 
   if (employeesError) {
-    return NextResponse.json({ error: employeesError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/advances', employeesError);
   }
 
   const typedEmployees = (employeeRows ?? []) as EmployeeRow[];
@@ -99,7 +100,7 @@ export async function GET(req: NextRequest) {
     .in('employee_id', employeeIds);
 
   if (statsError) {
-    return NextResponse.json({ error: statsError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/advances', statsError);
   }
 
   const allRows = statsRows ?? [];
@@ -128,7 +129,7 @@ export async function GET(req: NextRequest) {
     .range(from, to);
 
   if (advancesError) {
-    return NextResponse.json({ error: advancesError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/advances', advancesError);
   }
 
   const employeeById = new Map<string, EmployeeRow>(typedEmployees.map((e) => [e.id, e]));

@@ -149,7 +149,10 @@ export class PayoutService {
     p_advance_id: advanceId,
   });
 
-  if (error) throw new Error(`Failed to reserve funds: ${error.message}`);
+  if (error) {
+    console.error('[payout-service] reserveFunds RPC failed', error);
+    throw new Error('Failed to reserve funds');
+  }
   return data; // returns wallet_transaction id
 }
 

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabaseAdmin';
 import { getSafeFileExtension, isDocumentFile } from '@/lib/upload-file-types';
 import { MAX_FILE_SIZE } from '@/lib/validations/kyc-validation';
 import { notifyAdmin } from '@/lib/notifications';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -42,7 +43,7 @@ export async function POST(
       .eq('id', paymentMethodId)
       .maybeSingle();
 
-    if (pmError) return NextResponse.json({ error: pmError.message }, { status: 500 });
+    if (pmError) return dbErrorResponse('payment-methods/document', pmError);
     if (!pm) return NextResponse.json({ error: 'Payment method not found' }, { status: 404 });
     if (pm.employee_id !== employee.id) {
       return NextResponse.json({ error: 'Payment method does not belong to you' }, { status: 403 });
