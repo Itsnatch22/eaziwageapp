@@ -1,8 +1,8 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Smartphone, Landmark, Plus, Trash2,
-  AlertCircle, Loader2, CreditCard, Star, ShieldCheck
+  AlertCircle, Loader2, CreditCard, Star, ShieldCheck, Upload, Clock, XCircle
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,8 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+type BankVerificationStatus = 'unverified' | 'pending_review' | 'approved' | 'rejected';
+
 interface PaymentMethod {
   id: string;
   method_type: 'mobile_money' | 'bank_account';
@@ -24,6 +26,8 @@ interface PaymentMethod {
   country_code?: string | null;
   is_default?: boolean;
   is_verified?: boolean;
+  verification_status?: BankVerificationStatus;
+  verification_notes?: string | null;
 }
 
 const PaymentMethods = () => {
@@ -37,6 +41,9 @@ const PaymentMethods = () => {
   const [otpInput, setOtpInput] = useState('');
   const [otpSending, setOtpSending] = useState(false);
   const [otpSubmitting, setOtpSubmitting] = useState(false);
+
+  const [uploadingDocForId, setUploadingDocForId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newMethod, setNewMethod] = useState({
     method_type: 'mobile_money' as 'mobile_money' | 'bank_account',
@@ -70,6 +77,8 @@ const PaymentMethods = () => {
           country_code?: string;
           is_default?: boolean;
           is_verified?: boolean;
+          verification_status?: BankVerificationStatus;
+          verification_notes?: string | null;
         }) => ({
           id: m.id,
           method_type: (m.method_type || m.type) as 'mobile_money' | 'bank_account',
@@ -80,6 +89,8 @@ const PaymentMethods = () => {
           country_code: m.country_code || null,
           is_default: m.is_default || false,
           is_verified: m.is_verified || false,
+          verification_status: m.verification_status || 'unverified',
+          verification_notes: m.verification_notes || null,
         }));
         setMethods(adapted);
       }
@@ -202,6 +213,40 @@ const PaymentMethods = () => {
     }
   };
 
+  const startDocumentUpload = (id: string) => {
+    setUploadingDocForId(id);
+    fileInputRef.current?.click();
+  };
+
+  const handleDocumentSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const id = uploadingDocForId;
+    e.target.value = '';
+    if (!file || !id) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`/api/employee-dashboard/payment-methods/${id}/document`, {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
+        toast.success('Document submitted. An admin will review it shortly.');
+        fetchMethods();
+      } else {
+        toast.error(json?.error || 'Failed to upload document');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to upload document');
+    } finally {
+      setUploadingDocForId(null);
+    }
+  };
+
   const closeVerifyModal = () => {
     setVerifyingMethodId(null);
     setOtpInput('');
@@ -209,9 +254,16 @@ const PaymentMethods = () => {
 
   return (
     <EmployeePortalLayout title="Payment Methods">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.pdf,.doc,.docx"
+        className="hidden"
+        onChange={handleDocumentSelected}
+      />
       <div className="max-w-4xl mx-auto space-y-8">
 
-        
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Withdrawal Targets</h1>
@@ -259,20 +311,38 @@ const PaymentMethods = () => {
                             <Star className="w-2 h-2 fill-current" /> Primary
                           </span>
                         )}
-                        {!m.is_verified && (
+                        {!m.is_verified && m.method_type === 'mobile_money' && (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-600 text-[9px] font-bold uppercase tracking-wider rounded-full border border-amber-500/20">
                             Unverified
+                          </span>
+                        )}
+                        {!m.is_verified && m.method_type === 'bank_account' && m.verification_status === 'unverified' && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-600 text-[9px] font-bold uppercase tracking-wider rounded-full border border-amber-500/20">
+                            Unverified
+                          </span>
+                        )}
+                        {m.method_type === 'bank_account' && m.verification_status === 'pending_review' && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-600 text-[9px] font-bold uppercase tracking-wider rounded-full border border-blue-500/20">
+                            <Clock className="w-2 h-2" /> Pending Review
+                          </span>
+                        )}
+                        {m.method_type === 'bank_account' && m.verification_status === 'rejected' && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/10 text-red-600 text-[9px] font-bold uppercase tracking-wider rounded-full border border-red-500/20">
+                            <XCircle className="w-2 h-2" /> Rejected
                           </span>
                         )}
                       </div>
                       <p className="text-sm font-mono text-slate-500 mt-0.5">{m.account_number || m.phone_number}</p>
                       {(m.account_name) && <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mt-1">{m.account_name}</p>}
+                      {m.method_type === 'bank_account' && m.verification_status === 'rejected' && m.verification_notes && (
+                        <p className="text-[10px] text-red-500 font-medium mt-1">Reason: {m.verification_notes}</p>
+                      )}
                     </div>
                   </div>
 
                   
                   <div className="flex items-center gap-2 self-end sm:self-auto">
-                    {!m.is_verified && (
+                    {!m.is_verified && m.method_type === 'mobile_money' && (
                       <button
                         onClick={() => requestVerification(m.id)}
                         disabled={otpSending}
@@ -280,6 +350,17 @@ const PaymentMethods = () => {
                       >
                         {otpSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
                         Verify
+                      </button>
+                    )}
+                    {!m.is_verified && m.method_type === 'bank_account' &&
+                      (m.verification_status === 'unverified' || m.verification_status === 'rejected') && (
+                      <button
+                        onClick={() => startDocumentUpload(m.id)}
+                        disabled={uploadingDocForId === m.id}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-emerald-600 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+                      >
+                        {uploadingDocForId === m.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        {m.verification_status === 'rejected' ? 'Re-upload' : 'Upload Proof'}
                       </button>
                     )}
                     <button
@@ -301,6 +382,7 @@ const PaymentMethods = () => {
             <p className="text-sm font-bold text-amber-900 dark:text-amber-200">Security Note</p>
             <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 leading-relaxed">
               For your security, changes to payment methods may trigger a 24-hour verification period before they can be used for withdrawals.
+              Bank accounts are verified by uploading a bank statement or similar proof of ownership — an admin will review it before your account can be used for withdrawals.
             </p>
           </div>
         </div>

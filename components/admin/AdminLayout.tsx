@@ -25,6 +25,7 @@ import {
   HelpCircle,
   ClipboardCheck,
   Wifi,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -104,6 +105,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
     { label: "Overview", href: "/admin", icon: LayoutDashboard },
     { label: "Advances", href: "/admin/advances", icon: CreditCard },
     { label: "KYC Review", href: "/admin/kyc-review", icon: CheckCircle2 },
+    { label: "Bank Verifications", href: "/admin/payment-verifications", icon: Landmark },
     { label: "Employers", href: "/admin/employers", icon: Building2 },
     { label: "Employees", href: "/admin/employees", icon: Users },
     { label: "Review Requests", href: "/admin/review-requests", icon: Shield },
