@@ -4,6 +4,7 @@ import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { convertToUSD }             from '@/lib/utils';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 
 const COUNTRY_TO_CURRENCY: Record<string, string> = {
   KE: 'KES',
@@ -93,7 +94,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const label = `${months[d.getMonth()]} ${d.getFullYear()}`;
       if (trendMap.has(label)) {
         const stats = trendMap.get(label);
-        if (adv.status === 'disbursed' || adv.status === 'repaid') {
+        if ((DISBURSED_STATUSES as readonly string[]).includes(adv.status ?? '')) {
           const currency = resolveCurrency(adv.employees?.country);
           stats.revenue  += convertToUSD(Number(adv.fee_amount || 0), currency, rates);
           stats.disbursed += convertToUSD(Number(adv.amount    || 0), currency, rates);
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           country
         )
       `)
-      .in('status', ['disbursed', 'repaid']);
+      .in('status', DISBURSED_STATUSES);
 
     if (totalError) throw totalError;
 
@@ -173,7 +174,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const employerRevenueMap = new Map<string, number>();
     (advancesData as BillingAdvanceRow[] || []).forEach(adv => {
       const employerId = adv.employer_id;
-      if (employerId && (adv.status === 'disbursed' || adv.status === 'repaid')) {
+      if (employerId && (DISBURSED_STATUSES as readonly string[]).includes(adv.status ?? '')) {
         const currency = resolveCurrency(adv.employees?.country);
         const current  = employerRevenueMap.get(employerId) || 0;
         employerRevenueMap.set(employerId, current + convertToUSD(Number(adv.fee_amount || 0), currency, rates));

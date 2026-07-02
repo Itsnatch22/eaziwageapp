@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { buildCsv } from '@/lib/server/export-utils';
+import { OUTSTANDING_STATUSES } from '@/lib/constants/advance-status';
 
 export const runtime = 'nodejs';
 
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest) {
     .from('advances')
     .select('id, employee_id, amount, fee_amount')
     .in('employee_id', employeeIds)
-    .in('status', ['approved', 'disbursed'])
+    .in('status', ['approved', ...OUTSTANDING_STATUSES])
     .gte('created_at', range.fromIso)
     .lte('created_at', range.toIso);
 

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { getEnv } from '@/env';
 import { Redis } from '@upstash/redis';
+import { OUTSTANDING_STATUSES } from '@/lib/constants/advance-status';
 
 export const runtime = 'nodejs';
 
@@ -161,7 +162,7 @@ export async function GET() {
 
   const maxAccessPct = (Number(effective.max_advance_percentage) || 50) / 100;
   const totalAdvances = (advances || [])
-    .filter(a => ['pending', 'processing', 'approved', 'disbursed'].includes(a.status))
+    .filter(a => ['pending', 'processing', 'approved', ...OUTSTANDING_STATUSES].includes(a.status))
     .reduce((sum, a) => sum + Number(a.amount), 0);
 
   let advanceLimit = Math.max(0, (earnedWages * maxAccessPct) - totalAdvances);

@@ -155,6 +155,9 @@ interface SimTotals {
   net_payroll_outflow: number;
   employees_total: number;
   employees_affected: number;
+  monthly_disbursed: number;
+  monthly_fees: number;
+  monthly_advance_count: number;
 }
 
 interface SimulatorData {
@@ -851,10 +854,14 @@ export default function EmployerPayroll() {
   const totalPayroll         = activeEmployeesList.reduce((s, e) => s + (e.monthly_salary || 0), 0);
   const activeEmployees      = activeEmployeesList.length;
   const lastUpload           = payrollHistory[0];
-  const monthlyAdvances      = Math.round(totalPayroll * 0.033);
-  const avgFeeRate           = 4.5;
-  const platformFees         = Math.round(monthlyAdvances * (avgFeeRate / 100));
+  // Real disbursed advances + fees for the current month — was previously a flat
+  // 3.3%-of-payroll estimate with a hardcoded 4.5% fee rate, which disagreed with
+  // the real per-advance data shown system-wide (admin billing/dashboard, and the
+  // simulator table directly below this card).
+  const monthlyAdvances      = simulator?.totals.monthly_disbursed ?? 0;
+  const platformFees         = simulator?.totals.monthly_fees ?? 0;
   const monthlyDeductions    = monthlyAdvances + platformFees;
+  const avgFeeRate           = monthlyAdvances > 0 ? (platformFees / monthlyAdvances) * 100 : 0;
   const apiConnectionStatus  = integration?.status === 'active';
 
   if (loading) {
@@ -1216,7 +1223,9 @@ export default function EmployerPayroll() {
               <div className="text-center p-6 bg-white/60 dark:bg-slate-800/30 rounded-xl">
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total This Month</p>
                 <p className="text-4xl font-bold text-primary">{formatCurrency(monthlyDeductions, currency)}</p>
-                <p className="text-xs text-slate-400 mt-1">On behalf of {activeEmployees} employees</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {simulator?.totals.monthly_advance_count ?? 0} advance{(simulator?.totals.monthly_advance_count ?? 0) === 1 ? '' : 's'} this month
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-white/50 dark:bg-slate-800/30 rounded-xl text-center">
@@ -1224,7 +1233,7 @@ export default function EmployerPayroll() {
                   <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(monthlyAdvances, currency)}</p>
                 </div>
                 <div className="p-3 bg-white/50 dark:bg-slate-800/30 rounded-xl text-center">
-                  <p className="text-xs text-slate-500">Platform Fees ({avgFeeRate}%)</p>
+                  <p className="text-xs text-slate-500">Platform Fees ({avgFeeRate.toFixed(1)}%)</p>
                   <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(platformFees, currency)}</p>
                 </div>
               </div>

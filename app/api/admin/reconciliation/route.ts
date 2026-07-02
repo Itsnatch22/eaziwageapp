@@ -4,6 +4,7 @@ import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = await requireAdmin();
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     employee_id,
     employees!advances_employee_id_fkey(country)
   `)
-  .in('status', ['disbursed', 'repaid']);
+  .in('status', DISBURSED_STATUSES);
 
 if (advError) throw advError;
 
