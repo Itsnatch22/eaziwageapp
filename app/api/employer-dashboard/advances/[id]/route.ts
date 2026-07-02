@@ -46,7 +46,7 @@ export async function PATCH(
 
   const { data: employer, error: employerError } = await supabase
     .from('employers')
-    .select('id, onboarding_id')
+    .select('id, onboarding_id, funding_model, funding_buffer_percent, credit_limit')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -197,16 +197,59 @@ export async function PATCH(
         return NextResponse.json({ error: 'Advance already processed' }, { status: 409 });
       }
 
-      try {
-        await payoutService.reserveFunds(employer.id, target.amount, id);
-      } catch (reserveErr) {
-        // Couldn't reserve funds — release the claim so the advance isn't
-        // stuck "approved" with no reservation behind it.
-        await supabase
-          .from('advances')
-          .update({ status: 'pending', approved_at: null, approved_by: null })
-          .eq('id', id);
-        throw reserveErr;
+      // Funding Model (Employer Config settings): 'prefunded' (default) requires
+      // the employer's wallet to already hold the money — reserveFunds enforces
+      // that hard balance check. 'debit_order'/'invoice' employers aren't
+      // pre-funded at all; instead of a balance check, they get a softer cap —
+      // outstanding liability (what they already owe, tracked at funding time
+      // for prefunded employers, but accrued per-disbursement here since there
+      // was no funding event) plus this advance can't exceed their credit limit
+      // padded by funding_buffer_percent.
+      const fundingModel = employer.funding_model ?? 'prefunded';
+      if (fundingModel === 'prefunded') {
+        try {
+          await payoutService.reserveFunds(employer.id, target.amount, id);
+        } catch (reserveErr) {
+          // Couldn't reserve funds — release the claim so the advance isn't
+          // stuck "approved" with no reservation behind it.
+          await supabase
+            .from('advances')
+            .update({ status: 'pending', approved_at: null, approved_by: null })
+            .eq('id', id);
+          throw reserveErr;
+        }
+      } else {
+        const { data: wallet } = await supabaseAdmin
+          .from('employer_wallets')
+          .select('outstanding_liability')
+          .eq('employer_id', employer.id)
+          .maybeSingle();
+
+        const creditLimit = Number(employer.credit_limit ?? 5_000_000);
+        const bufferPercent = Number(employer.funding_buffer_percent ?? 20);
+        const cap = creditLimit * (1 + bufferPercent / 100);
+        const projectedLiability = Number(wallet?.outstanding_liability ?? 0) + Number(target.amount);
+
+        if (projectedLiability > cap) {
+          await supabase
+            .from('advances')
+            .update({ status: 'pending', approved_at: null, approved_by: null })
+            .eq('id', id);
+          return NextResponse.json({
+            error: `Approving this would push outstanding liability to ${projectedLiability.toFixed(2)}, over the ${fundingModel} cap of ${cap.toFixed(2)} (credit limit + ${bufferPercent}% buffer).`,
+          }, { status: 422 });
+        }
+
+        const { error: liabilityError } = await supabaseAdmin
+          .from('employer_wallets')
+          .upsert(
+            { employer_id: employer.id, outstanding_liability: projectedLiability, updated_at: new Date().toISOString() },
+            { onConflict: 'employer_id' },
+          );
+
+        if (liabilityError) {
+          console.error(`[Advance Approval] Failed to record ${fundingModel} liability for ${id}:`, liabilityError);
+        }
       }
 
       payoutService.disburseAdvance(id).catch(async (err) => {
@@ -220,18 +263,41 @@ export async function PATCH(
           .eq('id', id)
           .eq('status', 'approved');
 
-        // Release the wallet reservation so the employer's available balance
-        // isn't permanently understated by this phantom reservation.
-        const { error: releaseError } = await supabaseAdmin.rpc('release_employer_reservation', {
-          p_employer_id: employer.id,
-          p_amount: target.amount,
-          p_advance_id: id,
-        });
+        if (fundingModel === 'prefunded') {
+          // Release the wallet reservation so the employer's available balance
+          // isn't permanently understated by this phantom reservation.
+          const { error: releaseError } = await supabaseAdmin.rpc('release_employer_reservation', {
+            p_employer_id: employer.id,
+            p_amount: target.amount,
+            p_advance_id: id,
+          });
 
-        if (releaseError) {
-          console.error(`[Advance Approval] Failed to release reservation for ${id}:`, releaseError.message);
-          // Best-effort cleanup — don't throw. Admin alert below provides visibility
-          // for manual recovery if needed.
+          if (releaseError) {
+            console.error(`[Advance Approval] Failed to release reservation for ${id}:`, releaseError.message);
+            // Best-effort cleanup — don't throw. Admin alert below provides visibility
+            // for manual recovery if needed.
+          }
+        } else {
+          // debit_order/invoice: the liability was recorded optimistically at
+          // approval time (see above) since there's no reserveFunds hold for
+          // these funding models — back it out now that disbursement failed.
+          const { data: wallet } = await supabaseAdmin
+            .from('employer_wallets')
+            .select('outstanding_liability')
+            .eq('employer_id', employer.id)
+            .maybeSingle();
+
+          const { error: releaseError } = await supabaseAdmin
+            .from('employer_wallets')
+            .update({
+              outstanding_liability: Math.max(0, Number(wallet?.outstanding_liability ?? 0) - Number(target.amount)),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('employer_id', employer.id);
+
+          if (releaseError) {
+            console.error(`[Advance Approval] Failed to release ${fundingModel} liability for ${id}:`, releaseError.message);
+          }
         }
 
         void notifyAdmin({

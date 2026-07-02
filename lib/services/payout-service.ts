@@ -282,7 +282,7 @@ export class PayoutService {
       .select(`
         *,
         e:employees(id, full_name, kyc_status, status:status, risk_score, employer_id, country, monthly_salary, created_at),
-        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access, instant_enabled)
+        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access, instant_enabled, funding_model, risk_tier, funding_buffer_percent, credit_limit)
       `)
       .eq('id', advanceId)
       .maybeSingle();
@@ -344,6 +344,10 @@ export class PayoutService {
       max_monthly_advances?: number | string | null;
       weekend_access?: boolean | null;
       instant_enabled?: boolean | null;
+      funding_model?: string | null;
+      risk_tier?: string | null;
+      funding_buffer_percent?: number | string | null;
+      credit_limit?: number | string | null;
     }
 
     interface EESRow {
@@ -465,6 +469,15 @@ export class PayoutService {
       if (typeof employee.risk_score === 'number' && reduceLimitsThreshold != null && employee.risk_score < reduceLimitsThreshold) {
         effectiveMaxPercent = effectiveMaxPercent / 2;
       }
+      // Employer Config's Risk Tier — a coarser, employer-wide cap on top of
+      // whatever the employee-level percentage resolves to. 'high' additionally
+      // forces every advance through fraud review regardless of the fraud
+      // engine's own verdict (handled after checkEmployeeEligibility returns).
+      const RISK_TIER_MAX_PERCENT: Record<string, number> = { medium: 40, high: 25 };
+      const tierCap = employer?.risk_tier ? RISK_TIER_MAX_PERCENT[employer.risk_tier] : undefined;
+      if (tierCap != null) {
+        effectiveMaxPercent = Math.min(effectiveMaxPercent, tierCap);
+      }
       // Integer-cent arithmetic — avoids float imprecision on salary × percent
       const salaryMinor = Math.round(toNumber(employee?.monthly_salary) * 100);
       const maxAllowedMinor = Math.floor(salaryMinor * effectiveMaxPercent / 100);
@@ -538,6 +551,10 @@ export class PayoutService {
       const monthCount = (monthSelect.count as number) ?? 0;
       if (monthCount >= maxMonthly) {
         flags.push({ flagType: 'velocity', severity: 'high', description: `Employee has reached monthly advance limit of ${maxMonthly}`, metadata: { month_count: monthCount, limit: maxMonthly } });
+      }
+
+      if (employer?.risk_tier === 'high') {
+        flags.push({ flagType: 'high_risk_employer_tier', severity: 'high', description: 'Employer is on the High risk tier — every advance requires manual review' });
       }
 
       return { eligible: flags.length === 0 || flags.every(f => f.severity === 'low'), fraudFlags: flags };
@@ -707,17 +724,17 @@ export class PayoutService {
       raw_payload: payoutResponse
     }, { onConflict: 'merchant_reference,event_type' });
 
-    try {
-      await supabaseAdmin.rpc('increment_employer_liability', {
-        p_employer_id: advance.employer_id,
-        p_amount: advanceAmount,
-        p_currency: advance.currency,
-      });
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : 'Failed to update employer liability';
-      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
-      throw new Error(reason);
-    }
+    // NOTE: employer liability is already fully recorded at funding time —
+    // fund_employer_from_admin() increments employer_wallets.outstanding_liability
+    // by the whole funded amount when the admin tops up the employer's wallet,
+    // and reserve_employer_funds()/repay_advance_to_admin() correctly move
+    // reserved_amount to gate/release that balance per-advance. There used to be
+    // a call here to a non-existent `increment_employer_liability` RPC that would
+    // have double-counted this same money as owed a second time per disbursement
+    // (on top of what funding already recorded) had it ever been implemented —
+    // removed rather than implemented for that reason. It also meant every real
+    // automated disbursement was silently marked 'failed' after DusuPay had
+    // already sent the money, since the RPC call always threw.
 
     const disbursedAt = new Date();
     await supabaseAdmin.from('advances').update({
