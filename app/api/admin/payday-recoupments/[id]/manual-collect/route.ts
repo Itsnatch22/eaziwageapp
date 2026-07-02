@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/server/admin-auth';
 import { applyPaydayRecoupmentCollection } from '@/lib/services/payday-recoupment-service';
 import { notifyEmployer } from '@/lib/notifications';
 import { requestLogger } from '@/lib/logger';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -27,7 +28,7 @@ export async function POST(
     .eq('id', id)
     .maybeSingle();
 
-  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
+  if (fetchError) return dbErrorResponse('admin/payday-recoupments/manual-collect', fetchError);
   if (!recoupment) return NextResponse.json({ error: 'Recoupment not found' }, { status: 404 });
   if (recoupment.status !== 'failed') {
     return NextResponse.json({ error: `Cannot manually collect — status is '${recoupment.status}'` }, { status: 409 });

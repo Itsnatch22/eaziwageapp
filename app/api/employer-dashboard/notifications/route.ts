@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
+import { dbErrorResponse } from "@/lib/api-errors";
 
 
 export const runtime = "nodejs";
@@ -32,12 +33,7 @@ export async function GET() {
 
     return NextResponse.json({ notifications: notifications || [] });
   } catch (error: unknown) {
-    console.error("Notifications error:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return dbErrorResponse('employer-dashboard/notifications', error);
   }
 }
 
@@ -66,9 +62,7 @@ async function markRead(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error: unknown) {
-        console.error('Notifications update error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Error updating notifications';
-        return NextResponse.json({ error: errorMessage }, { status: 500 });
+        return dbErrorResponse('employer-dashboard/notifications/markRead', error, 'Error updating notifications');
     }
 }
 
@@ -97,9 +91,7 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error: unknown) {
-        console.error('Notification delete error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Error deleting notification';
-        return NextResponse.json({ error: errorMessage }, { status: 500 });
+        return dbErrorResponse('employer-dashboard/notifications/delete', error, 'Error deleting notification');
     }
 }
 

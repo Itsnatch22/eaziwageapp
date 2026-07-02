@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend }          from 'resend';
 import { z }               from 'zod';
 import RiskReviewRequestEmail from '@/lib/emails/RiskRequestReview';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (empError) {
-    return NextResponse.json({ error: empError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/request-review', empError);
   }
 
   if (!employer) {
@@ -86,8 +87,7 @@ export async function POST(req: NextRequest) {
     });
 
   if (insertError) {
-    console.error('[request-review] insert:', insertError.message);
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/request-review', insertError);
   }
 
   const emailTo     = employer.contact_email ?? user.email!;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
 import { EmployeeNotificationPrefsSchema } from "@/lib/validations/route-schemas";
+import { dbErrorResponse } from "@/lib/api-errors";
 
 export const runtime = "nodejs";
 
@@ -38,12 +39,7 @@ export async function GET() {
     return NextResponse.json(preferences);
 
   } catch (error: unknown) {
-    console.error("Get notification preferences error:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return dbErrorResponse('employee-dashboard/notifications/preferences', error);
   }
 }
 
@@ -97,11 +93,6 @@ export async function PUT(req: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error("Update notification preferences error:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return dbErrorResponse('employee-dashboard/notifications/preferences', error);
   }
 }

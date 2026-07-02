@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { z } from 'zod';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 const ruleSchema = z.object({
   name: z.string().min(2),
@@ -29,11 +30,10 @@ export async function GET(req: NextRequest) {
       .select('id, name, description, rule_type, threshold_value, threshold_unit, severity, action, enabled, created_at, updated_at')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) return dbErrorResponse('admin/fraud/rules GET', error);
     return NextResponse.json({ rules: data });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/fraud/rules GET', error);
   }
 }
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) return dbErrorResponse('admin/fraud/rules POST', error, 'Invalid request', 400);
 
     void adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id,

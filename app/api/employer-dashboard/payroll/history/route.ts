@@ -1,5 +1,6 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -53,8 +54,6 @@ export async function GET() {
 
     return NextResponse.json(uploads ?? []);
   } catch (err: unknown) {
-    console.error('[payroll/history] unexpected error', err);
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/payroll/history', err);
   }
 }

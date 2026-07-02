@@ -1,6 +1,7 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -24,7 +25,7 @@ export async function GET() {
       .maybeSingle();
 
     if (employerError) {
-      return NextResponse.json({ error: employerError.message }, { status: 500 });
+      return dbErrorResponse('employer-dashboard/payroll-simulator', employerError);
     }
 
     let employerId: string;
@@ -46,7 +47,7 @@ export async function GET() {
         .maybeSingle();
 
       if (onboardingError) {
-        return NextResponse.json({ error: onboardingError.message }, { status: 500 });
+        return dbErrorResponse('employer-dashboard/payroll-simulator', onboardingError);
       }
 
       if (!onboarding) {
@@ -68,7 +69,7 @@ export async function GET() {
       .in('status', ['Active', 'approved', 'active']);
 
     if (employeesError) {
-      return NextResponse.json({ error: employeesError.message }, { status: 500 });
+      return dbErrorResponse('employer-dashboard/payroll-simulator', employeesError);
     }
 
     const employees = employeeRows ?? [];
@@ -96,7 +97,7 @@ export async function GET() {
         .order('disbursed_at', { ascending: false });
 
       if (advancesError) {
-        return NextResponse.json({ error: advancesError.message }, { status: 500 });
+        return dbErrorResponse('employer-dashboard/payroll-simulator', advancesError);
       }
 
       advances = advanceRows ?? [];
@@ -149,7 +150,6 @@ export async function GET() {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/payroll-simulator', err);
   }
 }

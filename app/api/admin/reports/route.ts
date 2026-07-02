@@ -6,6 +6,7 @@ import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis } from '@upstash/redis';
 import { z } from 'zod';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 type AdminUser = Pick<User, 'id' | 'email' | 'app_metadata' | 'user_metadata'>;
 
@@ -145,11 +146,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { data: reports, error, count } = await query;
 
     if (error) {
-      console.error('[Admin Reports] Database error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch reports', detail: error.message },
-        { status: 500 }
-      );
+      return dbErrorResponse('admin/reports', error, 'Failed to fetch reports');
     }
 
     const stats = {
@@ -259,11 +256,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .single();
 
     if (error) {
-      console.error('[Admin Reports] Create error:', error);
-      return NextResponse.json(
-        { error: 'Failed to create report', detail: error.message },
-        { status: 500 }
-      );
+      return dbErrorResponse('admin/reports/create', error, 'Failed to create report');
     }
 
     const { data: readyReport, error: readyError } = await supabase
@@ -278,16 +271,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .single();
 
     if (readyError) {
-      console.error('[Admin Reports] Ready update error:', readyError);
       await supabase
         .from('admin_reports')
         .update({ status: 'failed' })
         .eq('id', report.id);
 
-      return NextResponse.json(
-        { error: 'Failed to prepare report', detail: readyError.message },
-        { status: 500 }
-      );
+      return dbErrorResponse('admin/reports/ready', readyError, 'Failed to prepare report');
     }
 
     const redis = new Redis({

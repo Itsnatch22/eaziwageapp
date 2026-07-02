@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -126,8 +127,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
       .limit(100);
 
     if (error) {
-      console.error('[Admin TopUp Requests GET] Supabase query error:', error);
-      throw error;
+      return dbErrorResponse('admin/wallet/topup-requests GET', error);
     }
 
     const enrichedRequests: TopUpRequest[] = ((rows ?? []) as unknown as EnrichedRow[]).map((row) => {
@@ -177,8 +177,6 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[Admin TopUp Requests GET] Error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/wallet/topup-requests GET', err);
   }
 }

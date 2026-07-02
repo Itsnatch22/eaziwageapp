@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { getEnv } from '@/env';
 import { Redis } from '@upstash/redis';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -65,7 +66,7 @@ export async function GET() {
     .maybeSingle();
 
   if (employeeError) {
-    return NextResponse.json({ error: employeeError.message }, { status: 500 });
+    return dbErrorResponse('employee-dashboard/overview', employeeError);
   }
 
   if (!employee) {

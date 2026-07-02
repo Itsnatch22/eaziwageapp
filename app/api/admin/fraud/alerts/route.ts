@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,10 +32,9 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) return dbErrorResponse('admin/fraud/alerts GET', error);
     return NextResponse.json({ alerts: data });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/fraud/alerts GET', error);
   }
 }

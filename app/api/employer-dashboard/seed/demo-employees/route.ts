@@ -1,6 +1,7 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -70,8 +71,7 @@ export async function POST() {
     } = await supabase.auth.getUser();
 
     if (authError) {
-      console.error('[seed/demo-employees] Auth error:', authError);
-      return NextResponse.json({ error: 'Authentication error', details: authError.message }, { status: 401 });
+      return dbErrorResponse('employer-dashboard/seed/demo-employees', authError, 'Authentication error', 401);
     }
 
     if (!user) {
@@ -86,8 +86,7 @@ export async function POST() {
       .maybeSingle();
 
     if (employerError) {
-      console.error('[seed/demo-employees] Employer query error:', employerError);
-      return NextResponse.json({ error: 'Failed to query employer', details: employerError.message }, { status: 500 });
+      return dbErrorResponse('employer-dashboard/seed/demo-employees', employerError, 'Failed to query employer');
     }
 
     if (!employer) {
@@ -103,8 +102,7 @@ export async function POST() {
       .eq('employer_id', employer.onboarding_id);
 
     if (countError) {
-      console.error('[seed/demo-employees] Count error:', countError);
-      return NextResponse.json({ error: 'Failed to count employees', details: countError.message }, { status: 500 });
+      return dbErrorResponse('employer-dashboard/seed/demo-employees', countError, 'Failed to count employees');
     }
 
     if ((count ?? 0) >= 50) {
@@ -185,13 +183,7 @@ export async function POST() {
       .insert(rows);
 
     if (insertError) {
-      console.error('[seed/demo-employees] Insert error details:', JSON.stringify(insertError, null, 2));
-      return NextResponse.json({ 
-        error: 'Failed to seed employees', 
-        details: insertError.message,
-        hint: insertError.hint,
-        code: insertError.code 
-      }, { status: 500 });
+      return dbErrorResponse('employer-dashboard/seed/demo-employees', insertError, 'Failed to seed employees');
     }
 
     return NextResponse.json({
@@ -199,13 +191,6 @@ export async function POST() {
       count: rows.length,
     });
   } catch (error: unknown) {
-    console.error('[seed/demo-employees] Unexpected error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    const stack = error instanceof Error ? error.stack : undefined;
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: message,
-      stack: process.env.NODE_ENV === 'development' ? stack : undefined
-    }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/seed/demo-employees', error);
   }
 }

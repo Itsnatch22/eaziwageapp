@@ -10,7 +10,10 @@ export async function processApprovedAdvances(supabaseClient: SupabaseClient, li
     .order('requested_at', { ascending: true })
     .limit(limit);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('[advanceProcessor] failed to fetch approved advances', error);
+    throw new Error('Failed to fetch approved advances');
+  }
   if (!advances || advances.length === 0) return { processed: 0 };
 
   let processed = 0;

@@ -5,6 +5,7 @@ import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { z } from 'zod';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
     const { data: advances, error: advancesError, count } = await query;
 
     if (advancesError) {
-      return NextResponse.json({ error: advancesError.message }, { status: 500 });
+      return dbErrorResponse('admin/advances', advancesError);
     }
 
     const typedAdvances = (advances ?? []) as AdvanceRow[];

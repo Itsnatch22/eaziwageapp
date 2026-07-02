@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyAdmin } from '@/lib/notifications';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 async function run(): Promise<NextResponse> {
   try {
@@ -17,8 +18,7 @@ async function run(): Promise<NextResponse> {
       .lt('due_date', today);
 
     if (fetchError) {
-      console.error('[cron/repayment-overdue] Fetch error:', fetchError);
-      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+      return dbErrorResponse('cron/repayment-overdue', fetchError);
     }
 
     if (!overdueSchedules?.length) {
@@ -33,8 +33,7 @@ async function run(): Promise<NextResponse> {
       .in('id', ids);
 
     if (updateError) {
-      console.error('[cron/repayment-overdue] Bulk update error:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return dbErrorResponse('cron/repayment-overdue', updateError);
     }
 
     let notified = 0;

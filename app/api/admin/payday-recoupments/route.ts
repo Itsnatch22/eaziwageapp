@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getEnv } from '@/env';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -18,7 +19,7 @@ export async function GET() {
     .eq('status', 'failed')
     .order('payday_date', { ascending: true });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse('admin/payday-recoupments', error);
 
   const { PII_ENCRYPTION_KEY } = getEnv();
 

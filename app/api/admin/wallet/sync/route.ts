@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { getStanbicAuthHeader, getStanbicBalanceUrl } from '@/lib/stanbic/client';
 import { requestLogger } from '@/lib/logger';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface AdminWallet {
@@ -101,8 +102,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ wallet: wallet ?? null, transactions });
   } catch (err: unknown) {
     log.error('Unhandled error', { err });
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/wallet/sync GET', err);
   }
 }
 
@@ -288,7 +288,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   } catch (err: unknown) {
     log.error('Unhandled error', { err });
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/wallet/sync POST', err);
   }
 }

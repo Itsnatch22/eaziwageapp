@@ -1,5 +1,6 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   if (employerError) {
-    return NextResponse.json({ error: employerError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/employees', employerError);
   }
 
   const employerIds: string[] = [];
@@ -96,8 +97,7 @@ export async function GET(req: NextRequest) {
   const { data: rawEmployees, error: empError } = await query;
 
   if (empError) {
-    console.error('[employees/list]', empError);
-    return NextResponse.json({ error: empError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/employees', empError);
   }
 
   const userIds = (rawEmployees ?? []).map((e) => e.user_id).filter(Boolean);

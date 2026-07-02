@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 const CURRENCIES = ['KES', 'TZS', 'UGX', 'RWF'] as const;
 
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
       .from('exchange_rates')
       .upsert(rows, { onConflict: 'currency_code' });
 
-    if (upsertError) throw new Error(`Upsert failed: ${upsertError.message}`);
+    if (upsertError) return dbErrorResponse('internal/sync-exchange-rates', upsertError);
 
     console.info('[sync-exchange-rates] Updated', rows.length, 'rates at', now);
 

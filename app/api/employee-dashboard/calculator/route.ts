@@ -4,6 +4,7 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry, calculateFeePercentage } from '@/lib/utils';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +27,7 @@ export async function GET() {
       .maybeSingle();
 
     if (employeeError) {
-      return NextResponse.json({ error: employeeError.message }, { status: 500 });
+      return dbErrorResponse('employee-dashboard/calculator', employeeError);
     }
 
     if (!employee) {

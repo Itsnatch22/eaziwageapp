@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { TopupRejectSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer } from '@/lib/notifications';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -106,8 +107,6 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, rejected: true, request_id: id });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[Admin TopUp Reject] Error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/wallet/topup-requests/reject', err);
   }
 }

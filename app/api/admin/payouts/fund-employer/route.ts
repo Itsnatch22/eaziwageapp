@@ -5,6 +5,7 @@ import { FundEmployerSchema } from '@/lib/validations/route-schemas';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 async function isSystemAdmin(userId: string): Promise<boolean> {
   const env = getEnv();
@@ -72,8 +73,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, result });
 
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[Admin Funding] Error: ${message}`);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/payouts/fund-employer', err);
   }
 }

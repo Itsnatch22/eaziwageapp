@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { buildCsv } from '@/lib/server/export-utils';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   if (employerError) {
-    return NextResponse.json({ error: employerError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/payroll/reconciliation-file', employerError);
   }
   if (!employer) {
     const { data: obFallback } = await supabase
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
     .eq('employer_id', employer.id);
 
   if (employeeError) {
-    return NextResponse.json({ error: employeeError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/payroll/reconciliation-file', employeeError);
   }
 
   const employeeRows = (employees ?? []) as EmployeeRow[];
@@ -123,7 +124,7 @@ export async function GET(req: NextRequest) {
     .lte('created_at', range.toIso);
 
   if (advanceError) {
-    return NextResponse.json({ error: advanceError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/payroll/reconciliation-file', advanceError);
   }
 
   const grouped = new Map<string, { principal: number; fees: number; refs: string[] }>();

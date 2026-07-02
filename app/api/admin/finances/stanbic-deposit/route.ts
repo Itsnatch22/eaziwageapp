@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { StanbicDepositSchema } from '@/lib/validations/route-schemas';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,8 +56,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
 
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[Stanbic Deposit] Error: ${message}`);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/finances/stanbic-deposit', err);
   }
 }

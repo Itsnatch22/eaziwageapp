@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
 import { PasswordChangeSchema } from "@/lib/validations/route-schemas";
+import { dbErrorResponse } from "@/lib/api-errors";
 
 
 export const runtime = "nodejs";
@@ -32,17 +33,12 @@ export async function PUT(req: NextRequest) {
     });
 
     if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 400 });
+        return dbErrorResponse('employer-dashboard/security/password', updateError, 'Failed to update password', 400);
     }
 
     return NextResponse.json({ success: true, message: "Password updated successfully" });
 
   } catch (error: unknown) {
-    console.error("Password update error:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return dbErrorResponse('employer-dashboard/security/password', error);
   }
 }

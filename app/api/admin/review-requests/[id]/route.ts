@@ -3,6 +3,7 @@ import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { ReviewRequestPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer, notifyEmployee } from '@/lib/notifications';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -48,8 +49,7 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('[PATCH review-requests/[id]] risk_score update error:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return dbErrorResponse('admin/review-requests/risk_score', updateError);
     }
 
     if (request.employer_onboarding?.user_id) {
@@ -92,8 +92,7 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('[PATCH review-requests/[id]] kyc_review update error:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return dbErrorResponse('admin/review-requests/kyc_review', updateError);
     }
 
     if (document.user_id) {
@@ -156,8 +155,7 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('[PATCH review-requests/[id]] bank_change update error:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return dbErrorResponse('admin/review-requests/bank_change', updateError);
     }
 
     if (bRequest.user_id) {

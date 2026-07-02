@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyEmployee, notifyEmployer } from '@/lib/notifications';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -114,7 +115,7 @@ export async function PATCH(
       .eq('id', id);
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return dbErrorResponse('admin/advances/[action]', updateError);
     }
 
     // Audit trail — CBK requires every manual status change to have an attributable reviewer

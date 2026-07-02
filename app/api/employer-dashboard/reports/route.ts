@@ -4,6 +4,7 @@ import { ReportsQuerySchema } from '@/lib/validations/employer-reports';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { getEnv } from '@/env';
 import { Redis } from '@upstash/redis';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -150,8 +151,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .maybeSingle();
 
     if (employerError) {
-      console.error('[reports] Error fetching employer:', employerError);
-      return NextResponse.json({ error: 'Failed to fetch employer', detail: employerError.message }, { status: 500 });
+      return dbErrorResponse('employer-dashboard/reports', employerError, 'Failed to fetch employer');
     }
 
     employer = liveEmployer;

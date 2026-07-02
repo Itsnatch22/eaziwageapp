@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-errors";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,28 +19,28 @@ export async function GET(req: Request) {
       .select("*", { count: "exact", head: true })
       .eq("is_active", true);
 
-    if (usersError) throw new Error(`profiles count failed: ${usersError.message}`);
+    if (usersError) return dbErrorResponse('internal/sync-stats', usersError);
 
     const { count: activeEmployers, error: employersError } = await supabaseAdmin
       .from("employers")
       .select("*", { count: "exact", head: true })
       .eq("status", "approved");
 
-    if (employersError) throw new Error(`employers count failed: ${employersError.message}`);
+    if (employersError) return dbErrorResponse('internal/sync-stats', employersError);
 
     const { count: activeEmployees, error: employeesError } = await supabaseAdmin
       .from("employees")
       .select("*", { count: "exact", head: true })
       .eq("status", "Active");
 
-    if (employeesError) throw new Error(`employees count failed: ${employeesError.message}`);
+    if (employeesError) return dbErrorResponse('internal/sync-stats', employeesError);
 
     const { data: disbursedData, error: disbursedError } = await supabaseAdmin
       .from("advances")
       .select("amount")
       .in("status", ["disbursed", "completed", "repaid"]);
 
-    if (disbursedError) throw new Error(`advances sum failed: ${disbursedError.message}`);
+    if (disbursedError) return dbErrorResponse('internal/sync-stats', disbursedError);
 
     const totalDisbursed = (disbursedData ?? []).reduce(
       (sum, row) => sum + Number(row.amount ?? 0),
@@ -60,7 +61,7 @@ export async function GET(req: Request) {
         { onConflict: "id" }
       );
 
-    if (upsertError) throw new Error(`upsert failed: ${upsertError.message}`);
+    if (upsertError) return dbErrorResponse('internal/sync-stats', upsertError);
 
     return NextResponse.json({
       ok: true,

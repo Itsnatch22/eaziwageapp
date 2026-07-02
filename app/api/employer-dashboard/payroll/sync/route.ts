@@ -2,6 +2,7 @@ import { createRouteHandlerClient as createClient } from '@/utils/supabase/serve
 import { NextRequest, NextResponse } from 'next/server';
 import { triggerSyncSchema } from '@/lib/validations/payroll-validation';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -109,8 +110,7 @@ const { data: integration, error: intgErr } = await supabase
      .maybeSingle();
 
   if (intgErr) {
-    console.error('[payroll/sync] integration lookup error', intgErr.message);
-    return NextResponse.json({ error: intgErr.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/payroll/sync', intgErr);
   }
 
   if (!integration) {

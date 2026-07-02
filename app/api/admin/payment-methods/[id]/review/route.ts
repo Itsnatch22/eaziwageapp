@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { notifyEmployee } from '@/lib/notifications';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -39,7 +40,7 @@ export async function PATCH(
     .eq('id', paymentMethodId)
     .maybeSingle();
 
-  if (pmError) return NextResponse.json({ error: pmError.message }, { status: 500 });
+  if (pmError) return dbErrorResponse('admin/payment-methods/review', pmError);
   if (!pm) return NextResponse.json({ error: 'Payment method not found' }, { status: 404 });
   if (pm.method_type !== 'bank_account') {
     return NextResponse.json({ error: 'This review flow only applies to bank accounts' }, { status: 400 });

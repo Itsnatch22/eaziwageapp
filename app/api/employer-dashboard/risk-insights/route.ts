@@ -1,5 +1,6 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -167,8 +168,7 @@ export async function GET() {
     .maybeSingle();
 
   if (empError) {
-    console.error('[risk-insights] employer fetch:', empError.message);
-    return NextResponse.json({ error: empError.message }, { status: 500 });
+    return dbErrorResponse('employer-dashboard/risk-insights', empError);
   }
 
   if (!employer) {

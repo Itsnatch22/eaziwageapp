@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabaseAdmin';
 import { getEnv } from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis } from '@upstash/redis';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 type AdminUser = Pick<User, 'id' | 'email' | 'app_metadata' | 'user_metadata'>;
 
@@ -85,11 +86,7 @@ export async function DELETE(
       .eq('id', id);
 
     if (deleteError) {
-      console.error('[Admin Reports] Delete error:', deleteError);
-      return NextResponse.json(
-        { error: 'Failed to delete report', detail: deleteError.message },
-        { status: 500 }
-      );
+      return dbErrorResponse('admin/reports/delete', deleteError, 'Failed to delete report');
     }
     
     const redis = new Redis({

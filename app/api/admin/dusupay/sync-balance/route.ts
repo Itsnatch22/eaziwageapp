@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dusupayClient } from '@/lib/dusupay/client';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export async function POST(req: NextRequest) {
 
@@ -32,8 +33,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: balances.data });
 
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[DusuPay Sync] Error: ${message}`);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/dusupay/sync-balance', err);
   }
 }

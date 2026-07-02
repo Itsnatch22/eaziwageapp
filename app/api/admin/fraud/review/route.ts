@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { FraudReviewBodySchema } from '@/lib/validations/route-schemas';
+import { dbErrorResponse } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -163,8 +164,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[Fraud Review POST] Error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbErrorResponse('admin/fraud/review POST', err);
   }
 }
