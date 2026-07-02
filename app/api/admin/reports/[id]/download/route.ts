@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 
 type AdminUserMetadata = Record<string, unknown>;
 
@@ -177,7 +178,7 @@ async function generateFinancialReport(supabase: SupabaseClient, dateRange: Date
       .select('*')
       .gte('created_at', dateRange.from.toISOString())
       .lte('created_at', dateRange.to.toISOString())
-      .eq('status', 'disbursed');
+      .in('status', DISBURSED_STATUSES);
 
     if (advancesError) throw advancesError;
 
@@ -254,7 +255,7 @@ async function generateOperationalReport(supabase: SupabaseClient, dateRange: Da
     const totalEmployees = employees?.length || 0;
     const totalEmployers = employers?.length || 0;
     const totalAdvances = advances?.length || 0;
-    const approvedAdvances = advances?.filter((a: AdvanceRow) => a.status === 'disbursed').length || 0;
+    const approvedAdvances = advances?.filter((a: AdvanceRow) => (DISBURSED_STATUSES as readonly string[]).includes(a.status ?? '')).length || 0;
     const pendingAdvances = advances?.filter((a: AdvanceRow) => a.status === 'pending').length || 0;
 
     let csv = `Operational Report: ${report.name}

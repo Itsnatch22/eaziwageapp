@@ -1,8 +1,12 @@
 import { z } from 'zod';
 
+// Monetary fields (min/max_advance_amount, mobile_fee, bank_fee) are denominated in
+// USD, matching the rest of the platform (see /api/admin/billing, /api/admin/dashboard)
+// — these are platform-wide defaults spanning KE/UG/TZ/RW, so a single local-currency
+// value would be meaningless across countries with very different unit values.
 export const GlobalPlatformSettingsSchema = z.object({
   default_advance_percent: z.number().min(10).max(80).optional(),
-  min_advance_amount: z.number().min(100).optional(),
+  min_advance_amount: z.number().min(1).optional(),
   max_advance_amount: z.number().optional(),
   daily_advance_limit: z.number().min(1).optional(),
   min_processing_fee: z.number().min(0).optional(),
@@ -20,13 +24,20 @@ export const GlobalPlatformSettingsSchema = z.object({
   enabled_countries: z.array(z.string()).optional(),
 });
 
+// risk_score (employers.risk_score / employees.risk_score) is stored on a 0–5
+// scale where HIGHER = SAFER (confirmed against the existing rating derivations
+// in app/api/admin/settings/employees/route.ts and RiskScoringClient.tsx's
+// getRating(), both of which treat a high score as low risk). These thresholds
+// must use the same scale and direction so a single admin-configured number
+// drives both the employer A/B/C rating bands and the employee disbursement
+// risk check in lib/services/payout-service.ts.
 export const RiskSettingsSchema = z.object({
-  employer_low_threshold: z.number().min(0).max(100).optional(),
-  employer_medium_threshold: z.number().min(0).max(100).optional(),
-  employee_low_threshold: z.number().min(0).max(100).optional(),
-  employee_medium_threshold: z.number().min(0).max(100).optional(),
-  auto_suspend_threshold: z.number().min(0).max(100).optional(),
-  reduce_limits_threshold: z.number().min(0).max(100).optional(),
+  employer_low_threshold: z.number().min(0).max(5).optional(),
+  employer_medium_threshold: z.number().min(0).max(5).optional(),
+  employee_low_threshold: z.number().min(0).max(5).optional(),
+  employee_medium_threshold: z.number().min(0).max(5).optional(),
+  auto_suspend_threshold: z.number().min(0).max(5).optional(),
+  reduce_limits_threshold: z.number().min(0).max(5).optional(),
   auto_suspend_on_fraud: z.boolean().optional(),
   auto_reduce_on_warning: z.boolean().optional(),
   notify_on_high_risk: z.boolean().optional(),

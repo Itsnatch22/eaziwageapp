@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { EmployerBankPatchSchema } from '@/lib/validations/route-schemas';
+import { getEnv } from '@/env';
 
 export async function PATCH(
   req: NextRequest,
@@ -42,25 +43,22 @@ export async function PATCH(
     return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
   }
 
-  const updateData = {
-    bank_name,
-    bank_account_number,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { error: onboardingError } = await adminSupabase
-    .from('employer_onboarding')
-    .update(updateData)
-    .eq('id', id);
-
-  if (onboardingError) {
-    return NextResponse.json({ error: 'Failed to update onboarding record' }, { status: 500 });
+  const { PII_ENCRYPTION_KEY } = getEnv();
+  if (!PII_ENCRYPTION_KEY) {
+    return NextResponse.json({ error: 'Encryption not configured' }, { status: 500 });
   }
 
-  await adminSupabase
-    .from('employers')
-    .update(updateData)
-    .eq('onboarding_id', id);
+  const { error: encryptError } = await adminSupabase.rpc('admin_update_employer_bank_account', {
+    p_onboarding_id: id,
+    p_bank_name: bank_name,
+    p_account_number: bank_account_number,
+    p_key: PII_ENCRYPTION_KEY,
+  });
+
+  if (encryptError) {
+    console.error('[admin/employers/:id/bank] Failed to update bank account:', encryptError);
+    return NextResponse.json({ error: 'Failed to update bank details' }, { status: 500 });
+  }
 
   await adminSupabase.from('notifications').insert({
     user_id: employer.user_id,
@@ -73,6 +71,10 @@ export async function PATCH(
     created_at: new Date().toISOString(),
   });
 
+  const maskedAccountNumber = bank_account_number.length > 4
+    ? `•••• ${bank_account_number.slice(-4)}`
+    : '••••••••';
+
   void adminSupabase.from('system_audit_logs').insert({
     admin_id: user.id,
     admin_name: user.email,
@@ -80,7 +82,7 @@ export async function PATCH(
     target_type: 'employer',
     action: 'employer_bank_updated',
     old_value: null,
-    new_value: { bank_name, bank_account_number },
+    new_value: { bank_name, bank_account_number: maskedAccountNumber },
     metadata: { reason },
   }).then(({ error }) => { if (error) console.error('[audit] employer_bank_updated:', error); });
 

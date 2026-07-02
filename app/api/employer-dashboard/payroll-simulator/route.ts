@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { dbErrorResponse } from '@/lib/api-errors';
+import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 
 export const runtime = 'nodejs';
 
@@ -87,20 +88,43 @@ export async function GET() {
       currency: string | null;
     }> = [];
 
+    // This month's real disbursed principal + fees, regardless of repayment
+    // status — feeds the "Monthly EWA Deduction" card, which previously
+    // estimated this as a flat 3.3% of total payroll instead of real data.
+    let monthlyDisbursed = 0;
+    let monthlyFees = 0;
+    let monthlyAdvanceCount = 0;
+
     if (employeeIds.length > 0) {
-      const { data: advanceRows, error: advancesError } = await supabase
-        .from('advances')
-        .select('id, employee_id, amount, fee_amount, net_amount, disbursed_at, created_at, currency')
-        .in('employee_id', employeeIds)
-        .in('status', ['completed', 'disbursed'])
-        .is('repaid_at', null)
-        .order('disbursed_at', { ascending: false });
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+
+      const [{ data: advanceRows, error: advancesError }, { data: monthRows, error: monthError }] = await Promise.all([
+        supabase
+          .from('advances')
+          .select('id, employee_id, amount, fee_amount, net_amount, disbursed_at, created_at, currency')
+          .in('employee_id', employeeIds)
+          .in('status', ['completed', 'disbursed'])
+          .is('repaid_at', null)
+          .order('disbursed_at', { ascending: false }),
+        supabase
+          .from('advances')
+          .select('amount, fee_amount')
+          .in('employee_id', employeeIds)
+          .in('status', DISBURSED_STATUSES)
+          .gte('created_at', monthStart.toISOString()),
+      ]);
 
       if (advancesError) {
         return dbErrorResponse('employer-dashboard/payroll-simulator', advancesError);
       }
+      if (monthError) {
+        return dbErrorResponse('employer-dashboard/payroll-simulator', monthError);
+      }
 
       advances = advanceRows ?? [];
+      monthlyDisbursed = (monthRows ?? []).reduce((sum, a) => sum + Number(a.amount ?? 0), 0);
+      monthlyFees = (monthRows ?? []).reduce((sum, a) => sum + Number(a.fee_amount ?? 0), 0);
+      monthlyAdvanceCount = (monthRows ?? []).length;
     }
 
     // Group advances by employee_id
@@ -147,6 +171,9 @@ export async function GET() {
         net_payroll_outflow,
         employees_total,
         employees_affected,
+        monthly_disbursed: monthlyDisbursed,
+        monthly_fees: monthlyFees,
+        monthly_advance_count: monthlyAdvanceCount,
       },
     });
   } catch (err) {

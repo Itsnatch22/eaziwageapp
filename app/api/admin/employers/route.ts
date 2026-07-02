@@ -136,7 +136,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // 1. Lightweight stats query — full table, minimal columns, no filters
   //    Used for global counts, filter options, and risk distribution.
   //    Employer tables rarely exceed a few thousand rows so this stays cheap.
-  const [statsResult, exchangeRatesResult] = await Promise.all([
+  const [statsResult, exchangeRatesResult, riskSettingsResult] = await Promise.all([
     adminSupabase
       .from('employer_onboarding')
       .select('id, status, country, industry, risk_rating'),
@@ -145,7 +145,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .from('exchange_rates')
       .select('currency_code, rate_to_usd')
       .limit(100),
+    adminSupabase.from('global_settings').select('risk_settings').eq('id', 'default').maybeSingle(),
   ]);
+
+  // Risk Settings tab (Admin Settings → Risk & Compliance) — the employer A/B/C
+  // rating bands used by getRating() in RiskScoringClient.tsx. Defaults match
+  // that component's previous hardcoded values.
+  const riskSettings = (riskSettingsResult.data?.risk_settings as { employer_low_threshold?: number; employer_medium_threshold?: number } | null) ?? {};
+  const framework = {
+    version: 'REV1',
+    date: '2025-10-25',
+    base_fee: 3.5,
+    risk_factor: 3.0,
+    rating_thresholds: {
+      low: riskSettings.employer_low_threshold ?? 4.0,
+      medium: riskSettings.employer_medium_threshold ?? 3.0,
+    },
+  };
 
   const statsRows = statsResult.data ?? [];
 
@@ -215,7 +231,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       stats,
       pagination: { total: filteredCount ?? 0, page, limit, hasMore: false },
       filters: { countries, industries, risk_ratings: ['A', 'B', 'C', 'D'], statuses: ['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'] },
-      framework: { version: 'REV1', date: '2025-10-25', base_fee: 3.5, risk_factor: 3.0 },
+      framework,
     }, { status: 200, headers: rateResult.headers });
   }
 
@@ -340,7 +356,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         risk_ratings: ['A', 'B', 'C', 'D'],
         statuses: ['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'],
       },
-      framework: { version: 'REV1', date: '2025-10-25', base_fee: 3.5, risk_factor: 3.0 },
+      framework,
     },
     { status: 200, headers: rateResult.headers },
   );

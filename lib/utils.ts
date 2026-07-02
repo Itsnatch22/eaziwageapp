@@ -225,6 +225,16 @@ export function convertToUSD(amount: number, currency: string, rates: Record<str
   return amount / rate;
 }
 
+// Inverse of convertToUSD — used when a platform-wide default (stored in USD,
+// e.g. global_settings.platform_settings) needs to be compared against an
+// amount in an employer's local currency.
+export function convertFromUSD(amountUSD: number, currency: string, rates: Record<string, number>): number {
+  if (currency.toUpperCase() === 'USD') return amountUSD;
+  const rate = rates[currency.toUpperCase()];
+  if (!rate) return amountUSD;
+  return amountUSD * rate;
+}
+
 interface GenerateInitialsParams {
   name: string;
 }

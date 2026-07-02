@@ -1,6 +1,7 @@
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { dbErrorResponse } from '@/lib/api-errors';
+import { OUTSTANDING_STATUSES } from '@/lib/constants/advance-status';
 
 export const runtime = 'nodejs';
 
@@ -105,7 +106,7 @@ export async function GET(req: NextRequest) {
 
   const allRows = statsRows ?? [];
   const pending = allRows.filter((a) => a.status === 'pending');
-  const approved = allRows.filter((a) => a.status === 'approved' || a.status === 'disbursed');
+  const approved = allRows.filter((a) => a.status === 'approved' || (OUTSTANDING_STATUSES as readonly string[]).includes(a.status));
   const stats = {
     total: allRows.length,
     totalAmount: allRows.reduce((sum, a) => sum + Number(a.amount || 0), 0),

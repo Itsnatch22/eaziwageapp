@@ -6,6 +6,7 @@ import { getCurrencyFromCountry } from '@/lib/utils';
 import EmployerOnboardingConfirmation from '@/lib/emails/EmployerOnboardingConfirmation';
 import { notifyAdmin } from '@/lib/notifications';
 import { getEnv } from '@/env';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -71,6 +72,23 @@ export async function POST(req: NextRequest) {
       msg: e.message,
     }));
     return NextResponse.json({ error: 'Validation failed', detail }, { status: 422 });
+  }
+
+  // Enabled Countries (Global Settings) — gate onboarding to countries the
+  // platform is actually configured to serve. Defaults to all four supported
+  // countries when unset so this never blocks anyone before an admin opts in.
+  const { data: globalSettingsRow } = await createAdminClient()
+    .from('global_settings')
+    .select('platform_settings')
+    .eq('id', 'default')
+    .maybeSingle();
+  const enabledCountries = (globalSettingsRow?.platform_settings as { enabled_countries?: string[] } | null)?.enabled_countries
+    ?? ['KE', 'UG', 'TZ', 'RW'];
+  if (parsed.data.country && !enabledCountries.includes(parsed.data.country.toUpperCase())) {
+    return NextResponse.json(
+      { error: `EaziWage is not currently available in ${parsed.data.country}.` },
+      { status: 422 },
+    );
   }
 
   const {

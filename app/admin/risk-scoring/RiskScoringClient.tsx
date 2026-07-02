@@ -85,6 +85,7 @@ interface ApiResponse {
     date: string;
     base_fee: number;
     risk_factor: number;
+    rating_thresholds?: { low: number; medium: number };
   };
 }
 
@@ -289,9 +290,11 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
   };
 
   const getRating = (score: number) => {
-    if (score >= 4.0) return 'A';
-    if (score >= 3.0) return 'B';
-    if (score >= 2.6) return 'C';
+    const low = framework?.rating_thresholds?.low ?? 4.0;
+    const medium = framework?.rating_thresholds?.medium ?? 3.0;
+    if (score >= low) return 'A';
+    if (score >= medium) return 'B';
+    if (score >= medium - 0.4) return 'C';
     return 'D';
   };
 

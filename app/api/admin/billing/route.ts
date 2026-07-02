@@ -4,6 +4,7 @@ import { getEnv }                   from '@/env';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { convertToUSD }             from '@/lib/utils';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 
 const COUNTRY_TO_CURRENCY: Record<string, string> = {
   KE: 'KES',
@@ -21,10 +22,6 @@ type BillingAdvanceRow = {
   employees?: {
     country?: string | null;
   } | null;
-};
-
-type EmployerMetadata = {
-  credit_limit?: number;
 };
 
 function resolveCurrency(country?: string | null): string {
@@ -97,7 +94,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const label = `${months[d.getMonth()]} ${d.getFullYear()}`;
       if (trendMap.has(label)) {
         const stats = trendMap.get(label);
-        if (adv.status === 'disbursed') {
+        if ((DISBURSED_STATUSES as readonly string[]).includes(adv.status ?? '')) {
           const currency = resolveCurrency(adv.employees?.country);
           stats.revenue  += convertToUSD(Number(adv.fee_amount || 0), currency, rates);
           stats.disbursed += convertToUSD(Number(adv.amount    || 0), currency, rates);
@@ -117,7 +114,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           country
         )
       `)
-      .eq('status', 'disbursed');
+      .in('status', DISBURSED_STATUSES);
 
     if (totalError) throw totalError;
 
@@ -140,15 +137,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const employerIds = (wallets || []).map(w => w.employer_id);
     const { data: employers, error: empError } = await supabase
       .from('employers')
-      .select('id, company_name, metadata')
+      .select('id, company_name, credit_limit')
       .in('id', employerIds);
 
     if (empError) throw empError;
 
     const walletHealth = (wallets || []).map(w => {
   const employer    = (employers || []).find(e => e.id === w.employer_id);
-  const metadata    = employer?.metadata as EmployerMetadata | undefined;
-  const creditLimit = Number(metadata?.credit_limit ?? 1000000);
+  // Credit Limit is set via the Employer Config settings tab, which writes to
+  // this column directly (see app/api/admin/settings/employers/[id]/route.ts) —
+  // previously this read employers.metadata, a separate text column that's
+  // always null, so utilization was always computed against a hardcoded 1M default.
+  const creditLimit = Number(employer?.credit_limit ?? 1000000);
   const balance     = Number(w.outstanding_liability || 0);  
   const utilization = creditLimit > 0 ? Math.round((balance / creditLimit) * 100) : 0;
   const currency    = w.currency || 'KES';
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const employerRevenueMap = new Map<string, number>();
     (advancesData as BillingAdvanceRow[] || []).forEach(adv => {
       const employerId = adv.employer_id;
-      if (employerId && adv.status === 'disbursed') {
+      if (employerId && (DISBURSED_STATUSES as readonly string[]).includes(adv.status ?? '')) {
         const currency = resolveCurrency(adv.employees?.country);
         const current  = employerRevenueMap.get(employerId) || 0;
         employerRevenueMap.set(employerId, current + convertToUSD(Number(adv.fee_amount || 0), currency, rates));
@@ -196,9 +196,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         total_disbursed:         cumulativeDisbursed,
         total_wallet_balance:    totalWalletBalance,
         total_arrears:           totalArrears,
-        top_revenue_generators:  topRevenueGenerators,
       },
       monthlyTrends,
+      topRevenueGenerators,
       walletHealth,
     }, { status: 200, headers: rateResult.headers });
 

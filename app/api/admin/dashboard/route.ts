@@ -5,6 +5,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { convertToUSD, getCurrencyFromCountry }             from '@/lib/utils';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { Redis }                   from '@upstash/redis';
+import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 
 type AdvanceAmountRow = {
   amount: number | string | null;
@@ -169,16 +170,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       supabase
       .from('advances')
   .select('amount, fee_amount, employees!advances_employee_id_fkey(country)')
-  .eq('status', 'disbursed'),
+  .in('status', DISBURSED_STATUSES),
       supabase
         .from('advances')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'disbursed'),
+        .in('status', DISBURSED_STATUSES),
       supabase
       .from('advances')
   .select('amount, fee_amount, employees!advances_employee_id_fkey(country)')
   .gte('created_at', startOfMonth)
-  .eq('status', 'disbursed'),
+  .in('status', DISBURSED_STATUSES),
       supabase
         .from('employers')
         .select('risk_score')
