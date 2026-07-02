@@ -1,7 +1,8 @@
 "use client";
 import React, { useState } from 'react';
-import { 
-  Sparkles, Calculator, BookOpen, TrendingUp, 
+import Link from 'next/link';
+import {
+  Sparkles, Calculator, BookOpen, TrendingUp,
   ArrowRight, ShieldCheck, PieChart, Wallet
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
@@ -168,9 +169,11 @@ const WellnessPage = () => {
                     );
                  })}
                  
-                 <Button variant="ghost" className="w-full text-emerald-500 font-bold text-xs uppercase tracking-widest hover:bg-emerald-50 group">
-                    View More Resources <ArrowRight className="w-3 h-3 ml-2 group-hover:translate-x-1 transition-transform" />
-                 </Button>
+                 <Link href="/dashboards/employee-dashboard/wellness/resources">
+                    <Button variant="ghost" className="w-full text-emerald-500 font-bold text-xs uppercase tracking-widest hover:bg-emerald-50 group">
+                       View More Resources <ArrowRight className="w-3 h-3 ml-2 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                 </Link>
               </div>
            </div>
 
