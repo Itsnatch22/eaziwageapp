@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { NotificationDropdown } from '../layout/NotificationDropdown';
 import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
 import PushClient from '@/components/push/PushClient';
+import { PaydayRecoupmentModal } from './PaydayRecoupmentModal';
 
 
 export const EmployerBackground = () => (
@@ -480,7 +481,8 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300" data-testid="employer-dashboard">
       <EmployerBackground />
       <PushClient />
-      
+      <PaydayRecoupmentModal />
+
       <SidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       <div className="lg:ml-72 relative">

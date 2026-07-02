@@ -52,7 +52,7 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
     })
     .select(
-      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_percentage, cooldown_period'
+      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_percentage, cooldown_period, payday_day_of_month, mobile_money_provider, mobile_money_number'
     )
     .eq('id', appId);
 
@@ -160,6 +160,9 @@ export async function PATCH(
       advance_limit_percent: Number(employer.max_advance_percentage ?? 50),
       cooldown_days:        Number(employer.cooldown_period ?? 7),
       min_advance_amount:   Number(employer.min_advance_amount ?? 500),
+      payday_day_of_month: employer.payday_day_of_month ?? null,
+      mobile_money_provider: employer.mobile_money_provider || null,
+      mobile_money_number: employer.mobile_money_number || null,
       updated_at:          new Date().toISOString(),
     };
 

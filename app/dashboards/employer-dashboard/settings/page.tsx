@@ -36,6 +36,9 @@ interface EmployerProfile {
   contact_email?: string;
   contact_phone?: string;
   payroll_cycle?: string;
+  payday_day_of_month?: number;
+  mobile_money_provider?: string;
+  mobile_money_number?: string;
   physical_address?: string;
   city?: string;
   postal_code?: string;
@@ -516,6 +519,9 @@ interface Profile {
   contactEmail: string;
   contactPhone: string;
   payrollCycle: string;
+  paydayDayOfMonth: string;
+  mobileMoneyProvider: string;
+  mobileMoneyNumber: string;
   physicalAddress: string;
   city: string;
   postalCode: string;
@@ -579,6 +585,9 @@ export default function EmployerSettings() {
     contactEmail: '',
     contactPhone: '',
     payrollCycle: 'monthly',
+    paydayDayOfMonth: '',
+    mobileMoneyProvider: '',
+    mobileMoneyNumber: '',
     physicalAddress: '',
     city: '',
     postalCode: '',
@@ -611,6 +620,9 @@ export default function EmployerSettings() {
           contactEmail: employerData.contact_email || '',
           contactPhone: employerData.contact_phone || '',
           payrollCycle: employerData.payroll_cycle || prev.payrollCycle,
+          paydayDayOfMonth: employerData.payday_day_of_month?.toString() || '',
+          mobileMoneyProvider: employerData.mobile_money_provider || '',
+          mobileMoneyNumber: employerData.mobile_money_number || '',
           physicalAddress: employerData.physical_address || '',
           city: employerData.city || '',
           postalCode: employerData.postal_code || '',
@@ -862,10 +874,21 @@ export default function EmployerSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // paydayDayOfMonth is a free-text input in state (so it can be empty) but the
+      // schema expects an integer 1-31 or nothing at all — omit it rather than send
+      // an invalid 0/NaN that would fail validation for the whole save.
+      const parsedPayday = parseInt(profile.paydayDayOfMonth, 10);
+      const payload = {
+        ...profile,
+        paydayDayOfMonth: Number.isInteger(parsedPayday) && parsedPayday >= 1 && parsedPayday <= 31
+          ? parsedPayday
+          : undefined,
+      };
+
       const res = await fetch("/api/employer-dashboard/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         toast.success("Profile saved successfully");
@@ -1131,6 +1154,43 @@ export default function EmployerSettings() {
                         {employer?.company_code || `EW-${employer?.id?.slice(0, 8).toUpperCase() || 'XXXXXXXX'}`}
                       </code>
                       <span className="text-xs text-slate-500 dark:text-slate-400">Unique identifier assigned upon registration</span>
+                    </div>
+                  </div>
+                </SettingsCard>
+
+                <SettingsCard icon={CreditCard} title="Payday & Recoupment" description="Used to schedule advance recoupment from your account">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 dark:text-slate-300">Payday (day of month)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={31}
+                        placeholder="e.g. 28"
+                        value={profile.paydayDayOfMonth}
+                        onChange={(e) => setProfile((prev) => ({ ...prev, paydayDayOfMonth: e.target.value }))}
+                        data-testid="payday-day-input"
+                      />
+                      <p className="text-xs text-slate-500">Use 31 for last day of month.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 dark:text-slate-300">Mobile Money Provider</Label>
+                      <Input
+                        placeholder="e.g. M-PESA, Airtel Money"
+                        value={profile.mobileMoneyProvider}
+                        onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyProvider: e.target.value }))}
+                        data-testid="payday-provider-input"
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label className="text-slate-700 dark:text-slate-300">Mobile Money Number</Label>
+                      <Input
+                        placeholder="07XXXXXXXX"
+                        value={profile.mobileMoneyNumber}
+                        onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyNumber: e.target.value }))}
+                        data-testid="payday-number-input"
+                      />
+                      <p className="text-xs text-slate-500">On your payday, we&apos;ll ask to recoup any outstanding advances from this account.</p>
                     </div>
                   </div>
                 </SettingsCard>

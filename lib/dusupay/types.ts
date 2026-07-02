@@ -27,10 +27,38 @@ export interface PayoutRequest {
   currency: Currency;
   amount: number;
   provider_code: string;
-  account_number: string; 
+  account_number: string;
   customer_name: string;
   description: string;
   bank_code?: string;
+}
+
+// Collections use a distinct endpoint (/collections/initialize, confirmed against
+// https://developer.dusupay.com/funds-collection/mobile-money-collection/mobile-money-direct-charge)
+// with its own schema — notably `msisdn`, which /payout/send-funds explicitly
+// rejects ("property msisdn should not exist").
+export interface CollectionRequest {
+  merchant_reference: string;
+  transaction_method: PayoutMethod;
+  currency: Currency;
+  amount: number;
+  provider_code: string;
+  msisdn: string;
+  customer_name: string;
+  customer_email?: string;
+  description: string;
+  charge_customer?: boolean;
+  allow_final_status_change?: boolean;
+}
+
+export interface CollectionResponse {
+  code: number;
+  status: string;
+  message: string;
+  data?: {
+    internal_reference: string;
+    merchant_reference: string;
+  };
 }
 
 export interface PayoutResponse {

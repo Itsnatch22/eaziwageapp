@@ -412,9 +412,11 @@ export default function EmployerOnboarding() {
     annual_revenue_range: "",
     payroll_cycle: "",
     monthly_payroll_amount: "",
+    payday_day_of_month: "",
     bank_name: "",
     bank_account_number: "",
     mobile_money_provider: "",
+    mobile_money_number: "",
     contact_person: userFullName,
     contact_email: userEmail,
     contact_phone: "",
@@ -493,9 +495,11 @@ export default function EmployerOnboarding() {
               annual_revenue_range: profile.annual_revenue_range || "",
               payroll_cycle: profile.payroll_cycle || "",
               monthly_payroll_amount: profile.monthly_payroll_amount?.toString() || "",
+              payday_day_of_month: profile.payday_day_of_month?.toString() || "",
               bank_name: profile.bank_name || "",
               bank_account_number: profile.bank_account_number || "",
               mobile_money_provider: profile.mobile_money_provider || "",
+              mobile_money_number: profile.mobile_money_number || "",
               contact_person: profile.contact_person || userFullName,
               contact_email: profile.contact_email || userEmail,
               contact_phone: profile.contact_phone || "",
@@ -666,7 +670,10 @@ const handleFileUpload = async (file: File, documentType: string) => {
       case 3: return !!(formData.physical_address && formData.city);
       case 4: return true;
       case 5: return !!(formData.industry && formData.sector && formData.employee_count && countriesOfOperation.length > 0);
-      case 6: return !!formData.payroll_cycle;
+      case 6: {
+        const payday = Number(formData.payday_day_of_month);
+        return !!formData.payroll_cycle && Number.isInteger(payday) && payday >= 1 && payday <= 31;
+      }
       case 7: return !!(formData.contact_person && formData.contact_email && formData.contact_phone);
       default: return false;
     }
@@ -687,6 +694,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
       employee_count: parseInt(formData.employee_count) || 0,
       years_in_operation: parseInt(formData.years_in_operation) || 0,
       monthly_payroll_amount: parseFloat(formData.monthly_payroll_amount) || 0,
+      payday_day_of_month: parseInt(formData.payday_day_of_month) || null,
       beneficial_owners: beneficialOwners.filter((o) => o.full_name.trim()),
       countries_of_operation: countriesOfOperation,
       ...docPaths,
@@ -1123,9 +1131,25 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   </Select>
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Monthly Payroll Amount (USD)</Label>
-                <Input type="number" placeholder="e.g. 50000" min="0" value={formData.monthly_payroll_amount} onChange={(e) => updateField("monthly_payroll_amount", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-payroll-amount" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Monthly Payroll Amount (USD)</Label>
+                  <Input type="number" placeholder="e.g. 50000" min="0" value={formData.monthly_payroll_amount} onChange={(e) => updateField("monthly_payroll_amount", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-payroll-amount" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Payday (day of month) *</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 28"
+                    min="1"
+                    max="31"
+                    value={formData.payday_day_of_month}
+                    onChange={(e) => updateField("payday_day_of_month", e.target.value)}
+                    className="h-14 rounded-xl bg-white dark:bg-slate-800/50"
+                    data-testid="employer-payday"
+                  />
+                  <p className="text-xs text-slate-400 ml-1">Used to schedule advance recoupment. Use 31 for last day of month.</p>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
@@ -1146,18 +1170,30 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   <Input placeholder="1234567890" value={formData.bank_account_number} onChange={(e) => updateField("bank_account_number", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-account" />
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Mobile Money Provider <span className="text-slate-400 font-normal">(optional)</span></Label>
-                <Select value={formData.mobile_money_provider} onValueChange={(v) => updateField("mobile_money_provider", v)}>
-                  <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50">
-                    <SelectValue placeholder="Select provider..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EAST_AFRICA_MOBILE_MONEY.map((p) => (
-                      <SelectItem key={p} value={p}>{p}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Mobile Money Provider <span className="text-slate-400 font-normal">(optional)</span></Label>
+                  <Select value={formData.mobile_money_provider} onValueChange={(v) => updateField("mobile_money_provider", v)}>
+                    <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50">
+                      <SelectValue placeholder="Select provider..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EAST_AFRICA_MOBILE_MONEY.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Mobile Money Number <span className="text-slate-400 font-normal">(optional)</span></Label>
+                  <Input
+                    placeholder="07XXXXXXXX"
+                    value={formData.mobile_money_number}
+                    onChange={(e) => updateField("mobile_money_number", e.target.value)}
+                    className="h-14 rounded-xl bg-white dark:bg-slate-800/50"
+                  />
+                  <p className="text-xs text-slate-400 ml-1">Used to recoup advances from your account on payday.</p>
+                </div>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Financial Documents</h4>

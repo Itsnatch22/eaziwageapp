@@ -3,7 +3,7 @@ import { dusupayClient } from '../dusupay/client';
 import { PayoutMethod, Currency } from '../dusupay/types';
 import { generateMerchantReference, formatPhoneNumber, resolveProviderCode, COUNTRY_PROVIDER_PREFIXES } from '../dusupay/utils';
 import { runFraudChecks } from '../fraud-engine';
-import { generateRepaymentReference } from '../repayment/utils';
+import { generateRepaymentReference, resolveEffectivePaydayDayOfMonth } from '../repayment/utils';
 import { notifyAdmin } from '../notifications';
 import { getEnv } from '@/env';
 
@@ -18,23 +18,48 @@ type ScheduleAdvanceInput = {
   organization_id?: string | null;
 };
 
-function calculateDueDate(disbursedAt: Date, payrollCycle: string | null): Date {
-  const due = new Date(disbursedAt);
-  switch (payrollCycle?.toLowerCase()) {
-    case 'weekly':
-      due.setDate(due.getDate() + 7);
-      break;
-    case 'bi-weekly':
-    case 'biweekly':
-      due.setDate(due.getDate() + 14);
-      break;
-    case 'monthly':
-    default:
-      due.setMonth(due.getMonth() + 1);
-      due.setDate(1); // first of next month
-      break;
+// Clamp a target day-of-month to however many days that month actually has
+// (e.g. payday=31 in a 30-day or 28/29-day month lands on the last day instead).
+function clampDayToMonth(year: number, monthIndex: number, day: number): number {
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  return Math.min(day, lastDay);
+}
+
+function calculateDueDate(disbursedAt: Date, payrollCycle: string | null, paydayDayOfMonth: number | null): Date {
+  const cycle = payrollCycle?.toLowerCase();
+
+  if (cycle === 'weekly') {
+    const due = new Date(disbursedAt);
+    due.setDate(due.getDate() + 7);
+    return due;
   }
-  return due;
+  if (cycle === 'bi-weekly' || cycle === 'biweekly') {
+    const due = new Date(disbursedAt);
+    due.setDate(due.getDate() + 14);
+    return due;
+  }
+
+  // Monthly (default): use the employer's actual configured payday. Falls back to
+  // "1st of next month" only for employers who haven't set one yet — this used to
+  // be the rule for everyone, which is what caused due dates to never reflect a
+  // company's real payroll date.
+  if (!paydayDayOfMonth) {
+    const due = new Date(disbursedAt);
+    due.setMonth(due.getMonth() + 1);
+    due.setDate(1);
+    return due;
+  }
+
+  const year = disbursedAt.getFullYear();
+  const month = disbursedAt.getMonth();
+  const thisMonthPayday = new Date(year, month, clampDayToMonth(year, month, paydayDayOfMonth));
+
+  // Disbursed before this month's payday already passed — due on that same payday.
+  // Otherwise this month's payroll has already run, so it's due next month instead.
+  if (disbursedAt.getTime() < thisMonthPayday.getTime()) {
+    return thisMonthPayday;
+  }
+  return new Date(year, month + 1, clampDayToMonth(year, month + 1, paydayDayOfMonth));
 }
 
 async function createRepaymentSchedule(
@@ -44,13 +69,18 @@ async function createRepaymentSchedule(
 ): Promise<void> {
   const { data: employer } = await supabase
     .from('employers')
-    .select('payroll_cycle, id')
+    .select('payroll_cycle, payday_day_of_month, id')
     .eq('id', advance.employer_id)
     .single();
 
   if (!employer) throw new Error(`Employer ${advance.employer_id} not found for repayment schedule`);
 
-  const dueDate = calculateDueDate(disbursedAt, employer.payroll_cycle);
+  const effectivePaydayDayOfMonth = await resolveEffectivePaydayDayOfMonth(
+    advance.employer_id,
+    employer.payday_day_of_month,
+    supabase,
+  );
+  const dueDate = calculateDueDate(disbursedAt, employer.payroll_cycle, effectivePaydayDayOfMonth);
 
   const reference = generateRepaymentReference(advance.employer_id, advance.id, dueDate);
 
@@ -242,6 +272,28 @@ export class PayoutService {
     if (!employer?.ewa_enabled) {
       await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'EWA not enabled for this employer' }).eq('id', advanceId);
       throw new Error('EWA not enabled for employer');
+    }
+
+    // Employer arrears gate: if a past payday's recoupment was declined or never
+    // resolved, new advances are paused for this employer's employees until it's
+    // sorted out. Today's still-open prompt (payday_date === today) doesn't count
+    // yet — the employer gets a same-day chance to act on it via the modal in
+    // components/employer/PaydayRecoupmentModal.tsx before this blocks anything.
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data: unresolvedRecoupment } = await supabaseAdmin
+      .from('payday_recoupments')
+      .select('id, payday_date, amount_due, currency')
+      .eq('employer_id', advance.employer_id)
+      .in('status', ['pending_response', 'failed', 'declined'])
+      .lt('payday_date', todayStr)
+      .order('payday_date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (unresolvedRecoupment) {
+      const reason = `Employer has not recouped ${unresolvedRecoupment.currency} ${unresolvedRecoupment.amount_due} in arrears from ${unresolvedRecoupment.payday_date}`;
+      await supabaseAdmin.from('advances').update({ status: 'rejected', reason }).eq('id', advanceId);
+      throw new Error(reason);
     }
 
     const checkEmployeeEligibility = async (): Promise<EligibilityCheckResult> => {

@@ -20,7 +20,7 @@ export async function GET() {
   const { data: onboarding, error: onboardingError } = await supabase
     .from('employer_onboarding')
     .select(
-      'id, user_id, company_name, registration_number, industry, sector, physical_address, city, postal_code, county_region, country, status, current_step, contact_person, contact_email, contact_phone, contact_position, payroll_cycle, risk_rating, risk_score, bank_name, bank_account_number, tax_id, vat_number, certificate_of_incorporation, business_registration, tax_compliance_certificate, cr12_document, kra_pin_certificate, business_permit, audited_financials, bank_statement, proof_of_address, proof_of_bank_account, employment_contract_template, deleted_at',
+      'id, user_id, company_name, registration_number, industry, sector, physical_address, city, postal_code, county_region, country, status, current_step, contact_person, contact_email, contact_phone, contact_position, payroll_cycle, payday_day_of_month, mobile_money_provider, mobile_money_number, risk_rating, risk_score, bank_name, bank_account_number, tax_id, vat_number, certificate_of_incorporation, business_registration, tax_compliance_certificate, cr12_document, kra_pin_certificate, business_permit, audited_financials, bank_statement, proof_of_address, proof_of_bank_account, employment_contract_template, deleted_at',
     )
     .eq('user_id', user.id)
     .is('deleted_at', null)
@@ -122,11 +122,32 @@ export async function PUT(req: Request) {
         max_advance_amount: body.maxAdvanceAmount,
         advance_access_days: body.advanceAccessDays,
         cooldown_period: body.cooldownPeriod,
+        payday_day_of_month: body.paydayDayOfMonth,
+        mobile_money_provider: body.mobileMoneyProvider,
+        mobile_money_number: body.mobileMoneyNumber,
         updated_at: new Date().toISOString()
       })
       .eq('user_id', user.id);
 
     if (onboardingError) throw onboardingError;
+
+    // Already-approved employers operate off the `employers` table, not
+    // employer_onboarding — payday/mobile-money need to land there too so
+    // calculateDueDate() and the payday recoupment flow actually see them.
+    // Only payday/mobile-money fields are synced here; other profile fields
+    // are intentionally onboarding-only (employers is promoted wholesale at
+    // KYC approval, not kept in lockstep afterward).
+    if (body.paydayDayOfMonth !== undefined || body.mobileMoneyProvider !== undefined || body.mobileMoneyNumber !== undefined) {
+      await supabase
+        .from('employers')
+        .update({
+          ...(body.paydayDayOfMonth !== undefined && { payday_day_of_month: body.paydayDayOfMonth }),
+          ...(body.mobileMoneyProvider !== undefined && { mobile_money_provider: body.mobileMoneyProvider }),
+          ...(body.mobileMoneyNumber !== undefined && { mobile_money_number: body.mobileMoneyNumber }),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

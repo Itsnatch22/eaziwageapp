@@ -26,6 +26,7 @@ import {
   ClipboardCheck,
   Wifi,
   Landmark,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -122,6 +123,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
       icon: AlertTriangle,
     },
     { label: "Reconciliation", href: "/admin/reconciliation", icon: BarChart3 },
+    { label: "Payday Recoupments", href: "/admin/payday-recoupments", icon: CalendarClock },
     { label: "Billing & Revenue", href: "/admin/billing", icon: DollarSign },
     { label: "System Health", href: "/admin/api-health", icon: Wifi },
     { label: "Settings", href: "/admin/settings", icon: Settings },

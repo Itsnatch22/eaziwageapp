@@ -142,6 +142,9 @@ export const EmployerProfileUpdateSchema = z.object({
   advanceAccessDays: z.array(z.number().int().min(1).max(31)).optional(),
   cooldownPeriod: z.number().int().min(0).max(90).optional(),
   pushNotifications: z.boolean().optional(),
+  paydayDayOfMonth: z.number().int().min(1).max(31).optional(),
+  mobileMoneyProvider: z.string().max(50).optional(),
+  mobileMoneyNumber: z.string().max(30).optional(),
 });
 
 // ---------------------------------------------------------------------------

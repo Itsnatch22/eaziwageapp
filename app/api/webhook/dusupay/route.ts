@@ -4,6 +4,7 @@ import { PayoutStatus } from '@/lib/dusupay/types';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyEmployee, notifyEmployer, notifyAdmin } from '@/lib/notifications';
 import { parseRepaymentReference } from '@/lib/repayment/utils';
+import { applyPaydayRecoupmentCollection } from '@/lib/services/payday-recoupment-service';
 import { requestLogger, type Logger } from '@/lib/logger';
 
 interface DusupayWebhookPayload {
@@ -79,7 +80,17 @@ export async function POST(req: NextRequest) {
       raw_payload: body,
     }, { onConflict: 'merchant_reference,event_type' });
 
-    if (event.startsWith('collection.')) {
+    // DusuPay uses the SAME event names for both directions — "transaction.completed"
+    // /"transaction.failed", never a "collection."-prefixed string (confirmed against
+    // https://developer.dusupay.com/utility-functions/handling-notifications-callbacks/callback-events).
+    // The only reliable signal for which flow a webhook belongs to is our own
+    // merchant_reference prefix, which is what handleCollectionEvent already keys off
+    // internally (DEP-/EWA-REP-/EWAPAYDAY) — route on it here too instead of `event`.
+    const isCollection = merchantReference.startsWith('DEP-')
+      || merchantReference.startsWith('EWA-REP-')
+      || merchantReference.startsWith('EWAPAYDAY');
+
+    if (isCollection) {
       await handleCollectionEvent(event, payload, merchantReference, internalReference, mlog);
     } else {
       await handlePayoutEvent(event, payload, merchantReference, internalReference, mlog);
@@ -194,6 +205,59 @@ async function handleRepaymentCollection(
   log.info('Repayment reconciliation complete', { scheduleId: schedule.id, isPaid, amount });
 }
 
+// A payday recoupment is a lump-sum collection covering everything that was
+// pending/overdue for an employer at the moment the prompt was generated — not
+// a single advance like EWA-REP-. Applies the collected amount across each
+// currently pending/overdue schedule via the same repay_advance_to_admin RPC
+// used by manual admin repayment, in order, until it runs out.
+async function handlePaydayRecoupmentCollection(
+  event: string,
+  merchantRef: string,
+  internalRef: string,
+  amount: number,
+  log: Logger,
+): Promise<void> {
+  const { data: recoupment } = await supabaseAdmin
+    .from('payday_recoupments')
+    .select('id, employer_id, amount_due, status')
+    .eq('merchant_reference', merchantRef)
+    .maybeSingle();
+
+  if (!recoupment) {
+    log.error('No payday_recoupments row found for EWA-PAYDAY reference', { merchantRef });
+    return;
+  }
+
+  // Idempotency — never re-apply an already-collected recoupment.
+  if (recoupment.status === 'collected') {
+    log.info('Payday recoupment already collected — skipping', { recoupmentId: recoupment.id });
+    return;
+  }
+
+  if (event === 'transaction.failed' || event === 'request.failed') {
+    await supabaseAdmin.from('payday_recoupments').update({
+      status: 'failed',
+      failure_reason: 'DusuPay collection failed or was declined by the mobile money subscriber',
+      updated_at: new Date().toISOString(),
+    }).eq('id', recoupment.id);
+
+    void notifyAdmin({
+      type: 'system_alert',
+      title: '❌ Payday Recoupment Failed',
+      message: `Payday recoupment collection failed for employer ${recoupment.employer_id}. Reference: ${merchantRef}.`,
+      metadata: { recoupment_id: recoupment.id, employer_id: recoupment.employer_id, reference: merchantRef },
+    }).catch(() => {});
+    return;
+  }
+
+  if (event !== 'transaction.completed') {
+    log.info('Payday recoupment non-terminal event — skipping', { event });
+    return;
+  }
+
+  await applyPaydayRecoupmentCollection(recoupment.id, recoupment.employer_id, amount, internalRef, log);
+}
+
 async function handleCollectionEvent(
   event: string,
   payload: DusupayWebhookPayload,
@@ -204,7 +268,7 @@ async function handleCollectionEvent(
   // Repayment collections (employer paying back an advance) are distinct from
   // wallet top-ups (DEP-). Route them before the DEP- guard.
   if (merchantRef.startsWith('EWA-REP-')) {
-    if (event !== 'collection.completed') {
+    if (event !== 'transaction.completed') {
       log.info('EWA-REP non-completion event — skipping', { event });
       return;
     }
@@ -220,6 +284,22 @@ async function handleCollectionEvent(
       return;
     }
     await handleRepaymentCollection(merchantRef, internalRef, repaymentAmount, log);
+    return; // never fall through to DEP- logic
+  }
+
+  if (merchantRef.startsWith('EWAPAYDAY')) {
+    const collectedAmount = Number(payload.transaction_amount);
+    if ((event === 'transaction.completed') && (!Number.isFinite(collectedAmount) || collectedAmount <= 0)) {
+      log.error('EWA-PAYDAY webhook missing or zero transaction_amount — skipping', { merchantRef, payload });
+      void notifyAdmin({
+        type: 'system_alert',
+        title: '❌ Payday Recoupment Webhook Malformed',
+        message: `Payday recoupment webhook for ${merchantRef} had no valid amount (got: ${collectedAmount}). Manual review required.`,
+        metadata: { merchantRef, payload },
+      }).catch(() => {});
+      return;
+    }
+    await handlePaydayRecoupmentCollection(event, merchantRef, internalRef, collectedAmount, log);
     return; // never fall through to DEP- logic
   }
 
@@ -265,7 +345,7 @@ async function handleCollectionEvent(
 
   const walletId = wallet?.id || (await supabaseAdmin.from('employer_wallets').select('id').eq('employer_id', employerId).single()).data?.id;
 
-  const status = (event === 'collection.completed' || payload.status === 'COMPLETED') ? 'completed' : 'failed';
+  const status = (event === 'transaction.completed' || payload.status === 'COMPLETED') ? 'completed' : 'failed';
 
   await supabaseAdmin
     .from('wallet_transactions')

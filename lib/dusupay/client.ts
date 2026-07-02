@@ -5,6 +5,8 @@ import {
   ProviderResponse,
   BankCodesResponse,
   SendFundsPayload,
+  CollectionRequest,
+  CollectionResponse,
 } from './types';
 
 export class DusupayClient {
@@ -117,6 +119,20 @@ export class DusupayClient {
    */
   async verifyTransaction(merchantReference: string): Promise<PayoutResponse> {
     return this.request<PayoutResponse>(`/data/transaction/verify/${merchantReference}`);
+  }
+
+  /**
+   * Initiate a collection (pull funds from a customer's mobile money account —
+   * a direct-charge / STK-push-style request). Distinct endpoint and schema
+   * from sendFunds(): uses `msisdn`, not `account_number`. Confirmed live
+   * against sandboxapi.dusupay.com/collections/initialize for airtel_ke and
+   * mpesa_ke (both returned 202 Accepted).
+   */
+  async initializeCollection(collection: CollectionRequest): Promise<CollectionResponse> {
+    return this.request<CollectionResponse>('/collections/initialize', {
+      method: 'POST',
+      body: JSON.stringify(collection),
+    });
   }
 }
 
