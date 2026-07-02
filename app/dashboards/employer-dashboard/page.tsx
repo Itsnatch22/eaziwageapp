@@ -31,6 +31,7 @@ interface EmployerProfile {
   contact_person: string | null;
   currency: string;
   reviewer_notes: string;
+  employee_count: number | null;
 }
 
 interface PeriodData {
@@ -102,8 +103,15 @@ const MainStatsCard = ({ employer, employeeStats }: { employer: EmployerProfile 
   const total  = employeeStats?.total_employees  ?? 0;
   const active = employeeStats?.active_employees ?? 0;
   const pct    = total > 0 ? Math.round((active / total) * 100) : 0;
+
+  // The dial tracks enrolled headcount against the company size the employer
+  // declared at onboarding (employer_onboarding.employee_count) — it only
+  // fills completely once total enrolled reaches that declared capacity, not
+  // when every enrolled employee happens to be active.
+  const declaredCount = employer?.employee_count ?? 0;
+  const capacityPct   = declaredCount > 0 ? Math.min(Math.round((total / declaredCount) * 100), 100) : 0;
   const circ   = 2 * Math.PI * 44;
-  const offset = circ - (pct / 100) * circ;
+  const offset = circ - (capacityPct / 100) * circ;
 
   const statusConfig: Record<string, { label: string; color: string }> = {
     approved: { label: 'Verified',       color: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
@@ -145,7 +153,7 @@ const MainStatsCard = ({ employer, employeeStats }: { employer: EmployerProfile 
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-3xl font-bold text-slate-900 dark:text-white">
-            <AnimatedCounter value={total} />
+            {declaredCount > 0 ? <AnimatedCounter value={total} suffix={`/${declaredCount}`} /> : <AnimatedCounter value={total} />}
           </span>
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Employees</span>
         </div>
