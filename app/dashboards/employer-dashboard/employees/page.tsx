@@ -128,18 +128,35 @@ const DEFAULT_EWA: EWASettings = {
   cooldown_period: 7,
 };
 
+// Visually distinct hues (not several near-identical shades of the same
+// color in a row) — order doesn't matter since colors are assigned by a
+// stable hash of the department name below, not by array position.
 const CHART_COLORS = [
-  "#0df259",
-  "#10b981",
-  "#059669",
-  "#047857",
-  "#065f46",
-  "#3b82f6",
-  "#6366f1",
-  "#8b5cf6",
-  "#a855f7",
-  "#ec4899",
+  "#10b981", // emerald
+  "#3b82f6", // blue
+  "#f59e0b", // amber
+  "#a855f7", // purple
+  "#ef4444", // red
+  "#06b6d4", // cyan
+  "#ec4899", // pink
+  "#84cc16", // lime
+  "#6366f1", // indigo
+  "#f97316", // orange
+  "#14b8a6", // teal
+  "#d946ef", // fuchsia
 ];
+
+// Deterministic color-per-department: hashes the department name itself
+// (from what the employee entered during onboarding), not its position in
+// the current data — so "Operations" is always the same color regardless of
+// what order departments happen to come back in from the API.
+function departmentColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  return CHART_COLORS[Math.abs(hash) % CHART_COLORS.length];
+}
 
 const BulkOnboardModal: React.FC<{
   isOpen: boolean;
@@ -532,10 +549,10 @@ const DepartmentPieChart: React.FC<{
 }> = ({ data, totalEmployees }) => {
   if (!data || Object.keys(data).length === 0) return null;
 
-  const chartData = Object.entries(data).map(([name, value], i) => ({
+  const chartData = Object.entries(data).map(([name, value]) => ({
     name,
     value: Number(value),
-    color: CHART_COLORS[i % CHART_COLORS.length],
+    color: departmentColor(name),
   }));
 
   return (
