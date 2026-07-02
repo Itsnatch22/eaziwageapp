@@ -849,6 +849,12 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
                       <option value="debit_order">Debit Order</option>
                       <option value="invoice">Monthly Invoice</option>
                     </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Prefunded requires wallet balance before approving. Debit Order and Invoice both skip that
+                      check and cap liability at Credit Limit + Funding Buffer instead — they currently behave
+                      identically at approval time and differ only in how you expect to collect (Debit Order via
+                      the automated payday recoupment flow, Invoice via a manual employer-initiated repayment).
+                    </p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Risk Tier</Label>
@@ -861,6 +867,10 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
                       <option value="medium">Medium Risk</option>
                       <option value="high">High Risk</option>
                     </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Medium caps advance limits at 40% of salary, High caps at 25% and forces every advance
+                      into manual fraud review regardless of the fraud engine&apos;s own verdict.
+                    </p>
                   </div>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
@@ -875,6 +885,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">%</span>
                     </div>
+                    <p className="text-xs text-slate-500 mt-1">Only applies to Debit Order/Invoice employers.</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Credit Limit (KES)</Label>
