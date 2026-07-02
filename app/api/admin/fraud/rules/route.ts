@@ -10,7 +10,6 @@ const ruleSchema = z.object({
   description: z.string().optional(),
   rule_type: z.enum(['amount_threshold', 'frequency', 'velocity', 'pattern', 'employer_manipulation']),
   threshold_value: z.number(),
-  threshold_unit: z.string().optional(),
   severity: z.enum(['low', 'medium', 'high']),
   action: z.enum(['flag', 'block', 'notify']),
   enabled: z.boolean().default(true),
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
     const supabase = await createRouteHandlerClient();
     const { data, error } = await supabase
       .from('fraud_rules')
-      .select('id, name, description, rule_type, threshold_value, threshold_unit, severity, action, enabled, created_at, updated_at')
+      .select('id, name, description, rule_type, threshold_value, severity, action, enabled, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) return dbErrorResponse('admin/fraud/rules GET', error);
