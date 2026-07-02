@@ -1,8 +1,12 @@
 import { z } from 'zod';
 
+// Monetary fields (min/max_advance_amount, mobile_fee, bank_fee) are denominated in
+// USD, matching the rest of the platform (see /api/admin/billing, /api/admin/dashboard)
+// — these are platform-wide defaults spanning KE/UG/TZ/RW, so a single local-currency
+// value would be meaningless across countries with very different unit values.
 export const GlobalPlatformSettingsSchema = z.object({
   default_advance_percent: z.number().min(10).max(80).optional(),
-  min_advance_amount: z.number().min(100).optional(),
+  min_advance_amount: z.number().min(1).optional(),
   max_advance_amount: z.number().optional(),
   daily_advance_limit: z.number().min(1).optional(),
   min_processing_fee: z.number().min(0).optional(),

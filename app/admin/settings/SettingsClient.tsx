@@ -336,7 +336,7 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
   return (
     <div className="space-y-6">
       
-      <SectionCard title="EWA Advance Limits" icon={Percent} description="Default limits for all employers and employees">
+      <SectionCard title="EWA Advance Limits" icon={Percent} description="Default limits for all employers and employees, in USD (converted to local currency per employer)">
         <div className="grid md:grid-cols-2 gap-6">
           <RangeSlider
             label="Default Advance Percentage"
@@ -349,22 +349,22 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
           />
           <RangeSlider
             label="Minimum Advance Amount"
-            min={100}
-            max={5000}
-            value={settings.min_advance_amount || 500}
+            min={1}
+            max={40}
+            value={settings.min_advance_amount || 4}
             onChange={(v) => onUpdate({ ...settings, min_advance_amount: v })}
-            unit=" KES"
-            step={100}
+            unit=" USD"
+            step={1}
             helpText="Minimum amount per advance request"
           />
           <RangeSlider
             label="Maximum Advance Amount"
-            min={10000}
-            max={500000}
-            value={settings.max_advance_amount || 100000}
+            min={100}
+            max={4000}
+            value={settings.max_advance_amount || 775}
             onChange={(v) => onUpdate({ ...settings, max_advance_amount: v })}
-            unit=" KES"
-            step={5000}
+            unit=" USD"
+            step={25}
             helpText="Maximum amount per advance request"
           />
           <RangeSlider
@@ -422,12 +422,12 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
                 <div className="relative mt-1">
                   <Input
                     type="number"
-                    step="0.5"
-                    value={settings.mobile_fee || 50}
+                    step="0.05"
+                    value={settings.mobile_fee ?? 0.4}
                     onChange={(e) => onUpdate({ ...settings, mobile_fee: parseFloat(e.target.value) })}
-                    className="pr-12"
+                    className="pr-14"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">KES</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">USD</span>
                 </div>
               </div>
               <div>
@@ -435,12 +435,12 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
                 <div className="relative mt-1">
                   <Input
                     type="number"
-                    step="0.5"
-                    value={settings.bank_fee || 100}
+                    step="0.05"
+                    value={settings.bank_fee ?? 0.8}
                     onChange={(e) => onUpdate({ ...settings, bank_fee: parseFloat(e.target.value) })}
-                    className="pr-12"
+                    className="pr-14"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">KES</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">USD</span>
                 </div>
               </div>
             </div>
@@ -1498,22 +1498,22 @@ const NotificationSettingsTab: React.FC<NotificationSettingsTabProps> = ({
       </SectionCard>
 
       
-      <SectionCard title="Alert Thresholds" icon={AlertTriangle} description="Define when alerts are triggered">
+      <SectionCard title="Alert Thresholds" icon={AlertTriangle} description="Define when alerts are triggered, in USD (platform-wide across all countries)">
         <div className="grid md:grid-cols-2 gap-6">
           <div>
-            <Label className="text-sm font-medium">Large Advance Threshold (KES)</Label>
+            <Label className="text-sm font-medium">Large Advance Threshold (USD)</Label>
             <Input
               type="number"
-              value={settings.large_advance_threshold || 50000}
+              value={settings.large_advance_threshold || 400}
               onChange={(e) => onUpdate({ ...settings, large_advance_threshold: parseInt(e.target.value) })}
               className="mt-1"
             />
           </div>
           <div>
-            <Label className="text-sm font-medium">Daily Volume Alert Threshold (KES)</Label>
+            <Label className="text-sm font-medium">Daily Volume Alert Threshold (USD)</Label>
             <Input
               type="number"
-              value={settings.daily_volume_threshold || 1000000}
+              value={settings.daily_volume_threshold || 7750}
               onChange={(e) => onUpdate({ ...settings, daily_volume_threshold: parseInt(e.target.value) })}
               className="mt-1"
             />
