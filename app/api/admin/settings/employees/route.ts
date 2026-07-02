@@ -28,6 +28,15 @@ export async function GET(req: NextRequest) {
 
     if (error) throw error;
 
+    const { data: globalRow } = await adminSupabase
+      .from('global_settings')
+      .select('risk_settings')
+      .eq('id', 'default')
+      .maybeSingle();
+    const riskSettings = (globalRow?.risk_settings as { employee_low_threshold?: number; employee_medium_threshold?: number } | null) ?? {};
+    const lowThreshold = riskSettings.employee_low_threshold ?? 4.0;
+    const mediumThreshold = riskSettings.employee_medium_threshold ?? 2.5;
+
     const formatted = (employees || []).map((emp) => {
       const employer = Array.isArray(emp.employer)
         ? emp.employer[0]
@@ -39,7 +48,7 @@ export async function GET(req: NextRequest) {
         email:         emp.email || '',
         status:        emp.status,
         risk_score:    emp.risk_score,
-        risk_level:    (emp.risk_score >= 4 ? 'low' : emp.risk_score >= 2.5 ? 'medium' : 'high') as 'low' | 'medium' | 'high',
+        risk_level:    (emp.risk_score >= lowThreshold ? 'low' : emp.risk_score >= mediumThreshold ? 'medium' : 'high') as 'low' | 'medium' | 'high',
         employer_name: employer?.company_name || 'Unlinked',
         employer_id:   employer?.id || null,
       };

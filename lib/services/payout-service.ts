@@ -6,6 +6,114 @@ import { runFraudChecks } from '../fraud-engine';
 import { generateRepaymentReference, resolveEffectivePaydayDayOfMonth } from '../repayment/utils';
 import { notifyAdmin } from '../notifications';
 import { getEnv } from '@/env';
+import { convertFromUSD, convertToUSD, getCurrencyFromCountry } from '../utils';
+
+// Platform-wide defaults an admin configures via the Global Settings tab
+// (app/admin/settings — Global Settings). Stored in USD; converted to the
+// employer's local currency at the point of comparison. Used only when an
+// employer/employee hasn't set a more specific override — see the fallback
+// chains in disburseAdvance below.
+type PlatformSettings = {
+  default_advance_percent?: number;
+  min_advance_amount?: number;
+  max_advance_amount?: number;
+  daily_advance_limit?: number;
+  default_cooldown_days?: number;
+  monthly_advance_limit?: number;
+  new_employee_wait_days?: number;
+  instant_mobile_enabled?: boolean;
+  bank_transfers_enabled?: boolean;
+  weekend_advances_enabled?: boolean;
+};
+
+type NotificationSettings = {
+  large_advance_threshold?: number;
+  daily_volume_threshold?: number;
+};
+
+// risk_score (employees.risk_score) is 0–5 where HIGHER = SAFER — confirmed
+// against app/api/admin/settings/employees/route.ts's risk_level derivation
+// and RiskScoringClient.tsx's employer rating, both of which treat a high
+// score as low risk.
+type RiskSettings = {
+  employee_medium_threshold?: number;
+  auto_suspend_threshold?: number;
+  reduce_limits_threshold?: number;
+};
+
+async function loadGlobalSettings(): Promise<{ platform: PlatformSettings; notifications: NotificationSettings; risk: RiskSettings; rates: Record<string, number> }> {
+  const [{ data: globalRow }, { data: exchangeRates }] = await Promise.all([
+    supabaseAdmin.from('global_settings').select('platform_settings, notification_settings, risk_settings').eq('id', 'default').maybeSingle(),
+    supabaseAdmin.from('exchange_rates').select('currency_code, rate_to_usd'),
+  ]);
+
+  const rates = (exchangeRates || []).reduce((acc: Record<string, number>, rate) => {
+    if (rate.currency_code) acc[rate.currency_code.toUpperCase()] = Number(rate.rate_to_usd ?? 0);
+    return acc;
+  }, {} as Record<string, number>);
+
+  return {
+    platform: (globalRow?.platform_settings as PlatformSettings) ?? {},
+    notifications: (globalRow?.notification_settings as NotificationSettings) ?? {},
+    risk: (globalRow?.risk_settings as RiskSettings) ?? {},
+    rates,
+  };
+}
+
+// Notifications tab thresholds (both stored in USD) — fires admin alerts that
+// were previously configurable but never actually triggered by anything.
+async function checkVolumeAlerts(
+  advanceId: string,
+  advanceAmount: number,
+  currency: string,
+  notificationSettings: NotificationSettings,
+  rates: Record<string, number>,
+): Promise<void> {
+  const advanceAmountUSD = convertToUSD(advanceAmount, currency, rates);
+
+  if (notificationSettings.large_advance_threshold != null && advanceAmountUSD >= notificationSettings.large_advance_threshold) {
+    void notifyAdmin({
+      type: 'review_request',
+      title: 'Large Advance Disbursed',
+      message: `Advance ${advanceId} for ${advanceAmountUSD.toFixed(2)} USD exceeded the configured large-advance threshold of ${notificationSettings.large_advance_threshold} USD.`,
+      metadata: { advance_id: advanceId, amount_usd: advanceAmountUSD, threshold_usd: notificationSettings.large_advance_threshold },
+    }).catch(() => {});
+  }
+
+  if (notificationSettings.daily_volume_threshold == null) return;
+
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const { data: todaysAdvances } = await supabaseAdmin
+    .from('advances')
+    .select('amount, currency')
+    .eq('status', 'completed')
+    .gte('disbursed_at', dayStart.toISOString());
+
+  const todaysVolumeUSD = (todaysAdvances || []).reduce(
+    (sum, a) => sum + convertToUSD(Number(a.amount || 0), a.currency || 'KES', rates),
+    0,
+  );
+
+  if (todaysVolumeUSD < notificationSettings.daily_volume_threshold) return;
+
+  // Dedupe — only alert once per day even though this runs on every disbursement
+  // after the threshold is crossed.
+  const { count: alreadyNotified } = await supabaseAdmin
+    .from('admin_notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('type', 'system_alert')
+    .eq('title', 'Daily Disbursement Volume Threshold Reached')
+    .gte('created_at', dayStart.toISOString());
+
+  if ((alreadyNotified ?? 0) > 0) return;
+
+  void notifyAdmin({
+    type: 'system_alert',
+    title: 'Daily Disbursement Volume Threshold Reached',
+    message: `Today's total disbursed volume (${todaysVolumeUSD.toFixed(2)} USD) has crossed the configured threshold of ${notificationSettings.daily_volume_threshold} USD.`,
+    metadata: { volume_usd: todaysVolumeUSD, threshold_usd: notificationSettings.daily_volume_threshold },
+  }).catch(() => {});
+}
 
 // ─── Repayment schedule helpers ──────────────────────────────────────────────
 
@@ -173,8 +281,8 @@ export class PayoutService {
       .from('advances')
       .select(`
         *,
-        e:employees(id, full_name, kyc_status, status:status, risk_score, employer_id, country, monthly_salary),
-        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access)
+        e:employees(id, full_name, kyc_status, status:status, risk_score, employer_id, country, monthly_salary, created_at),
+        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access, instant_enabled)
       `)
       .eq('id', advanceId)
       .maybeSingle();
@@ -182,6 +290,8 @@ export class PayoutService {
     if (advanceError || !advanceRow) {
       throw new Error(`Advance not found: ${advanceError?.message || 'missing'}`);
     }
+
+    const { platform: globalSettings, notifications: notificationSettings, risk: riskSettings, rates: exchangeRates } = await loadGlobalSettings();
 
     // employee_ewa_settings has no FK to advances (it relates via employees),
     // so it can't be embedded in the select above — fetch it separately.
@@ -219,6 +329,7 @@ export class PayoutService {
       employer_id?: string | null;
       country?: string | null;
       monthly_salary?: number | string | null;
+      created_at?: string | null;
     }
 
     interface EmployerRow {
@@ -232,6 +343,7 @@ export class PayoutService {
       cooldown_days?: number | string | null;
       max_monthly_advances?: number | string | null;
       weekend_access?: boolean | null;
+      instant_enabled?: boolean | null;
     }
 
     interface EESRow {
@@ -299,6 +411,16 @@ export class PayoutService {
       throw new Error(reason);
     }
 
+    // Global Settings defaults are stored in USD — convert to whatever currency
+    // this employee's advance is actually denominated in before comparing.
+    const localCurrency = getCurrencyFromCountry(employee?.country, advance.currency ?? 'KES');
+    const globalMinLocal = globalSettings.min_advance_amount != null
+      ? convertFromUSD(globalSettings.min_advance_amount, localCurrency, exchangeRates)
+      : undefined;
+    const globalMaxLocal = globalSettings.max_advance_amount != null
+      ? convertFromUSD(globalSettings.max_advance_amount, localCurrency, exchangeRates)
+      : undefined;
+
     const checkEmployeeEligibility = async (): Promise<EligibilityCheckResult> => {
       const flags: FraudFlagInput[] = [];
 
@@ -312,18 +434,37 @@ export class PayoutService {
         return { eligible: false, rejectionReason: 'EWA disabled for this employee', fraudFlags: [] };
       }
 
-      // DB risk_score is on a 0–5 scale (constraint: 0 <= score <= 5).
-      // Thresholds below are the 0–5 equivalents of the original 0–10 intent (÷2).
-      const riskThreshold = 3.75;
-      if (typeof employee.risk_score === 'number' && employee.risk_score > riskThreshold) {
+      // risk_score is 0–5 where HIGHER = SAFER (confirmed against
+      // app/api/admin/settings/employees/route.ts and RiskScoringClient.tsx,
+      // which both treat a high score as low risk). This previously compared
+      // the wrong direction — flagging/blocking the safest employees (high
+      // score) as critical fraud risk while letting the riskiest ones
+      // (low score) through unflagged.
+      const suspendThreshold = toNumber(riskSettings.auto_suspend_threshold, 1.5);
+      const mediumThreshold = toNumber(riskSettings.employee_medium_threshold, 2.5);
+      if (typeof employee.risk_score === 'number' && employee.risk_score < mediumThreshold) {
         flags.push({
           flagType: 'risk_score_threshold',
-          severity: employee.risk_score >= 4.5 ? 'critical' : 'high',
-          description: `Employee risk score ${employee.risk_score} exceeds threshold ${riskThreshold}`,
+          severity: employee.risk_score < suspendThreshold ? 'critical' : 'high',
+          description: `Employee risk score ${employee.risk_score} is below the safe threshold of ${mediumThreshold}`,
         });
       }
 
-      const effectiveMaxPercent = toNumber(ees?.max_advance_percentage ?? employer?.advance_limit_percent, 50);
+      if (employee.created_at) {
+        const waitDays = toNumber(globalSettings.new_employee_wait_days, 0);
+        const daysSinceHire = Math.floor((Date.now() - new Date(employee.created_at).getTime()) / (1000 * 60 * 60 * 24));
+        if (waitDays > 0 && daysSinceHire < waitDays) {
+          return { eligible: false, rejectionReason: `New employees must wait ${waitDays} days before requesting an advance (${waitDays - daysSinceHire} remaining)`, fraudFlags: [] };
+        }
+      }
+
+      let effectiveMaxPercent = toNumber(ees?.max_advance_percentage ?? employer?.advance_limit_percent ?? globalSettings.default_advance_percent, 50);
+      // Risk Settings "Reduce advance limit at risk score below" — halves the
+      // employee's effective percentage limit rather than blocking outright.
+      const reduceLimitsThreshold = riskSettings.reduce_limits_threshold;
+      if (typeof employee.risk_score === 'number' && reduceLimitsThreshold != null && employee.risk_score < reduceLimitsThreshold) {
+        effectiveMaxPercent = effectiveMaxPercent / 2;
+      }
       // Integer-cent arithmetic — avoids float imprecision on salary × percent
       const salaryMinor = Math.round(toNumber(employee?.monthly_salary) * 100);
       const maxAllowedMinor = Math.floor(salaryMinor * effectiveMaxPercent / 100);
@@ -333,18 +474,28 @@ export class PayoutService {
         return { eligible: false, rejectionReason: `Requested amount exceeds limit of ${maxAllowed}`, fraudFlags: [] };
       }
 
-      const effectiveMin = toNumber(ees?.min_advance_amount ?? employer?.min_advance_amount, 500);
+      // Absolute ceiling, independent of the salary-percentage cap above. Employee
+      // override > employer setting (employers has no max_advance_amount column,
+      // only min) > global default (converted from USD) > hardcoded fallback.
+      const effectiveMax = toNumber(ees?.max_advance_amount ?? globalMaxLocal, 1_000_000_000);
+      const effectiveMaxMinor = Math.round(effectiveMax * 100);
+      if (advanceMinor > effectiveMaxMinor) {
+        return { eligible: false, rejectionReason: `Requested amount exceeds maximum advance amount of ${effectiveMax}`, fraudFlags: [] };
+      }
+
+      const effectiveMin = toNumber(ees?.min_advance_amount ?? employer?.min_advance_amount ?? globalMinLocal, 500);
       const effectiveMinMinor = Math.round(effectiveMin * 100);
       if (advanceMinor < effectiveMinMinor) {
         return { eligible: false, rejectionReason: `Amount below minimum of ${effectiveMin}`, fraudFlags: [] };
       }
 
       const isWeekend = [0, 6].includes(new Date().getDay());
-      if (isWeekend && !employer?.weekend_access) {
+      const weekendAllowed = employer?.weekend_access ?? globalSettings.weekend_advances_enabled ?? false;
+      if (isWeekend && !weekendAllowed) {
         return { eligible: false, rejectionReason: 'Advances not permitted on weekends for this employer', fraudFlags: [] };
       }
 
-      const cooldownDays = toNumber(ees?.cooldown_period ?? employer?.cooldown_days, 7);
+      const cooldownDays = toNumber(ees?.cooldown_period ?? employer?.cooldown_days ?? globalSettings.default_cooldown_days, 7);
       const { data: recentAdvance } = await supabaseAdmin
         .from('advances')
         .select('disbursed_at')
@@ -361,7 +512,21 @@ export class PayoutService {
         }
       }
 
-      const maxMonthly = toNumber(employer?.max_monthly_advances, 2);
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      const daySelect = await supabaseAdmin
+        .from('advances')
+        .select('id', { count: 'exact', head: true })
+        .eq('employee_id', advance.employee_id)
+        .in('status', ['completed', 'processing'])
+        .gte('created_at', dayStart.toISOString());
+
+      const dayCount = (daySelect.count as number) ?? 0;
+      const maxDaily = toNumber(globalSettings.daily_advance_limit, 0);
+      if (maxDaily > 0 && dayCount >= maxDaily) {
+        return { eligible: false, rejectionReason: `Daily advance request limit of ${maxDaily} reached`, fraudFlags: [] };
+      }
+
+      const maxMonthly = toNumber(employer?.max_monthly_advances ?? globalSettings.monthly_advance_limit, 2);
       const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
       const monthSelect = await supabaseAdmin
         .from('advances')
@@ -411,6 +576,22 @@ export class PayoutService {
 
     if (!paymentMethod || !paymentMethod.is_verified || !paymentMethod.is_active) {
       fraudFlags.push({ flagType: 'unverified_payment_method', severity: 'high', description: 'Payment method not verified or inactive' });
+    }
+
+    // Feature gates: employer-level instant_enabled already applies to mobile
+    // money specifically; bank transfers have no per-employer toggle, only the
+    // platform-wide Global Settings switch.
+    if (paymentMethod?.method_type === 'mobile_money') {
+      const instantAllowed = (employer?.instant_enabled ?? true) && (globalSettings.instant_mobile_enabled ?? true);
+      if (!instantAllowed) {
+        await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'Mobile money disbursements are currently disabled' }).eq('id', advanceId);
+        throw new Error('Mobile money disbursements are currently disabled');
+      }
+    } else if (paymentMethod?.method_type === 'bank_account') {
+      if (!(globalSettings.bank_transfers_enabled ?? true)) {
+        await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'Bank transfer disbursements are currently disabled' }).eq('id', advanceId);
+        throw new Error('Bank transfer disbursements are currently disabled');
+      }
     }
 
     if (fraudFlags.length > 0) {
@@ -571,6 +752,9 @@ export class PayoutService {
       new_value: { status: 'completed', merchant_reference: merchantReference, amount: advanceAmount, net_amount: netAmount },
       metadata: { employee_id: advance.employee_id, employer_id: advance.employer_id, currency: advance.currency },
     });
+
+    void checkVolumeAlerts(advanceId, advanceAmount, localCurrency, notificationSettings, exchangeRates)
+      .catch((err) => console.error('[disburseAdvance] Volume alert check failed:', err));
 
     return {
       success: true,

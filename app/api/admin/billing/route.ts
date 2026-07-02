@@ -23,10 +23,6 @@ type BillingAdvanceRow = {
   } | null;
 };
 
-type EmployerMetadata = {
-  credit_limit?: number;
-};
-
 function resolveCurrency(country?: string | null): string {
   return COUNTRY_TO_CURRENCY[(country ?? '').toUpperCase()] ?? 'KES';
 }
@@ -140,15 +136,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const employerIds = (wallets || []).map(w => w.employer_id);
     const { data: employers, error: empError } = await supabase
       .from('employers')
-      .select('id, company_name, metadata')
+      .select('id, company_name, credit_limit')
       .in('id', employerIds);
 
     if (empError) throw empError;
 
     const walletHealth = (wallets || []).map(w => {
   const employer    = (employers || []).find(e => e.id === w.employer_id);
-  const metadata    = employer?.metadata as EmployerMetadata | undefined;
-  const creditLimit = Number(metadata?.credit_limit ?? 1000000);
+  // Credit Limit is set via the Employer Config settings tab, which writes to
+  // this column directly (see app/api/admin/settings/employers/[id]/route.ts) —
+  // previously this read employers.metadata, a separate text column that's
+  // always null, so utilization was always computed against a hardcoded 1M default.
+  const creditLimit = Number(employer?.credit_limit ?? 1000000);
   const balance     = Number(w.outstanding_liability || 0);  
   const utilization = creditLimit > 0 ? Math.round((balance / creditLimit) * 100) : 0;
   const currency    = w.currency || 'KES';

@@ -24,13 +24,20 @@ export const GlobalPlatformSettingsSchema = z.object({
   enabled_countries: z.array(z.string()).optional(),
 });
 
+// risk_score (employers.risk_score / employees.risk_score) is stored on a 0–5
+// scale where HIGHER = SAFER (confirmed against the existing rating derivations
+// in app/api/admin/settings/employees/route.ts and RiskScoringClient.tsx's
+// getRating(), both of which treat a high score as low risk). These thresholds
+// must use the same scale and direction so a single admin-configured number
+// drives both the employer A/B/C rating bands and the employee disbursement
+// risk check in lib/services/payout-service.ts.
 export const RiskSettingsSchema = z.object({
-  employer_low_threshold: z.number().min(0).max(100).optional(),
-  employer_medium_threshold: z.number().min(0).max(100).optional(),
-  employee_low_threshold: z.number().min(0).max(100).optional(),
-  employee_medium_threshold: z.number().min(0).max(100).optional(),
-  auto_suspend_threshold: z.number().min(0).max(100).optional(),
-  reduce_limits_threshold: z.number().min(0).max(100).optional(),
+  employer_low_threshold: z.number().min(0).max(5).optional(),
+  employer_medium_threshold: z.number().min(0).max(5).optional(),
+  employee_low_threshold: z.number().min(0).max(5).optional(),
+  employee_medium_threshold: z.number().min(0).max(5).optional(),
+  auto_suspend_threshold: z.number().min(0).max(5).optional(),
+  reduce_limits_threshold: z.number().min(0).max(5).optional(),
   auto_suspend_on_fraud: z.boolean().optional(),
   auto_reduce_on_warning: z.boolean().optional(),
   notify_on_high_risk: z.boolean().optional(),
