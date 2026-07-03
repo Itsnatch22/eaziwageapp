@@ -7,6 +7,7 @@ import {
   DollarSign, RotateCcw, BadgeCheck
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { ExportButton } from '@/components/ui/ExportButton';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
@@ -454,51 +455,57 @@ export function AdvanceDetailModal({
         </div>
 
         <div className="flex gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
-          <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2" onClick={onClose}>Close</button>
+          <Button variant="outline" size="lg" className="flex-1" onClick={onClose}>Close</Button>
           {advance.status === 'pending' && (
             <>
-              <button 
-                onClick={() => onReject(advance.id)} 
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => onReject(advance.id)}
                 disabled={loading}
-                className="border-red-200 text-red-600 hover:bg-red-50"
+                className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/30 dark:hover:bg-red-500/10"
               >
                 <XCircle className="w-4 h-4 mr-2" /> Reject
-              </button>
-              <button 
-                onClick={() => onApprove(advance.id)} 
+              </Button>
+              <Button
+                size="lg"
+                onClick={() => onApprove(advance.id)}
                 disabled={loading}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <CheckCircle2 className="w-4 h-4 mr-2" /> Approve
-              </button>
+              </Button>
             </>
           )}
           {advance.status === 'approved' && (
-            <button
+            <Button
+              size="lg"
               onClick={() => onDisburse(advance.id)}
               disabled={loading}
-              className="bg-purple-600 hover:bg-purple-700 text-white flex-1"
+              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
             >
               <ArrowUpRight className="w-4 h-4 mr-2" /> Disburse Now
-            </button>
+            </Button>
           )}
           {advance.status === 'failed' && (
-            <button
+            <Button
+              size="lg"
               onClick={() => onRetryDisbursement(advance.id)}
               disabled={loading}
-              className="bg-amber-600 hover:bg-amber-700 text-white flex-1"
+              className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
             >
-              <RotateCcw className="w-4 h-4 mr-2" /> Retry Disbursement
-            </button>
+              <RotateCcw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} /> Retry Disbursement
+            </Button>
           )}
           {advance.status === 'completed' && (
-            <button
+            <Button
+              size="lg"
               onClick={() => onMarkRepaid(advance.id)}
               disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               <BadgeCheck className="w-4 h-4 mr-2" /> Mark Repaid
-            </button>
+            </Button>
           )}
         </div>
       </div>
