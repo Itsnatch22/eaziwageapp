@@ -201,25 +201,25 @@ export function AdvanceRow({
             </button>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => onViewDetails(advance)}>
-              <Eye className="w-4 h-4 mr-2" /> View Details
+          <DropdownMenuContent className="min-w-44">
+            <DropdownMenuItem onClick={() => onViewDetails(advance)} className="px-2 py-1.5">
+              <Eye className="w-4 h-4" /> View Details
             </DropdownMenuItem>
 
             {advance.status === 'pending' && (
               <>
                 <DropdownMenuItem
                   onClick={() => onApprove(advance.id)}
-                  className="text-emerald-600"
+                  className="px-2 py-1.5 text-emerald-600"
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Approve
+                  <CheckCircle2 className="w-4 h-4" /> Approve
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
                   onClick={() => onReject(advance.id)}
-                  className="text-red-600"
+                  className="px-2 py-1.5 text-red-600"
                 >
-                  <XCircle className="w-4 h-4 mr-2" /> Reject
+                  <XCircle className="w-4 h-4" /> Reject
                 </DropdownMenuItem>
               </>
             )}
@@ -227,27 +227,27 @@ export function AdvanceRow({
             {advance.status === 'approved' && (
               <DropdownMenuItem
                 onClick={() => onDisburse(advance.id)}
-                className="text-purple-600"
+                className="px-2 py-1.5 text-purple-600"
               >
-                <ArrowUpRight className="w-4 h-4 mr-2" /> Disburse
+                <ArrowUpRight className="w-4 h-4" /> Disburse
               </DropdownMenuItem>
             )}
 
             {advance.status === 'failed' && (
               <DropdownMenuItem
                 onClick={() => onRetryDisbursement(advance.id)}
-                className="text-amber-600"
+                className="px-2 py-1.5 text-amber-600"
               >
-                <RotateCcw className="w-4 h-4 mr-2" /> Retry Disbursement
+                <RotateCcw className="w-4 h-4" /> Retry Disbursement
               </DropdownMenuItem>
             )}
 
             {advance.status === 'completed' && (
               <DropdownMenuItem
                 onClick={() => onMarkRepaid(advance.id)}
-                className="text-emerald-600"
+                className="px-2 py-1.5 text-emerald-600"
               >
-                <BadgeCheck className="w-4 h-4 mr-2" /> Mark Repaid
+                <BadgeCheck className="w-4 h-4" /> Mark Repaid
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

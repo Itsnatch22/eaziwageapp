@@ -170,27 +170,6 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
                 </Link>
               );
             })}
-
-            
-            <div className="mt-4 rounded-2xl p-4 border"
-              style={{ background: '#10b98108', borderColor: '#10b98120' }}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                  style={{ background: '#10b98118', border: '1px solid #10b98130' }}>
-                  <HelpCircle className="w-4 h-4 text-emerald-500" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-900 dark:text-white">Need help?</p>
-                  <p className="text-[10px] text-slate-400">Support Center</p>
-                </div>
-              </div>
-              <button
-                className="w-full py-2 bg-white dark:bg-white/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-xl border border-slate-100 dark:border-white/10 hover:shadow-sm transition-all"
-                onClick={() => toast.info('Support feature coming soon!')}
-              >
-                Contact Us
-              </button>
-            </div>
           </nav>
 
           

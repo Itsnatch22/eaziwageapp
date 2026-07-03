@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { 
-  HelpCircle, MessageCircle, History, ExternalLink, 
+import Link from 'next/link';
+import {
+  HelpCircle, MessageCircle, History, ExternalLink,
   ChevronDown, Loader2
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
@@ -23,7 +24,7 @@ const FAQS = [
   },
   {
     q: "Are there any hidden fees?",
-    a: "No. EaziWage charges a flat 3.5% transaction fee per advance. There are no interest rates or late payment penalties."
+    a: "No. EaziWage charges a transaction fee between 3.5% and 6.5% per advance, based on your risk assessment — you'll always see the exact fee before confirming a request. There are no interest rates or late payment penalties."
   },
   {
     q: "How do I repay my advance?",
@@ -125,9 +126,11 @@ const SupportPage = () => {
                 <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Contact Page</h3>
                 <p className="text-slate-500 text-sm leading-relaxed mb-6">Visit our main contact page for corporate inquiries or partnerships.</p>
               </div>
-              <Button variant="outline" onClick={() => window.open('/contact', '_blank')} className="rounded-2xl h-12 px-6 border-slate-200 dark:border-white/10">
-                Go to contact <ExternalLink className="w-4 h-4 ml-2" />
-              </Button>
+              <Link href="/contact" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" className="rounded-2xl h-12 px-6 border-slate-200 dark:border-white/10">
+                  Go to contact <ExternalLink className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
            </div>
         </div>
 

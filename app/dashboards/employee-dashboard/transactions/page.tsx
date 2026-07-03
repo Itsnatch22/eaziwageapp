@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
 
-type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'completed' | 'rejected' | string;
+type AdvanceStatus = 'pending' | 'processing' | 'approved' | 'disbursed' | 'completed' | 'repaid' | 'failed' | 'rejected' | 'denied' | 'fraud_review' | string;
 type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
 type FilterType = 'all' | 'pending' | 'completed' | 'failed';
 
@@ -49,12 +49,18 @@ const getStatusConfig = (status: AdvanceStatus): StatusConfig => {
   switch (status) {
     case 'disbursed':
     case 'completed':
+    case 'repaid':
       return { icon: CheckCircle2, label: 'Completed', color: 'text-emerald-600', bg: 'bg-emerald-500/10 border-emerald-500/20' };
     case 'pending':
+    case 'processing':
       return { icon: Clock, label: 'Processing', color: 'text-amber-600', bg: 'bg-amber-500/10 border-amber-500/20', pulse: true };
+    case 'fraud_review':
+      return { icon: Clock, label: 'Under Review', color: 'text-amber-600', bg: 'bg-amber-500/10 border-amber-500/20', pulse: true };
     case 'approved':
       return { icon: CheckCircle2, label: 'Approved', color: 'text-blue-600', bg: 'bg-blue-500/10 border-blue-500/20' };
+    case 'failed':
     case 'rejected':
+    case 'denied':
       return { icon: AlertCircle, label: 'Failed', color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' };
     default:
       return { icon: Clock, label: status, color: 'text-slate-500', bg: 'bg-slate-50 border-slate-200' };
@@ -121,12 +127,16 @@ export default function Transactions() {
     .map((a) => ({ id: a.id, type: 'advance' as const, amount: a.amount, status: a.status, method: a.disbursement_method, created_at: a.created_at }))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+  const isPending = (status: AdvanceStatus) => ['pending', 'processing', 'approved', 'fraud_review'].includes(status);
+  const isCompleted = (status: AdvanceStatus) => ['disbursed', 'completed', 'repaid'].includes(status);
+  const isFailed = (status: AdvanceStatus) => ['failed', 'rejected', 'denied'].includes(status);
+
   const filteredItems = allItems.filter((item) => {
     const matchesFilter =
       filter === 'all' ? true
-      : filter === 'pending' ? item.status === 'pending' || item.status === 'approved'
-      : filter === 'completed' ? item.status === 'disbursed' || item.status === 'completed'
-      : item.status === 'rejected';
+      : filter === 'pending' ? isPending(item.status)
+      : filter === 'completed' ? isCompleted(item.status)
+      : isFailed(item.status);
     const matchesSearch =
       searchTerm === '' ? true
       : item.amount.toString().includes(searchTerm) || item.status.toLowerCase().includes(searchTerm.toLowerCase());
@@ -135,15 +145,15 @@ export default function Transactions() {
 
   const currentMonth = new Date().getMonth();
   const monthlyTotal = advances
-    .filter((a) => new Date(a.created_at).getMonth() === currentMonth && (a.status === 'disbursed' || a.status === 'completed'))
+    .filter((a) => new Date(a.created_at).getMonth() === currentMonth && isCompleted(a.status))
     .reduce((sum, a) => sum + a.amount, 0);
-  const totalTransactions = advances.filter((a) => a.status === 'disbursed' || a.status === 'completed').length;
+  const totalTransactions = advances.filter((a) => isCompleted(a.status)).length;
 
   const filters: Array<{ id: FilterType; label: string; count: number }> = [
     { id: 'all', label: 'All', count: allItems.length },
-    { id: 'pending', label: 'Pending', count: allItems.filter((i) => i.status === 'pending' || i.status === 'approved').length },
-    { id: 'completed', label: 'Done', count: allItems.filter((i) => i.status === 'disbursed' || i.status === 'completed').length },
-    { id: 'failed', label: 'Failed', count: allItems.filter((i) => i.status === 'rejected').length },
+    { id: 'pending', label: 'Pending', count: allItems.filter((i) => isPending(i.status)).length },
+    { id: 'completed', label: 'Done', count: allItems.filter((i) => isCompleted(i.status)).length },
+    { id: 'failed', label: 'Failed', count: allItems.filter((i) => isFailed(i.status)).length },
   ];
 
   return (
@@ -296,7 +306,7 @@ export default function Transactions() {
                     <div className="text-right shrink-0">
                       <p className={cn(
                         "text-sm font-bold tabular-nums tracking-tight",
-                        item.status === 'rejected' ? "text-slate-300 dark:text-white/20 line-through" : "text-slate-900 dark:text-white"
+                        isFailed(item.status) ? "text-slate-300 dark:text-white/20 line-through" : "text-slate-900 dark:text-white"
                       )}>
                         {formatCurrency(item.amount, currency).split('.')[0]}
                       </p>

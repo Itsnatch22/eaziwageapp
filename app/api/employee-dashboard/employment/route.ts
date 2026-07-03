@@ -33,6 +33,7 @@ export async function GET() {
         start_date,
         status,
         employer_id,
+        risk_score,
         employer_onboarding (
           company_name
         )

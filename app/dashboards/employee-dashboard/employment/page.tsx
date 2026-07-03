@@ -6,7 +6,7 @@ import {
   BadgeCheck, Info, Loader2, Landmark
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, cn, calculateFeePercentage } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 
 function AvatarWithFallback({ avatarUrl, fullName }: { avatarUrl: string | null; fullName: string }) {
@@ -46,6 +46,7 @@ interface EmploymentData {
     employment_type: string;
     start_date: string;
     status: string;
+    risk_score?: number;
     employer_onboarding: {
       company_name: string;
     };
@@ -225,7 +226,9 @@ const EmploymentDetails = () => {
                     <div className="w-2 h-2 rounded-full bg-emerald-500" />
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Transaction Fee</span>
                  </div>
-                 <span className="text-sm font-bold text-slate-900 dark:text-white">3.5% Flat</span>
+                 <span className="text-sm font-bold text-slate-900 dark:text-white">
+                    {calculateFeePercentage(employment.risk_score ?? 3.0).toFixed(1)}%
+                 </span>
               </div>
            </div>
 

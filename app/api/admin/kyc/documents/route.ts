@@ -3,6 +3,7 @@ import { checkAdminRateLimit } from '@/lib/rate-limit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DocumentStatusEnum } from '@/lib/validations/kyc-validation';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { getEnv } from '@/env';
 
 const EMPLOYEE_KYC_BUCKET = 'employee-kyc-documents';
 
@@ -111,6 +112,45 @@ async function hydrateEmployerDocumentUrls(
         ...app,
         ...Object.fromEntries(recoveredEntries.filter(([, url]) => url !== null)),
       };
+    })
+  );
+}
+
+// bank_account_number is stored as encrypted bytea — a blind select('*') on
+// employer_onboarding returns the raw ciphertext (serialized as a `\x...` hex
+// string by PostgREST) straight to the admin UI. Decrypt via the same RPC the
+// single-employer detail route uses, then mask to last 4 digits — this is a
+// bulk listing endpoint, so the review queue only needs enough to confirm a
+// bank account is on file, not the full number.
+async function maskEmployerBankAccounts(
+  adminSupabase: SupabaseClient,
+  employerApps: Record<string, unknown>[]
+) {
+  const { PII_ENCRYPTION_KEY } = getEnv();
+
+  return Promise.all(
+    employerApps.map(async (app) => {
+      if (!app.bank_account_number) return { ...app, bank_account_number: null };
+
+      const onboardingId = typeof app.id === 'string' ? app.id : null;
+      if (!onboardingId || !PII_ENCRYPTION_KEY) {
+        return { ...app, bank_account_number: '[Encrypted]' };
+      }
+
+      try {
+        const { data: decrypted } = await adminSupabase.rpc('admin_get_employer_bank_account', {
+          p_onboarding_id: onboardingId,
+          p_key: PII_ENCRYPTION_KEY,
+        });
+
+        const masked = typeof decrypted === 'string' && decrypted.length > 4
+          ? `•••• ${decrypted.slice(-4)}`
+          : decrypted ? '••••••••' : null;
+
+        return { ...app, bank_account_number: masked };
+      } catch {
+        return { ...app, bank_account_number: '[Encrypted]' };
+      }
     })
   );
 }
@@ -236,7 +276,8 @@ export async function GET(req: NextRequest) {
     if (status) empOnboardingQuery = empOnboardingQuery.eq('status', status);
     
     const { data: employerApps } = await empOnboardingQuery;
-    const normalizedEmployerApps = await hydrateEmployerDocumentUrls(adminSupabase, employerApps ?? []);
+    const employerAppsWithDocs = await hydrateEmployerDocumentUrls(adminSupabase, employerApps ?? []);
+    const normalizedEmployerApps = await maskEmployerBankAccounts(adminSupabase, employerAppsWithDocs);
 
     let employeeOnboardingQuery = adminSupabase
       .from('employee_onboarding')

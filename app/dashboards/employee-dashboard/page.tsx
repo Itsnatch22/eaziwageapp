@@ -12,7 +12,7 @@ import {
   Calculator,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, cn, calculateFeePercentage } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -47,6 +47,7 @@ interface EmployeeSummary {
   currency?: string;
   reviewer_notes: string;
   employer_id?: string;
+  risk_score?: number;
 }
 
 
@@ -324,7 +325,9 @@ export default function EmployeeDashboardPage() {
               <div className="flex items-center justify-center gap-8 py-2">
                 <div className="text-center">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Transfer Fee</p>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">3.5% Flat</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    {calculateFeePercentage(employee?.risk_score ?? 3.0).toFixed(1)}%
+                  </p>
                 </div>
                 <div className="w-px h-6 bg-slate-200 dark:bg-white/10" />
                 <div className="text-center">
