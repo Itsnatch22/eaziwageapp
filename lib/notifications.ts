@@ -474,15 +474,22 @@ async function deliverWithFallback(params: {
   emailElement: React.ReactElement | null;
   userEmail: string | null;
   metadata?: NotificationMetadata;
+  pushEnabled?: boolean;
 }): Promise<'push' | 'email' | 'failed'> {
-  const { notificationId, userId, title, body, emailElement, userEmail, metadata } = params;
+  const { notificationId, userId, title, body, emailElement, userEmail, metadata, pushEnabled = true } = params;
 
-  // Step 2: Try each active push subscription
-  const { data: subs } = await supabaseAdmin
-    .from('system_push_subscriptions')
-    .select('endpoint, subscription_payload')
-    .eq('user_id', userId)
-    .eq('active', true);
+  // Step 2: Try each active push subscription. Gated on the caller's pushEnabled
+  // preference — a subscription row alone isn't enough proof the user still wants
+  // push, since unsubscribing only clears the row for the browser that did it
+  // (toggling push off on one device previously left other devices' subscriptions
+  // active and still receiving pushes).
+  const { data: subs } = pushEnabled
+    ? await supabaseAdmin
+        .from('system_push_subscriptions')
+        .select('endpoint, subscription_payload')
+        .eq('user_id', userId)
+        .eq('active', true)
+    : { data: [] as { endpoint: string; subscription_payload: unknown }[] };
 
   if (subs?.length) {
     for (const sub of subs) {
@@ -662,14 +669,17 @@ export async function notifyEmployer(params: {
 
     if (error) throw error;
 
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('email, notification_preferences')
-      .eq('id', params.userId)
-      .single();
+    // Employer notification_preferences live on employers (keyed by user_id), not
+    // profiles — the employer settings page writes emailNotifications/pushNotifications
+    // there, not emailAlerts/pushNotifications on profiles.
+    const [{ data: profile }, { data: employer }] = await Promise.all([
+      supabaseAdmin.from('profiles').select('email').eq('id', params.userId).single(),
+      supabaseAdmin.from('employers').select('notification_preferences').eq('user_id', params.userId).maybeSingle(),
+    ]);
 
-    const prefs = (profile?.notification_preferences as Record<string, boolean> | null) ?? {};
-    const shouldSendEmail = prefs.emailAlerts !== false;
+    const prefs = (employer?.notification_preferences as Record<string, boolean> | null) ?? {};
+    const shouldSendEmail = prefs.emailNotifications !== false;
+    const pushEnabled = prefs.pushNotifications === true;
 
     const emailElement = shouldSendEmail && profile?.email
       ? buildEmployerEmailElement(params.type, params.title, params.message, params.metadata ?? {})
@@ -683,6 +693,7 @@ export async function notifyEmployer(params: {
       emailElement,
       userEmail: profile?.email ?? null,
       metadata: params.metadata,
+      pushEnabled,
     });
 
     return { success: true, data };
@@ -726,6 +737,7 @@ export async function notifyEmployee(params: {
 
     const prefs = (profile?.notification_preferences as Record<string, boolean> | null) ?? {};
     const shouldSendEmail = prefs.emailAlerts !== false;
+    const pushEnabled = prefs.pushNotifications !== false;
 
     const emailElement = shouldSendEmail && profile?.email
       ? buildEmployeeEmailElement(params.type, params.title, params.message, params.metadata ?? {})
@@ -739,6 +751,7 @@ export async function notifyEmployee(params: {
       emailElement,
       userEmail: profile?.email ?? null,
       metadata: params.metadata,
+      pushEnabled,
     });
 
     return { success: true, data };
@@ -770,12 +783,30 @@ export async function redeliverNotification(
       .eq('id', notif.user_id)
       .single();
 
-    const prefs = (profile?.notification_preferences as Record<string, boolean> | null) ?? {};
-    const shouldSendEmail = prefs.emailAlerts !== false;
+    const role = profile?.role as string | undefined;
+
+    // Employer prefs live on employers.notification_preferences (emailNotifications/
+    // pushNotifications), not profiles.notification_preferences (emailAlerts) — same
+    // split as notifyEmployer/notifyEmployee above.
+    let shouldSendEmail: boolean;
+    let pushEnabled: boolean;
+    if (role === 'employer') {
+      const { data: employer } = await supabaseAdmin
+        .from('employers')
+        .select('notification_preferences')
+        .eq('user_id', notif.user_id)
+        .maybeSingle();
+      const employerPrefs = (employer?.notification_preferences as Record<string, boolean> | null) ?? {};
+      shouldSendEmail = employerPrefs.emailNotifications !== false;
+      pushEnabled = employerPrefs.pushNotifications === true;
+    } else {
+      const prefs = (profile?.notification_preferences as Record<string, boolean> | null) ?? {};
+      shouldSendEmail = prefs.emailAlerts !== false;
+      pushEnabled = prefs.pushNotifications !== false;
+    }
 
     let emailElement: React.ReactElement | null = null;
     if (shouldSendEmail && profile?.email) {
-      const role = profile?.role as string | undefined;
       const meta = (notif.metadata ?? {}) as NotificationMetadata;
       if (role === 'employer') {
         emailElement = buildEmployerEmailElement(
@@ -808,6 +839,7 @@ export async function redeliverNotification(
       emailElement,
       userEmail: profile?.email ?? null,
       metadata: notif.metadata as NotificationMetadata,
+      pushEnabled,
     });
 
     return { success: channel !== 'failed', channel };

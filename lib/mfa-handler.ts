@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHmac } from 'crypto';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { apiLimiter, mfaActionLimiter, mfaVerifyLimiter, checkRateLimit, type RateLimitResult } from '@/lib/rate-limit';
 import { getEnv } from '@/env';
+
+// Backup codes aren't a real Supabase MFA factor, so verifying one can't elevate
+// the session to Supabase's own aal2 the way challengeAndVerify does. Instead we
+// mint a short-lived signed cookie that proxy.ts accepts as an alternate proof of
+// second-factor completion for this browser — bounded to 12h rather than an
+// indefinite bypass, matching the "lost my authenticator, need back in" use case
+// without permanently weakening the aal2 gate.
+export const MFA_BACKUP_COOKIE = 'mfa_backup_verified';
+const MFA_BACKUP_COOKIE_TTL_MS = 12 * 60 * 60 * 1000;
+
+export function signMfaBackupCookie(userId: string, hmacKey: string): { value: string; maxAge: number } {
+  const expiresAt = Date.now() + MFA_BACKUP_COOKIE_TTL_MS;
+  const signature = createHmac('sha256', hmacKey).update(`${userId}.${expiresAt}`).digest('hex');
+  return { value: `${expiresAt}.${signature}`, maxAge: MFA_BACKUP_COOKIE_TTL_MS / 1000 };
+}
 
 function getMfaClientIp(req: NextRequest): string {
   return (
@@ -164,6 +180,70 @@ export async function handleMfaPost(
         console.error('[MFA][backup] generation error:', err);
         return NextResponse.json({ error: 'Failed to generate backup codes' }, { status: 500, headers: actionHeaders });
       }
+
+    } else if (action === 'verify_backup_code') {
+      const verifyRate = await checkRateLimit(mfaVerifyLimiter, `mfa-verify${keyPrefix}:${user.id || ip}`);
+      const verifyHeaders = buildRateLimitHeaders(verifyRate);
+      if (!verifyRate.success) return NextResponse.json({ error: 'Too many verification attempts' }, { status: 429, headers: verifyHeaders });
+
+      const rawCode = typeof body?.code === 'string' ? body.code.trim().toUpperCase() : '';
+      if (!rawCode) return NextResponse.json({ error: 'Backup code is required' }, { status: 400, headers: verifyHeaders });
+
+      const hmacKey = getEnv().PII_ENCRYPTION_KEY;
+      if (!hmacKey) return NextResponse.json({ error: 'Backup code verification not configured' }, { status: 500, headers: verifyHeaders });
+
+      const codeHash = createHmac('sha256', hmacKey).update(rawCode).digest('hex');
+      const adminSupabase = createAdminClient();
+
+      const { data: matched, error: matchErr } = await adminSupabase
+        .from('system_mfa_backup_codes')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('code_hash', codeHash)
+        .eq('used', false)
+        .maybeSingle();
+
+      if (matchErr) {
+        console.error('[MFA][backup] lookup error:', { userId: user.id, error: matchErr });
+        return NextResponse.json({ error: 'Failed to verify backup code' }, { status: 500, headers: verifyHeaders });
+      }
+      if (!matched) {
+        return NextResponse.json({ error: 'Invalid or already-used backup code' }, { status: 400, headers: verifyHeaders });
+      }
+
+      const { error: consumeErr } = await adminSupabase
+        .from('system_mfa_backup_codes')
+        .update({ used: true, used_at: new Date().toISOString() })
+        .eq('id', matched.id);
+      if (consumeErr) {
+        console.error('[MFA][backup] consume error:', { userId: user.id, error: consumeErr });
+        return NextResponse.json({ error: 'Failed to verify backup code' }, { status: 500, headers: verifyHeaders });
+      }
+
+      try {
+        await adminSupabase.from('system_audit_logs').insert({
+          admin_id: user.id,
+          admin_name: user.email,
+          target_id: user.id,
+          target_type: 'user',
+          action: 'mfa_backup_code_used',
+          new_value: { backup_code_id: matched.id },
+          metadata: { ip, user_agent: req.headers.get('user-agent') },
+        });
+      } catch (auditErr) {
+        console.error('[MFA][backup] audit insert failed:', auditErr);
+      }
+
+      const response = NextResponse.json({ success: true, message: 'Backup code accepted' }, { headers: verifyHeaders });
+      const { value, maxAge } = signMfaBackupCookie(user.id, hmacKey);
+      response.cookies.set(MFA_BACKUP_COOKIE, value, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge,
+      });
+      return response;
 
     } else if (action === 'verify') {
       const verifyRate = await checkRateLimit(mfaVerifyLimiter, `mfa-verify${keyPrefix}:${user.id || ip}`);

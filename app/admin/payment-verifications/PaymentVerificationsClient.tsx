@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Landmark, CheckCircle2, XCircle, Loader2, FileText, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,6 +45,11 @@ export default function PaymentVerificationsClient() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchMethods();
   }, [fetchMethods]);
+
+  useRealtimeRefresh(
+    [{ table: 'payment_methods' }],
+    () => void fetchMethods(),
+  );
 
   const review = async (id: string, status: 'approved' | 'rejected') => {
     setActingId(id);

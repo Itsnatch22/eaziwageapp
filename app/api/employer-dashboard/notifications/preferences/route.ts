@@ -32,8 +32,6 @@ export async function GET() {
       return NextResponse.json({
         emailNotifications: true,
         advanceAlerts: true,
-        payrollReminders: true,
-        weeklyReports: false,
         pushNotifications: false,
       });
     }
@@ -59,8 +57,8 @@ export async function PUT(req: NextRequest) {
         { status: 422 },
       );
     }
-    const { emailNotifications, advanceAlerts, payrollReminders, weeklyReports, pushNotifications } = prefParsed.data;
-    const fields = { emailNotifications, advanceAlerts, payrollReminders, weeklyReports, pushNotifications };
+    const { emailNotifications, advanceAlerts, pushNotifications } = prefParsed.data;
+    const fields = { emailNotifications, advanceAlerts, pushNotifications };
 
     const admin = getAdmin();
     const { error } = await admin

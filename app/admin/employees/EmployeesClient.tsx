@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { EmptyState } from '@/app/empty';
 import { RISK_SCORE } from '@/lib/constants/employer-schema';
 import {
@@ -1465,6 +1466,11 @@ export default function AdminEmployees({ initialEmployees, initialStats }: { ini
   useEffect(() => {
     Promise.resolve().then(() => void fetchEmployees({ silent: true }));
   }, [fetchEmployees]);
+
+  useRealtimeRefresh(
+    [{ table: 'employee_onboarding' }, { table: 'employees' }],
+    () => void fetchEmployees({ silent: true }),
+  );
 
   const handleQuickAction = async (action: EmployeeStatus | 'kyc_approve') => {
     if (!selectedEmployee) return;

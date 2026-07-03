@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react"
 import {
   Building2, Users, CreditCard, Bell,
   Shield, Clock, Save, AlertCircle, CheckCircle2,
-  Percent, Calendar, Wallet, Lock, Mail, BarChart3, ChevronRight, ChevronLeft,
+  Percent, Calendar, Wallet, Lock, Mail, ChevronRight, ChevronLeft,
   FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
   MessageSquare, Phone, MapPin, Globe, X, Loader2,
   LucideIcon, User, Smartphone, History
@@ -91,8 +91,6 @@ interface Settings {
   cooldownPeriod: number;
   emailNotifications: boolean;
   advanceAlerts: boolean;
-  payrollReminders: boolean;
-  weeklyReports: boolean;
   payrollCycle: string;
 }
 
@@ -104,8 +102,6 @@ interface Profile {
   cooldownPeriod: number;
   emailNotifications: boolean;
   advanceAlerts: boolean;
-  payrollReminders: boolean;
-  weeklyReports: boolean;
   companyName: string;
   contactPerson: string;
   contactEmail: string;
@@ -512,8 +508,6 @@ interface Profile {
   cooldownPeriod: number;
   emailNotifications: boolean;
   advanceAlerts: boolean;
-  payrollReminders: boolean;
-  weeklyReports: boolean;
   companyName: string;
   contactPerson: string;
   contactEmail: string;
@@ -565,8 +559,6 @@ export default function EmployerSettings() {
     cooldownPeriod: 7,
     emailNotifications: true,
     advanceAlerts: true,
-    payrollReminders: true,
-    weeklyReports: false,
     payrollCycle: 'monthly',
   });
 
@@ -578,8 +570,6 @@ export default function EmployerSettings() {
     cooldownPeriod: 7,
     emailNotifications: true,
     advanceAlerts: true,
-    payrollReminders: true,
-    weeklyReports: false,
     companyName: '',
     contactPerson: '',
     contactEmail: '',
@@ -600,13 +590,19 @@ export default function EmployerSettings() {
     await Promise.resolve();
     if (!options?.silent) setLoading(true);
     try {
-      const [profileRes, settingsRes] = await Promise.all([
+      const [profileRes, settingsRes, notifPrefsRes] = await Promise.all([
         fetch('/api/employer-dashboard/profile'),
         fetch('/api/employer-dashboard/settings'),
+        fetch('/api/employer-dashboard/notifications/preferences'),
       ]);
 
       const profileData = profileRes.ok ? await profileRes.json() : null;
       const settingsData = settingsRes.ok ? await settingsRes.json() : null;
+      // The real source of truth for these — employers.notification_preferences,
+      // the same column handleNotificationUpdate's PUT writes to. The settings
+      // endpoint's employer_onboarding.email_notifications/advance_alerts columns
+      // are a separate, unrelated legacy field nobody writes to post-onboarding.
+      const notifPrefsData = notifPrefsRes.ok ? await notifPrefsRes.json() : null;
 
       const employerData = (profileData?.profile ?? settingsData?.employer) as EmployerProfile | undefined;
       const settingsEmployer = settingsData?.employer as Record<string, unknown> | undefined;
@@ -644,12 +640,16 @@ export default function EmployerSettings() {
           maxAdvanceAmount: Number(settingsEmployer.max_advance_amount ?? prev.maxAdvanceAmount),
           advanceAccessDays: accessDays,
           cooldownPeriod: Number(settingsEmployer.cooldown_period ?? prev.cooldownPeriod),
-          emailNotifications: Boolean(settingsEmployer.email_notifications ?? prev.emailNotifications),
-          advanceAlerts: Boolean(settingsEmployer.advance_alerts ?? prev.advanceAlerts),
-          payrollReminders: Boolean(settingsEmployer.payroll_reminders ?? prev.payrollReminders),
-          weeklyReports: Boolean(settingsEmployer.weekly_reports ?? prev.weeklyReports),
           payrollCycle: String(settingsEmployer.payroll_cycle ?? prev.payrollCycle),
-          pushNotifications: Boolean((settingsEmployer.notification_preferences as Record<string, boolean> | null)?.pushNotifications ?? false),
+        }));
+      }
+
+      if (notifPrefsData) {
+        setSettings((prev) => ({
+          ...prev,
+          emailNotifications: Boolean(notifPrefsData.emailNotifications ?? prev.emailNotifications),
+          advanceAlerts: Boolean(notifPrefsData.advanceAlerts ?? prev.advanceAlerts),
+          pushNotifications: Boolean(notifPrefsData.pushNotifications ?? false),
         }));
       }
     } catch (err) {
@@ -981,7 +981,7 @@ export default function EmployerSettings() {
   };
 
   const handleNotificationUpdate = async (
-  key: keyof Pick<Settings, 'emailNotifications' | 'advanceAlerts' | 'payrollReminders' | 'weeklyReports'> | 'pushNotifications',
+  key: keyof Pick<Settings, 'emailNotifications' | 'advanceAlerts'> | 'pushNotifications',
   value: boolean
 ) => {
   setNotifLoading(true);
@@ -995,8 +995,6 @@ export default function EmployerSettings() {
     const newPrefs = {
       emailNotifications: key === 'emailNotifications' ? value : settings.emailNotifications,
       advanceAlerts: key === 'advanceAlerts' ? value : settings.advanceAlerts,
-      payrollReminders: key === 'payrollReminders' ? value : settings.payrollReminders,
-      weeklyReports: key === 'weeklyReports' ? value : settings.weeklyReports,
       pushNotifications: key === 'pushNotifications' ? value : (settings as Settings & { pushNotifications?: boolean }).pushNotifications ?? false,
     };
 
@@ -1522,20 +1520,6 @@ export default function EmployerSettings() {
         description="Get notified when employees request advances"
         checked={settings.advanceAlerts}
         onToggle={(v) => void handleNotificationUpdate('advanceAlerts', v)}
-      />
-      <ToggleItem
-        icon={Calendar}
-        label="Payroll Reminders"
-        description="Reminders to upload monthly payroll data"
-        checked={settings.payrollReminders}
-        onToggle={(v) => void handleNotificationUpdate('payrollReminders', v)}
-      />
-      <ToggleItem
-        icon={BarChart3}
-        label="Weekly Reports"
-        description="Receive weekly summary reports via email"
-        checked={settings.weeklyReports}
-        onToggle={(v) => void handleNotificationUpdate('weeklyReports', v)}
       />
       <ToggleItem
         icon={Smartphone}

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Activity, Building2, Users, CreditCard, Landmark, Mail, Phone, MapPin } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import EmployerDetailNav from './EmployerDetailNav';
 
 interface EmployerDetail {
@@ -40,23 +41,29 @@ export default function EmployerOverviewClient({ employerId }: { employerId: str
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchDetail() {
-      try {
-        const res = await fetch(`/api/admin/employers/${employerId}`);
-        if (!res.ok) {
-          setError(res.status === 404 ? 'Employer not found.' : 'Failed to load employer.');
-          return;
-        }
-        setEmployer(await res.json());
-      } catch {
-        setError('Failed to load employer.');
-      } finally {
-        setLoading(false);
+  const fetchDetail = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/employers/${employerId}`);
+      if (!res.ok) {
+        setError(res.status === 404 ? 'Employer not found.' : 'Failed to load employer.');
+        return;
       }
+      setEmployer(await res.json());
+    } catch {
+      setError('Failed to load employer.');
+    } finally {
+      setLoading(false);
     }
-    fetchDetail();
   }, [employerId]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => void fetchDetail());
+  }, [fetchDetail]);
+
+  useRealtimeRefresh(
+    [{ table: 'employer_onboarding', filter: `id=eq.${employerId}` }],
+    () => fetchDetail(),
+  );
 
   if (loading) {
     return (

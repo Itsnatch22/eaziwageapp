@@ -154,8 +154,6 @@ export const EmployerProfileUpdateSchema = z.object({
 export const EmployerNotificationPrefsSchema = z.object({
   emailNotifications: z.boolean(),
   advanceAlerts: z.boolean(),
-  payrollReminders: z.boolean(),
-  weeklyReports: z.boolean(),
   pushNotifications: z.boolean(),
 });
 

@@ -1,9 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { randomBytes } from "crypto";
+import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAppRole, resolveRoleFromTables } from "@/lib/server/resolve-user-role";
 import type { AppRole } from "@/lib/server/resolve-user-role";
+import { MFA_BACKUP_COOKIE } from "@/lib/mfa-handler";
+
+// Mirrors lib/mfa-handler.ts's signMfaBackupCookie — verifies the cookie a
+// successful backup-code check sets, as an alternate to Supabase's own aal2
+// (which only real TOTP verification can set).
+function hasValidBackupCodeCookie(req: NextRequest, userId: string): boolean {
+  const raw = req.cookies.get(MFA_BACKUP_COOKIE)?.value;
+  const hmacKey = process.env.PII_ENCRYPTION_KEY;
+  if (!raw || !hmacKey) return false;
+
+  const [expiresAtStr, signature] = raw.split(".");
+  if (!expiresAtStr || !signature) return false;
+
+  const expiresAt = Number(expiresAtStr);
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false;
+
+  const expected = createHmac("sha256", hmacKey).update(`${userId}.${expiresAtStr}`).digest("hex");
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export async function proxy(req: NextRequest) {
   // Per-request nonce for CSP — prevents inline script injection attacks.
@@ -160,6 +182,27 @@ export async function proxy(req: NextRequest) {
       );
       await supabase.auth.signOut();
       return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    // MFA enforcement: Supabase's nextLevel is only 'aal2' for users who have an
+    // actually-verified TOTP factor, so this never affects users who haven't
+    // opted into MFA. Users who have must complete a challenge (TOTP or backup
+    // code) each session before reaching any dashboard/API route.
+    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const mfaRequired = aalData?.nextLevel === 'aal2'
+      && aalData.currentLevel !== 'aal2'
+      && !hasValidBackupCodeCookie(req, user.id);
+
+    if (mfaRequired) {
+      if (isDashboard && pathname !== '/mfa-challenge') {
+        return NextResponse.redirect(new URL('/mfa-challenge', req.url));
+      }
+      if (isProtectedApi) {
+        return NextResponse.json({ error: 'MFA verification required', code: 'MFA_REQUIRED' }, { status: 403 });
+      }
+    } else if (pathname === '/mfa-challenge') {
+      const dest = role === 'admin' ? '/admin' : role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard';
+      return NextResponse.redirect(new URL(dest, req.url));
     }
 
     if (role !== 'admin' && isDashboard) {

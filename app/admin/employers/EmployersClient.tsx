@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { formatCurrency, formatDateTime, cn, convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { toast }                   from 'sonner';
 
 type EmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
@@ -1025,6 +1026,13 @@ export default function AdminEmployers({ initialData }: { initialData?: Employer
     }, 0);
     return () => clearTimeout(timer);
   }, [fetchEmployers]);
+
+  // Live-refresh so status/risk changes (from this admin's own actions elsewhere,
+  // or another admin) and new employer signups show up without a manual reload.
+  useRealtimeRefresh(
+    [{ table: 'employer_onboarding' }, { table: 'employers' }],
+    () => fetchEmployers(),
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {

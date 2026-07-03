@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import {
   FileText,
   Search,
@@ -256,6 +257,15 @@ export default function KYCReviewPage() {
     }, 0);
     return () => clearTimeout(timer);
   }, [fetchData]);
+
+  useRealtimeRefresh(
+    [
+      { table: 'employee_kyc_documents' },
+      { table: 'employee_onboarding' },
+      { table: 'employer_onboarding' },
+    ],
+    () => fetchData(),
+  );
 
   const handleReviewEmployee = async (docId: string, status: 'approved' | 'rejected', notes: string) => {
     setActionLoading(true);

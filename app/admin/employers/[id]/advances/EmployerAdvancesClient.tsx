@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Activity } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import EmployerDetailNav from '../EmployerDetailNav';
 
 interface AdvanceRow {
@@ -33,33 +34,39 @@ export default function EmployerAdvancesClient({ employerId }: { employerId: str
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchAdvances() {
-      try {
-        const [advancesRes, employerRes] = await Promise.all([
-          fetch(`/api/admin/advances?employer_onboarding_id=${employerId}&limit=100`),
-          fetch(`/api/admin/employers/${employerId}`),
-        ]);
+  const fetchAdvances = useCallback(async () => {
+    try {
+      const [advancesRes, employerRes] = await Promise.all([
+        fetch(`/api/admin/advances?employer_onboarding_id=${employerId}&limit=100`),
+        fetch(`/api/admin/employers/${employerId}`),
+      ]);
 
-        if (!advancesRes.ok) {
-          setError('Failed to load advances.');
-          return;
-        }
-        const json = await advancesRes.json();
-        setAdvances(json.advances ?? []);
-
-        if (employerRes.ok) {
-          const employerJson = await employerRes.json();
-          setCompanyName(employerJson.company_name);
-        }
-      } catch {
+      if (!advancesRes.ok) {
         setError('Failed to load advances.');
-      } finally {
-        setLoading(false);
+        return;
       }
+      const json = await advancesRes.json();
+      setAdvances(json.advances ?? []);
+
+      if (employerRes.ok) {
+        const employerJson = await employerRes.json();
+        setCompanyName(employerJson.company_name);
+      }
+    } catch {
+      setError('Failed to load advances.');
+    } finally {
+      setLoading(false);
     }
-    fetchAdvances();
   }, [employerId]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => void fetchAdvances());
+  }, [fetchAdvances]);
+
+  useRealtimeRefresh(
+    [{ table: 'advances' }],
+    () => fetchAdvances(),
+  );
 
   if (loading) {
     return (

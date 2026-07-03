@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { 
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import {
   DollarSign, Building2, Search, Download,
   CheckCircle2, Clock,
   RefreshCw, FileText
@@ -223,6 +224,11 @@ export default function AdminReconciliation() {
   };
 
   useEffect(() => { Promise.resolve().then(() => fetchData()); }, []);
+
+  useRealtimeRefresh(
+    [{ table: 'employer_onboarding' }, { table: 'employers' }, { table: 'advances' }],
+    () => fetchData(),
+  );
 
   const handleExport = () => {
     if (!data?.by_employer?.length) return;

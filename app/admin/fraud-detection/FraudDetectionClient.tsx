@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { 
   Shield, AlertTriangle, TrendingUp, Users, Activity, 
   Search, CheckCircle2, XCircle, Clock, Eye,
@@ -1150,6 +1151,11 @@ export default function FraudDetection(): React.ReactElement {
     }, 0);
     return () => clearTimeout(timer);
   }, [fetchData]);
+
+  useRealtimeRefresh(
+    [{ table: 'fraud_alerts' }, { table: 'fraud_rules' }],
+    () => fetchData(),
+  );
 
   const handleToggleRule = async (ruleId: number): Promise<void> => {
    toast.success(`Rule ${ruleId} status updated`);

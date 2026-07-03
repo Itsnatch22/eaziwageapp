@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Activity, Wallet, TrendingUp, AlertTriangle } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import EmployerDetailNav from '../EmployerDetailNav';
 
 interface WalletTransaction {
@@ -33,23 +34,31 @@ export default function EmployerWalletClient({ employerId }: { employerId: strin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchWallet() {
-      try {
-        const res = await fetch(`/api/admin/employers/${employerId}/wallet`);
-        if (!res.ok) {
-          setError(res.status === 404 ? 'Employer not found.' : 'Failed to load wallet.');
-          return;
-        }
-        setData(await res.json());
-      } catch {
-        setError('Failed to load wallet.');
-      } finally {
-        setLoading(false);
+  const fetchWallet = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/employers/${employerId}/wallet`);
+      if (!res.ok) {
+        setError(res.status === 404 ? 'Employer not found.' : 'Failed to load wallet.');
+        return;
       }
+      setData(await res.json());
+    } catch {
+      setError('Failed to load wallet.');
+    } finally {
+      setLoading(false);
     }
-    fetchWallet();
   }, [employerId]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => void fetchWallet());
+  }, [fetchWallet]);
+
+  // No live_employer_id to filter on until the first fetch resolves — refresh on
+  // any change to these tables rather than scoping the subscription.
+  useRealtimeRefresh(
+    [{ table: 'employer_wallets' }, { table: 'wallet_transactions' }],
+    () => fetchWallet(),
+  );
 
   if (loading) {
     return (

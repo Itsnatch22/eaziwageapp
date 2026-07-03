@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { RISK_SCORE } from '@/lib/constants/employer-schema';
 import { 
   Shield, Calculator, Building2, Search,
@@ -494,6 +495,11 @@ export default function AdminEmployersPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm, statusFilter, countryFilter, riskRatingFilter, fetchEmployers]);
+
+  useRealtimeRefresh(
+    [{ table: 'employer_onboarding' }, { table: 'employers' }],
+    () => fetchEmployers(),
+  );
 
   const handleSort = (field: keyof Employer) => {
     if (sortField === field) {
