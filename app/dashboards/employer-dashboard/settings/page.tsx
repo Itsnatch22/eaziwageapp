@@ -4,8 +4,8 @@ import {
   Building2, Users, CreditCard, Bell,
   Shield, Clock, Save, AlertCircle, CheckCircle2,
   Percent, Calendar, Wallet, Lock, Mail, ChevronRight, ChevronLeft,
-  FileText, HelpCircle, Eye, Download, Upload, ExternalLink,
-  MessageSquare, Phone, MapPin, Globe, X, Loader2,
+  FileText, HelpCircle, Eye, Download, Upload,
+  MessageSquare, Phone, MapPin, X, Loader2,
   LucideIcon, User, Smartphone, History
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -1591,32 +1591,6 @@ export default function EmployerSettings() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                </SettingsCard>
-
-                <SettingsCard icon={Globe} title="Resources" description="Helpful documentation and guides">
-                  <div className="space-y-3">
-                    {[
-                      { label: 'Employer Guide', description: 'Complete setup and usage guide' },
-                      { label: 'API Documentation', description: 'For payroll integration' },
-                    ].map(({ label, description }) => (
-                      <a
-                        key={label}
-                        href="#"
-                        className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                            <FileText className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-slate-900 dark:text-white">{label}</p>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
-                          </div>
-                        </div>
-                        <ExternalLink className="w-5 h-5 text-slate-400" />
-                      </a>
-                    ))}
                   </div>
                 </SettingsCard>
               </>
