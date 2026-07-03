@@ -8,6 +8,12 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    # NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
+    # and the TEST_* credentials are configured as environment secrets scoped to
+    # "Production" (GitHub Settings > Environments) — without this key, GitHub
+    # Actions never injects them into the job and every secrets.* reference below
+    # silently resolves to an empty string.
+    environment: Production
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
