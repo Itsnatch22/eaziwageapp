@@ -483,7 +483,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <span className="text-sm text-slate-500">Provider</span>
-                <span className="font-bold text-slate-900 dark:text-white">{existingIntegration.provider_label ?? existingIntegration.provider}</span>
+                <span className="font-bold text-slate-900 dark:text-white">{existingIntegration.provider_label || existingIntegration.provider}</span>
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <span className="text-sm text-slate-500">Integration Code</span>
@@ -493,8 +493,22 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
                 </div>
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-sm text-slate-500">Status</span>
+                <span className="text-sm font-semibold capitalize text-slate-900 dark:text-white">{existingIntegration.status}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <span className="text-sm text-slate-500">Sync Mode</span>
                 <span className="text-sm font-semibold capitalize text-emerald-600">{existingIntegration.sync_mode}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-sm text-slate-500">Sync Frequency</span>
+                <span className="text-sm font-semibold capitalize text-slate-900 dark:text-white">{existingIntegration.sync_frequency}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-sm text-slate-500">Last Sync</span>
+                <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {existingIntegration.last_sync_at ? new Date(existingIntegration.last_sync_at).toLocaleString() : 'Never'}
+                </span>
               </div>
             </div>
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-3">
@@ -534,6 +548,23 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
                 onChange={e => setForm(p => ({ ...p, provider_label: e.target.value }))}
                 className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
               />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-slate-700 dark:text-slate-300">Sync Mode</Label>
+              <Select value={form.sync_mode} onValueChange={v => setForm(p => ({ ...p, sync_mode: v as 'auto' | 'manual' }))}>
+                <SelectTrigger className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto — process pushes from my payroll system immediately</SelectItem>
+                  <SelectItem value="manual">Manual — I&apos;ll upload payroll files myself</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-400">
+                {form.sync_mode === 'auto'
+                  ? 'Your IT team pushes data to the webhook below and it lands on employee records automatically — no manual click needed.'
+                  : "You'll upload payroll files from this page and trigger each sync yourself."}
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -1166,7 +1197,7 @@ export default function EmployerPayroll() {
                   <span className="text-sm text-slate-600 dark:text-slate-400">Provider</span>
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-slate-900 dark:text-white">
-                      {integration.provider_label ?? integration.provider}
+                      {integration.provider_label || integration.provider}
                     </span>
                     <code className="text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded font-mono">
                       {integration.integration_code}
@@ -1271,9 +1302,9 @@ export default function EmployerPayroll() {
             <div className="p-4 bg-slate-50/50 dark:bg-slate-800/20 border-b border-slate-200/50 dark:border-slate-700/30">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: 'Status',    value: 'Operational',                                         dot: true  },
+                  { label: 'Status',    value: integration.status.charAt(0).toUpperCase() + integration.status.slice(1), dot: integration.status === 'active'  },
                   { label: 'Last Sync', value: integration.last_sync_at ? formatDateTime(integration.last_sync_at) : 'Waiting…', dot: false },
-                  { label: 'Sync Mode', value: 'Manual',                                              dot: false },
+                  { label: 'Sync Mode', value: integration.sync_mode.charAt(0).toUpperCase() + integration.sync_mode.slice(1), dot: false },
                   { label: 'Frequency', value: integration.sync_frequency === 'realtime' ? 'Real-time' : integration.sync_frequency, dot: false },
                 ].map(({ label, value, dot }) => (
                   <div key={label} className="p-3 bg-white/40 dark:bg-slate-900/40 rounded-xl border border-slate-200/50 dark:border-slate-700/30">

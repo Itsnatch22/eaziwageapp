@@ -125,7 +125,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { provider, provider_label, sync_mode, sync_frequency, sync_time } = parsed.data;
+    const { provider, sync_mode, sync_frequency, sync_time } = parsed.data;
+    const provider_label = parsed.data.provider_label?.trim() || null;
 
 const { data: existing, error: existingError } = await supabase
        .from('payroll_integrations')
@@ -217,8 +218,8 @@ export async function DELETE(req: NextRequest) {
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => null);
-    const integrationCode = body?.integration_code as string | undefined;
-    const integrationId = body?.id as string | undefined;
+    const integrationCode = (body?.integration_code as string | undefined) ?? req.nextUrl.searchParams.get('integration_code') ?? undefined;
+    const integrationId = (body?.id as string | undefined) ?? req.nextUrl.searchParams.get('id') ?? undefined;
 
     if (!integrationCode && !integrationId) return NextResponse.json({ error: 'Missing integration identifier' }, { status: 400 });
 

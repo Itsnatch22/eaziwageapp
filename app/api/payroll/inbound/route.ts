@@ -406,6 +406,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
     .eq('id', intg.id);
 
+  // Propagate gross salary to employee records for valid rows — this is what
+  // makes a webhook push actually "real-time": without it, the payroll data
+  // lands in payroll_upload_rows but employee monthly_salary (what EWA advance
+  // limits are calculated against) stays stale until someone clicks "Sync Now"
+  // on the manual endpoint. A push should fully settle on its own.
+  for (const row of validRows) {
+    if (!row.employee_code || row.gross_salary <= 0) continue;
+    const salaryPatch = { monthly_salary: row.gross_salary, updated_at: new Date().toISOString() };
+
+    const [empResult, onbResult] = await Promise.all([
+      supabase
+        .from('employees')
+        .update(salaryPatch)
+        .eq('employee_code', row.employee_code)
+        .eq('employer_id', employerLiveId),
+      supabase
+        .from('employee_onboarding')
+        .update(salaryPatch)
+        .eq('employee_code', row.employee_code)
+        .eq('employer_id', employerId),
+    ]);
+
+    if (empResult.error) {
+      console.error('[payroll/inbound] salary update employees error', row.employee_code, empResult.error.message);
+    }
+    if (onbResult.error) {
+      console.error('[payroll/inbound] salary update employee_onboarding error', row.employee_code, onbResult.error.message);
+    }
+  }
 
   return NextResponse.json(
     {
