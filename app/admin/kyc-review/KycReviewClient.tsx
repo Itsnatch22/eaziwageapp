@@ -71,6 +71,12 @@ type ReviewItem = KYCReviewDocument | EmployerApplication;
 
 const isKycDocument = (item: ReviewItem): item is KYCReviewDocument => 'document_type' in item;
 
+// Only identity documents actually have an ID type/document number — showing
+// these fields for a Utility Bill, Payslip, Bank Statement etc. just produces
+// confusing "Not provided" noise for a concept that doesn't apply to them.
+const IDENTITY_DOCUMENT_TYPES = ['national_id', 'passport', 'drivers_license'];
+const isIdentityDocument = (documentType: string) => IDENTITY_DOCUMENT_TYPES.includes(documentType);
+
 const getDocumentNumber = (doc: KYCReviewDocument) => doc.document_number?.trim() || 'Not provided';
 
 const getIdTypeLabel = (idType?: string | null) => {
@@ -83,7 +89,10 @@ const getDocumentPreviewKind = (doc: KYCDocument) => {
   const source = (doc.storage_path || doc.document_url || '').split('?')[0].toLowerCase();
   if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(source)) return 'image';
   if (/\.pdf$/.test(source)) return 'pdf';
-  return 'embed';
+  // Anything else (csv, docx, xlsx, unknown) can't be rendered inline reliably —
+  // an <iframe> pointed at a non-PDF/image file just shows a broken frame with
+  // no way to recover, so treat it the same as "no preview available" instead.
+  return 'unsupported';
 };
 
 const GradientIconBox = ({ icon: Icon, variant = 'purple' }: { icon: IconType; variant?: GradientVariant }) => {
@@ -562,8 +571,12 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Document Info</h4>
                   <div className="space-y-3">
                     <InfoRow icon={FileText} label="Type" value={DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type} />
-                    <InfoRow icon={CreditCard} label="ID Type" value={getIdTypeLabel(selectedDoc.id_type)} />
-                    <InfoRow icon={Shield} label="Number" value={getDocumentNumber(selectedDoc)} />
+                    {isIdentityDocument(selectedDoc.document_type) && (
+                      <>
+                        <InfoRow icon={CreditCard} label="ID Type" value={getIdTypeLabel(selectedDoc.id_type)} />
+                        <InfoRow icon={Shield} label="Number" value={getDocumentNumber(selectedDoc)} />
+                      </>
+                    )}
                     <InfoRow icon={Calendar} label="Submitted" value={formatDateTime(selectedDoc.created_at)} />
                   </div>
                 </section>
@@ -653,9 +666,11 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
           <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
             {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-            {getDocumentNumber(doc)}
-          </p>
+          {isIdentityDocument(doc.document_type) && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+              {getDocumentNumber(doc)}
+            </p>
+          )}
         </div>
         <Button
           variant="outline"
@@ -670,7 +685,7 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
       </div>
 
       <div className="h-105 lg:h-140 bg-slate-200/70 dark:bg-slate-950">
-        {!hasUrl || imgError ? (
+        {!hasUrl || imgError || previewKind === 'unsupported' ? (
           <NoPreview hasUrl={hasUrl} documentUrl={doc.document_url ?? undefined} />
         ) : previewKind === 'image' ? (
           <>
