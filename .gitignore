@@ -46,8 +46,12 @@ next-env.d.ts
 # antigravitycli
 .antigravitycli
 
-#supabase
-supabase/
+#supabase — ad-hoc schema dump files stay ignored (they go stale and mislead,
+# see commit 9a17b48); migrations/ is Supabase's own applied migration
+# history and is tracked so the repo has a real record instead of none.
+supabase/*
+!supabase/migrations/
+!supabase/migrations/**
 
 # Playwright
 node_modules/

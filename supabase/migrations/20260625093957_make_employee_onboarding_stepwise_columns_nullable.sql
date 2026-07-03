@@ -1,0 +1,13 @@
+
+ALTER TABLE employee_onboarding
+  ALTER COLUMN country DROP NOT NULL,
+  ALTER COLUMN address_line1 DROP NOT NULL,
+  ALTER COLUMN city DROP NOT NULL,
+  ALTER COLUMN job_title DROP NOT NULL,
+  ALTER COLUMN employment_type DROP NOT NULL,
+  ALTER COLUMN start_date DROP NOT NULL,
+  ALTER COLUMN monthly_salary DROP NOT NULL,
+  ALTER COLUMN bank_name DROP NOT NULL,
+  ALTER COLUMN mobile_money_provider DROP NOT NULL,
+  ALTER COLUMN currency DROP NOT NULL;
+
