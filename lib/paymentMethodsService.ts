@@ -7,6 +7,30 @@ function maskPii(value: string | null | undefined): string | null {
   return value.length > 4 ? `•••• ${value.slice(-4)}` : value;
 }
 
+// Decrypts via RPC, masks, and strips the raw ciphertext columns before a row
+// is handed back to a caller that will serialize it into an API response —
+// select('*') on payment_methods always includes account_number_encrypted/
+// phone_number_encrypted (bytea), which must never reach the client directly.
+export async function decryptAndMaskRow(
+  supabaseClient: SupabaseClient,
+  row: Record<string, unknown>,
+): Promise<PaymentMethod> {
+  const { PII_ENCRYPTION_KEY } = getEnv();
+  const { data: piiRows } = await supabaseClient.rpc('get_payment_method_pii', {
+    p_payment_method_id: row.id,
+    p_key: PII_ENCRYPTION_KEY,
+  });
+  const pii = piiRows?.[0];
+  const { account_number_encrypted: _ae, phone_number_encrypted: _pe, ...safeRow } = row;
+  void _ae;
+  void _pe;
+  return {
+    ...safeRow,
+    account_number: maskPii(pii?.account_number ?? null),
+    phone_number: maskPii(pii?.phone_number ?? null),
+  } as PaymentMethod;
+}
+
 export async function createPaymentMethod(supabaseClient: SupabaseClient, employeeId: string, payload: PaymentMethodCreate) {
 
   const { data, error } = await supabaseClient
@@ -53,7 +77,7 @@ export async function createPaymentMethod(supabaseClient: SupabaseClient, employ
     .from('payment_method_audit')
     .insert([{ payment_method_id: data.id, employee_id: employeeId, action: 'created', new_data: auditSafeData }]);
 
-  return data as PaymentMethod;
+  return decryptAndMaskRow(supabaseClient, data as Record<string, unknown>);
 }
 
 export async function listPaymentMethods(supabaseClient: SupabaseClient, employeeId: string) {
@@ -138,7 +162,7 @@ export async function setDefaultPaymentMethod(supabaseClient: SupabaseClient, em
 
   await supabaseClient.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: employeeId, action: 'set_default', new_data: updated }]);
 
-  return updated as PaymentMethod;
+  return decryptAndMaskRow(supabaseClient, updated as Record<string, unknown>);
 }
 
 export async function deletePaymentMethod(supabaseClient: SupabaseClient, employeeId: string, id: string) {

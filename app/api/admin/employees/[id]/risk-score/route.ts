@@ -28,10 +28,14 @@ export async function PATCH(
     }
     const { risk_score, reason } = rsParsed.data;
 
+    // The admin employees list falls back to employee_onboarding.id (instead of
+    // employees.id) when the live employees table is globally empty — the same
+    // `.or(id.eq,user_id.eq)` resolution the status route already uses, so `id`
+    // resolves correctly whichever id space the list happened to hand back.
     const { data: emp } = await adminSupabase
       .from('employees')
       .select('id, user_id')
-      .eq('id', id)
+      .or(`id.eq.${id},user_id.eq.${id}`)
       .maybeSingle();
 
     if (!emp) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
@@ -39,14 +43,14 @@ export async function PATCH(
     const { error } = await adminSupabase
       .from('employees')
       .update({ risk_score, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', emp.id);
 
     if (error) throw error;
 
     void adminSupabase.from('system_audit_logs').insert({
       admin_id:    user.id,
       admin_name:  user.email,
-      target_id:   id,
+      target_id:   emp.id,
       target_type: 'employee',
       action:      'risk_score_override',
       new_value:   { risk_score, reason: reason ?? null },

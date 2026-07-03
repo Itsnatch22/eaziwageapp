@@ -39,6 +39,10 @@ export async function GET(
     if (auth instanceof NextResponse) return auth;
     const { adminSupabase } = auth;
 
+    // `id` may be employees.id (normal case) or employee_onboarding.id (the admin
+    // employees list falls back to onboarding rows when the live employees table
+    // is globally empty) — .or(id.eq,user_id.eq) matches either, mirroring the
+    // status route's already-correct resolution.
     const { data: liveEmployee } = await adminSupabase
       .from('employees')
       .select(`
@@ -50,14 +54,28 @@ export async function GET(
         created_at, updated_at,
         employers!employer_id ( company_name )
       `)
-      .eq('id', id)
+      .or(`id.eq.${id},user_id.eq.${id}`)
       .maybeSingle();
 
-    const userId = liveEmployee?.user_id ?? id;
+    let userId = liveEmployee?.user_id ?? null;
+    if (!userId) {
+      // No live employees row yet — resolve the real user_id via employee_onboarding
+      // instead of assuming `id` itself is the user_id (it's employee_onboarding.id
+      // in this fallback case, not the auth user id).
+      const { data: onboardingRow } = await adminSupabase
+        .from('employee_onboarding')
+        .select('user_id')
+        .or(`id.eq.${id},user_id.eq.${id}`)
+        .maybeSingle();
+      userId = onboardingRow?.user_id ?? id;
+    }
 
+    // profiles has no metadata column — selecting it errored on every request,
+    // making this endpoint 404 unconditionally regardless of whether the
+    // employee actually exists.
     const { data: empProfile, error: profileErr } = await adminSupabase
       .from('profiles')
-      .select('id, full_name, email, phone, company_code, metadata, created_at')
+      .select('id, full_name, email, phone, company_code, created_at')
       .eq('id', userId)
       .maybeSingle();
 
@@ -146,7 +164,7 @@ export async function GET(
       employment_type: liveEmployee?.employment_type || onboarding?.employment_type || 'full-time',
       status: liveStatus,
       kyc_status: liveEmployee?.kyc_status || onboarding?.status || 'pending',
-      risk_score: liveEmployee?.risk_score ?? empProfile?.metadata?.risk_score ?? null,
+      risk_score: liveEmployee?.risk_score ?? null,
       employer_name: (liveEmployee?.employers as { company_name?: string } | null)?.company_name || (onboarding?.employer as { company_name?: string } | null)?.company_name || 'Unlinked',
       id_document_front: Boolean(liveEmployee?.id_document_front),
       id_document_back: Boolean(liveEmployee?.id_document_back),
@@ -190,11 +208,14 @@ export async function PUT(
       employment_type?: string;
     };
 
-    // Resolve user_id from employees table
+    // The admin employees list falls back to employee_onboarding.id (instead of
+    // employees.id) when the live employees table is globally empty — the same
+    // `.or(id.eq,user_id.eq)` resolution the status route already uses, so `id`
+    // resolves correctly whichever id space the list happened to hand back.
     const { data: emp } = await adminSupabase
       .from('employees')
       .select('id, user_id')
-      .eq('id', id)
+      .or(`id.eq.${id},user_id.eq.${id}`)
       .maybeSingle();
 
     if (!emp) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
@@ -207,14 +228,14 @@ export async function PUT(
 
     // Update employees and employee_onboarding in parallel
     await Promise.all([
-      adminSupabase.from('employees').update(payload).eq('id', id),
+      adminSupabase.from('employees').update(payload).eq('id', emp.id),
       adminSupabase.from('employee_onboarding').update(payload).eq('user_id', emp.user_id),
     ]);
 
     void adminSupabase.from('system_audit_logs').insert({
       admin_id:    user.id,
       admin_name:  user.email,
-      target_id:   id,
+      target_id:   emp.id,
       target_type: 'employee',
       action:      'update_employment_details',
       new_value:   payload,

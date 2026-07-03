@@ -17,8 +17,10 @@ const AddSchema = z.object({
 });
 
 async function resolveEmployeeRow(adminSupabase: ReturnType<typeof import('@/lib/supabaseAdmin').createAdminClient>, id: string) {
-  // id is employees.id (from admin context)
-  return adminSupabase.from('employees').select('id, user_id, country').eq('id', id).maybeSingle();
+  // id is usually employees.id, but the admin employees list falls back to
+  // employee_onboarding.id when the live employees table is globally empty —
+  // .or(id.eq,user_id.eq) matches either, mirroring the status route.
+  return adminSupabase.from('employees').select('id, user_id, country').or(`id.eq.${id},user_id.eq.${id}`).maybeSingle();
 }
 
 export async function GET(

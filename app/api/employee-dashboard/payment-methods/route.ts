@@ -11,6 +11,7 @@ import {
   listPaymentMethods,
   deletePaymentMethod,
   setDefaultPaymentMethod,
+  decryptAndMaskRow,
 } from '@/lib/paymentMethodsService';
 import { sendOtpSms } from '@/lib/sendOtp';
 import { dbErrorResponse } from '@/lib/api-errors';
@@ -223,7 +224,8 @@ export async function POST(req: NextRequest) {
       const { account_number: _a, phone_number: _p, ...auditSafeUpdated } = (updated ?? {}) as Record<string, unknown>;
       await adminSupabase.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: before?.employee_id, action: 'verified', new_data: auditSafeUpdated }]);
 
-      return NextResponse.json({ success: true, method: updated });
+      const maskedMethod = await decryptAndMaskRow(adminSupabase, (updated ?? {}) as Record<string, unknown>);
+      return NextResponse.json({ success: true, method: maskedMethod });
     }
 
     const parse = PaymentMethodCreateSchema.safeParse(body);
