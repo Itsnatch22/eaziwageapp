@@ -135,35 +135,53 @@ export async function POST(req: NextRequest) {
       min_advance_amount: 500,
       max_advance_amount: 50000,
       cooldown_period: 7,
+      advance_access_days: [1, 25] as [number, number],
     };
 
     if (employeeEwa) {
       effectiveSettings = {
+        ...effectiveSettings,
         ewa_enabled: employeeEwa.ewa_enabled ?? effectiveSettings.ewa_enabled,
         max_advance_percentage: employeeEwa.max_advance_percentage ?? effectiveSettings.max_advance_percentage,
         min_advance_amount: Number(employeeEwa.min_advance_amount ?? effectiveSettings.min_advance_amount),
         max_advance_amount: Number(employeeEwa.max_advance_amount ?? effectiveSettings.max_advance_amount),
         cooldown_period: Number(employeeEwa.cooldown_period ?? effectiveSettings.cooldown_period),
       };
-    } else {
-      const { data: employerSettings, error: employerSettingsError } = await supabase
-        .from('employers')
-        .select('advance_limit_percent, min_advance_amount, cooldown_days')
-        .eq('onboarding_id', employee.employer_id)
-        .maybeSingle();
+    }
 
-      if (employerSettingsError) {
-        return errorResponse(500, 'Employer settings lookup failed', { employerSettingsError });
-      }
+    // employee_ewa_settings has no per-employee access-window override — this
+    // policy is employer-wide only, same as the settings page — so it's
+    // always read from `employers` regardless of whether a per-employee
+    // override exists for the other fields above.
+    const { data: employerSettings, error: employerSettingsError } = await supabase
+      .from('employers')
+      .select('advance_limit_percent, min_advance_amount, max_advance_amount, cooldown_days, advance_access_days')
+      .eq('onboarding_id', employee.employer_id)
+      .maybeSingle();
 
-      if (employerSettings) {
+    if (employerSettingsError) {
+      return errorResponse(500, 'Employer settings lookup failed', { employerSettingsError });
+    }
+
+    if (employerSettings) {
+      if (!employeeEwa) {
         effectiveSettings = {
           ...effectiveSettings,
           max_advance_percentage: employerSettings.advance_limit_percent ?? effectiveSettings.max_advance_percentage,
           min_advance_amount: Number(employerSettings.min_advance_amount ?? effectiveSettings.min_advance_amount),
+          max_advance_amount: Number(employerSettings.max_advance_amount ?? effectiveSettings.max_advance_amount),
           cooldown_period: Number(employerSettings.cooldown_days ?? effectiveSettings.cooldown_period),
         };
       }
+      effectiveSettings.advance_access_days = Array.isArray(employerSettings.advance_access_days) && employerSettings.advance_access_days.length >= 2
+        ? [Number(employerSettings.advance_access_days[0]), Number(employerSettings.advance_access_days[1])]
+        : effectiveSettings.advance_access_days;
+    }
+
+    const todayOfMonth = new Date().getDate();
+    const [accessFromDay, accessToDay] = effectiveSettings.advance_access_days;
+    if (todayOfMonth < accessFromDay || todayOfMonth > accessToDay) {
+      return errorResponse(403, `Advances can only be requested between day ${accessFromDay} and day ${accessToDay} of the month.`);
     }
 
     if (effectiveSettings.ewa_enabled === false) {

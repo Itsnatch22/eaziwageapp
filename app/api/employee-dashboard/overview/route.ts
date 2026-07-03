@@ -145,11 +145,15 @@ export async function GET() {
   } else {
     // SCHEMA: advance eligibility lives in employers (advance_limit_percent, cooldown_days),
     // not in employer_onboarding (max_advance_percentage, cooldown_period). Do not swap.
-    const { data: employerRow } = await supabase
+    const { data: employerRow, error: employerRowError } = await supabase
       .from('employers')
       .select('advance_limit_percent, min_advance_amount, max_advance_amount, cooldown_days')
       .eq('onboarding_id', employee.employer_id)
       .maybeSingle();
+
+    if (employerRowError) {
+      return dbErrorResponse('employee-dashboard/overview', employerRowError);
+    }
 
     if (employerRow) {
       effective.max_advance_percentage = employerRow.advance_limit_percent ?? effective.max_advance_percentage;

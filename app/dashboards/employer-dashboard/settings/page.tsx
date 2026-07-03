@@ -883,6 +883,16 @@ export default function EmployerSettings() {
         paydayDayOfMonth: Number.isInteger(parsedPayday) && parsedPayday >= 1 && parsedPayday <= 31
           ? parsedPayday
           : undefined,
+        // The EWA Settings tab (Advance Limits, Access Period, Cooldown) is
+        // bound to the separate `settings` state, not `profile` — profile's
+        // copies of these fields are stale initial defaults that fetchData
+        // never overwrites. Pull the real edited values from `settings` here
+        // rather than silently discarding them.
+        maxAdvancePercentage: settings.maxAdvancePercentage,
+        minAdvanceAmount: settings.minAdvanceAmount,
+        maxAdvanceAmount: settings.maxAdvanceAmount,
+        advanceAccessDays: settings.advanceAccessDays,
+        cooldownPeriod: settings.cooldownPeriod,
       };
 
       const res = await fetch("/api/employer-dashboard/profile", {

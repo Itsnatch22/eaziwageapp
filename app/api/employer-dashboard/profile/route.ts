@@ -132,18 +132,28 @@ export async function PUT(req: Request) {
     if (onboardingError) throw onboardingError;
 
     // Already-approved employers operate off the `employers` table, not
-    // employer_onboarding — payday/mobile-money need to land there too so
-    // calculateDueDate() and the payday recoupment flow actually see them.
-    // Only payday/mobile-money fields are synced here; other profile fields
-    // are intentionally onboarding-only (employers is promoted wholesale at
-    // KYC approval, not kept in lockstep afterward).
-    if (body.paydayDayOfMonth !== undefined || body.mobileMoneyProvider !== undefined || body.mobileMoneyNumber !== undefined) {
+    // employer_onboarding — payday/mobile-money/EWA limits need to land there
+    // too so calculateDueDate(), the payday recoupment flow, and advance
+    // eligibility (request-advance, overview) actually see them. Only these
+    // fields are synced here; other profile fields are intentionally
+    // onboarding-only (employers is promoted wholesale at KYC approval, not
+    // kept in lockstep afterward).
+    if (
+      body.paydayDayOfMonth !== undefined || body.mobileMoneyProvider !== undefined || body.mobileMoneyNumber !== undefined ||
+      body.maxAdvancePercentage !== undefined || body.minAdvanceAmount !== undefined || body.maxAdvanceAmount !== undefined ||
+      body.cooldownPeriod !== undefined || body.advanceAccessDays !== undefined
+    ) {
       await supabase
         .from('employers')
         .update({
           ...(body.paydayDayOfMonth !== undefined && { payday_day_of_month: body.paydayDayOfMonth }),
           ...(body.mobileMoneyProvider !== undefined && { mobile_money_provider: body.mobileMoneyProvider }),
           ...(body.mobileMoneyNumber !== undefined && { mobile_money_number: body.mobileMoneyNumber }),
+          ...(body.maxAdvancePercentage !== undefined && { advance_limit_percent: body.maxAdvancePercentage }),
+          ...(body.minAdvanceAmount !== undefined && { min_advance_amount: body.minAdvanceAmount }),
+          ...(body.maxAdvanceAmount !== undefined && { max_advance_amount: body.maxAdvanceAmount }),
+          ...(body.cooldownPeriod !== undefined && { cooldown_days: body.cooldownPeriod }),
+          ...(body.advanceAccessDays !== undefined && { advance_access_days: body.advanceAccessDays }),
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id);
