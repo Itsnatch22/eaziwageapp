@@ -24,14 +24,14 @@ const redis = isPlaywrightTest
       token: env.UPSTASH_REDIS_REST_TOKEN,
     });
 
-function createLimiter(prefix: string) {
+function createLimiter(prefix: string, tokens = 7, window: `${number} ${"ms" | "s" | "m" | "h" | "d"}` = "1 h") {
   if (isPlaywrightTest) {
     return new NoopLimiter() as unknown as Ratelimit;
   }
 
   return new Ratelimit({
     redis: redis!,
-    limiter: Ratelimit.slidingWindow(7, "1 h"),
+    limiter: Ratelimit.slidingWindow(tokens, window),
     analytics: true,
     prefix,
   });
@@ -82,10 +82,13 @@ export const advanceLimiter = createLimiter("ratelimit:advance");
 
 /**
  * Admin API limiter — shared bucket across all admin routes that don't have
- * their own per-resource limiter. 300 req/min per IP provides abuse protection
- * while being generous enough for normal admin dashboard usage.
+ * their own per-resource limiter. Raised from 300 to 900 req/min per IP:
+ * dashboard pages routinely fire a dozen+ parallel calls per navigation, and
+ * a single admin clicking through several data-heavy pages in a short window
+ * was tripping the old ceiling (observed as 429s across Employees, KYC,
+ * Notifications, Risk scoring, Topups, and Fraud rules in the same session).
  */
-export const adminApiLimiter = createLimiter("ratelimit:admin_api");
+export const adminApiLimiter = createLimiter("ratelimit:admin_api", 900, "1 m");
 
 /**
  * Helper to format rate limit response headers

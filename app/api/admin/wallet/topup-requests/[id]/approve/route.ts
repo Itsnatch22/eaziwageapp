@@ -60,15 +60,21 @@ export async function PATCH(
       .maybeSingle();
     if (adminWalletErr || !adminWallet) throw adminWalletErr || new Error('Admin wallet not found');
 
-    // Admin wallet is USD-denominated. Deduct the USD equivalent, not the local amount.
+    // Admin wallet is USD-denominated (deduct the USD equivalent); employer_wallets
+    // and wallet_transactions are local-currency-denominated (credit the local amount).
+    // Passing the same figure for both previously overstated the USD amount as if it
+    // were local currency, undercrediting the employer by the exchange-rate factor.
     const amountToDeductUSD = tx.usd_amount ?? tx.amount;
+    const amountToCreditLocal = tx.amount;
 
     const { error: rpcError } = await adminSupabase.rpc('fund_employer_from_admin', {
       p_employer_id: employerId,
       p_admin_wallet_id: adminWallet.id,
-      p_amount: amountToDeductUSD,
+      p_amount_usd: amountToDeductUSD,
+      p_amount_local: amountToCreditLocal,
       p_description: tx.description || `Top-up approved ${tx.reference ?? ''}`,
       p_admin_id: user.id,
+      p_currency: tx.local_currency || 'KES',
     });
 
     if (rpcError) {

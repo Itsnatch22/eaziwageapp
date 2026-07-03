@@ -12,13 +12,18 @@ interface AvatarUploadProps {
   currentAvatarUrl?: string | null;
   onUploadSuccess?: (url: string) => void;
   fullName?: string | null;
+  // Callers whose user record isn't in `profiles` (e.g. admins, who live only
+  // in system_admins) must supply this — otherwise the default profiles
+  // UPDATE below silently affects zero rows (no error, nothing persisted).
+  persistAvatarUrl?: (url: string) => Promise<void>;
 }
 
-export function AvatarUpload({ 
-  userId, 
-  currentAvatarUrl, 
+export function AvatarUpload({
+  userId,
+  currentAvatarUrl,
   onUploadSuccess,
-  fullName 
+  fullName,
+  persistAvatarUrl,
 }: AvatarUploadProps) {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,18 +79,21 @@ export function AvatarUpload({
 
       const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`;
 
+      if (persistAvatarUrl) {
+        await persistAvatarUrl(cacheBustedUrl);
+      } else {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            avatar_url: cacheBustedUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          avatar_url: cacheBustedUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
-
-      if (updateError) {
-        console.error('Update error:', updateError);
-        throw new Error('Failed to update profile');
+        if (updateError) {
+          console.error('Update error:', updateError);
+          throw new Error('Failed to update profile');
+        }
       }
 
 

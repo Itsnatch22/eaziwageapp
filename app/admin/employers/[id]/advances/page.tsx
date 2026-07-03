@@ -1,0 +1,17 @@
+import { redirect } from 'next/navigation';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
+import EmployerAdvancesClient from './EmployerAdvancesClient';
+
+export default async function AdminEmployerAdvancesPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createRouteHandlerClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) redirect('/login');
+
+  const access = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
+  if (!access.isAdmin) redirect('/');
+
+  return <EmployerAdvancesClient employerId={id} />;
+}

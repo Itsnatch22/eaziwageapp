@@ -14,6 +14,9 @@ const QuerySchema = z.object({
   limit:  z.coerce.number().int().min(1).max(200).default(50),
   status: z.enum(['pending', 'approved', 'disbursed', 'rejected', 'cancelled']).optional(),
   search: z.string().max(100).optional(),
+  // employer_onboarding.id — matches the id used by /admin/employers/[id] pages,
+  // resolved below to the live employers.id that advances.employer_id references.
+  employer_onboarding_id: z.string().uuid().optional(),
 });
 
 interface AdvanceRow {
@@ -47,6 +50,7 @@ export async function GET(req: NextRequest) {
     limit:  searchParams.get('limit')  ?? undefined,
     status: searchParams.get('status') ?? undefined,
     search: searchParams.get('search') ?? undefined,
+    employer_onboarding_id: searchParams.get('employer_onboarding_id') ?? undefined,
   });
 
   if (!parsed.success) {
@@ -56,11 +60,26 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const { page, limit, status, search } = parsed.data;
+  const { page, limit, status, search, employer_onboarding_id } = parsed.data;
   const from = page * limit;
   const to   = from + limit - 1;
 
   try {
+    let employerId: string | null = null;
+    if (employer_onboarding_id) {
+      const { data: liveEmployer, error: liveEmployerError } = await supabaseAdmin
+        .from('employers')
+        .select('id')
+        .eq('onboarding_id', employer_onboarding_id)
+        .maybeSingle();
+
+      if (liveEmployerError) return dbErrorResponse('admin/advances', liveEmployerError);
+      if (!liveEmployer) {
+        return NextResponse.json({ advances: [], pagination: { total: 0, page, limit, hasMore: false } });
+      }
+      employerId = liveEmployer.id;
+    }
+
     let query = supabaseAdmin
       .from('advances')
       .select(
@@ -74,6 +93,7 @@ export async function GET(req: NextRequest) {
       .range(from, to);
 
     if (status) query = query.eq('status', status);
+    if (employerId) query = query.eq('employer_id', employerId);
 
     const { data: advances, error: advancesError, count } = await query;
 

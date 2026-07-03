@@ -235,10 +235,14 @@ export class PayoutService {
       throw new Error('Insufficient funds in platform Stanbic source');
     }
 
+    // No caller currently passes a local-currency amount separately from the USD
+    // figure checked against the admin wallet — treat `amount` as USD for both
+    // until this route has a real caller with its own currency field.
     const { data, error } = await supabaseAdmin.rpc('fund_employer_from_admin', {
       p_employer_id: employerId,
       p_admin_wallet_id: adminWallet.id,
-      p_amount: amount,
+      p_amount_usd: amount,
+      p_amount_local: amount,
       p_description: description,
       p_admin_id: adminId
     });

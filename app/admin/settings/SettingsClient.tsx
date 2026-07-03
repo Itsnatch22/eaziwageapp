@@ -2448,9 +2448,15 @@ interface AdminProfileData {
   avatar_url: string | null;
 }
 
-const AdminProfileTab: React.FC = () => {
+interface AdminProfileTabProps {
+  onSaveAvailabilityChange: (canSave: boolean) => void;
+  onSave: () => void;
+}
+
+const AdminProfileTab = React.forwardRef<SettingsSaveHandle, AdminProfileTabProps>(({ onSaveAvailabilityChange, onSave }, ref) => {
   const [profile, setProfile] = useState<AdminProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
+  const [fullNameInput, setFullNameInput] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showMfaModal, setShowMfaModal] = useState(false);
   const [mfaEnabledLocal, setMfaEnabledLocal] = useState<boolean>(false);
@@ -2468,6 +2474,8 @@ const AdminProfileTab: React.FC = () => {
               full_name: data.full_name,
               avatar_url: data.avatar_url,
             });
+            setFullNameInput(data.full_name || '');
+            onSaveAvailabilityChange(true);
 
             try {
               const mfaRes = await fetch('/api/admin/security/mfa');
@@ -2487,7 +2495,37 @@ const AdminProfileTab: React.FC = () => {
       }
     };
     fetchAdminProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const saveProfile = async () => {
+    if (!fullNameInput.trim()) {
+      toast.error('Full name cannot be empty');
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: fullNameInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to save profile');
+        return;
+      }
+      setProfile(prev => prev ? { ...prev, full_name: fullNameInput.trim() } : prev);
+      toast.success('Profile saved successfully');
+      onSave();
+    } catch (err) {
+      console.error('Failed to save admin profile:', err);
+      toast.error('Failed to save profile');
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    save: saveProfile,
+  }));
 
   if (profileLoading) {
     return (
@@ -2515,9 +2553,20 @@ const AdminProfileTab: React.FC = () => {
             <AvatarUpload
               currentAvatarUrl={profile.avatar_url ?? undefined}
               userId={profile.user_id}
+              fullName={profile.full_name}
+              persistAvatarUrl={async (url) => {
+                const res = await fetch('/api/admin/profile', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ avatar_url: url }),
+                });
+                if (!res.ok) {
+                  const data = await res.json().catch(() => ({}));
+                  throw new Error(data.error || 'Failed to update profile');
+                }
+              }}
               onUploadSuccess={(url) => {
                 setProfile(prev => prev ? { ...prev, avatar_url: url } : prev);
-                toast.success('Profile photo updated');
               }}
             />
             <div className="flex-1">
@@ -2528,14 +2577,14 @@ const AdminProfileTab: React.FC = () => {
             </div>
           </div>
 
-          
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input
                 id="fullName"
-                disabled
-                defaultValue={profile.full_name || ''}
+                value={fullNameInput}
+                onChange={(e) => setFullNameInput(e.target.value)}
                 className="rounded-lg"
               />
             </div>
@@ -2587,7 +2636,8 @@ const AdminProfileTab: React.FC = () => {
       </SectionCard>
     </div>
   );
-};
+});
+AdminProfileTab.displayName = 'AdminProfileTab';
 
 const PasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const [newPassword, setNewPassword] = useState('');
@@ -2837,8 +2887,10 @@ const AdminSettings: React.FC = () => {
   const [hasChanges, setHasChanges] = useState<boolean>(false);
   const employerConfigRef = useRef<SettingsSaveHandle>(null);
   const employeeConfigRef = useRef<SettingsSaveHandle>(null);
+  const accountConfigRef = useRef<SettingsSaveHandle>(null);
   const [employerSaveAvailable, setEmployerSaveAvailable] = useState(false);
   const [employeeSaveAvailable, setEmployeeSaveAvailable] = useState(false);
+  const [accountSaveAvailable, setAccountSaveAvailable] = useState(false);
 
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({});
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({});
@@ -2961,6 +3013,16 @@ const AdminSettings: React.FC = () => {
       return;
     }
 
+    if (activeTab === 'account') {
+      setSaving(true);
+      try {
+        await accountConfigRef.current?.save();
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     await handleSaveAll();
   };
 
@@ -2977,12 +3039,13 @@ const AdminSettings: React.FC = () => {
     { id: 'security', label: 'Security', icon: Lock },
   ];
 
-  const tabsWithCommonSave = ['global', 'employer', 'employee', 'risk', 'notifications'];
+  const tabsWithCommonSave = ['global', 'employer', 'employee', 'risk', 'notifications', 'account'];
   const showCommonSaveButton = tabsWithCommonSave.includes(activeTab);
   const canSaveCurrentTab =
     ['global', 'risk', 'notifications'].includes(activeTab) ||
     (activeTab === 'employer' && employerSaveAvailable) ||
-    (activeTab === 'employee' && employeeSaveAvailable);
+    (activeTab === 'employee' && employeeSaveAvailable) ||
+    (activeTab === 'account' && accountSaveAvailable);
 
   if (loading) {
     return (
@@ -3057,7 +3120,13 @@ const AdminSettings: React.FC = () => {
         </div>
 
         
-        {activeTab === 'account' && <AdminProfileTab />}
+        {activeTab === 'account' && (
+          <AdminProfileTab
+            ref={accountConfigRef}
+            onSave={() => setHasChanges(false)}
+            onSaveAvailabilityChange={setAccountSaveAvailable}
+          />
+        )}
         {activeTab === 'global' && (
           <GlobalSettingsTab 
             settings={globalSettings} 
