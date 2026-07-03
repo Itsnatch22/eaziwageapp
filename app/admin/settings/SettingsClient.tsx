@@ -1,7 +1,6 @@
 'use client'
 import React, { useState, useEffect, useImperativeHandle, useRef, useCallback } from 'react';
-import Image from 'next/image';
-import { 
+import {
   Settings, Building2, Users, Sliders, Bell, Shield, 
   Save, RefreshCw, Search, Percent, Clock, DollarSign, AlertTriangle,
   CheckCircle2,  Edit, Lock, 
@@ -15,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
+import { MfaSection } from '@/components/security/MfaSection';
+import { createClient } from '@/lib/supabase/client';
 
 interface GlobalSettings {
   default_advance_percent?: number;
@@ -2458,8 +2459,7 @@ const AdminProfileTab = React.forwardRef<SettingsSaveHandle, AdminProfileTabProp
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
   const [fullNameInput, setFullNameInput] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showMfaModal, setShowMfaModal] = useState(false);
-  const [mfaEnabledLocal, setMfaEnabledLocal] = useState<boolean>(false);
+  const [signingOutOthers, setSigningOutOthers] = useState(false);
 
   useEffect(() => {
     const fetchAdminProfile = async () => {
@@ -2476,16 +2476,6 @@ const AdminProfileTab = React.forwardRef<SettingsSaveHandle, AdminProfileTabProp
             });
             setFullNameInput(data.full_name || '');
             onSaveAvailabilityChange(true);
-
-            try {
-              const mfaRes = await fetch('/api/admin/security/mfa');
-              if (mfaRes.ok) {
-                const mfaJson = await mfaRes.json();
-                setMfaEnabledLocal(Boolean(mfaJson?.enabled));
-              }
-            } catch (mfaErr) {
-              console.warn('Failed to fetch MFA status:', mfaErr);
-            }
           }
         }
       } catch (err) {
@@ -2520,6 +2510,21 @@ const AdminProfileTab = React.forwardRef<SettingsSaveHandle, AdminProfileTabProp
     } catch (err) {
       console.error('Failed to save admin profile:', err);
       toast.error('Failed to save profile');
+    }
+  };
+
+  const handleSignOutOthers = async () => {
+    setSigningOutOthers(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      if (error) throw error;
+      toast.success('Signed out of all other sessions');
+    } catch (err) {
+      console.error('Failed to sign out other sessions:', err);
+      toast.error('Failed to sign out other sessions');
+    } finally {
+      setSigningOutOthers(false);
     }
   };
 
@@ -2614,24 +2619,20 @@ const AdminProfileTab = React.forwardRef<SettingsSaveHandle, AdminProfileTabProp
 
           <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div>
-              <p className="font-medium text-slate-900 dark:text-white">Two-Factor Authentication</p>
-              <p className="text-sm text-slate-500">Add an extra layer of security</p>
+              <p className="font-medium text-slate-900 dark:text-white">Sign Out Other Sessions</p>
+              <p className="text-sm text-slate-500">End every other active session for your account on all devices</p>
             </div>
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-slate-500 mr-2">{mfaEnabledLocal ? 'Enabled' : 'Disabled'}</p>
-              <Button variant="outline" className="rounded-lg text-emerald-600 border-emerald-200 bg-emerald-50" onClick={() => setShowMfaModal(true)}>
-                {mfaEnabledLocal ? 'Manage' : 'Enable'}
-              </Button>
-            </div>
+            <Button variant="outline" className="rounded-lg" onClick={handleSignOutOthers} disabled={signingOutOthers}>
+              {signingOutOthers ? 'Signing out…' : 'Sign Out Others'}
+            </Button>
           </div>
+          <p className="text-xs text-slate-400 px-1">
+            Looking for two-factor authentication? It now lives under the Security tab.
+          </p>
         </div>
 
-        
         {showPasswordModal && (
           <PasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
-        )}
-        {showMfaModal && (
-          <MfaManagerModal isOpen={showMfaModal} onClose={async () => { setShowMfaModal(false);  try { const res = await fetch('/api/admin/security/mfa'); if (res.ok) { const js = await res.json(); setMfaEnabledLocal(Boolean(js?.enabled)); } } catch {} }} />
         )}
       </SectionCard>
     </div>
@@ -2691,193 +2692,6 @@ const PasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
   );
 };
 
-interface MfaFactor {
-  id: string;
-  friendly_name?: string;
-  factor_type: string;
-  created_at: string;
-}
-
-const MfaManagerModal: React.FC<{ isOpen: boolean; onClose: () => Promise<void> | void }> = ({ isOpen, onClose }) => {
-  const [loading, setLoading] = useState(false);
-  const [factors, setFactors] = useState<MfaFactor[]>([]);
-  const [stage, setStage] = useState<'idle'|'enrolling'|'verifying'>('idle');
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [secret, setSecret] = useState<string | null>(null);
-  const [factorId, setFactorId] = useState<string | null>(null);
-  const [code, setCode] = useState('');
-
-  useEffect(() => {
-    if (!isOpen) return;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/admin/security/mfa');
-        const js = await res.json();
-        setFactors(js?.factors || []);
-      } catch (err) {
-        console.error('Failed to fetch MFA factors', err);
-      } finally { setLoading(false); }
-    })();
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  const startEnroll = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/security/mfa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'enable', friendlyName: 'Admin Authenticator' })
-      });
-      const js = await res.json();
-      if (res.ok && js.success) {
-        setQrCode(js.qrCode || null);
-        setSecret(js.secret || null);
-        setFactorId(js.factorId || null);
-        setStage('verifying');
-      } else {
-        toast.error(js.error || 'Failed to start MFA enrollment');
-      }
-    } catch (err) {
-      console.error('MFA enroll failed', err);
-      toast.error('Failed to start MFA enrollment');
-    } finally { setLoading(false); }
-  };
-
-  const verifyEnroll = async () => {
-    if (!factorId || !code) { toast.error('Enter verification code'); return; }
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/security/mfa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify', factorId, code })
-      });
-      const js = await res.json();
-      if (res.ok && js.success) {
-        toast.success('MFA enabled');
-        await Promise.resolve(onClose?.());
-      } else {
-        toast.error(js.error || 'Verification failed');
-      }
-    } catch (err) {
-      console.error('MFA verify failed', err);
-      toast.error('Verification failed');
-    } finally { setLoading(false); }
-  };
-
-  const disableFactor = async (id: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/security/mfa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'disable', factorId: id })
-      });
-      const js = await res.json();
-      if (res.ok && js.success) {
-        toast.success('MFA disabled');
-        const r = await fetch('/api/admin/security/mfa'); const j = await r.json(); setFactors(j?.factors || []);
-      } else {
-        toast.error(js.error || 'Failed to disable MFA');
-      }
-    } catch (err) {
-      console.error('Disable MFA failed', err);
-      toast.error('Failed to disable MFA');
-    } finally { setLoading(false); }
-  };
-
-  const genBackupCodes = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/security/mfa', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'generate_backup_codes' })
-      });
-      const js = await res.json();
-      if (res.ok && js.success) {
-        const codes = js.backupCodes || js.backupCodes || [];
-        toast.success('Backup codes generated — copy and store them safely');
-        alert('Backup codes:\n' + (codes.join('\n')));
-      } else {
-        toast.error(js.error || 'Failed to generate backup codes');
-      }
-    } catch (err) {
-      console.error('Generate backup failed', err);
-      toast.error('Failed to generate backup codes');
-    } finally { setLoading(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-slate-200 dark:border-slate-700">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Manage MFA</h2>
-          <div className="flex items-center gap-3">
-            <button onClick={() => { onClose(); }} className="text-slate-400 hover:text-slate-600">Close</button>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm text-slate-600">Current factors</p>
-            <div className="mt-3 space-y-2">
-              {loading && <div className="text-sm text-slate-500">Loading...</div>}
-              {!loading && factors.length === 0 && <div className="text-sm text-slate-500">No MFA factors enrolled.</div>}
-              {factors.map(f => (
-                <div key={f.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                  <div>
-                    <div className="font-medium">{f.friendly_name || 'Authenticator App'}</div>
-                    <div className="text-xs text-slate-500">{f.factor_type} • created {new Date(f.created_at).toLocaleString()}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => disableFactor(f.id)}>Disable</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-3 border-t">
-            {stage === 'idle' && (
-              <div className="flex gap-3">
-                <button onClick={startEnroll} className="inline-flex items-center justify-center rounded-xl bg-primary text-white h-10 px-4">Enable MFA</button>
-                <button onClick={genBackupCodes} className="inline-flex items-center justify-center rounded-xl border h-10 px-4">Generate Backup Codes</button>
-              </div>
-            )}
-
-            {stage === 'verifying' && (
-              <div className="space-y-3">
-                {qrCode && (
-                  <div>
-                    <p className="text-sm text-slate-600">Scan this QR code with your authenticator app and enter the 6-digit code below.</p>
-                    <div className="mt-3">
-                      <Image src={qrCode} alt="MFA QR" width={200} height={200} className="max-w-xs" unoptimized />
-                    </div>
-                    {secret && (
-                      <p className="text-xs text-slate-500 mt-2">
-                        Or enter this key manually: <code className="font-mono">{secret}</code>
-                      </p>
-                    )}
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label>Verification Code</Label>
-                  <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setStage('idle')} className="inline-flex items-center justify-center rounded-xl border h-10 px-4">Cancel</button>
-                  <button onClick={verifyEnroll} className="inline-flex items-center justify-center rounded-xl bg-primary text-white h-10 px-4">Verify</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const AdminSettings: React.FC = () => {
   const [token] = useState<string | null>(null);
@@ -2896,7 +2710,6 @@ const AdminSettings: React.FC = () => {
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({});
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
   
-  const [mfaEnabled, setMfaEnabled] = useState(false);
   const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
@@ -3176,12 +2989,7 @@ const AdminSettings: React.FC = () => {
         {activeTab === 'security' && (
           <div className="space-y-6">
             <SectionCard title="Admin Multi-Factor Authentication" icon={Shield} description="Secure your admin access with TOTP">
-              <Toggle
-                label="Authenticator App (TOTP)"
-                description="Require a code from an app like Google Authenticator to log in"
-                enabled={mfaEnabled}
-                onChange={(v) => setMfaEnabled(v)}
-              />
+              <MfaSection apiBase="/api/admin/security/mfa" friendlyName="Admin Authenticator" />
             </SectionCard>
 
             <SectionCard title="Your Recent Activity" icon={History} description="Security-related events for your account">
