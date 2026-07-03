@@ -155,6 +155,9 @@ export default function AdminReports() {
   const [showNewReportModal, setShowNewReportModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>('month');
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduledFor, setScheduledFor] = useState<string>('');
+  const [minScheduleValue, setMinScheduleValue] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<QuickStats>({
@@ -196,17 +199,35 @@ export default function AdminReports() {
   }, [fetchReports]);
 
 
+  const closeNewReportModal = () => {
+    setShowNewReportModal(false);
+    setSelectedTemplate('');
+    setScheduleEnabled(false);
+    setScheduledFor('');
+  };
+
   const handleGenerateReport = async () => {
     if (!selectedTemplate) {
       toast.error('Please select a report template');
       return;
     }
-    
+
+    if (scheduleEnabled) {
+      if (!scheduledFor) {
+        toast.error('Please choose a date and time to schedule for');
+        return;
+      }
+      if (new Date(scheduledFor).getTime() <= Date.now()) {
+        toast.error('Scheduled time must be in the future');
+        return;
+      }
+    }
+
     setIsGenerating(true);
-    
+
     try {
       const template = reportTemplates.find(t => t.id === selectedTemplate);
-      
+
       await apiClient('/api/admin/reports', {
         method: 'POST',
         body: JSON.stringify({
@@ -214,17 +235,17 @@ export default function AdminReports() {
           description: template?.description || 'Generated report',
           type: template?.type || 'operational',
           period: reportPeriod,
+          ...(scheduleEnabled ? { scheduled_for: new Date(scheduledFor).toISOString() } : {}),
         }),
       });
-      
-      toast.success('Report generation started');
-      setShowNewReportModal(false);
-      setSelectedTemplate('');
-      
+
+      toast.success(scheduleEnabled ? 'Report scheduled successfully' : 'Report generated successfully');
+      closeNewReportModal();
+
       fetchReports();
     } catch (error) {
       console.error('Failed to generate report:', error);
-      toast.error('Failed to generate report');
+      toast.error(scheduleEnabled ? 'Failed to schedule report' : 'Failed to generate report');
     } finally {
       setIsGenerating(false);
     }
@@ -457,7 +478,7 @@ export default function AdminReports() {
                           )}
                         </div>
 
-                        {report.metrics && (
+                        {report.metrics?.totalRecords !== undefined && (
                           <div className="mt-3 flex flex-wrap gap-4 text-xs">
                             <span className="text-slate-500">
                               Records: <span className="font-medium text-slate-700 dark:text-slate-300">
@@ -494,6 +515,12 @@ export default function AdminReports() {
                         <Button size="sm" disabled>
                           <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
                           Generating...
+                        </Button>
+                      )}
+                      {report.status === 'scheduled' && (
+                        <Button size="sm" disabled variant="outline">
+                          <Clock className="w-4 h-4 mr-1" />
+                          Scheduled
                         </Button>
                       )}
                       {report.status === 'failed' && (
@@ -551,7 +578,7 @@ export default function AdminReports() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setShowNewReportModal(false)}
+                onClick={closeNewReportModal}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -608,10 +635,36 @@ export default function AdminReports() {
                 </div>
               )}
 
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={scheduleEnabled}
+                    onChange={(e) => {
+                      setScheduleEnabled(e.target.checked);
+                      if (e.target.checked) {
+                        setMinScheduleValue(new Date(Date.now() + 60000).toISOString().slice(0, 16));
+                      }
+                    }}
+                    className="rounded border-slate-300"
+                  />
+                  Schedule for later
+                </label>
+                {scheduleEnabled && (
+                  <Input
+                    type="datetime-local"
+                    value={scheduledFor}
+                    onChange={(e) => setScheduledFor(e.target.value)}
+                    min={minScheduleValue}
+                    className="mt-2"
+                  />
+                )}
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <Button
                   variant="outline"
-                  onClick={() => setShowNewReportModal(false)}
+                  onClick={closeNewReportModal}
                   className="flex-1"
                 >
                   Cancel
@@ -624,12 +677,12 @@ export default function AdminReports() {
                   {isGenerating ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
+                      {scheduleEnabled ? 'Scheduling...' : 'Generating...'}
                     </>
                   ) : (
                     <>
                       <BarChart3 className="w-4 h-4 mr-2" />
-                      Generate Report
+                      {scheduleEnabled ? 'Schedule Report' : 'Generate Report'}
                     </>
                   )}
                 </Button>

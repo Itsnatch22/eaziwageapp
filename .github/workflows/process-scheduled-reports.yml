@@ -1,0 +1,27 @@
+name: Process Scheduled Reports
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:        # allows manual trigger from GitHub Actions tab
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger process-scheduled-reports route
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://app.eaziwage.com/api/cron/process-scheduled-reports)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Response: $BODY"
+          echo "Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Processing scheduled reports failed with status $HTTP_CODE"
+            exit 1
+          fi

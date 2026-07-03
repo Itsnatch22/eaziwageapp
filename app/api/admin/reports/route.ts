@@ -7,6 +7,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis } from '@upstash/redis';
 import { z } from 'zod';
 import { dbErrorResponse } from '@/lib/api-errors';
+import { generateReportCsv, formatFileSize } from '@/lib/services/report-generation';
 
 type AdminUser = Pick<User, 'id' | 'email' | 'app_metadata' | 'user_metadata'>;
 
@@ -174,8 +175,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       });
     }
 
+    // The frontend's Report interface uses camelCase (downloadUrl, generatedAt,
+    // fileSize, scheduledFor) but admin_reports' columns are snake_case — without
+    // this mapping, the Download button/date/size/schedule text never render
+    // because report.downloadUrl etc. are always undefined.
+    const mappedReports = (reports ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      type: r.type,
+      period: r.period,
+      status: r.status,
+      generatedAt: r.generated_at,
+      fileSize: r.file_size,
+      downloadUrl: r.download_url,
+      scheduledFor: r.scheduled_for,
+      metrics: r.metrics,
+    }));
+
     const responseData = {
-      reports: reports || [],
+      reports: mappedReports,
       stats,
       pagination: {
         page,
@@ -240,7 +259,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const { name, description, type, period } = parsed.data;
+    const { name, description, type, period, scheduled_for } = parsed.data;
+
+    const isScheduledForFuture = Boolean(scheduled_for) && new Date(scheduled_for as string).getTime() > Date.now();
 
     const { data: report, error } = await supabase
       .from('admin_reports')
@@ -249,7 +270,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         description,
         type,
         period,
-        status: 'generating',
+        status: isScheduledForFuture ? 'scheduled' : 'generating',
+        scheduled_for: isScheduledForFuture ? scheduled_for : null,
         created_by: user.id,
       })
       .select()
@@ -259,24 +281,54 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return dbErrorResponse('admin/reports/create', error, 'Failed to create report');
     }
 
-    const { data: readyReport, error: readyError } = await supabase
-      .from('admin_reports')
-      .update({
-        status: 'ready',
-        generated_at: new Date().toISOString(),
-        download_url: `/api/admin/reports/${report.id}/download`,
-      })
-      .eq('id', report.id)
-      .select()
-      .single();
+    // Scheduled reports are picked up later by the cron in
+    // /api/cron/process-scheduled-reports — nothing more to do here.
+    if (isScheduledForFuture) {
+      const redis = new Redis({ url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN });
+      try {
+        const keys = await redis.keys('admin:reports:*');
+        if (keys.length > 0) await redis.del(...keys);
+      } catch (cacheError) {
+        console.warn('[Admin Reports] Failed to clear cache:', cacheError);
+      }
+      return NextResponse.json(report, { status: 201, headers: rateResult.headers });
+    }
 
-    if (readyError) {
+    let readyReport;
+    try {
+      const startedAt = Date.now();
+      const { csv, recordCount } = await generateReportCsv(supabase, type, period, { name, description });
+      const processingTimeSeconds = (Date.now() - startedAt) / 1000;
+      const fileSizeBytes = Buffer.byteLength(csv, 'utf8');
+
+      const { data: updated, error: readyError } = await supabase
+        .from('admin_reports')
+        .update({
+          status: 'ready',
+          generated_at: new Date().toISOString(),
+          download_url: `/api/admin/reports/${report.id}/download`,
+          report_data: csv,
+          file_size: formatFileSize(fileSizeBytes),
+          metrics: {
+            totalRecords: recordCount,
+            processingTime: Number(processingTimeSeconds.toFixed(2)),
+            accuracy: 100,
+          },
+        })
+        .eq('id', report.id)
+        .select()
+        .single();
+
+      if (readyError) throw readyError;
+      readyReport = updated;
+    } catch (genError) {
+      console.error('[Admin Reports] Generation failed:', genError);
       await supabase
         .from('admin_reports')
         .update({ status: 'failed' })
         .eq('id', report.id);
 
-      return dbErrorResponse('admin/reports/ready', readyError, 'Failed to prepare report');
+      return dbErrorResponse('admin/reports/ready', genError, 'Failed to generate report');
     }
 
     const redis = new Redis({
