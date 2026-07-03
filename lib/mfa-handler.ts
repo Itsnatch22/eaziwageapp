@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { apiLimiter, mfaActionLimiter, mfaVerifyLimiter, checkRateLimit, type RateLimitResult } from '@/lib/rate-limit';
@@ -18,6 +18,31 @@ export function signMfaBackupCookie(userId: string, hmacKey: string): { value: s
   const expiresAt = Date.now() + MFA_BACKUP_COOKIE_TTL_MS;
   const signature = createHmac('sha256', hmacKey).update(`${userId}.${expiresAt}`).digest('hex');
   return { value: `${expiresAt}.${signature}`, maxAge: MFA_BACKUP_COOKIE_TTL_MS / 1000 };
+}
+
+/**
+ * Verifies a raw mfa_backup_verified cookie value against a userId. Shared by
+ * proxy.ts (reads via NextRequest.cookies) and any route handler that needs
+ * to re-check AAL itself (reads via next/headers cookies()) — both must
+ * agree on what counts as "second factor satisfied," or a route handler's
+ * own redundant check can end up stricter than the gate that already let the
+ * request through, blocking legitimate backup-code sessions.
+ */
+export function verifyMfaBackupCookie(rawValue: string | undefined, userId: string): boolean {
+  const hmacKey = process.env.PII_ENCRYPTION_KEY;
+  if (!rawValue || !hmacKey) return false;
+
+  const [expiresAtStr, signature] = rawValue.split('.');
+  if (!expiresAtStr || !signature) return false;
+
+  const expiresAt = Number(expiresAtStr);
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false;
+
+  const expected = createHmac('sha256', hmacKey).update(`${userId}.${expiresAtStr}`).digest('hex');
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 function getMfaClientIp(req: NextRequest): string {

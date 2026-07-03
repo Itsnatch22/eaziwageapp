@@ -1,30 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { randomBytes, createHmac, timingSafeEqual } from "crypto";
+import { randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAppRole, resolveRoleFromTables } from "@/lib/server/resolve-user-role";
 import type { AppRole } from "@/lib/server/resolve-user-role";
-import { MFA_BACKUP_COOKIE } from "@/lib/mfa-handler";
+import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie } from "@/lib/mfa-handler";
 
-// Mirrors lib/mfa-handler.ts's signMfaBackupCookie — verifies the cookie a
-// successful backup-code check sets, as an alternate to Supabase's own aal2
-// (which only real TOTP verification can set).
 function hasValidBackupCodeCookie(req: NextRequest, userId: string): boolean {
-  const raw = req.cookies.get(MFA_BACKUP_COOKIE)?.value;
-  const hmacKey = process.env.PII_ENCRYPTION_KEY;
-  if (!raw || !hmacKey) return false;
-
-  const [expiresAtStr, signature] = raw.split(".");
-  if (!expiresAtStr || !signature) return false;
-
-  const expiresAt = Number(expiresAtStr);
-  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false;
-
-  const expected = createHmac("sha256", hmacKey).update(`${userId}.${expiresAtStr}`).digest("hex");
-  const a = Buffer.from(signature);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  return verifyMfaBackupCookie(req.cookies.get(MFA_BACKUP_COOKIE)?.value, userId);
 }
 
 export async function proxy(req: NextRequest) {
@@ -89,10 +72,16 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/verify-email");
 
+  // /console is founder-only (checked separately below, on top of the admin
+  // role check) — deliberately not nested under /admin so it doesn't share a
+  // route namespace or show up in the admin nav.
+  const isConsole = pathname === "/console" || pathname.startsWith("/console/");
+
   const isDashboard =
     pathname.startsWith("/admin") ||
     pathname.startsWith("/dashboards/employer-dashboard") ||
-    pathname.startsWith("/dashboards/employee-dashboard");
+    pathname.startsWith("/dashboards/employee-dashboard") ||
+    isConsole;
 
   // API paths that require a logged-in session. /api/internal/* and /api/auth/* are excluded:
   // internal routes authenticate via CRON_SECRET bearer token (validated in the handler),
@@ -100,7 +89,8 @@ export async function proxy(req: NextRequest) {
   const isProtectedApi =
     pathname.startsWith("/api/admin/") ||
     pathname.startsWith("/api/employer-dashboard/") ||
-    pathname.startsWith("/api/employee-dashboard/");
+    pathname.startsWith("/api/employee-dashboard/") ||
+    pathname.startsWith("/api/console/");
 
   if (!user && isDashboard) {
     return NextResponse.redirect(new URL("/", req.url));
@@ -268,6 +258,26 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dest, req.url));
     }
 
+    if (isConsole && role !== "admin") {
+      const dest = role === "employer" ? "/dashboards/employer-dashboard" : "/dashboards/employee-dashboard";
+      return NextResponse.redirect(new URL(dest, req.url));
+    }
+
+    // Founder-only, on top of the admin check above — the console spec is
+    // explicit that this is not a general-admin surface. A boolean flag, not
+    // an email match, so it can't be spoofed via user_metadata/app_metadata.
+    if (isConsole) {
+      const { data: founderRow } = await supabase
+        .from("system_admins")
+        .select("is_founder")
+        .eq("id", user.id)
+        .maybeSingle<{ is_founder: boolean }>();
+
+      if (founderRow?.is_founder !== true) {
+        return NextResponse.redirect(new URL("/admin", req.url));
+      }
+    }
+
     if (
       pathname.startsWith("/dashboards/employer-dashboard") &&
       role !== "employer"
@@ -295,6 +305,19 @@ export async function proxy(req: NextRequest) {
     }
     if (pathname.startsWith("/api/employee-dashboard/") && role !== "employee") {
       return NextResponse.json({ error: "Forbidden", code: "WRONG_ROLE" }, { status: 403 });
+    }
+    if (pathname.startsWith("/api/console/")) {
+      if (role !== "admin") {
+        return NextResponse.json({ error: "Forbidden", code: "WRONG_ROLE" }, { status: 403 });
+      }
+      const { data: founderRow } = await supabase
+        .from("system_admins")
+        .select("is_founder")
+        .eq("id", user.id)
+        .maybeSingle<{ is_founder: boolean }>();
+      if (founderRow?.is_founder !== true) {
+        return NextResponse.json({ error: "Forbidden", code: "NOT_FOUNDER" }, { status: 403 });
+      }
     }
   }
 

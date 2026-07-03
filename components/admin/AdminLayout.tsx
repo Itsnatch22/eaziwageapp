@@ -398,6 +398,21 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
     }
   }, [globalUser, userProfile]);
 
+  // Hidden founder-console trigger — no nav entry, no visible link. This is
+  // UX convenience only; /console re-checks role + is_founder + AAL2 itself
+  // regardless of how the navigation happened, so this shortcut grants
+  // nothing on its own.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        router.push('/console');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [router]);
+
   const handleAdminRealtimeEvent = useCallback((table: string) => {
     const messages: Record<string, { title: string; description: string }> = {
       advances:              { title: 'New advance activity',       description: 'An advance request was submitted or updated.' },
