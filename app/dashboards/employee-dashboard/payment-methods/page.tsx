@@ -253,7 +253,7 @@ const PaymentMethods = () => {
   };
 
   return (
-    <EmployeePortalLayout title="Payment Methods">
+    <EmployeePortalLayout>
       <input
         ref={fileInputRef}
         type="file"

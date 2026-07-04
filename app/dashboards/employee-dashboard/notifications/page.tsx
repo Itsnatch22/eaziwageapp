@@ -156,7 +156,7 @@ export default function EmployeeNotificationsPage() {
     const unreadCount = notifications.filter(n => !n.read).length;
 
     return (
-        <EmployeePortalLayout title="Notifications">
+        <EmployeePortalLayout>
             <div className="max-w-4xl mx-auto space-y-8">
                 
                 

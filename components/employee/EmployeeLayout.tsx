@@ -207,12 +207,10 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user }: SidebarNavProps) => {
 interface TopHeaderProps {
   onMenuClick: () => void;
   user: EmployeeUser | null;
-  title?: string;
 }
 
-const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
+const EmployeeTopHeader = ({ onMenuClick, user }: TopHeaderProps) => {
   const [activeChat, setActiveChat] = useState<{ id: string; name: string } | null>(null);
-  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -222,26 +220,6 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
 
   const hour = mounted ? new Date().getHours() : 9;
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-
-  const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
-
-  const isGenericTitle = (t?: string) => {
-    if (!t) return false;
-    const generic = ['overview', 'welcome', 'syncing...', 'loading...', 'dashboard'];
-    return generic.includes(t.toLowerCase());
-  };
-
-  const getPageTitle = () => {
-
-    if (title && isGenericTitle(title)) return fullName;
-    if (title) return title;
-    if (pathname === '/dashboards/employee-dashboard') return 'Dashboard';
-    if (pathname?.includes('request-advance')) return 'Request Advance';
-    if (pathname?.includes('transactions')) return 'Transactions';
-    if (pathname?.includes('onboarding')) return 'KYC Verification';
-    if (pathname?.includes('settings')) return 'Settings';
-    return 'Employee Portal';
-  };
 
   return (
     <>
@@ -261,7 +239,7 @@ const EmployeeTopHeader = ({ onMenuClick, user, title }: TopHeaderProps) => {
                 {greeting}
               </p>
               <p className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
-                {getPageTitle()}
+                {user?.user_metadata?.full_name || 'Employee Portal'}
               </p>
             </div>
           </div>
@@ -357,10 +335,9 @@ export const FloatingNav = () => {
 
 interface EmployeePortalLayoutProps {
   children: React.ReactNode;
-  title?: string;
 }
 
-export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutProps) {
+export function EmployeePortalLayout({ children }: EmployeePortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [prevPathname, setPrevPathname] = useState<string | null>(null);
   const user = useAuthStore(s => s.user);
@@ -446,7 +423,7 @@ export function EmployeePortalLayout({ children, title }: EmployeePortalLayoutPr
       <EmployeeSidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
 
       <div className="lg:ml-72 relative flex flex-col min-h-screen">
-        <EmployeeTopHeader onMenuClick={() => setSidebarOpen(true)} user={user} title={title} />
+        <EmployeeTopHeader onMenuClick={() => setSidebarOpen(true)} user={user} />
         <main className="p-4 lg:p-8 flex-1 pb-32 lg:pb-8">
           <DashboardBreadcrumbs />
           {children}

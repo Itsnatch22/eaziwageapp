@@ -240,7 +240,7 @@ export default function EmployeeDashboardPage() {
 
 
   if (loading) return (
-    <EmployeePortalLayout title="Syncing...">
+    <EmployeePortalLayout>
       <div className="flex flex-col items-center justify-center py-40 gap-4">
         <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Verifying ledger…</p>
@@ -250,7 +250,7 @@ export default function EmployeeDashboardPage() {
 
 
   if (error === 'profile_not_found') return (
-    <EmployeePortalLayout title="Welcome">
+    <EmployeePortalLayout>
       <div className="max-w-sm mx-auto text-center py-16 space-y-8">
         <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto"
           style={{ background: '#10b98112', border: '1px solid #10b98125' }}>
@@ -280,7 +280,7 @@ export default function EmployeeDashboardPage() {
   const payday = getNextPayday();
 
   return (
-    <EmployeePortalLayout title="Overview">
+    <EmployeePortalLayout>
       <UserOnboardingGuide role="employee" show={isVerified} />
       <div className="max-w-5xl mx-auto space-y-6">
 

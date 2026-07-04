@@ -24,7 +24,7 @@ const WellnessPage = () => {
   const savingsRate = income > 0 ? (balance / income) * 100 : 0;
 
   return (
-    <EmployeePortalLayout title="Financial Wellness">
+    <EmployeePortalLayout>
       <div className="max-w-5xl mx-auto space-y-12">
         
         

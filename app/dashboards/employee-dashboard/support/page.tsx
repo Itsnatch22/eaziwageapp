@@ -102,7 +102,7 @@ const SupportPage = () => {
   };
 
   return (
-    <EmployeePortalLayout title="Support & Help">
+    <EmployeePortalLayout>
       <div className="max-w-4xl mx-auto space-y-12">
         
         

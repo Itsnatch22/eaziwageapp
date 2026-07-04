@@ -110,7 +110,7 @@ const EmploymentDetails = () => {
 
   if (loading) {
     return (
-      <EmployeePortalLayout title="Loading...">
+      <EmployeePortalLayout>
         <div className="flex flex-col items-center justify-center py-40 gap-4">
           <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Fetching contract details...</p>
@@ -135,7 +135,7 @@ const EmploymentDetails = () => {
   };
 
   return (
-    <EmployeePortalLayout title="Employment Details">
+    <EmployeePortalLayout>
       <div className="max-w-4xl mx-auto space-y-8">
         
         

@@ -114,7 +114,7 @@ export default function AdvanceCalculatorPage() {
   useEffect(() => { Promise.resolve().then(() => fetchData()); }, [fetchData]);
 
   if (loading) return (
-    <EmployeePortalLayout title="Advance Calculator">
+    <EmployeePortalLayout>
       <div className="flex flex-col items-center justify-center py-40 gap-4">
         <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Loading your data…</p>
@@ -123,7 +123,7 @@ export default function AdvanceCalculatorPage() {
   );
 
   if (!data) return (
-    <EmployeePortalLayout title="Advance Calculator">
+    <EmployeePortalLayout>
       <div className="max-w-lg mx-auto text-center py-20 space-y-4">
         <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
         <p className="text-slate-600 dark:text-slate-400">Could not load your advance data. Make sure your profile is approved.</p>
@@ -186,7 +186,7 @@ export default function AdvanceCalculatorPage() {
   const limitPct = maxAdvance > 0 ? Math.min(100, (amount / maxAdvance) * 100) : 0;
 
   return (
-    <EmployeePortalLayout title="Advance Calculator">
+    <EmployeePortalLayout>
       <div className="max-w-2xl mx-auto space-y-6">
 
         {/* Header */}

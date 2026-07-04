@@ -157,7 +157,7 @@ export default function Transactions() {
   ];
 
   return (
-    <EmployeePortalLayout title="Ledger">
+    <EmployeePortalLayout>
       <div className="max-w-4xl mx-auto space-y-6">
 
         

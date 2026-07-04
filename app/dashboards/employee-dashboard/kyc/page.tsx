@@ -134,7 +134,7 @@ export default function EmployeeKYC() {
     const missingDocs = requiredDocs.filter(d => !uploadedTypes.includes(d));
 
     return (
-    <EmployeePortalLayout title="Verification Hub">
+    <EmployeePortalLayout>
       <div className="max-w-5xl mx-auto space-y-8">
         
         

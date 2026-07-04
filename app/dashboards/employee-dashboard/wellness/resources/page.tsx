@@ -122,7 +122,7 @@ const CATEGORIES: ResourceCategory[] = [
 
 const ResourcesPage = () => {
   return (
-    <EmployeePortalLayout title="Wellness Resources">
+    <EmployeePortalLayout>
       <div className="max-w-5xl mx-auto space-y-10">
 
         <div>
