@@ -130,7 +130,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const { data: wallets, error: walletError } = await supabase
       .from('employer_wallets')
-      .select('id, outstanding_liability, total_advanced, total_repaid, currency, employer_id')
+      .select('id, outstanding_liability, total_advanced, total_repaid, reserved_amount, currency, employer_id')
 
     if (walletError) throw walletError;
 
@@ -149,22 +149,33 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // previously this read employers.metadata, a separate text column that's
   // always null, so utilization was always computed against a hardcoded 1M default.
   const creditLimit = Number(employer?.credit_limit ?? 1000000);
-  const balance     = Number(w.outstanding_liability || 0);  
-  const utilization = creditLimit > 0 ? Math.round((balance / creditLimit) * 100) : 0;
+  // outstanding_liability is what's actually owed back to admin (recorded in
+  // full at funding time, decremented as it's repaid/recouped — see
+  // lib/services/payday-recoupment-service.ts). Utilization is inherently
+  // about the credit line owed against, not spendable cash — this must stay
+  // liability-based even though the "Wallet Balances" card below is not.
+  const liability   = Number(w.outstanding_liability || 0);
+  const utilization = creditLimit > 0 ? Math.round((liability / creditLimit) * 100) : 0;
   const currency    = w.currency || 'KES';
+  // "Wallet Balances" (this card's label: "Total employer funds on platform")
+  // previously reused outstanding_liability, which is a debt figure, not a
+  // cash figure — showing employers' arrears as if it were their available
+  // funds. Real spendable balance is total_advanced - total_repaid -
+  // reserved_amount, matching reserve_employer_funds()'s own availability
+  // check and what the employer's own Wallet page shows as "Available Balance".
+  const availableBalance = Math.max(
+    0,
+    Number(w.total_advanced || 0) - Number(w.total_repaid || 0) - Number(w.reserved_amount || 0),
+  );
 
   return {
     ...w,
-    balance,                                               
-    arrears_balance: Number(w.total_advanced || 0) - Number(w.total_repaid || 0),
+    balance:             availableBalance,
+    arrears_balance:     liability,
     company_name:        employer?.company_name || 'Unknown Employer',
     utilization,
-    balance_usd:         convertToUSD(balance, currency, rates),
-    arrears_balance_usd: convertToUSD(
-      Math.max(0, Number(w.total_advanced || 0) - Number(w.total_repaid || 0)),
-      currency,
-      rates
-    ),
+    balance_usd:         convertToUSD(availableBalance, currency, rates),
+    arrears_balance_usd: convertToUSD(liability, currency, rates),
   };
 });
 

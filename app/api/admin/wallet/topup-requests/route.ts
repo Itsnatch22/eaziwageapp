@@ -69,6 +69,7 @@ interface EnrichedRow {
     total_advanced: number;
     outstanding_liability: number;
     total_repaid: number;
+    reserved_amount: number;
     currency: string;
     employers?: {
       company_name: string;
@@ -110,6 +111,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
           total_advanced,
           outstanding_liability,
           total_repaid,
+          reserved_amount,
           currency,
           employers!employer_id (
             company_name,
@@ -153,7 +155,16 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
         contact_person: employer?.contact_person ?? null,
         risk_score: employer?.risk_score ?? null,
         risk_rating: employer?.risk_rating ?? null,
-        current_wallet_balance: (wallet?.total_advanced ?? 0) - (wallet?.total_repaid ?? 0) - (wallet?.outstanding_liability ?? 0),
+        // Spendable balance, matching reserve_employer_funds()'s own availability
+        // check — not total_advanced - total_repaid - outstanding_liability,
+        // which double-subtracts the liability (outstanding_liability already
+        // tracks the same money as total_advanced - total_repaid; the deduction
+        // that actually applies here is reserved_amount, held against in-flight
+        // advances).
+        current_wallet_balance: Math.max(
+          0,
+          (wallet?.total_advanced ?? 0) - (wallet?.total_repaid ?? 0) - (wallet?.reserved_amount ?? 0),
+        ),
         wallet_currency: wallet?.currency ?? 'KES',
       };
     });

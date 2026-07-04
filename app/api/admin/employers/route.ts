@@ -263,11 +263,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     liveEmployerIds.length
       ? adminSupabase.from('employees').select('employer_id, monthly_salary, status').in('employer_id', liveEmployerIds)
       : Promise.resolve({ data: [] as Array<{ employer_id: string; monthly_salary: number | null; status: string | null }> }),
-    adminSupabase
-      .from('advances')
-      .select('employer_id, amount')
-      .in('employer_id', employerIds)
-      .gte('created_at', startOfMonth),
+    liveEmployerIds.length
+      ? adminSupabase
+          .from('advances')
+          .select('employer_id, amount')
+          // advances.employer_id references the live employers table, not
+          // employer_onboarding — filtering by employerIds (onboarding ids)
+          // here always matched zero rows, so this column silently showed
+          // $0 for every employer regardless of real advance activity.
+          .in('employer_id', liveEmployerIds)
+          .gte('created_at', startOfMonth)
+      : Promise.resolve({ data: [] as Array<{ employer_id: string; amount: number | null }> }),
   ]);
 
   const employeesByEmployer = new Map<string, { count: number; payroll: number }>();
@@ -284,7 +290,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const advancesByEmployer = new Map<string, number>();
   (advancesResult.data ?? []).forEach((adv) => {
-    advancesByEmployer.set(adv.employer_id, (advancesByEmployer.get(adv.employer_id) ?? 0) + (adv.amount ?? 0));
+    const onboardingId = onboardingIdByLiveEmployerId.get(adv.employer_id);
+    if (!onboardingId) return;
+    advancesByEmployer.set(onboardingId, (advancesByEmployer.get(onboardingId) ?? 0) + (adv.amount ?? 0));
   });
 
   const result = (onboardingRows ?? []).map((row) => {
