@@ -153,7 +153,7 @@ export const walletTransactions = pgTable('wallet_transactions', {
   id: uuid('id').primaryKey().defaultRandom(),
   wallet_id: uuid('wallet_id').notNull().references(() => employerWallets.id, { onDelete: 'cascade' }),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(), 
-  type: text('type').$type<'deposit' | 'withdrawal' | 'payout' | 'refund' | 'arrears_payment'>().notNull(),
+  type: text('type').$type<'deposit' | 'withdrawal' | 'payout' | 'refund' | 'arrears_payment' | 'reservation'>().notNull(),
   status: text('status').default('pending').notNull(),
   reference: text('reference').unique(),
   internal_reference: text('internal_reference'),

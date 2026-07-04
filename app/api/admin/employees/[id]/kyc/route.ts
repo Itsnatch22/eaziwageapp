@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { EmployeeKycPatchSchema } from '@/lib/validations/route-schemas';
-import { isAdminRole, UserRole } from '@/lib/validations/kyc-validation';
+import { requireAdmin } from '@/lib/server/admin-auth';
 import { notifyEmployee } from '@/lib/notifications';
-import { createAdminClient } from '@/lib/supabaseAdmin';
+import { activateUser, deactivateUser } from '@/lib/activation';
 
 export async function PATCH(
   req: NextRequest,
@@ -24,21 +23,14 @@ export async function PATCH(
       );
     }
     const { kyc_status, reason } = kycParsed.data;
-    const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: profile } = await adminSupabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || !isAdminRole(profile.role as UserRole)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Previously this route checked only profiles.role via isAdminRole(), ignoring
+    // system_admins — a legitimate system_admins-only admin (no profiles.role set)
+    // got wrongly 403'd. requireAdmin() checks system_admins first, falling back
+    // to profiles.role, matching the pattern used by every other admin route.
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { user, adminSupabase } = auth;
 
     const { error: updateError } = await adminSupabase
       .from('employee_onboarding')
@@ -64,6 +56,22 @@ export async function PATCH(
         .update({ status: 'rejected', reviewer_notes: reason, reviewed_at: new Date().toISOString(), reviewed_by: user.id })
         .eq('user_id', id)
         .eq('status', 'pending');
+    }
+
+    // profiles.is_active is the only thing proxy.ts checks to let a user into their
+    // dashboard — this route told the employee "your account is now being activated"
+    // but never actually called activateUser(), so an employee approved through this
+    // route stayed locked out of their own dashboard despite the message.
+    if (kyc_status === 'approved') {
+      const activationResult = await activateUser(id);
+      if (!activationResult.success) {
+        console.error('[PATCH /api/admin/employees/[id]/kyc] Failed to activate user:', activationResult.error);
+      }
+    } else if (kyc_status === 'rejected') {
+      const deactivationResult = await deactivateUser(id);
+      if (!deactivationResult.success) {
+        console.error('[PATCH /api/admin/employees/[id]/kyc] Failed to deactivate user:', deactivationResult.error);
+      }
     }
 
     const title = kyc_status === 'approved' ? 'KYC Verification Approved' : 'KYC Verification Rejected';

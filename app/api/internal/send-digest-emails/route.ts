@@ -6,6 +6,7 @@ import { AdminDigestEmail, type DigestPeriod } from '@/lib/emails/AdminNotificat
 import { convertToUSD } from '@/lib/utils';
 import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 import { getEnv } from '@/env';
+import { isValidCronAuth } from '@/lib/cron-auth';
 
 export const runtime = 'nodejs';
 
@@ -26,8 +27,7 @@ function resolveCurrency(country?: string | null): string {
 // (.github/workflows/digest-emails.yml) — ?period=daily runs every morning,
 // ?period=weekly runs once a week — both hitting this one route.
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isValidCronAuth(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -5,6 +5,8 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getEnv }                      from '@/env';
 import { apiLimiter, checkRateLimit }  from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { checkAdminAccess } from '@/lib/server/admin-auth';
+import type { User } from '@supabase/supabase-js';
 
 const env = getEnv();
 
@@ -27,21 +29,18 @@ function getClientIp(req: NextRequest): string {
   ).trim();
 }
 
-async function isSystemAdmin(userId: string): Promise<boolean> {
-  const env = getEnv();
+// Previously checked only system_admins — a legitimate profiles.role-based admin
+// (no system_admins row) got wrongly 403'd. checkAdminAccess() checks both, matching
+// every other admin route's requireAdmin()-based gate.
+async function isSystemAdmin(user: User): Promise<boolean> {
   const adminSupabase = createSupabaseClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  const { data: systemAdmin } = await adminSupabase
-    .from('system_admins')
-    .select('id, is_admin')
-    .eq('id', userId)
-    .maybeSingle<{ id: string; is_admin: boolean }>();
-
-  return systemAdmin?.is_admin === true;
+  const access = await checkAdminAccess({ user, adminSupabase });
+  return access.isAdmin;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -79,7 +78,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const isAdmin = await isSystemAdmin(user.id);
+  const isAdmin = await isSystemAdmin(user);
 
   if (!isAdmin) {
     return NextResponse.json(
@@ -140,7 +139,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isAdmin = await isSystemAdmin(user.id);
+  const isAdmin = await isSystemAdmin(user);
 
   if (!isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -192,7 +191,7 @@ export async function DELETE(req: NextRequest) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const isAdmin = await isSystemAdmin(user.id);
+        const isAdmin = await isSystemAdmin(user);
         if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
         const env = getEnv();

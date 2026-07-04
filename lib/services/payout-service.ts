@@ -754,6 +754,25 @@ export class PayoutService {
       await createRepaymentSchedule(advance as ScheduleAdvanceInput, disbursedAt, supabaseAdmin);
     } catch (scheduleErr) {
       console.error('[disburseAdvance] Repayment schedule creation failed:', scheduleErr);
+
+      // reserved_amount for this advance is normally released by repay_advance_to_admin
+      // when its repayment_schedules row gets settled — with no schedule row, that
+      // release never happens, permanently shrinking this employer's available balance
+      // by advanceAmount even after the underlying liability is eventually recouped via
+      // the payday-recoupment fallback (repay_employer_liability_to_admin, which settles
+      // outstanding_liability but has no advance to tie a reservation release to).
+      // Release the reservation now — outstanding_liability is untouched and still
+      // correctly owed; only the "held pending disbursement" hold is being cleared,
+      // since disbursement has already completed successfully above.
+      const { error: releaseErr } = await supabaseAdmin.rpc('release_employer_reservation', {
+        p_employer_id: advance.employer_id,
+        p_amount: advanceAmount,
+        p_advance_id: advanceId,
+      });
+      if (releaseErr) {
+        console.error('[disburseAdvance] Failed to release reservation after schedule creation failure:', releaseErr);
+      }
+
       void notifyAdmin({
         type: 'system_alert',
         title: 'Repayment Schedule Creation Failed',

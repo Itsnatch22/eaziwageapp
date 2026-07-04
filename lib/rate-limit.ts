@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEnv } from "../env";
 
 const env = getEnv();
-const isPlaywrightTest = process.env.PLAYWRIGHT_TEST === "1";
+// Requiring NODE_ENV !== 'production' alongside the test flag means a leaked/
+// copy-pasted PLAYWRIGHT_TEST=1 in a production environment can no longer
+// disable rate limiting platform-wide on its own — both conditions must hold.
+const isPlaywrightTest = process.env.PLAYWRIGHT_TEST === "1" && process.env.NODE_ENV !== "production";
 
 class NoopLimiter {
   async limit() {

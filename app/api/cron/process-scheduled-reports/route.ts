@@ -3,12 +3,12 @@ import { Redis } from '@upstash/redis';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { getEnv } from '@/env';
 import { generateReportCsv, formatFileSize, type ReportType } from '@/lib/services/report-generation';
+import { isValidCronAuth } from '@/lib/cron-auth';
 
 export const runtime = 'nodejs';
 
 function authorize(req: NextRequest): boolean {
-  const auth = req.headers.get('authorization') ?? '';
-  return auth === `Bearer ${process.env.CRON_SECRET}`;
+  return isValidCronAuth(req.headers.get('authorization'));
 }
 
 async function run(): Promise<NextResponse> {

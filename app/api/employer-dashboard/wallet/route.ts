@@ -62,7 +62,7 @@ export async function GET() {
     // employer_view_own_wallet RLS covers this SELECT
     const { data: wallet, error: walletError } = await supabase
       .from('employer_wallets')
-      .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, currency, updated_at')
+      .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, reserved_amount, currency, updated_at')
       .eq('employer_id', employer.id)
       .maybeSingle();
 
@@ -76,7 +76,7 @@ export async function GET() {
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
         .insert({ employer_id: employer.id, total_advanced: 0, outstanding_liability: 0, total_repaid: 0, currency: walletCurrency, updated_at: new Date().toISOString() })
-        .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, currency, updated_at')
+        .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, reserved_amount, currency, updated_at')
         .single();
       if (createError) throw createError;
       currentWallet = newWallet;
@@ -85,18 +85,27 @@ export async function GET() {
     if (!currentWallet) throw new Error('Failed to initialize wallet');
 
     // employer_view_own_wallet_tx RLS covers this SELECT
+    // 'reservation' rows (reserve_employer_funds' internal fund-hold bookkeeping,
+    // reference ADV-RESERVE-<advance_id>) are excluded — they're not a real money
+    // event the employer needs to see, and the DusuPay webhook already inserts a
+    // separate, real 'payout' row when an advance actually disburses.
     const { data: transactions, error: txError } = await supabase
       .from('wallet_transactions')
       .select('id, wallet_id, amount, type, status, description, reference, created_at')
       .eq('wallet_id', currentWallet.id)
+      .neq('type', 'reservation')
       .order('created_at', { ascending: false })
       .limit(20);
 
     if (txError) throw txError;
 
-    // Balance = net of all completed transactions (deposits positive, payouts negative)
-    const balance = (transactions || []).reduce(
-      (sum, tx) => (tx.status === 'completed' ? sum + Number(tx.amount) : sum),
+    // Available balance = total_advanced - total_repaid - reserved_amount, the same
+    // formula used by reserve_employer_funds() and the admin Billing/topup-requests
+    // pages. Previously this summed only the most recent 20 wallet_transactions rows,
+    // which understated the real balance for any wallet with more history, and
+    // disagreed with /wallet/transactions (which summed the most recent 100 instead).
+    const balance = Math.max(
+      Number(currentWallet.total_advanced) - Number(currentWallet.total_repaid) - Number(currentWallet.reserved_amount ?? 0),
       0,
     );
 
@@ -158,7 +167,7 @@ export async function POST(req: Request) {
     // employer_view_own_wallet RLS covers this SELECT
     const { data: wallet, error: walletError } = await supabase
       .from('employer_wallets')
-      .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, currency, updated_at')
+      .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, reserved_amount, currency, updated_at')
       .eq('employer_id', employer.id)
       .maybeSingle();
 
@@ -170,7 +179,7 @@ export async function POST(req: Request) {
       const { data: newWallet, error: createError } = await adminSupabase
         .from('employer_wallets')
         .insert({ employer_id: employer.id, total_advanced: 0, outstanding_liability: 0, total_repaid: 0, currency: walletCurrency, updated_at: new Date().toISOString() })
-        .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, currency, updated_at')
+        .select('id, employer_id, total_advanced, outstanding_liability, total_repaid, reserved_amount, currency, updated_at')
         .single();
       if (createError) return NextResponse.json({ error: 'Failed to create wallet' }, { status: 500 });
       currentWallet = newWallet;

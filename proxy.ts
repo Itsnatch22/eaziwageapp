@@ -94,11 +94,29 @@ export async function proxy(req: NextRequest) {
   // API paths that require a logged-in session. /api/internal/* and /api/auth/* are excluded:
   // internal routes authenticate via CRON_SECRET bearer token (validated in the handler),
   // and auth routes must be reachable before login.
+  //
+  // The prefixes below were audited individually and confirmed entirely session-gated
+  // end to end (every route.ts under them calls supabase.auth.getUser() or requireAdmin(),
+  // with no anonymous/webhook/gateway-callback route mixed in) — this list previously
+  // covered only /api/admin, /api/employer-dashboard, /api/employee-dashboard, /api/console,
+  // so a user with MFA enrolled but not yet AAL2-challenged this session could still hit
+  // e.g. /api/advances/[id] (admin approve/deny) or /api/support/tickets/[id] (admin status
+  // change) with zero second-factor check, since role-check-only route handlers don't
+  // themselves verify AAL2. Deliberately NOT added: /api/push (mixes session routes with
+  // the unauthenticated push/send and public vapidPublicKey), /api/employers (mixes with
+  // the public employers/public/* routes), /api/v1/payouts/verify and /api/dusupay/verify
+  // (gateway-callback style, no session at all by design).
   const isProtectedApi =
     pathname.startsWith("/api/admin/") ||
     pathname.startsWith("/api/employer-dashboard/") ||
     pathname.startsWith("/api/employee-dashboard/") ||
-    pathname.startsWith("/api/console/");
+    pathname.startsWith("/api/console/") ||
+    pathname.startsWith("/api/advances/") ||
+    pathname.startsWith("/api/insights") ||
+    pathname.startsWith("/api/messages") ||
+    pathname.startsWith("/api/overview/") ||
+    pathname.startsWith("/api/support/tickets/") ||
+    pathname.startsWith("/api/employees");
 
   if (!user && isDashboard) {
     return NextResponse.redirect(new URL("/", req.url));

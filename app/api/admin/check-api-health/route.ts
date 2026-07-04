@@ -39,7 +39,7 @@ async function requireAdminOrCron(
   req: Request
 ): Promise<{ error: string; status: 401 | 403 } | null> {
   const bearer = req.headers.get('authorization')?.replace('Bearer ', '').trim();
-  if (bearer && bearer === process.env.CRON_SECRET) return null;
+  if (bearer && process.env.CRON_SECRET && bearer === process.env.CRON_SECRET) return null;
 
   const routeSupabase = await createRouteHandlerClient();
   const { data: { user }, error: authError } = await routeSupabase.auth.getUser();

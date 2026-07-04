@@ -71,13 +71,14 @@ export async function GET() {
       // Try employers table
       const { data: employersRow } = await supabase
         .from('employers')
-        .select('advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances')
+        .select('advance_limit_percent, min_advance_amount, max_advance_amount, cooldown_days, max_monthly_advances')
         .eq('onboarding_id', employee.employer_id)
         .maybeSingle();
 
       if (employersRow) {
         advance_limit_percent = employersRow.advance_limit_percent ?? advance_limit_percent;
         min_advance_amount = Number(employersRow.min_advance_amount ?? min_advance_amount);
+        max_advance_amount = Number(employersRow.max_advance_amount ?? max_advance_amount);
         cooldown_days = Number(employersRow.cooldown_days ?? cooldown_days);
         max_monthly_advances = Number(employersRow.max_monthly_advances ?? max_monthly_advances);
       }

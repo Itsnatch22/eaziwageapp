@@ -509,8 +509,8 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
           />
           <Toggle
             label="Auto-Approval for Low Risk"
-            description="Automatically approve advances for low-risk employees"
-            enabled={settings.auto_approval_enabled ?? true}
+            description="Platform-wide switch — also requires the employer's own 'Auto-Approve Requests' setting, and only applies to employees at/above the Risk Settings low-risk threshold. Off until explicitly enabled — some employers already have their own Auto-Approve setting on, so this only just became a real capability."
+            enabled={settings.auto_approval_enabled ?? false}
             onChange={(v) => onUpdate({ ...settings, auto_approval_enabled: v })}
           />
           <Toggle

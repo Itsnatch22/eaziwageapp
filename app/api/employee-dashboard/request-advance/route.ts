@@ -11,6 +11,8 @@ import { notifyEmployer, notifyAdmin } from '@/lib/notifications';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { advanceLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requestLogger } from '@/lib/logger';
+import { decryptAndMaskRow } from '@/lib/paymentMethodsService';
+import { tryAutoApproveAdvance } from '@/lib/services/advance-approval';
 
 export const runtime = 'nodejs';
 
@@ -344,6 +346,13 @@ export async function POST(req: NextRequest) {
       return errorResponse(422, 'Selected payment method type does not match chosen disbursement method');
     }
 
+    // account_number/phone_number on payment_methods are always null post-insert —
+    // a DB trigger nulls the plaintext columns and stores ciphertext separately.
+    // decryptAndMaskRow decrypts via RPC and masks ("•••• 1234") before this ever
+    // reaches a stored row — previously this snapshot stored the raw (always-null)
+    // columns directly, silently recording nothing useful for audit/reconciliation.
+    const maskedPm = await decryptAndMaskRow(adminSupabase, pm);
+
     const payload = {
       employee_id:    employeeId,
       organization_id: organization.id,       // resolved via employers.organization_id — never null here
@@ -358,8 +367,8 @@ export async function POST(req: NextRequest) {
         id:             pm.id,
         method_type:    pm.method_type,
         provider_name:  pm.provider_name,
-        account_number: pm.account_number,
-        phone_number:   pm.phone_number,
+        account_number: maskedPm.account_number,
+        phone_number:   maskedPm.phone_number,
       },
       status:        'pending',
       auto_approved: employerRecord.auto_approve ?? false,
@@ -385,6 +394,34 @@ export async function POST(req: NextRequest) {
     }
 
     log.info('Advance created', { userId, employeeId, employerId, advanceId: inserted.id, amount: requestedAmount });
+
+    // Auto-Approval: gated by BOTH the platform-wide Global Settings toggle and the
+    // employer's own opt-in (employers.auto_approve) — either off means normal manual
+    // review, matching prior behavior. Fire-and-forget: the employee's response below
+    // doesn't wait on funding/disbursement, and if anything here fails the advance
+    // simply stays 'pending' for a human to review, exactly as before this feature existed.
+    if (employerRecord.auto_approve && !fraudResult.isBlocked) {
+      void adminSupabase
+        .from('global_settings')
+        .select('platform_settings')
+        .eq('id', 'default')
+        .maybeSingle()
+        .then(({ data: globalRow }: { data: { platform_settings: unknown } | null }) => {
+          const autoApprovalEnabled = (globalRow?.platform_settings as { auto_approval_enabled?: boolean } | null)?.auto_approval_enabled ?? false;
+          if (!autoApprovalEnabled) return;
+
+          void tryAutoApproveAdvance({
+            advanceId: inserted.id,
+            employeeId: employeeId!,
+            employeeUserId: userId!,
+            employeeName: (user.user_metadata?.full_name as string | undefined) ?? user.email ?? undefined,
+            employerId: liveEmployerId,
+            amount: requestedAmount,
+            maxAdvancePercentage: effectiveSettings.max_advance_percentage,
+            monthlySalary: Number(employee.monthly_salary ?? 0),
+          });
+        }, (err: unknown) => log.error('Auto-approval check failed', { err, advanceId: inserted.id }));
+    }
 
     // Fire notifications after responding — Pusher/Resend latency must not block the employee.
     void (async () => {

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
-import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { EmployeeStatusPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployee } from '@/lib/notifications';
 import { activateUser, deactivateUser } from '@/lib/activation';
-import { createAdminClient } from '@/lib/supabaseAdmin';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 interface EmployeeUpsertPayload {
   user_id: string;
@@ -25,17 +24,6 @@ interface EmployeeUpsertPayload {
 }
 
 type EmployeeActionStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
-
-async function isSystemAdmin(userId: string): Promise<boolean> {
-  const adminSupabase = createAdminClient();
-  const { data: systemAdmin } = await adminSupabase
-    .from('system_admins')
-    .select('id, is_admin')
-    .eq('id', userId)
-    .maybeSingle();
-
-  return systemAdmin?.is_admin === true;
-}
 
 function toOnboardingStatus(status: EmployeeActionStatus): 'approved' | 'pending' | 'rejected' | 'suspended' {
   return status === 'active' || status === 'approved' ? 'approved' : status;
@@ -70,17 +58,14 @@ export async function PATCH(
       );
     }
     const { status, reason } = statusParsed.data;
-    const supabase = await createRouteHandlerClient();
-    const adminSupabase = createAdminClient();
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Previously this route's own isSystemAdmin() checked only system_admins,
+    // ignoring the profiles.role fallback — a legitimate profiles.role-based admin
+    // (no system_admins row) got wrongly 403'd. requireAdmin() checks both.
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { user, adminSupabase } = auth;
 
-    const isAdmin = await isSystemAdmin(user.id);
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Forbidden. Admin access required.' }, { status: 403 });
-    }
-    
     const { data: initialOnboardingRecord, error: fetchError } = await adminSupabase
       .from('employee_onboarding')
       .select('id, user_id, employer_id, employee_code, full_name, email, phone, job_title, department, monthly_salary, start_date, employment_type')

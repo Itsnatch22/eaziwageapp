@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyAdmin } from '@/lib/notifications';
 import { dbErrorResponse } from '@/lib/api-errors';
+import { isValidCronAuth } from '@/lib/cron-auth';
 
 async function run(): Promise<NextResponse> {
   try {
@@ -78,8 +79,7 @@ async function run(): Promise<NextResponse> {
 }
 
 function authorize(req: NextRequest): boolean {
-  const auth = req.headers.get('authorization') ?? '';
-  return auth === `Bearer ${process.env.CRON_SECRET}`;
+  return isValidCronAuth(req.headers.get('authorization'));
 }
 
 // Vercel Cron sends GET; internal callers may POST

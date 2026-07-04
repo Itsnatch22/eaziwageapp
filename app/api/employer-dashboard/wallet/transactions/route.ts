@@ -26,7 +26,7 @@ export async function GET() {
 
   const { data: wallet } = await supabase
     .from('employer_wallets')
-    .select('id, outstanding_liability, currency')
+    .select('id, outstanding_liability, total_advanced, total_repaid, reserved_amount, currency')
     .eq('employer_id', employer.id)
     .maybeSingle();
 
@@ -34,10 +34,13 @@ export async function GET() {
     return NextResponse.json({ transactions: [], balance: 0 });
   }
 
+  // 'reservation' rows are internal fund-hold bookkeeping (reserve_employer_funds),
+  // not a real money event — excluded for the same reason as /wallet's GET handler.
   const { data: transactions, error } = await supabase
     .from('wallet_transactions')
     .select('id, wallet_id, amount, type, status, description, reference, created_at')
     .eq('wallet_id', wallet.id)
+    .neq('type', 'reservation')
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -46,8 +49,11 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch wallet transactions' }, { status: 500 });
   }
 
-  const balance = (transactions || []).reduce(
-    (sum, tx) => (tx.status === 'completed' ? sum + Number(tx.amount) : sum),
+  // Same canonical formula as /wallet and the admin Billing/topup-requests pages —
+  // previously summed only the most recent 100 transactions, which disagreed with
+  // /wallet's own (then 20-row) sum and understated balance for older wallets.
+  const balance = Math.max(
+    Number(wallet.total_advanced) - Number(wallet.total_repaid) - Number(wallet.reserved_amount ?? 0),
     0,
   );
 

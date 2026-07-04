@@ -33,6 +33,11 @@ export async function GET() {
       tax_id,
       industry,
       onboarding_id,
+      advance_limit_percent,
+      cooldown_days,
+      min_advance_amount,
+      max_advance_amount,
+      advance_access_days,
       employer_onboarding!onboarding_id (
         physical_address,
         city,
@@ -44,11 +49,7 @@ export async function GET() {
         email_notifications,
         advance_alerts,
         payroll_reminders,
-        weekly_reports,
-        max_advance_percentage,
-        min_advance_amount,
-        advance_access_days,
-        cooldown_period
+        weekly_reports
       )
     `)
     .eq('user_id', user.id)
@@ -107,7 +108,12 @@ export async function GET() {
     onboarding_id: employer.onboarding_id,
   };
   const countryLimit = getAdvanceLimit(liveEmployer.country);
-  
+
+  // Advance-limit/cooldown/access-day fields are read from `employers` (the table
+  // every enforcement path — payout-service, request-advance, calculator, overview —
+  // actually reads), not `employer_onboarding`. Previously this GET (and the PUT
+  // below) read/wrote employer_onboarding's copies of these fields, which enforcement
+  // never consults — an employer's edits appeared to save but never took effect.
   return NextResponse.json({
     employer: {
       ...liveEmployer,
@@ -117,11 +123,11 @@ export async function GET() {
       advance_alerts: onboarding?.advance_alerts ?? true,
       payroll_reminders: onboarding?.payroll_reminders ?? true,
       weekly_reports: onboarding?.weekly_reports ?? false,
-      max_advance_percentage: Math.min(onboarding?.max_advance_percentage ?? 50, countryLimit),
-      min_advance_amount: onboarding?.min_advance_amount ?? 500,
-      max_advance_amount: 50000,
-      advance_access_days: onboarding?.advance_access_days ?? [1, 25],
-      cooldown_period: onboarding?.cooldown_period ?? 7,
+      max_advance_percentage: Math.min(employer.advance_limit_percent ?? 50, countryLimit),
+      min_advance_amount: employer.min_advance_amount ?? 500,
+      max_advance_amount: employer.max_advance_amount ?? 50000,
+      advance_access_days: employer.advance_access_days ?? [1, 25],
+      cooldown_period: employer.cooldown_days ?? 7,
     },
   });
 }
@@ -197,6 +203,12 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ message: 'Settings updated successfully.' });
   }
 
+  // Advance-limit/cooldown/access-day fields belong on `employers` — the table every
+  // enforcement path (payout-service, request-advance, calculator, overview) actually
+  // reads. Writing them to employer_onboarding instead (the previous behavior) meant
+  // an employer's edits here were saved and echoed back by GET, but never reached
+  // enforcement — a silent no-op. Address/notification-preference fields genuinely
+  // only live on employer_onboarding, so those stay there.
   const updates = {
     company_name: input.companyName ?? null,
     contact_person: input.contactPerson ?? null,
@@ -204,6 +216,11 @@ export async function PUT(req: NextRequest) {
     contact_phone: input.contactPhone ?? null,
     payroll_cycle: input.payrollCycle ?? null,
     country: input.country ?? null,
+    advance_limit_percent: input.maxAdvancePercentage ?? 50,
+    cooldown_days: input.cooldownPeriod ?? 7,
+    min_advance_amount: input.minAdvanceAmount ?? 500,
+    max_advance_amount: input.maxAdvanceAmount ?? 50000,
+    advance_access_days: input.advanceAccessDays ?? [1, 25],
     updated_at: new Date().toISOString(),
   };
 
@@ -218,10 +235,6 @@ export async function PUT(req: NextRequest) {
       advance_alerts: input.advanceAlerts ?? true,
       payroll_reminders: input.payrollReminders ?? true,
       weekly_reports: input.weeklyReports ?? false,
-      max_advance_percentage: input.maxAdvancePercentage ?? 50,
-      min_advance_amount: input.minAdvanceAmount ?? 500,
-      advance_access_days: input.advanceAccessDays ?? [1, 25],
-      cooldown_period: input.cooldownPeriod ?? 7,
       updated_at: new Date().toISOString(),
     })
     .eq('id', existing.onboarding_id);
@@ -247,6 +260,11 @@ export async function PUT(req: NextRequest) {
       tax_id,
       industry,
       onboarding_id,
+      advance_limit_percent,
+      cooldown_days,
+      min_advance_amount,
+      max_advance_amount,
+      advance_access_days,
       employer_onboarding!onboarding_id (
         physical_address,
         city,
@@ -292,11 +310,11 @@ export async function PUT(req: NextRequest) {
       advance_alerts: input.advanceAlerts ?? true,
       payroll_reminders: input.payrollReminders ?? true,
       weekly_reports: input.weeklyReports ?? false,
-      max_advance_percentage: Math.min(input.maxAdvancePercentage ?? 50, finalCountryLimit),
-      min_advance_amount: input.minAdvanceAmount ?? 500,
-      max_advance_amount: input.maxAdvanceAmount ?? 50000,
-      advance_access_days: input.advanceAccessDays ?? [1, 25],
-      cooldown_period: input.cooldownPeriod ?? 7,
+      max_advance_percentage: Math.min(updated.advance_limit_percent ?? 50, finalCountryLimit),
+      min_advance_amount: updated.min_advance_amount ?? 500,
+      max_advance_amount: updated.max_advance_amount ?? 50000,
+      advance_access_days: updated.advance_access_days ?? [1, 25],
+      cooldown_period: updated.cooldown_days ?? 7,
     },
   });
   }

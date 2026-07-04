@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { dbErrorResponse } from '@/lib/api-errors';
 import { notifyAdmin } from '@/lib/notifications';
 import { getEnv } from '@/env';
+import { isValidCronAuth } from '@/lib/cron-auth';
 
 export const runtime = 'nodejs';
 
@@ -21,8 +22,7 @@ const FREQUENCY_DAYS: Record<string, number> = {
 // riskier behavior change than a reminder, and isn't what this setting
 // historically implied.
 export async function GET(req: Request) {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isValidCronAuth(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

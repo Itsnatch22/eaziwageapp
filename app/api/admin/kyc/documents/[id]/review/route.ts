@@ -5,6 +5,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { KycDocQuerySchema } from '@/lib/validations/route-schemas';
 import { notifyEmployee } from '@/lib/notifications';
+import { activateUser, deactivateUser } from '@/lib/activation';
 
 type LogLevel = 'info' | 'warn' | 'error';
 
@@ -206,6 +207,23 @@ export async function PATCH(
       docId: doc.id,
       userId: doc.user_id,
     });
+  }
+
+  // profiles.is_active is the only thing proxy.ts checks to let a user into their
+  // dashboard — this route previously only updated employee_onboarding.status and
+  // never touched it, so an employee approved purely through per-document review
+  // (rather than the bulk employees/[id]/status route) stayed locked out of their
+  // own dashboard indefinitely despite showing as approved.
+  if (onboardingStatus === 'approved') {
+    const activationResult = await activateUser(doc.user_id);
+    if (!activationResult.success) {
+      log('error', 'activation', 'Failed to activate user profile after KYC approval', { docId: doc.id, userId: doc.user_id }, activationResult.error);
+    }
+  } else if (onboardingStatus === 'rejected') {
+    const deactivationResult = await deactivateUser(doc.user_id);
+    if (!deactivationResult.success) {
+      log('error', 'activation', 'Failed to deactivate user profile after KYC rejection', { docId: doc.id, userId: doc.user_id }, deactivationResult.error);
+    }
   }
 
   if (onboardingStatus === 'approved' && employeeOnboarding?.id && employeeOnboarding?.employer_id) {
