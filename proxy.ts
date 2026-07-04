@@ -4,10 +4,18 @@ import { randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAppRole, resolveRoleFromTables } from "@/lib/server/resolve-user-role";
 import type { AppRole } from "@/lib/server/resolve-user-role";
-import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie } from "@/lib/mfa-handler";
+import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie, DEVICE_TRUST_COOKIE, verifyDeviceTrustCookie } from "@/lib/mfa-handler";
 
 function hasValidBackupCodeCookie(req: NextRequest, userId: string): boolean {
   return verifyMfaBackupCookie(req.cookies.get(MFA_BACKUP_COOKIE)?.value, userId);
+}
+
+// Set only after a real TOTP/backup-code verification (never from password-only
+// login) — lets a recognized device skip re-challenging for 30 days, matching
+// standard 2FA practice (re-verify on first login / a new device / sensitive
+// changes, not on every fresh session from the same trusted browser).
+function hasValidDeviceTrustCookie(req: NextRequest, userId: string): boolean {
+  return verifyDeviceTrustCookie(req.cookies.get(DEVICE_TRUST_COOKIE)?.value, userId);
 }
 
 export async function proxy(req: NextRequest) {
@@ -177,11 +185,16 @@ export async function proxy(req: NextRequest) {
     // MFA enforcement: Supabase's nextLevel is only 'aal2' for users who have an
     // actually-verified TOTP factor, so this never affects users who haven't
     // opted into MFA. Users who have must complete a challenge (TOTP or backup
-    // code) each session before reaching any dashboard/API route.
+    // code) each fresh session before reaching any dashboard/API route — unless
+    // this device already completed one within the last 30 days
+    // (hasValidDeviceTrustCookie), matching standard practice of only
+    // re-challenging on first login, a new/unrecognized device, or sensitive
+    // account changes.
     const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     const mfaRequired = aalData?.nextLevel === 'aal2'
       && aalData.currentLevel !== 'aal2'
-      && !hasValidBackupCodeCookie(req, user.id);
+      && !hasValidBackupCodeCookie(req, user.id)
+      && !hasValidDeviceTrustCookie(req, user.id);
 
     if (mfaRequired) {
       if (isDashboard && pathname !== '/mfa-challenge') {

@@ -45,6 +45,60 @@ export function verifyMfaBackupCookie(rawValue: string | undefined, userId: stri
   return timingSafeEqual(a, b);
 }
 
+// Standard 2FA practice re-challenges on first login, an unrecognized device,
+// or sensitive account changes — not on every fresh session from a device
+// that already completed a real TOTP/backup-code check. This cookie is that
+// "trust this device" mechanism: set only after a successful `verify` or
+// `verify_backup_code` action below (never from password-only login), so a
+// stolen password alone can't earn a 30-day MFA skip. Deliberately a signed
+// cookie rather than the existing trusted_devices table — that table is
+// populated by handleLoginSecurity() purely from a successful password login
+// (before MFA is ever checked), so reusing it here would grant trust before
+// the user has ever proven possession of the second factor.
+export const DEVICE_TRUST_COOKIE = 'mfa_device_trusted';
+const DEVICE_TRUST_COOKIE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function signDeviceTrustCookie(userId: string, hmacKey: string): { value: string; maxAge: number } {
+  const expiresAt = Date.now() + DEVICE_TRUST_COOKIE_TTL_MS;
+  const signature = createHmac('sha256', hmacKey).update(`device.${userId}.${expiresAt}`).digest('hex');
+  return { value: `${expiresAt}.${signature}`, maxAge: DEVICE_TRUST_COOKIE_TTL_MS / 1000 };
+}
+
+/**
+ * Verifies a raw mfa_device_trusted cookie value against a userId. Shared by
+ * proxy.ts and requireFounder() — same reasoning as verifyMfaBackupCookie
+ * above: both must agree on what counts as "second factor satisfied" for
+ * this session, or one gate ends up stricter than the other already let
+ * through.
+ */
+export function verifyDeviceTrustCookie(rawValue: string | undefined, userId: string): boolean {
+  const hmacKey = process.env.PII_ENCRYPTION_KEY;
+  if (!rawValue || !hmacKey) return false;
+
+  const [expiresAtStr, signature] = rawValue.split('.');
+  if (!expiresAtStr || !signature) return false;
+
+  const expiresAt = Number(expiresAtStr);
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false;
+
+  const expected = createHmac('sha256', hmacKey).update(`device.${userId}.${expiresAtStr}`).digest('hex');
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+function setDeviceTrustCookie(response: NextResponse, userId: string, hmacKey: string): void {
+  const { value, maxAge } = signDeviceTrustCookie(userId, hmacKey);
+  response.cookies.set(DEVICE_TRUST_COOKIE, value, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge,
+  });
+}
+
 function getMfaClientIp(req: NextRequest): string {
   return (
     req.headers.get('x-real-ip') ??
@@ -268,6 +322,7 @@ export async function handleMfaPost(
         path: '/',
         maxAge,
       });
+      setDeviceTrustCookie(response, user.id, hmacKey);
       return response;
 
     } else if (action === 'verify') {
@@ -311,7 +366,10 @@ export async function handleMfaPost(
         console.error('[MFA][verify] audit insert failed:', auditErr);
       }
 
-      return NextResponse.json({ success: true, message: 'MFA verification successful' }, { headers: verifyHeaders });
+      const verifyResponse = NextResponse.json({ success: true, message: 'MFA verification successful' }, { headers: verifyHeaders });
+      const verifyHmacKey = getEnv().PII_ENCRYPTION_KEY;
+      if (verifyHmacKey) setDeviceTrustCookie(verifyResponse, user.id, verifyHmacKey);
+      return verifyResponse;
 
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400, headers: apiRateHeaders });

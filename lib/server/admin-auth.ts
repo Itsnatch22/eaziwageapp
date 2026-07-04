@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { isAdminRole, UserRoleEnum } from '@/lib/validations/kyc-validation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
-import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie } from '@/lib/mfa-handler';
+import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie, DEVICE_TRUST_COOKIE, verifyDeviceTrustCookie } from '@/lib/mfa-handler';
 
 export type AdminContext = {
   user: User;
@@ -32,9 +32,9 @@ export async function requireAdmin(): Promise<AdminContext | NextResponse<{ erro
  * Guards /console and its API routes. Requires: (1) a valid session, (2) the
  * single system_admins row flagged is_founder = true — a boolean column, not
  * an email string match, per the console spec — and (3) AAL2 already
- * satisfied for this session (TOTP, or the same bounded backup-code cookie
- * proxy.ts accepts — must agree with the shared gate, or a session let through
- * by proxy.ts via a valid backup-code cookie would get blocked again here).
+ * satisfied for this session (TOTP, the bounded backup-code cookie, or the
+ * 30-day device-trust cookie — all three must agree with the shared gate in
+ * proxy.ts, or a session let through there would get blocked again here).
  * proxy.ts enforces this for every dashboard/API route already, but this
  * route is unusually sensitive, so it re-checks here too rather than relying
  * solely on the shared gate.
@@ -48,9 +48,11 @@ export async function requireFounder(): Promise<AdminContext | NextResponse<{ er
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const cookieStore = await cookies();
   const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   const mfaSatisfied = !(aalData?.nextLevel === 'aal2' && aalData.currentLevel !== 'aal2')
-    || verifyMfaBackupCookie((await cookies()).get(MFA_BACKUP_COOKIE)?.value, user.id);
+    || verifyMfaBackupCookie(cookieStore.get(MFA_BACKUP_COOKIE)?.value, user.id)
+    || verifyDeviceTrustCookie(cookieStore.get(DEVICE_TRUST_COOKIE)?.value, user.id);
 
   if (!mfaSatisfied) {
     return NextResponse.json({ error: 'MFA verification required' }, { status: 403 });
