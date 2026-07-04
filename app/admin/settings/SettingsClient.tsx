@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { MfaSection } from '@/components/security/MfaSection';
 import { createClient } from '@/lib/supabase/client';
+import { getCurrencyFromCountry } from '@/lib/utils';
 
 interface GlobalSettings {
   default_advance_percent?: number;
@@ -889,7 +890,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
                     <p className="text-xs text-slate-500 mt-1">Only applies to Debit Order/Invoice employers.</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Credit Limit (KES)</Label>
+                    <Label className="text-sm font-medium">Credit Limit ({getCurrencyFromCountry(selectedEmployer.country)})</Label>
                     <Input
                       type="number"
                       value={employerSettings.credit_limit || 5000000}

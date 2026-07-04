@@ -67,6 +67,13 @@ export async function PATCH(
     const amountToDeductUSD = tx.usd_amount ?? tx.amount;
     const amountToCreditLocal = tx.amount;
 
+    // Passing p_existing_wallet_transaction_id tells the RPC to complete THIS
+    // pending request row in place rather than inserting a second, referenceless
+    // completed row — previously this route let the RPC insert its own row and
+    // then also flipped this one to 'completed', crediting the employer's
+    // displayed balance (summed from wallet_transactions) twice per top-up.
+    const updatedMetadata = Object.assign({}, tx.metadata ?? {}, { approved_by: user.id, approved_at: new Date().toISOString() });
+
     const { error: rpcError } = await adminSupabase.rpc('fund_employer_from_admin', {
       p_employer_id: employerId,
       p_admin_wallet_id: adminWallet.id,
@@ -75,21 +82,20 @@ export async function PATCH(
       p_description: tx.description || `Top-up approved ${tx.reference ?? ''}`,
       p_admin_id: user.id,
       p_currency: tx.local_currency || 'KES',
+      p_existing_wallet_transaction_id: tx.id,
     });
 
     if (rpcError) {
       return dbErrorResponse('admin/wallet/topup-requests/approve', rpcError, 'Funding failed. Please try again.');
     }
 
-    const updatedMetadata = Object.assign({}, tx.metadata ?? {}, { approved_by: user.id, approved_at: new Date().toISOString() });
     const { error: updateError } = await adminSupabase
       .from('wallet_transactions')
-      .update({ status: 'completed', metadata: updatedMetadata })
+      .update({ metadata: updatedMetadata })
       .eq('id', id);
 
     if (updateError) {
-      console.error('[TopUp Approve] Failed to update request row:', updateError);
-      return NextResponse.json({ error: 'Funding succeeded but failed to update request record' }, { status: 500 });
+      console.error('[TopUp Approve] Failed to update request metadata:', updateError);
     }
 
     try {

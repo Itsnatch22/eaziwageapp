@@ -46,6 +46,7 @@ export async function GET(req: NextRequest, { params }: IdRouteContext) {
     if (error) throw error;
 
     const settings = {
+      country:                      data.country,
       advance_limit_percent:        data.advance_limit_percent,
       cooldown_days:                data.cooldown_days,
       processing_fee:               data.processing_fee,

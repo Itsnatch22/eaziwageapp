@@ -3,6 +3,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { EmployerStatusPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer } from '@/lib/notifications';
+import { resolveDefaultAdvanceRange } from '@/lib/services/advance-defaults';
 import { getEnv } from '@/env';
 
 const env = getEnv();
@@ -56,7 +57,7 @@ export async function PATCH(
 
   const { data: initialEmployer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
-    .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,currency,max_advance_percentage,cooldown_period')
+    .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
     .eq('id', id)
     .maybeSingle();
   let employer = initialEmployer;
@@ -72,7 +73,7 @@ export async function PATCH(
     if (primaryEmp) {
       const { data: fallbackOnboarding } = await adminSupabase
         .from('employer_onboarding')
-        .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,currency,max_advance_percentage,cooldown_period')
+        .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
         .eq('user_id', primaryEmp.user_id)
         .maybeSingle();
       
@@ -112,10 +113,31 @@ export async function PATCH(
           ? initial_credit_limit
           : undefined);
 
+  // Flat 500/50000 (KES-shaped) fallbacks previously applied to every employer
+  // regardless of country — a Ugandan/Tanzanian/Rwandan employer got the same raw
+  // number as a Kenyan one, wildly under- or over-valuing the actual limit in their
+  // currency. Scale the baseline via the live exchange rate for their currency instead.
+  const needsDefaultRange =
+    status === 'approved' &&
+    (typeof resolvedMinAdvance !== 'number' || resolvedMinAdvance <= 0) &&
+    (!employer.min_advance_amount || Number(employer.min_advance_amount) <= 0);
+  const needsDefaultMax =
+    status === 'approved' &&
+    (!(employer as { max_advance_amount?: number | null }).max_advance_amount ||
+      Number((employer as { max_advance_amount?: number | null }).max_advance_amount) <= 0);
+  const defaultRange =
+    needsDefaultRange || needsDefaultMax
+      ? await resolveDefaultAdvanceRange(adminSupabase, employer.country)
+      : null;
+
   if (typeof resolvedMinAdvance === 'number' && resolvedMinAdvance > 0) {
     updatePayload.min_advance_amount = Math.round(resolvedMinAdvance);
-  } else if (status === 'approved' && (!employer.min_advance_amount || Number(employer.min_advance_amount) <= 0)) {
-    updatePayload.min_advance_amount = 500;
+  } else if (needsDefaultRange && defaultRange) {
+    updatePayload.min_advance_amount = defaultRange.min_advance_amount;
+  }
+
+  if (needsDefaultMax && defaultRange) {
+    updatePayload.max_advance_amount = defaultRange.max_advance_amount;
   }
 
   const { error: updateError } = await adminSupabase
@@ -189,7 +211,8 @@ export async function PATCH(
       // cooldown_period → cooldown_days
       advance_limit_percent: (employer as { max_advance_percentage?: number | null }).max_advance_percentage ?? 50,
       cooldown_days:         (employer as { cooldown_period?: number | null }).cooldown_period ?? 7,
-      min_advance_amount:    (updatePayload.min_advance_amount as number | undefined) ?? employer.min_advance_amount ?? 500,
+      min_advance_amount:    (updatePayload.min_advance_amount as number | undefined) ?? employer.min_advance_amount ?? defaultRange?.min_advance_amount ?? 500,
+      max_advance_amount:    (updatePayload.max_advance_amount as number | undefined) ?? (employer as { max_advance_amount?: number | null }).max_advance_amount ?? defaultRange?.max_advance_amount ?? 50000,
       updated_at:          new Date().toISOString(),
     };
 

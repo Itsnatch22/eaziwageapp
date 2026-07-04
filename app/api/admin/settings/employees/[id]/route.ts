@@ -119,13 +119,15 @@ export async function PUT(req: NextRequest, { params }: IdRouteContext) {
 
     const { data: employee, error: empError } = await adminSupabase
       .from('employees')
-      .select('id, employer_id, user_id')
+      .select('id, employer_id, user_id, employer:employers!employer_id (min_advance_amount, max_advance_amount)')
       .eq('id', id)
       .single();
 
     if (empError || !employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
+
+    const employerAdvanceRange = Array.isArray(employee.employer) ? employee.employer[0] : employee.employer;
 
     const { data: current } = await adminSupabase
       .from('employee_ewa_settings')
@@ -178,8 +180,12 @@ export async function PUT(req: NextRequest, { params }: IdRouteContext) {
       employer_live_id:       employee.employer_id,
       ewa_enabled:            validated.ewa_enabled ?? true,
       max_advance_percentage: validated.advance_limit_percent ?? 50,
-      min_advance_amount:     500,
-      max_advance_amount:     50000,
+      // Inherit the employer's own (currency-appropriate) min/max advance amount
+      // rather than a flat KES-shaped literal — a Ugandan/Tanzanian/Rwandan employer's
+      // employees were previously all defaulted to Kenya-scale 500/50000 regardless
+      // of their employer's actual currency.
+      min_advance_amount:     employerAdvanceRange?.min_advance_amount ?? 500,
+      max_advance_amount:     employerAdvanceRange?.max_advance_amount ?? 50000,
       cooldown_period:        validated.cooldown_days ?? 7,
       updated_by:             user.id,
       updated_at:             new Date().toISOString(),
