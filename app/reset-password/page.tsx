@@ -6,7 +6,7 @@ import Link         from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, XCircle, Eye, EyeOff,
-  Lock, ArrowRight, ShieldCheck, KeyRound, Wallet
+  Lock, ArrowRight, ShieldCheck, Wallet
 } from 'lucide-react';
 import { cn }                  from '@/lib/utils';
 import { Input }                   from '@/components/ui/input';
@@ -203,16 +203,7 @@ export default function ResetPasswordPage() {
       case 'submitting':
         return (
           <div>
-            <div className="flex justify-center mb-8">
-              <div className="relative w-16 h-16">
-                <div className="w-16 h-16 bg-linear-to-br from-green-600 to-green-800 rounded-2xl flex items-center justify-center shadow-lg shadow-green-700/30">
-                  <KeyRound className="w-8 h-8 text-white" strokeWidth={1.75} />
-                </div>
-                <div className="absolute inset-0 bg-green-600/20 rounded-2xl blur-xl -z-10" />
-              </div>
-            </div>
-
-            <div className="text-center mb-8">
+            <div className="text-center mb-10">
               <h1 className="text-3xl font-bold font-serif text-slate-900 dark:text-white mb-3 tracking-tight">
                 Set new password
               </h1>
@@ -463,14 +454,14 @@ export default function ResetPasswordPage() {
               <div className="flex justify-center mb-6">
                 <Link href="/" className="flex items-center gap-3 group">
                   <div className="relative">
-                    <div className="w-11 h-11 bg-linear-to-br from-green-600 to-green-800 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-green-700/30">
+                    <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
                       <Wallet
                         className="h-8 w-8 text-emerald-700"
                         strokeWidth={2}
                         aria-hidden="true"
                       />
                     </div>
-                    <div className="absolute inset-0 bg-green-600/20 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
+                    <div className="absolute inset-0 bg-green-600/10 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-300 -z-10" />
                   </div>
                   <span className="font-bold text-2xl text-slate-900 dark:text-white tracking-tight">
                     EaziWage
