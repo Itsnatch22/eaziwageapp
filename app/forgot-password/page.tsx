@@ -186,12 +186,6 @@ export default function ForgotPasswordPage() {
               </Link>
             </div>
 
-            <div className="flex justify-center mb-8">
-              <div className="w-16 h-16 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl flex items-center justify-center">
-                <Lock className="w-8 h-8 text-green-600 dark:text-green-400" />
-              </div>
-            </div>
-
             <div className="text-center mb-10">
               <h1 className="text-4xl font-bold font-serif text-slate-900 dark:text-white leading-tight mb-4 tracking-tight">
                 Forgot your{' '}
