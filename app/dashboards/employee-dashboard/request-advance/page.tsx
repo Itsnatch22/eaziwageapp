@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { EmployeePortalLayout } from "@/components/employee/EmployeeLayout";
+import { sessionFetch } from "@/lib/client/session-fetch";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 
@@ -293,7 +294,7 @@ export default function RequestAdvance() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/employee-dashboard/request-advance", {
+      const res = await sessionFetch("/api/employee-dashboard/request-advance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -302,6 +303,7 @@ export default function RequestAdvance() {
             payment_method_id: selectedPaymentMethodId,
           }),
         });
+      if (res.status === 401) return;
       if (res.ok) {
         toast.success("Funds requested successfully!");
         router.push("/dashboards/employee-dashboard/transactions");

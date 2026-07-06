@@ -68,6 +68,29 @@ export async function POST(
   const msisdn = formatPhoneNumber(employer.mobile_money_number, dialCode);
   const merchantReference = generatePaydayRecoupmentReference(employer.id, new Date(recoupment.payday_date));
 
+  // Atomically claim the row before calling DusuPay — same pattern as the
+  // advance-request race fix. merchant_reference is deterministic per
+  // recoupment, so a second concurrent request DusuPay never even sees would
+  // still be deduped there, but claiming first means we only ever make one
+  // outbound call instead of relying solely on DusuPay's own idempotency.
+  const { data: claimed, error: claimError } = await adminSupabase
+    .from('payday_recoupments')
+    .update({
+      status: 'collecting',
+      merchant_reference: merchantReference,
+      responded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('status', 'pending_response')
+    .select('id')
+    .maybeSingle();
+
+  if (claimError) return dbErrorResponse('payday-recoupment/confirm', claimError);
+  if (!claimed) {
+    return NextResponse.json({ error: 'This recoupment was already confirmed.' }, { status: 409 });
+  }
+
   let collectionResponse;
   try {
     collectionResponse = await dusupayClient.initializeCollection({
@@ -104,10 +127,7 @@ export async function POST(
   const { data: updated, error: updateError } = await adminSupabase
     .from('payday_recoupments')
     .update({
-      status: 'collecting',
-      merchant_reference: merchantReference,
       internal_reference: collectionResponse.data?.internal_reference ?? null,
-      responded_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

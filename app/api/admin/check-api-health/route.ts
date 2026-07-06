@@ -124,6 +124,7 @@ export async function POST(req: Request) {
     checkRedis(),
     checkResend(),
     checkVercel(),
+    checkStalledDisbursements(),
     getSystemMetrics(),
   ]);
 
@@ -417,6 +418,55 @@ async function checkVercel(): Promise<HealthCheckResult> {
     });
   } catch {
     return buildResult('Vercel Hosting', 'Vercel', 'down', Date.now() - start);
+  }
+}
+
+// Every other check here only asks whether a *vendor* is reachable — none of
+// them ask whether EaziWage's own disbursement pipeline is actually moving
+// money. DusuPay, Redis, Resend can all report healthy while a bug in
+// payout-service.ts, a missed webhook, or a silently-failing cron leaves
+// advances stuck in 'processing' forever. updated_at on advances is
+// DB-trigger-maintained (trg_advances_updated_at fires on every UPDATE), so
+// "processing and untouched for a while" reliably means "should have moved
+// by now and didn't" rather than a false positive from a fast-moving row.
+const STALLED_PROCESSING_MINUTES = 30;
+
+async function checkStalledDisbursements(): Promise<HealthCheckResult> {
+  const start = Date.now();
+  try {
+    const cutoff = new Date(Date.now() - STALLED_PROCESSING_MINUTES * 60 * 1000).toISOString();
+
+    const { data: stalled, error } = await supabase
+      .from('advances')
+      .select('id, updated_at')
+      .eq('status', 'processing')
+      .lt('updated_at', cutoff)
+      .limit(20);
+
+    if (error) {
+      return buildResult('Disbursement Pipeline', 'Internal', 'degraded', Date.now() - start, {
+        metadata: { error: error.message },
+      });
+    }
+
+    const count = stalled?.length ?? 0;
+    return buildResult(
+      'Disbursement Pipeline',
+      'Internal',
+      count > 0 ? 'down' : 'healthy',
+      Date.now() - start,
+      {
+        metadata: {
+          stalled_count: count,
+          threshold_minutes: STALLED_PROCESSING_MINUTES,
+          stalled_advance_ids: (stalled ?? []).map((r) => r.id),
+        },
+      }
+    );
+  } catch (err: unknown) {
+    return buildResult('Disbursement Pipeline', 'Internal', 'degraded', Date.now() - start, {
+      metadata: { error: err instanceof Error ? err.message : 'Unknown error' },
+    });
   }
 }
 

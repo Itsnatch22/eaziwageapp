@@ -10,6 +10,7 @@ import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { sessionFetch } from '@/lib/client/session-fetch';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
@@ -451,11 +452,12 @@ const WalletPage = () => {
                     }
                     setSubmittingTopUp(true);
                     try {
-                      const res = await fetch('/api/employer-dashboard/wallet', {
+                      const res = await sessionFetch('/api/employer-dashboard/wallet', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ amount: topUpAmount }),
                       });
+                      if (res.status === 401) return;
                       if (res.ok) {
                         toast.success('Top-up request submitted for admin review');
                         setShowTopUpModal(false);

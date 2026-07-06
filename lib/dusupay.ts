@@ -56,13 +56,6 @@ export const MOBILE_MONEY_PROVIDERS: Record<string, Record<string, string>> = {
   RW: { mtn: 'mtn_rw', airtel: 'airtel_rw' },
 };
 
-export const COUNTRY_CURRENCY: Record<string, Currency> = {
-  KE: Currency.KES,
-  TZ: Currency.TZS,
-  UG: Currency.UGX,
-  RW: Currency.RWF,
-};
-
 type DusupayPayloadValue = string | number | boolean | null | undefined;
 
 interface DusupayWebhookPayload extends Record<string, DusupayPayloadValue> {
@@ -90,20 +83,6 @@ interface DusupayApiResponse {
   [key: string]: unknown;
 }
 
-interface PayoutPayload {
-  merchant_reference: string;
-  transaction_method: PayoutMethod;
-  currency: Currency;
-  amount: number;
-  provider_code: string;
-  customer_name: string;
-  description: string;
-  msisdn?: string;
-  account_number?: string;
-  callback_url?: string;
-  extra_params?: Record<string, string>;
-}
-
 interface BankInfo {
   bank_code?: string;
   bank_name?: string;
@@ -118,21 +97,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const getErrorMessage = (err: unknown, fallback: string) =>
   err instanceof Error ? err.message : fallback;
 
-
-export interface PayoutRequest {
-  amount: number;
-  currency: string;
-  method: PayoutMethod;
-  providerId: string;           // provider_code in Dusupay
-  accountNumber: string;
-  accountName: string;
-  merchantReference?: string;
-  narration?: string;
-  callbackUrl?: string;
-
-  bankCode?: string;
-  branchCode?: string;
-}
 
 export interface PayoutResponse {
   success: boolean;
@@ -167,135 +131,6 @@ export class DusupayService {
       ...(this.config.secretKey && { 'secret-key': this.config.secretKey }),
     };
   }
-
-  private generateReference(prefix = 'EWA'): string {
-    const ts = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
-    const random = Math.random().toString(36).substring(2, 10).toUpperCase();
-    return `${prefix}-${ts}-${random}`;
-  }
-
-  getProviderId(countryCode: string, providerName: string): string | null {
-    const providers = MOBILE_MONEY_PROVIDERS[countryCode.toUpperCase()] ?? {};
-    // Strip separators entirely (not replace with '_') so "M-Pesa" and "mpesa" both
-    // normalize to "mpesa" — matches lib/dusupay/utils.ts's resolveProviderCode.
-    const key = providerName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return providers[key] ?? null;
-  }
-
-  getCurrency(countryCode: string): Currency {
-    return COUNTRY_CURRENCY[countryCode.toUpperCase()] ?? Currency.USD;
-  }
-
-
-  async createMobileMoneyPayout(
-    amount: number,
-    countryCode: string,
-    providerName: string,
-    phoneNumber: string,
-    recipientName: string,
-    reference?: string,
-    narration?: string,
-    callbackUrl?: string
-  ): Promise<PayoutResponse> {
-    if (!this.config.isConfigured) {
-      return { success: false, message: 'Dusupay not configured', errorCode: 'NOT_CONFIGURED' };
-    }
-
-    const providerCode = this.getProviderId(countryCode, providerName);
-    if (!providerCode) {
-      return { success: false, message: `Unknown provider ${providerName} for ${countryCode}`, errorCode: 'INVALID_PROVIDER' };
-    }
-
-    // account_number (not msisdn) is the field DusuPay's live API accepts for
-    // MOBILE_MONEY payouts — confirmed by hand against /payout/send-funds;
-    // sending msisdn is rejected with "property msisdn should not exist".
-    const payload: PayoutPayload = {
-      merchant_reference: reference || this.generateReference(),
-      transaction_method: PayoutMethod.MOBILE_MONEY,
-      currency: this.getCurrency(countryCode),
-      amount,
-      provider_code: providerCode,
-      account_number: phoneNumber,
-      customer_name: recipientName,
-      description: narration || 'EaziWage Advance Disbursement',
-    };
-
-    if (callbackUrl) payload.callback_url = callbackUrl;
-
-    return this._executePayout(payload);
-  }
-
-  async createBankPayout(
-    amount: number,
-    countryCode: string,
-    bankCode: string,
-    accountNumber: string,
-    accountName: string,
-    reference?: string,
-    narration?: string,
-    callbackUrl?: string,
-    branchCode?: string
-  ): Promise<PayoutResponse> {
-    if (!this.config.isConfigured) {
-      return { success: false, message: 'Dusupay not configured', errorCode: 'NOT_CONFIGURED' };
-    }
-
-    const payload: PayoutPayload = {
-      merchant_reference: reference || this.generateReference(),
-      transaction_method: PayoutMethod.BANK,
-      currency: this.getCurrency(countryCode),
-      amount,
-      provider_code: 'bank_ng', // adjust per country (use /data/payment-providers for exact)
-      account_number: accountNumber,
-      customer_name: accountName,
-      description: narration || 'EaziWage Advance Disbursement',
-      extra_params: { bank_code: bankCode },
-    };
-
-    if (branchCode) {
-      payload.extra_params = { ...payload.extra_params, branch_code: branchCode };
-    }
-    if (callbackUrl) payload.callback_url = callbackUrl;
-
-    return this._executePayout(payload);
-  }
-
-  private async _executePayout(payload: PayoutPayload): Promise<PayoutResponse> {
-    try {
-      const res = await fetch(`${this.baseUrl}/payout/send-funds`, {
-        method: 'POST',
-        headers: this.headers,
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json() as DusupayApiResponse;
-
-      if (res.ok && (data.code === 200 || data.code === 202)) {
-        return {
-          success: true,
-          message: data.message || 'Payout initiated',
-          internalReference: data.data?.internal_reference,
-          merchantReference: data.data?.merchant_reference,
-          status: data.data?.transaction_status as PayoutStatus,
-          raw: data,
-        };
-      }
-
-      return {
-        success: false,
-        message: data.message || 'Payout failed',
-        errorCode: String(data.code || res.status),
-        raw: data,
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        message: getErrorMessage(err, 'Network error'),
-        errorCode: 'NETWORK_ERROR',
-      };
-    }
-  }
-
 
   async checkPayoutStatus(merchantReference: string): Promise<PayoutResponse> {
     if (!this.config.isConfigured) {
@@ -407,12 +242,3 @@ export class DusupayService {
 
 
 export const dusupay = new DusupayService();
-
-
-export async function initiatePayoutAction(request: PayoutRequest) {
-  'use server';
-  if (request.method === PayoutMethod.MOBILE_MONEY) {
-
-  }
-
-}

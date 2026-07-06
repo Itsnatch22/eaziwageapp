@@ -18,9 +18,10 @@ const PUBLIC_LABELS: Record<string, string> = {
   'Supabase': 'Database & Authentication',
   "Africa's Talking": 'SMS Notifications',
   'DusuPay': 'Payments & Disbursements',
-  'Redis': 'Rate Limiting',
-  'Resend': 'Email Delivery',
-  'Vercel': 'Web Hosting',
+  'Redis Cache': 'Rate Limiting',
+  'Resend Email': 'Email Delivery',
+  'Vercel Hosting': 'Web Hosting',
+  'Disbursement Pipeline': 'Transaction Processing',
 };
 
 type PublicStatus = 'operational' | 'degraded' | 'down';

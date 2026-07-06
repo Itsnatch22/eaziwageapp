@@ -6,6 +6,7 @@ import { Landmark, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
+import { sessionFetch } from '@/lib/client/session-fetch';
 
 interface Recoupment {
   id: string;
@@ -46,7 +47,8 @@ export function PaydayRecoupmentModal() {
   const handleConfirm = async () => {
     setActing(true);
     try {
-      const res = await fetch(`/api/employer-dashboard/payday-recoupment/${recoupment.id}/confirm`, { method: 'POST' });
+      const res = await sessionFetch(`/api/employer-dashboard/payday-recoupment/${recoupment.id}/confirm`, { method: 'POST' });
+      if (res.status === 401) return;
       const data = await res.json();
       if (res.ok) {
         toast.success('Recoupment initiated — check your phone to approve the request.');
@@ -65,7 +67,8 @@ export function PaydayRecoupmentModal() {
   const handleDecline = async () => {
     setActing(true);
     try {
-      const res = await fetch(`/api/employer-dashboard/payday-recoupment/${recoupment.id}/decline`, { method: 'POST' });
+      const res = await sessionFetch(`/api/employer-dashboard/payday-recoupment/${recoupment.id}/decline`, { method: 'POST' });
+      if (res.status === 401) return;
       if (res.ok) {
         toast.info('Recoupment declined. This will need to be resolved before new advances can be requested.');
         setRecoupment(null);
