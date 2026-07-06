@@ -2713,16 +2713,20 @@ const AdminSettings: React.FC = () => {
   
   const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [logsPage, setLogsPage] = useState(0);
+  const [logsTotal, setLogsTotal] = useState(0);
+  const LOGS_PAGE_SIZE = 10;
 
   useEffect(() => {
     async function fetchSecurityLogs() {
       if (activeTab === 'security') {
         setLogsLoading(true);
         try {
-          const res = await fetch('/api/auth/activity-logs');
+          const res = await fetch(`/api/auth/activity-logs?page=${logsPage}`);
           if (res.ok) {
             const data = await res.json();
             setSecurityLogs(data.logs || []);
+            setLogsTotal(data.total ?? 0);
           }
         } finally {
           setLogsLoading(false);
@@ -2730,7 +2734,7 @@ const AdminSettings: React.FC = () => {
       }
     }
     fetchSecurityLogs();
-  }, [activeTab]);
+  }, [activeTab, logsPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3000,21 +3004,49 @@ const AdminSettings: React.FC = () => {
                 ) : securityLogs.length === 0 ? (
                   <p className="text-sm text-slate-500 text-center py-8">No security events recorded.</p>
                 ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                    {securityLogs.map((log, idx) => (
-                      <div key={idx} className="py-4 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white capitalize">{log.action.replace('_', ' ')}</p>
-                          <p className="text-xs text-slate-500 mt-1">{new Date(log.created_at).toLocaleString()}</p>
+                  <>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {securityLogs.map((log, idx) => (
+                        <div key={idx} className="py-4 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-slate-900 dark:text-white capitalize">{log.action.replace('_', ' ')}</p>
+                            <p className="text-xs text-slate-500 mt-1">{new Date(log.created_at).toLocaleString()}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                              {log.metadata?.ip || 'Verified'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full uppercase tracking-widest border border-slate-200 dark:border-slate-700">
-                            {log.metadata?.ip || 'Verified'}
-                          </span>
+                      ))}
+                    </div>
+
+                    {logsTotal > LOGS_PAGE_SIZE && (
+                      <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700">
+                        <p className="text-xs text-slate-500">
+                          Page {logsPage + 1} of {Math.ceil(logsTotal / LOGS_PAGE_SIZE)} &middot; {logsTotal} total
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setLogsPage((p) => Math.max(0, p - 1))}
+                            disabled={logsPage === 0}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Previous
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLogsPage((p) => ((p + 1) * LOGS_PAGE_SIZE < logsTotal ? p + 1 : p))}
+                            disabled={(logsPage + 1) * LOGS_PAGE_SIZE >= logsTotal}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Next
+                          </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             </SectionCard>

@@ -40,6 +40,8 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { DashboardBreadcrumbs } from "../layout/DashboardBreadcrumbs";
 import PushClient from '@/components/push/PushClient';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { useSidebarPanel } from '@/hooks/useSidebarPanel';
+import { SidebarResizeControls } from '../layout/SidebarResizeControls';
 
 
 
@@ -69,9 +71,14 @@ interface SidebarNavProps {
   isOpen: boolean;
   onClose: () => void;
   userProfile: UserProfile | null;
+  width: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onStartResize: (e: React.MouseEvent) => void;
+  isResizing: boolean;
 }
 
-const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
+const AdminSidebarNav = ({ isOpen, onClose, userProfile, width, collapsed, onToggleCollapse, onStartResize, isResizing }: SidebarNavProps) => {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
@@ -159,36 +166,47 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
 
       
       <aside
+        style={{ width }}
         className={cn(
-          "fixed left-0 top-0 h-screen w-72 z-50 transition-transform duration-300 lg:translate-x-0",
+          "fixed left-0 top-0 h-screen z-50 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
+          isResizing ? "" : "transition-[transform,width] duration-300",
         )}
       >
-        
+
         <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50" />
 
+        <SidebarResizeControls
+          collapsed={collapsed}
+          onToggleCollapse={onToggleCollapse}
+          onStartResize={onStartResize}
+          hoverLineClassName="group-hover:bg-green-500/60"
+        />
+
         <div className="relative flex flex-col h-full overflow-hidden">
-          
+
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 shrink-0">
             <Link href="/admin" className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
+              <div className="w-12 h-12 shrink-0 bg-linear-to-br from-emerald-500/20 to-green-500/20 ring-1 ring-emerald-500/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg shadow-green-600/10 border border-slate-100 dark:border-slate-800">
                 <Wallet
                   className="h-8 w-8 text-emerald-700"
                   strokeWidth={2}
                   aria-hidden="true"
                 />
               </div>
-              <div>
-                <span className="font-heading font-bold text-xl text-slate-900 dark:text-white block">
-                  EaziWage
-                </span>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300">
-                  Admin Hub
-                </span>
-              </div>
+              {!collapsed && (
+                <div className="min-w-0">
+                  <span className="font-heading font-bold text-xl text-slate-900 dark:text-white block">
+                    EaziWage
+                  </span>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300">
+                    Admin Hub
+                  </span>
+                </div>
+              )}
             </Link>
 
-            
+
             <button
               onClick={onClose}
               className="absolute top-6 right-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
@@ -207,8 +225,10 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
+                  title={collapsed ? item.label : undefined}
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
+                    collapsed && "justify-center px-0",
                     active
                       ? "bg-green-600 text-white shadow-lg shadow-green-600/25"
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50",
@@ -216,7 +236,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
                 >
                   <div
                     className={cn(
-                      "w-9 h-9 rounded-xl flex items-center justify-center transition-all",
+                      "w-9 h-9 shrink-0 rounded-xl flex items-center justify-center transition-all",
                       active
                         ? "bg-white/20"
                         : "bg-linear-to-br from-green-600 to-emerald-600",
@@ -224,61 +244,67 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
                   >
                     <Icon className="w-5 h-5 text-white" />
                   </div>
-                  <span className="font-medium">{item.label}</span>
-                  {active && <ChevronRight className="w-4 h-4 ml-auto" />}
+                  {!collapsed && <span className="font-medium">{item.label}</span>}
+                  {!collapsed && active && <ChevronRight className="w-4 h-4 ml-auto" />}
                 </Link>
               );
             })}
 
-            
-            <div className="mt-6 bg-linear-to-br from-green-600/10 to-emerald-500/10 dark:from-green-600/20 dark:to-emerald-500/20 rounded-2xl p-4 border border-green-600/20">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-linear-to-br from-green-600 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
-                  <HelpCircle className="w-5 h-5 text-white" />
+            {!collapsed && (
+              <div className="mt-6 bg-linear-to-br from-green-600/10 to-emerald-500/10 dark:from-green-600/20 dark:to-emerald-500/20 rounded-2xl p-4 border border-green-600/20">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-linear-to-br from-green-600 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                    <HelpCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                      Admin Help
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Documentation
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                    Admin Help
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Documentation
-                  </p>
-                </div>
+                <Link
+                  href="/admin/docs"
+                  className="w-full mt-2 px-4 py-2 bg-white dark:bg-slate-800 text-green-600 text-sm font-medium rounded-xl hover:shadow-md transition-all inline-block text-center"
+                >
+                  View Docs
+                </Link>
               </div>
-              <Link
-                href="/admin/docs"
-                className="w-full mt-2 px-4 py-2 bg-white dark:bg-slate-800 text-green-600 text-sm font-medium rounded-xl hover:shadow-md transition-all inline-block text-center"
-              >
-                View Docs
-              </Link>
-            </div>
+            )}
           </nav>
 
-          
+
           <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 shrink-0">
-            <div className="flex items-center gap-3 mb-4">
-              <Avatar className="w-11 h-11 rounded-xl shadow-md border border-slate-100 dark:border-slate-800">
+            <div className={cn("flex items-center gap-3 mb-4", collapsed && "justify-center")}>
+              <Avatar className="w-11 h-11 rounded-xl shadow-md border border-slate-100 dark:border-slate-800 shrink-0">
                 <AvatarImage src={avatarUrl} alt={fullName} />
                 <AvatarFallback className="bg-linear-to-br from-green-600 to-emerald-600 text-white font-bold text-sm">
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                  {fullName}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                  {userProfile?.email || "No email"}
-                </p>
-              </div>
+              {!collapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                    {fullName}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {userProfile?.email || "No email"}
+                  </p>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => logout()}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors"
+                title={collapsed ? 'Sign Out' : undefined}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors",
+                )}
               >
                 <LogOut className="w-4 h-4" />
-                Sign Out
+                {!collapsed && 'Sign Out'}
               </button>
             </div>
           </div>
@@ -376,6 +402,7 @@ interface AdminPortalLayoutProps {
 
 export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebar = useSidebarPanel({ storageKey: 'admin' });
   const globalUser = useAuthStore((state) => state.user);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
@@ -611,9 +638,14 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         userProfile={userProfile}
+        width={sidebar.effectiveWidth}
+        collapsed={sidebar.isDesktop && sidebar.collapsed}
+        onToggleCollapse={sidebar.toggleCollapsed}
+        onStartResize={sidebar.startResize}
+        isResizing={sidebar.isResizing}
       />
 
-      <div className="lg:ml-72 relative">
+      <div className="relative" style={{ marginLeft: sidebar.contentMarginLeft, transition: sidebar.isResizing ? undefined : 'margin-left 300ms' }}>
         <AdminTopHeader
           onMenuClick={() => setSidebarOpen(true)}
           userProfile={userProfile}
