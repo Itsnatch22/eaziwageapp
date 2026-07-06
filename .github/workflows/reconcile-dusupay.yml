@@ -1,0 +1,27 @@
+name: Reconcile DusuPay Ledger
+
+on:
+  schedule:
+    - cron: '30 5 * * *'   # 05:30 UTC = 08:30 EAT daily, after the 05:00 overdue check
+  workflow_dispatch:        # allows manual trigger from GitHub Actions tab
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare Supabase advance status against DusuPay
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://app.eaziwage.com/api/cron/reconcile-dusupay)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Response: $BODY"
+          echo "Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Reconciliation check failed with status $HTTP_CODE"
+            exit 1
+          fi

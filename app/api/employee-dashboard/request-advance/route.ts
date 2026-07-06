@@ -13,6 +13,7 @@ import { advanceLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requestLogger } from '@/lib/logger';
 import { decryptAndMaskRow } from '@/lib/paymentMethodsService';
 import { tryAutoApproveAdvance } from '@/lib/services/advance-approval';
+import { isConnectionExhaustionError } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -383,6 +384,15 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (insertError) {
+      // uq_advances_one_pending_per_employee (partial unique index on
+      // employee_id WHERE status='pending') — the earlier existingPending
+      // check above is a read, not a lock, so two near-simultaneous requests
+      // can both pass it before either insert commits. The DB constraint is
+      // the real enforcement point; this just turns the resulting race loser's
+      // 23505 into the same clean 409 the pre-check gives the common case.
+      if (insertError.code === '23505') {
+        return errorResponse(409, 'You already have a pending advance request.');
+      }
       return errorResponse(500, 'Advance insert failed', { insertError, payload });
     }
 
@@ -461,6 +471,14 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     log.error('Unexpected error', { err, userId, employeeId, employerId, paymentMethodId, parsedPayload });
+
+    if (isConnectionExhaustionError(err)) {
+      return NextResponse.json(
+        { message: 'The service is temporarily busy. Please try again in a few seconds.' },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }

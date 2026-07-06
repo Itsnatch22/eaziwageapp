@@ -34,11 +34,25 @@ export async function GET(req: NextRequest) {
         if (result.status === 'COMPLETED') dbStatus = 'completed';
         if (['FAILED', 'CANCELLED'].includes(result.status)) dbStatus = 'failed';
 
-        if (dbStatus && advance.status !== dbStatus) {
+        // Same terminal-status guard as the webhook handler (handlePayoutEvent
+        // in app/api/webhook/dusupay/route.ts) — without it, this route could
+        // flip an already-completed/repaid advance back to 'failed' (or vice
+        // versa) just because a later status poll disagreed, with no audit
+        // trail of the conflict. Once an advance leaves 'processing', only a
+        // real repayment/admin action should move it again.
+        if (['completed', 'failed', 'repaid'].includes(advance.status)) {
+          if (dbStatus && dbStatus !== advance.status) {
+            console.warn('[Dusupay Verify] Ignoring status disagreement on terminal advance', {
+              advanceId: advance.id,
+              currentStatus: advance.status,
+              dusupayStatus: result.status,
+            });
+          }
+        } else if (dbStatus && advance.status !== dbStatus) {
           await supabaseAdmin
             .from('advances')
-            .update({ 
-              status: dbStatus, 
+            .update({
+              status: dbStatus,
               internal_reference: result.internalReference,
               ...(dbStatus === 'completed' && { disbursed_at: new Date().toISOString() })
             })

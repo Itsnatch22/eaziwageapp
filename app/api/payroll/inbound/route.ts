@@ -376,7 +376,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const syncStatus: SyncStatus =
     finalStatus === 'processed' ? 'success' : finalStatus === 'partial' ? 'partial' : 'failed';
 
-  const { error: logErr } = await supabase
+  const { data: syncLogRow, error: logErr } = await supabase
     .from('payroll_sync_logs')
     .insert({
       integration_id:   intg.id,
@@ -390,7 +390,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       upload_id:        uploadId,
       error_message:    failedCount > 0 ? `${failedCount} row(s) failed validation` : null,
       duration_ms:      durationMs,
-    });
+    })
+    .select('id')
+    .single();
 
   if (logErr) {
     console.error('[payroll/inbound] sync log insert error', logErr.message);
@@ -411,6 +413,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // lands in payroll_upload_rows but employee monthly_salary (what EWA advance
   // limits are calculated against) stays stale until someone clicks "Sync Now"
   // on the manual endpoint. A push should fully settle on its own.
+  //
+  // Failures here previously only went to console.error — the persisted batch
+  // record (payroll_uploads/payroll_sync_logs, both already written above this
+  // loop) never reflected them, so a row could show as "processed" in the UI
+  // while its actual salary update silently failed. Collected below and
+  // written back after the loop so they're visible wherever the batch result is.
+  const propagationFailures: { row: number; field: string; message: string }[] = [];
+
   for (const row of validRows) {
     if (!row.employee_code || row.gross_salary <= 0) continue;
     const salaryPatch = { monthly_salary: row.gross_salary, updated_at: new Date().toISOString() };
@@ -430,9 +440,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (empResult.error) {
       console.error('[payroll/inbound] salary update employees error', row.employee_code, empResult.error.message);
+      propagationFailures.push({ row: row.source_row, field: 'monthly_salary', message: `employees update failed: ${empResult.error.message}` });
     }
     if (onbResult.error) {
       console.error('[payroll/inbound] salary update employee_onboarding error', row.employee_code, onbResult.error.message);
+      propagationFailures.push({ row: row.source_row, field: 'monthly_salary', message: `employee_onboarding update failed: ${onbResult.error.message}` });
+    }
+  }
+
+  if (propagationFailures.length > 0) {
+    const combinedWarnings = [...warningSummary, ...propagationFailures];
+
+    await supabase
+      .from('payroll_uploads')
+      .update({ warning_summary: combinedWarnings })
+      .eq('id', uploadId);
+
+    if (syncLogRow?.id) {
+      await supabase
+        .from('payroll_sync_logs')
+        .update({
+          error_message: `${propagationFailures.length} row(s) failed salary propagation after validation`,
+          status: 'partial',
+        })
+        .eq('id', syncLogRow.id);
     }
   }
 

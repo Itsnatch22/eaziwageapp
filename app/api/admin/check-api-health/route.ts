@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { checkAdminAccess, requireAdmin } from '@/lib/server/admin-auth';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { notifyAdmin } from '@/lib/notifications';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -225,6 +226,22 @@ export async function POST(req: Request) {
       { onConflict: 'date' }
     );
     if (logError) console.error('[incident_log] Upsert failed:', logError.message);
+
+    // Previously this route only ever wrote to the DB — the 15-minute
+    // GitHub Action just `exit 1`s on a non-200 HTTP response, which triggers
+    // GitHub's own passive "workflow failed" email at best. Nobody was
+    // actually paged when a real integration went down. Fire only on a
+    // severity *upgrade* within the day (first detection, or degraded→down),
+    // never on every 15-minute run while a known issue is ongoing — that
+    // would just be noise admins learn to ignore.
+    if (todayStatus !== 'healthy') {
+      void notifyAdmin({
+        type: 'system_alert',
+        title: todayStatus === 'down' ? '🔴 Service Down' : '🟡 Service Degraded',
+        message: `${affectedServices.join(', ') || 'A monitored service'} ${todayStatus === 'down' ? 'is down' : 'is degraded'}. Detected by the automated health check.`,
+        metadata: { status: todayStatus, affected_services: affectedServices, checked_at: new Date().toISOString() },
+      }).catch((err) => console.error('[check-api-health] notifyAdmin failed:', err));
+    }
   }
 
   // ── Prune rows older than 90 days ──
