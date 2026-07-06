@@ -5,6 +5,7 @@ import { RefreshCcw, Home } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import * as Sentry from "@sentry/nextjs";
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -45,6 +46,8 @@ export default function Error({ error, reset }: ErrorProps) {
     console.error("Digest:", error.digest);
     console.error("Stack:", error.stack);
     console.groupEnd();
+
+    Sentry.captureException(error);
 
     fetch("/api/log-error", {
       method: "POST",

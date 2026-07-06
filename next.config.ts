@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { withBotId } from 'botid/next/config';
+import { withSentryConfig } from '@sentry/nextjs';
 
 // Static security headers pushed to all responses.
 // Content-Security-Policy is NOT here — it is set dynamically in proxy.ts
@@ -50,4 +51,18 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withBotId(nextConfig);
+export default withSentryConfig(withBotId(nextConfig), {
+  org: 'eaziwage-holdings',
+  project: 'javascript-nextjs',
+  // Only noisy in CI where build logs are actually reviewed; quiet locally.
+  silent: !process.env.CI,
+  // No SENTRY_AUTH_TOKEN is configured yet, so source-map upload is skipped
+  // (withSentryConfig degrades gracefully — it warns, doesn't fail the
+  // build). Stack traces will show minified code until one is added to
+  // CI secrets and this build re-run.
+  widenClientFileUpload: true,
+  // disableLogger/automaticVercelMonitors are the deprecated top-level forms
+  // of these, and neither is supported under Turbopack (which this project's
+  // dev server and builds use) — omitted rather than set via the new
+  // webpack.* nesting, since that nesting only takes effect for webpack builds.
+});
