@@ -49,8 +49,12 @@ export async function requireFounder(): Promise<AdminContext | NextResponse<{ er
   }
 
   const cookieStore = await cookies();
+  // Same PLAYWRIGHT_TEST bypass as proxy.ts's shared MFA gate — see the comment
+  // there for why. Gated on NODE_ENV !== 'production' for the same reason.
+  const isPlaywrightTestBypass = process.env.PLAYWRIGHT_TEST === '1' && process.env.NODE_ENV !== 'production';
   const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  const mfaSatisfied = !(aalData?.nextLevel === 'aal2' && aalData.currentLevel !== 'aal2')
+  const mfaSatisfied = isPlaywrightTestBypass
+    || !(aalData?.nextLevel === 'aal2' && aalData.currentLevel !== 'aal2')
     || verifyMfaBackupCookie(cookieStore.get(MFA_BACKUP_COOKIE)?.value, user.id)
     || verifyDeviceTrustCookie(cookieStore.get(DEVICE_TRUST_COOKIE)?.value, user.id);
 

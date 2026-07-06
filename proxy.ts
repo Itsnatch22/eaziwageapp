@@ -208,8 +208,18 @@ export async function proxy(req: NextRequest) {
     // (hasValidDeviceTrustCookie), matching standard practice of only
     // re-challenging on first login, a new/unrecognized device, or sensitive
     // account changes.
+    //
+    // PLAYWRIGHT_TEST bypass: same pattern as the reCAPTCHA bypass and the
+    // rate-limit no-op (lib/rate-limit.ts) — Playwright's global-setup logs in
+    // via a raw password POST with no way to complete a real TOTP challenge,
+    // so once the test admin account has real MFA enabled (as it now does),
+    // every authenticated test would otherwise dead-end on the MFA challenge
+    // screen. Gated on NODE_ENV !== 'production' too, so a leaked/misconfigured
+    // env var can't disable MFA in production on its own.
+    const isPlaywrightTestBypass = process.env.PLAYWRIGHT_TEST === '1' && process.env.NODE_ENV !== 'production';
     const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    const mfaRequired = aalData?.nextLevel === 'aal2'
+    const mfaRequired = !isPlaywrightTestBypass
+      && aalData?.nextLevel === 'aal2'
       && aalData.currentLevel !== 'aal2'
       && !hasValidBackupCodeCookie(req, user.id)
       && !hasValidDeviceTrustCookie(req, user.id);
