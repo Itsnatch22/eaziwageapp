@@ -64,32 +64,33 @@ const docSections = [
       },
       {
         title: 'Understanding Your Role',
-        description: 'Admin permissions, responsibilities, and access levels',
+        description: 'Admin permissions and core responsibilities',
         path: '#admin-roles',
         difficulty: 'beginner',
         content: {
-          overview: 'EaziWage uses a tiered admin permission model. Not all admins see or can do the same things. Understanding your access level is critical before taking any action on the platform.',
+          overview: 'As an EaziWage admin, you have full access to all platform functions and data. Your role is to ensure smooth operations across employer onboarding, employee oversight, advance approvals, KYC verification, and financial reconciliation.',
           sections: [
             {
-              heading: 'Admin Tiers',
-              body: 'There are three admin tiers on EaziWage:',
+              heading: 'Admin Responsibilities',
+              body: 'All admins have the same access level and share responsibility for:',
               steps: [
-                'Super Admin — Full platform access. Can create/delete other admins, modify global settings, and access all financial data. Typically restricted to 2–3 people in your organisation.',
-                'Operations Admin — Can manage employer and employee accounts, approve/reject advances, and handle KYC verification. Cannot modify platform-level settings.',
-                'Read-Only Admin — View-only access across all modules. Used for auditors, compliance officers, or support staff who need visibility without write access.',
+                'Employer Onboarding — Review and approve employer applications, verify KYC documents, and assess risk profiles.',
+                'Employee KYC & Verification — Ensure employee documents are complete and valid before advance eligibility.',
+                'Advance Approvals — Review flagged advance requests, approve or reject, and ensure timely processing (target: same business day for manual reviews).',
+                'Disbursement Management — Monitor payment status, resolve failed transactions, and handle customer inquiries.',
+                'KYC Reviews — Conduct ongoing compliance reviews and verify employer/employee documentation remains current.',
+                'Financial Reconciliation — Match transactions, investigate discrepancies, and ensure accurate accounting.',
               ],
             },
             {
-              heading: 'Responsibility Matrix',
-              body: 'Each admin tier carries specific responsibilities. Operations Admins are accountable for SLA adherence on KYC reviews (target: 48 hours) and advance disbursement approvals (target: same business day). Super Admins own platform configuration changes and must document every system-level change in the audit trail.',
-              warnings: [
-                'Never share admin credentials. Each action is logged against a specific admin account — shared logins compromise your audit trail.',
-                'If you are unsure of your tier, contact the Super Admin before performing any write actions.',
+              heading: 'Core Principles',
+              body: 'All admin actions are governed by these principles:',
+              steps: [
+                'Every action is logged with your admin account and timestamp — shared logins compromise the audit trail and are strictly prohibited.',
+                'Always document your reasoning in the notes field when taking significant actions (approvals, rejections, overrides, suspensions).',
+                'Follow the principle of least privilege — only access data or perform actions necessary for your assigned tasks.',
+                'When in doubt, escalate — contact your manager or a colleague rather than guessing on a high-stakes decision.',
               ],
-            },
-            {
-              heading: 'Requesting Permission Upgrades',
-              body: 'To request elevated permissions, raise a formal request through the internal ticketing system with your manager as approver. Super Admin grants upgrades — no self-service permission escalation is permitted.',
             },
           ],
         } as ArticleContent,
@@ -118,7 +119,7 @@ const docSections = [
               heading: 'API Routes',
               body: 'Next.js API routes handle all server-side business logic: advance eligibility calculations, risk scoring, disbursement triggers, and webhook receivers from payment partners. These routes use the Supabase service role key (not the anon key) and should never be exposed client-side.',
               warnings: [
-                'The service role key has full database access — any exposure is a critical security incident. Report immediately to Super Admin.',
+                'The service role key has full database access — any exposure is a critical security incident. Report immediately to your manager and security team.',
               ],
             },
             {
@@ -142,7 +143,7 @@ const docSections = [
         path: '#employer-onboarding',
         difficulty: 'beginner',
         content: {
-          overview: 'When a new company applies to join EaziWage as an employer partner, an Operations Admin must review and approve their application before any employees can access earned wage advances. This process typically takes 24–72 hours.',
+          overview: 'When a new company applies to join EaziWage as an employer partner, an admin must review and approve their application before any employees can access earned wage advances. This process typically takes 24–72 hours.',
           sections: [
             {
               heading: 'Onboarding Steps',
@@ -192,7 +193,7 @@ const docSections = [
             },
             {
               heading: 'Red Flags to Watch For',
-              body: 'Immediately escalate to a Super Admin if you encounter:',
+              body: 'Immediately escalate to your manager or a senior colleague if you encounter:',
               warnings: [
                 'Documents that appear digitally altered (inconsistent fonts, pixelated seals, misaligned text).',
                 'Director names that appear on known fraud or sanctions watchlists (use the built-in sanctions check tool).',
@@ -238,14 +239,14 @@ const docSections = [
                 '0–25 (Green/Low Risk) — Standard advance limits apply. Annual KYC review cycle. Priority processing.',
                 '26–50 (Amber/Medium Risk) — Advance limits capped at 70% of standard. 18-month KYC review cycle. Enhanced monitoring.',
                 '51–75 (Orange/High Risk) — Advance limits capped at 40% of standard. 12-month KYC review cycle. Quarterly compliance check-ins required.',
-                '76–100 (Red/Critical Risk) — Advances suspended pending manual review. Immediate Super Admin escalation required. 6-month KYC review cycle.',
+                '76–100 (Red/Critical Risk) — Advances suspended pending manual review. Immediate escalation to management required. 6-month KYC review cycle.',
               ],
             },
             {
               heading: 'Manual Score Overrides',
-              body: 'Operations Admins can apply a temporary manual override to a risk score with documented justification. Overrides are valid for a maximum of 90 days before automatic expiry. All overrides are logged in the audit trail and visible to Super Admins. Overrides should be used sparingly — they are exceptions, not workarounds.',
+              body: 'Admins can apply a temporary manual override to a risk score with documented justification. Overrides are valid for a maximum of 90 days before automatic expiry. All overrides are logged in the audit trail. Overrides should be used sparingly — they are exceptions, not workarounds.',
               warnings: [
-                'Applying an override to increase an employer\'s advance limit beyond their risk band without Super Admin approval is a policy violation.',
+                'Apply overrides only with clear documentation. Any override that significantly changes an employer\'s advance limit should be reviewed by a colleague or manager.',
               ],
             },
           ],
@@ -276,7 +277,7 @@ const docSections = [
               steps: [
                 'Navigate to Employer Management → select employer → Status tab.',
                 'Click "Suspend Account" and select a reason from the dropdown (Compliance Review, Payment Dispute, KYC Expired, Fraud Investigation).',
-                'Set an expected review date (maximum 30 days — extensions require Super Admin approval).',
+                'Set an expected review date (maximum 30 days — extensions require management approval).',
                 'System automatically notifies the employer via email and disables new advance requests.',
                 'Document the full rationale in the Notes field — this feeds into the audit trail.',
               ],
@@ -287,7 +288,7 @@ const docSections = [
             },
             {
               heading: 'Rejection and Termination',
-              body: 'Rejection is for new applicants who fail KYC or risk assessment. Termination is for existing active employers. Both actions are irreversible without Super Admin intervention. Always send the employer a formal reason — vague rejections invite disputes. Use the templated rejection notices in the Communication module.',
+              body: 'Rejection is for new applicants who fail KYC or risk assessment. Termination is for existing active employers. Both actions are serious — consult with your manager before proceeding. Always send the employer a formal reason — vague rejections invite disputes. Use the templated rejection notices in the Communication module.',
             },
           ],
         } as ArticleContent,
@@ -432,7 +433,7 @@ const docSections = [
             },
             {
               heading: 'Auto-Approval Thresholds',
-              body: 'Requests below KES 10,000 from Active employees with no fraud flags and a repayment history above 95% are auto-approved without admin review. Super Admins can adjust these thresholds in Global Settings. Do not manually approve requests that should have been auto-approved without checking why they were flagged — the flag is there for a reason.',
+              body: 'Requests below KES 10,000 from Active employees with no fraud flags and a repayment history above 95% are auto-approved without admin review. Thresholds may be adjusted by management in Global Settings. Do not manually approve requests that should have been auto-approved without checking why they were flagged — the flag is there for a reason.',
             },
             {
               heading: 'Failed Disbursements',
@@ -504,9 +505,9 @@ const docSections = [
             },
             {
               heading: 'Fee Waivers and Adjustments',
-              body: 'Operations Admins can apply a one-time fee waiver for specific advances in documented exceptional circumstances (e.g. system error caused a double charge). Recurring fee adjustments or contractual fee changes require Super Admin authorisation and must be reflected in the employer\'s contract on file.',
+              body: 'Admins can apply a one-time fee waiver for specific advances in documented exceptional circumstances (e.g. system error caused a double charge). Any fee waiver must be logged with clear justification and reviewed for audit compliance. Recurring fee adjustments or large contractual fee changes should be coordinated with management.',
               warnings: [
-                'Applying fee waivers without documentation is a financial audit finding. Always log the reason.',
+                'Applying fee waivers without documentation is a financial audit finding. Always log the reason with detail.',
               ],
             },
           ],
@@ -540,7 +541,7 @@ const docSections = [
             },
             {
               heading: 'Escalation',
-              body: 'Any unreconciled item above KES 50,000 must be escalated to the Super Admin with a full investigation report within 24 hours. Do not attempt to manually close large discrepancies without senior sign-off.',
+              body: 'Any unreconciled item above KES 50,000 must be escalated to management with a full investigation report within 24 hours. Do not attempt to manually close large discrepancies without senior review.',
             },
           ],
         } as ArticleContent,
@@ -566,7 +567,7 @@ const docSections = [
             },
             {
               heading: 'Generating Reports',
-              body: 'Navigate to Financial Operations → Revenue Analytics. Select date range, employer filter (or all employers), and report type. Export to CSV for further analysis in spreadsheet tools. Monthly and quarterly reports are automatically generated and emailed to Super Admins.',
+              body: 'Navigate to Financial Operations → Revenue Analytics. Select date range, employer filter (or all employers), and report type. Export to CSV for further analysis in spreadsheet tools. Monthly and quarterly reports are automatically generated and available for download.',
               tips: [
                 'Use the cohort analysis view to understand revenue per employer over time — it reveals employer health trends earlier than aggregate numbers.',
               ],
@@ -642,7 +643,7 @@ const docSections = [
               ],
               warnings: [
                 'Never dismiss a fraud alert as a false positive without investigation. Unreviewed dismissals create liability.',
-                'If you suspect confirmed fraud, do not alert the suspect employer or employee — escalate to Super Admin and the fraud team immediately.',
+                'If you suspect confirmed fraud, do not alert the suspect employer or employee — escalate to your manager and the fraud team immediately.',
               ],
             },
           ],
@@ -672,9 +673,9 @@ const docSections = [
             },
             {
               heading: 'Regulatory Reporting',
-              body: 'The platform automatically generates required regulatory reports on a scheduled basis. Super Admins are responsible for submission. Operations Admins support by ensuring underlying data accuracy — correct KYC statuses, accurate transaction records, and up-to-date employer/employee information. Errors in underlying data directly affect regulatory report accuracy.',
+              body: 'The platform automatically generates required regulatory reports on a scheduled basis. Admins are collectively responsible for ensuring submission deadlines are met and underlying data accuracy. Maintain correct KYC statuses, accurate transaction records, and up-to-date employer/employee information — errors directly affect regulatory report accuracy.',
               warnings: [
-                'Filing an inaccurate regulatory report — even unintentionally — carries significant consequences. Flag any data quality concerns you spot to Super Admin before report submission deadlines.',
+                'Filing an inaccurate regulatory report — even unintentionally — carries significant consequences. Flag any data quality concerns you spot to your manager before report submission deadlines.',
               ],
             },
           ],
@@ -695,7 +696,7 @@ const docSections = [
                 'All employer and employee status changes — with admin ID, timestamp, and reason code.',
                 'All advance approvals, rejections, and manual overrides.',
                 'All KYC verification decisions.',
-                'All system settings changes (Super Admin actions).',
+                'All system settings changes made by admins.',
                 'All admin account logins and logouts, including failed login attempts.',
                 'All data exports and report generations.',
                 'All fraud alert resolutions.',
@@ -730,7 +731,7 @@ const docSections = [
         path: '#global-settings',
         difficulty: 'advanced',
         content: {
-          overview: 'Global Settings are platform-wide configuration parameters that govern how EaziWage behaves for all employers and employees. Changes here are high-impact — they affect every transaction on the platform. Only Super Admins have write access to Global Settings.',
+          overview: 'Global Settings are platform-wide configuration parameters that govern how EaziWage behaves for all employers and employees. Changes here are high-impact — they affect every transaction on the platform. Global Settings changes should be coordinated with management and thoroughly tested before implementation.',
           sections: [
             {
               heading: 'Key Configurable Parameters',
@@ -801,13 +802,13 @@ const docSections = [
           sections: [
             {
               heading: 'Creating Admin Accounts',
-              body: 'Only Super Admins can create new admin accounts. To create one:',
+              body: 'Admin account creation is handled by management. All new admins receive the same level of access.',
               steps: [
-                'Navigate to Settings → User Access → Add Admin.',
-                'Enter the new admin\'s name, work email, and assign their tier (Operations or Read-Only — Super Admin tier creation requires two existing Super Admin approvals).',
+                'New admin requests go through your manager or team lead.',
+                'Management creates the account in Settings → User Access.',
                 'The system sends an account activation email to the new admin.',
-                'Document the account creation with the authorising manager\'s name in the notes field.',
-                'Review the new admin\'s access after their first 30 days to confirm tier appropriateness.',
+                'New admins should review all relevant documentation and complete training before taking independent actions.',
+                'Document new admin accounts in your team\'s access log for audit purposes.',
               ],
             },
             {
@@ -926,7 +927,7 @@ const docSections = [
               steps: [
                 'Trigger condition — The event or threshold that fires the alert (e.g. "Advance amount > KES 30,000", "Employer repayment overdue > 3 days").',
                 'Delivery channel — In-platform, email, or SMS.',
-                'Recipient — Your account, all Operations Admins, or all Super Admins.',
+                'Recipient — Your account, all admin accounts.',
                 'Escalation — If not acknowledged within X minutes, escalate to the next tier.',
                 'Active hours — Whether the alert fires 24/7 or only during business hours.',
               ],
@@ -971,7 +972,7 @@ const docSections = [
                 'Is the account active? — Check Settings → User Access for account status. A departed colleague may have had their account deactivated.',
                 'Correct email address? — Admin accounts are tied to a specific work email. Personal email addresses will not work.',
                 'Password reset — If credentials are correct but login fails, trigger a password reset from Settings → User Access → Reset Password.',
-                'MFA issues — If the admin has lost access to their MFA device, a Super Admin can temporarily disable MFA for their account to allow login, then re-enrol. Do not permanently disable MFA.',
+                'MFA issues — If the admin has lost access to their MFA device, contact your manager or IT to temporarily disable MFA for their account to allow login, then re-enrol. Do not permanently disable MFA.',
                 'Browser/device issue — Ask the admin to try an incognito window or a different browser. Cached session conflicts cause intermittent login failures.',
               ],
             },
@@ -1071,7 +1072,7 @@ const docSections = [
               heading: 'Emergency Response Steps',
               body: 'In any emergency:',
               steps: [
-                'DO NOT try to fix it alone — Immediately escalate to Super Admin and engineering lead. Use the emergency contact list in Settings → Emergency Contacts.',
+                'DO NOT try to fix it alone — Immediately escalate to your manager and engineering lead. Use the emergency contact list in Settings → Emergency Contacts.',
                 'Document the symptom timeline — Note exactly when the issue started, what changed just before it, and who noticed it first. This is invaluable for diagnosis.',
                 'Contain before fixing — For a data breach or fraud: suspend affected accounts BEFORE attempting remediation. Stopping the bleeding comes first.',
                 'Communicate status — Update the platform status page within 15 minutes of declaring an emergency, even if you only have "We are aware and investigating."',
