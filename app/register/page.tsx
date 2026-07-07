@@ -85,7 +85,7 @@ function TestimonialsPanel() {
             Payroll that works<br />at the speed of life.
           </h2>
           <p className="text-green-100 text-base leading-relaxed max-w-sm">
-            Join thousands of employers and employees who trust EaziWage for seamless, instant wage access.
+            Be among the first to trust EaziWage for seamless, instant wage access.
           </p>
         </div>
 
@@ -247,7 +247,7 @@ function DialCodeSelector({ selected, onSelect, size = 'md' }: DialCodeSelectorP
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 min-w-[200px] w-max bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-50 overflow-hidden">
+        <div className="absolute top-full left-0 mt-1 min-w-50 w-max bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-50 overflow-hidden">
           {DIALING_CODES.map((country) => (
             <button
               key={country.code}

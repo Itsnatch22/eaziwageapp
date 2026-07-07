@@ -82,7 +82,7 @@ function TestimonialsPanel() {
             Payroll that works<br />at the speed of life.
           </h2>
           <p className="text-green-100 text-base leading-relaxed max-w-sm">
-            Join thousands of employers and employees who trust EaziWage for seamless, instant wage access.
+            Be among the first to trust EaziWage for seamless, instant wage access.
           </p>
         </div>
 
