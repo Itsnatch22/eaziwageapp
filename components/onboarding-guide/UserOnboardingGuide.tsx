@@ -39,6 +39,16 @@ const STEPS: Record<'admin' | 'employer' | 'employee', GuideStep[]> = {
       title: 'Reconciliation',
       description: 'Track every disbursement and recoupment. Use the reconciliation report to match employer payroll deductions at month-end.',
     },
+    {
+      emoji: '📊',
+      title: 'Reporting',
+      description: 'Generate detailed reports on employer performance, employee activity, and platform usage.',
+    },
+    {
+      emoji: '⚙️',
+      title: 'Settings',
+      description: 'Configure platform settings, manage admin users, and set up notifications and alerts.',
+    }
   ],
   employer: [
     {
@@ -74,14 +84,14 @@ const STEPS: Record<'admin' | 'employer' | 'employee', GuideStep[]> = {
       description: "Your account is approved and ready. Here's how to make the most of EaziWage.",
     },
     {
-      emoji: '💸',
-      title: 'Request an Advance',
-      description: 'Tap "Request Advance" to access up to 50% of your earned wages. Funds go directly to your M-Pesa or bank account.',
-    },
-    {
       emoji: '📱',
       title: 'Set Up Payment Methods',
       description: 'Add your M-Pesa number or bank account under Settings so you are ready to receive funds the moment a request is approved.',
+    },
+    {
+      emoji: '💸',
+      title: 'Request an Advance',
+      description: 'Tap "Request Advance" to access up to 50% of your earned wages. Funds go directly to your M-Pesa or bank account.',
     },
     {
       emoji: '📋',
@@ -143,7 +153,7 @@ export function UserOnboardingGuide({ role, show = true }: UserOnboardingGuidePr
           {/* Progress bar */}
           <div className="h-1 bg-slate-100 dark:bg-slate-800">
             <div
-              className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300"
+              className="h-full bg-linear-to-r from-purple-500 to-indigo-500 transition-all duration-300"
               style={{ width: `${((step + 1) / steps.length) * 100}%` }}
             />
           </div>
