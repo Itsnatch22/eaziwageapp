@@ -7,6 +7,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Triggers a browser download of MFA backup codes as `mfa-codes.csv`. */
+export function downloadBackupCodesCsv(codes: string[]): void {
+  const csvContent = ['Backup Code', ...codes].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'mfa-codes.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 const currencyLocaleMap: Record<string, string> = {
   KES: 'en-KE',
   RWF: 'en-RW',

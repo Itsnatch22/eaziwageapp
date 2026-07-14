@@ -20,7 +20,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout'
 import { toast } from "sonner";
-import { cn, getAdvanceLimit, getCurrencySymbol, getCurrencyFromCountry } from "@/lib/utils";
+import { cn, getAdvanceLimit, getCurrencySymbol, getCurrencyFromCountry, downloadBackupCodesCsv } from "@/lib/utils";
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { createClient } from '@/lib/supabase/client';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -1926,6 +1926,7 @@ export default function EmployerSettings() {
                       ))}
                     </div>
                     <div className="mt-3 flex gap-2">
+                      <Button variant="outline" onClick={() => downloadBackupCodesCsv(backupCodes)}>Download CSV</Button>
                       <Button onClick={() => { setBackupCodes(null); setShowMfaModal(false); }} className="bg-primary text-white">Done</Button>
                     </div>
                   </div>

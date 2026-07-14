@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { downloadBackupCodesCsv } from '@/lib/utils';
 
 interface MfaFactor {
   id: string;
@@ -291,6 +292,7 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
                       ))}
                     </div>
                     <div className="mt-3 flex gap-2">
+                      <Button variant="outline" onClick={() => downloadBackupCodesCsv(backupCodes)}>Download CSV</Button>
                       <Button onClick={() => { setBackupCodes(null); setShowManage(false); }} className="bg-primary text-white">Done</Button>
                     </div>
                   </div>
