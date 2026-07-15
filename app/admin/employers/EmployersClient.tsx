@@ -411,11 +411,18 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
   const handleStatusChange = async (newStatus: EmployerStatus) => {
     if (!employer) return;
 
+    let reason: string | undefined;
+    if (newStatus === 'rejected') {
+      const input = window.prompt('Reason for rejecting this employer:');
+      if (!input?.trim()) return;
+      reason = input.trim();
+    }
+
     try {
       const res = await fetch(`/api/admin/employers/${employer.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ status: newStatus }),
+        body:    JSON.stringify({ status: newStatus, reason }),
       });
 
       if (res.ok) {
@@ -1044,11 +1051,18 @@ export default function AdminEmployers({ initialData }: { initialData?: Employer
   const handleQuickAction = async (newStatus: EmployerStatus) => {
     if (!selectedEmployer) return;
 
+    let reason: string | undefined;
+    if (newStatus === 'rejected') {
+      const input = window.prompt('Reason for rejecting this employer:');
+      if (!input?.trim()) { setShowQuickActions(false); return; }
+      reason = input.trim();
+    }
+
     try {
       const res = await fetch(`/api/admin/employers/${selectedEmployer.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ status: newStatus }),
+        body:    JSON.stringify({ status: newStatus, reason }),
       });
 
       if (res.ok) {
@@ -1087,7 +1101,14 @@ export default function AdminEmployers({ initialData }: { initialData?: Employer
       toast.error('No employers selected');
       return;
     }
-    
+
+    let reason: string | undefined;
+    if (actionType === 'rejected') {
+      const input = window.prompt(`Reason for rejecting ${selectedIds.size} employer(s):`);
+      if (!input?.trim()) return;
+      reason = input.trim();
+    }
+
     setBulkActionLoading(true);
 
     let successCount = 0;
@@ -1096,7 +1117,7 @@ export default function AdminEmployers({ initialData }: { initialData?: Employer
         const res = await fetch(`/api/admin/employers/${id}/status`, {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ status: actionType }),
+          body:    JSON.stringify({ status: actionType, reason }),
         });
 
         if (res.ok) successCount++;

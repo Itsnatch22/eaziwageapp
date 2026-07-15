@@ -53,6 +53,10 @@ export async function PATCH(
   }
   const { status, employer_code, min_advance_amount, initial_credit_limit, reason } = statusParsed.data;
 
+  if (status === 'rejected' && !reason?.trim()) {
+    return NextResponse.json({ error: 'A reason is required when rejecting an employer.' }, { status: 422 });
+  }
+
   console.log(`[PATCH employer status] Attempting update for ID: ${id} to status: ${status}`);
 
   const { data: initialEmployer, error: employerFetchError } = await adminSupabase
@@ -94,8 +98,49 @@ export async function PATCH(
 
   const activeId = employer.id;
 
+  // No direct employer_onboarding.status write for approved/pending/rejected —
+  // bulk-updating employer_kyc_documents below fires
+  // trg_recompute_employer_onboarding_status, which derives the rollup status
+  // itself. 'suspended' and 'risk_review_in_progress' are the trigger's own
+  // explicit carve-outs (it skips recompute while status is one of those), so
+  // those two remain direct writes below.
+  if (status === 'approved') {
+    const { error: docsError } = await adminSupabase
+      .from('employer_kyc_documents')
+      .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: user.id })
+      .eq('user_id', employer.user_id);
+
+    if (docsError) {
+      console.error('[PATCH employer status] documents approve error:', docsError);
+      return NextResponse.json({ error: 'Failed to approve employer documents' }, { status: 500 });
+    }
+  } else if (status === 'rejected') {
+    const { error: docsError } = await adminSupabase
+      .from('employer_kyc_documents')
+      .update({ status: 'rejected', reviewer_notes: reason, reviewed_at: new Date().toISOString(), reviewed_by: user.id })
+      .eq('user_id', employer.user_id);
+
+    if (docsError) {
+      console.error('[PATCH employer status] documents reject error:', docsError);
+      return NextResponse.json({ error: 'Failed to reject employer documents' }, { status: 500 });
+    }
+  } else if (status === 'pending') {
+    // Resets every document back to pending review — mirrors the employee-side
+    // route. The trigger then derives 'pending' or 'under_review' depending on
+    // whether all 11 documents exist yet; there's no way to force a literal
+    // 'pending' once documents already exist.
+    const { error: docsError } = await adminSupabase
+      .from('employer_kyc_documents')
+      .update({ status: 'pending' })
+      .eq('user_id', employer.user_id);
+
+    if (docsError) {
+      console.error('[PATCH employer status] documents reset error:', docsError);
+      return NextResponse.json({ error: 'Failed to reset employer documents' }, { status: 500 });
+    }
+  }
+
   const updatePayload: Record<string, unknown> = {
-    status,
     updated_at: new Date().toISOString(),
     // Always stamp company_code on the onboarding record so it becomes the
     // canonical lookup source for employee registration.
@@ -104,6 +149,10 @@ export async function PATCH(
           ? employer_code.trim().replace(/[^A-Z0-9]/gi, '').slice(0, 20).toUpperCase()
           : generatePrimaryCompanyCode(employer.id)) }
       : {}),
+    // suspended/risk_review_in_progress are the trigger's own explicit
+    // carve-outs — write them directly since no document bulk-update above
+    // would ever produce them.
+    ...(status === 'suspended' || status === 'risk_review_in_progress' ? { status } : {}),
   };
 
   const resolvedMinAdvance =
@@ -152,6 +201,27 @@ export async function PATCH(
 
   console.log(`[PATCH employer status] Successfully updated record ${activeId}`);
 
+  // approved/pending/rejected no longer write employer_onboarding.status
+  // directly — read back what the trigger actually derived from the document
+  // bulk-update above (may differ from the requested `status`, e.g. requesting
+  // 'approved' when not all 11 documents exist yet leaves the real status at
+  // 'submitted'/'under_review'). suspended/risk_review_in_progress were
+  // written directly, so the request and result are always the same there.
+  let resultStatus = status;
+  if (status === 'approved' || status === 'pending' || status === 'rejected') {
+    const { data: refetched, error: refetchError } = await adminSupabase
+      .from('employer_onboarding')
+      .select('status')
+      .eq('id', activeId)
+      .maybeSingle();
+
+    if (refetchError) {
+      console.error('[PATCH employer status] Failed to re-fetch trigger-derived status:', refetchError);
+      return NextResponse.json({ error: 'Failed to finalize status update' }, { status: 500 });
+    }
+    resultStatus = (refetched?.status as typeof status) ?? status;
+  }
+
   let resolvedCompanyCode: string | null = null;
   const { data: existingEmployer } = await adminSupabase
     .from('employers')
@@ -161,7 +231,7 @@ export async function PATCH(
 
   // Run sync when approving OR when an employers row already exists (keeps it in sync on
   // every status change). Never creates an employers row for non-approved statuses.
-  if (status === 'approved' || existingEmployer) {
+  if (resultStatus === 'approved' || existingEmployer) {
     const { data: profileRow } = await adminSupabase
       .from('profiles')
       .select('email, phone')
@@ -180,7 +250,7 @@ export async function PATCH(
       existingEmployer?.company_code ??
       generatePrimaryCompanyCode(employer.id);
 
-    const primaryStatus = toPrimaryEmployerStatus(status);
+    const primaryStatus = toPrimaryEmployerStatus(resultStatus);
 
     const syncPayload = {
       user_id:             employer.user_id,
@@ -240,7 +310,7 @@ export async function PATCH(
 
     const employerLiveId = existingEmployer?.id ?? resolvedEmployer?.id;
 
-    if (status === 'approved' && employerLiveId && env.PII_ENCRYPTION_KEY) {
+    if (resultStatus === 'approved' && employerLiveId && env.PII_ENCRYPTION_KEY) {
       try {
         await adminSupabase.rpc('promote_employer_bank_account', {
           p_onboarding_id: activeId,
@@ -280,16 +350,16 @@ export async function PATCH(
   await notifyEmployer({
     userId: employer.user_id,
     type: 'status_change',
-    title: `Account ${statusLabel[status] ?? status.replace(/_/g, ' ')}`,
+    title: `Account ${statusLabel[resultStatus] ?? resultStatus.replace(/_/g, ' ')}`,
     message:
-      status === 'approved'
+      resultStatus === 'approved'
         ? `Your employer profile is now fully active.${resolvedCompanyCode ? ` Your company code is ${resolvedCompanyCode}.` : ''}`
-        : `Your employer account status has been updated to ${statusLabel[status] ?? status.replace(/_/g, ' ')}.${reason ? ` Reason: ${reason}` : ''}`,
+        : `Your employer account status has been updated to ${statusLabel[resultStatus] ?? resultStatus.replace(/_/g, ' ')}.${reason ? ` Reason: ${reason}` : ''}`,
     metadata: {
       companyName: employer.company_name,
       contactPerson: employer.contact_person ?? undefined,
       previousStatus: undefined,
-      newStatus: status,
+      newStatus: resultStatus,
       reason: reason ?? undefined,
       effectiveAt: new Date().toLocaleString(),
     },
@@ -301,15 +371,15 @@ export async function PATCH(
     target_id: activeId,
     target_type: 'employer',
     action: 'account_status',
-    new_status: status,
+    new_status: resultStatus,
     reason: reason || null,
     created_at: new Date().toISOString(),
   });
 
   return NextResponse.json({
-    message: `Employer status updated to ${status}`,
+    message: `Employer status updated to ${resultStatus}`,
     data: {
-      status,
+      status: resultStatus,
       company_code: resolvedCompanyCode,
       min_advance_amount: updatePayload.min_advance_amount ?? employer.min_advance_amount ?? null,
     },

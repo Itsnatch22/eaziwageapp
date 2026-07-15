@@ -61,6 +61,12 @@ interface EmployerProfile {
   industry?: string;
   sector?: string;
   documents?: Record<string, string>;
+  kycDocuments?: Array<{
+    document_type: string;
+    document_url: string | null;
+    status: string;
+    reviewer_notes: string | null;
+  }>;
   avatar_url?: string;
 }
 
@@ -200,6 +206,7 @@ interface DocumentItemProps {
   label: string;
   fileName?: string | null;
   status?: string | null;
+  rejectionReason?: string | null;
   onView: () => void;
   onReupload: (file: File) => void | Promise<void>;
   accept?: string;
@@ -211,6 +218,7 @@ const DocumentItem = ({
   label,
   fileName,
   status,
+  rejectionReason,
   onView,
   onReupload,
   accept = ".pdf,.jpg,.jpeg,.png",
@@ -219,7 +227,7 @@ const DocumentItem = ({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   return (
-    <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl relative overflow-hidden">
+    <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl relative overflow-hidden">
       <input
         type="file"
         className="hidden"
@@ -229,45 +237,54 @@ const DocumentItem = ({
           if (e.target.files?.[0]) void onReupload(e.target.files[0]);
         }}
       />
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-          <Icon className="w-5 h-5 text-white" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+            <Icon className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="font-medium text-slate-900 dark:text-white">{label}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{fileName || 'Not uploaded'}</p>
+          </div>
         </div>
-        <div>
-          <p className="font-medium text-slate-900 dark:text-white">{label}</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{fileName || 'Not uploaded'}</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className={cn(
-          "px-2 py-1 rounded-full text-xs font-medium",
-          status === 'approved'
-            ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-            : status === 'pending'
-              ? "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
-              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-        )}>
-          {status || 'Not uploaded'}
-        </span>
-        {fileName && (
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "px-2 py-1 rounded-full text-xs font-medium",
+            status === 'approved'
+              ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+              : status === 'rejected'
+                ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300"
+                : status === 'pending' || status === 'under_review'
+                  ? "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+          )}>
+            {status ? status.replace(/_/g, ' ') : 'Not uploaded'}
+          </span>
+          {fileName && (
+            <button
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-9 px-3 transition-colors"
+              onClick={onView}
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+          )}
           <button
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-9 px-3 transition-colors"
-            onClick={onView}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-9 px-3 transition-colors disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
           >
-            <Eye className="w-4 h-4" />
+            {isUploading
+              ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              : <Upload className="w-4 h-4" />
+            }
           </button>
-        )}
-        <button
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-9 px-3 transition-colors disabled:pointer-events-none disabled:opacity-50"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-        >
-          {isUploading
-            ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            : <Upload className="w-4 h-4" />
-          }
-        </button>
+        </div>
       </div>
+      {status === 'rejected' && rejectionReason && (
+        <p className="mt-3 text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg px-3 py-2">
+          <strong>Rejection reason:</strong> {rejectionReason}
+        </p>
+      )}
     </div>
   );
 };
@@ -1043,16 +1060,17 @@ export default function EmployerSettings() {
     { id: 'security', label: 'Security', icon: Lock },
   ];
 
-  const documents: Array<{
-    key: string;
-    label: string;
-    statusOverride?: 'approved' | 'pending';
-  }> = [
+  const EMPLOYER_DOCUMENT_TYPES: Array<{ key: string; label: string }> = [
     { key: 'certificate_of_incorporation', label: 'Certificate of Incorporation' },
+    { key: 'business_registration', label: 'Business Registration' },
+    { key: 'tax_compliance_certificate', label: 'Tax Compliance Certificate' },
+    { key: 'cr12_document', label: 'CR12 Document' },
     { key: 'kra_pin_certificate', label: 'KRA PIN Certificate' },
-    { key: 'cr12_document', label: 'CR12 Document', statusOverride: 'pending' },
     { key: 'business_permit', label: 'Business Permit' },
-    { key: 'audited_financials', label: 'Audited Financials', statusOverride: 'pending' },
+    { key: 'audited_financials', label: 'Audited Financials' },
+    { key: 'bank_statement', label: 'Bank Statement' },
+    { key: 'proof_of_address', label: 'Proof of Address' },
+    { key: 'proof_of_bank_account', label: 'Proof of Bank Account' },
     { key: 'employment_contract_template', label: 'Employment Contract Template' },
   ];
 
@@ -1297,16 +1315,17 @@ export default function EmployerSettings() {
               <>
                 <SettingsCard icon={FileText} title="Company Documents" description="View and manage your uploaded KYC documents">
                   <div className="space-y-3">
-                    {documents.map(({ key, label, statusOverride }) => {
-                      const url = employer?.documents?.[key];
-                      const status = url ? (statusOverride ?? 'approved') : null;
+                    {EMPLOYER_DOCUMENT_TYPES.map(({ key, label }) => {
+                      const doc = employer?.kycDocuments?.find((d) => d.document_type === key);
+                      const url = doc?.document_url ?? employer?.documents?.[key] ?? null;
                       return (
                         <DocumentItem
                           key={key}
                           icon={FileText}
                           label={label}
                           fileName={url ? `${key}.pdf` : null}
-                          status={status}
+                          status={doc?.status ?? null}
+                          rejectionReason={doc?.reviewer_notes}
                           onReupload={(file) => handleFileUpload(file, key)}
                           isUploading={uploadingDoc === key}
                           onView={() => url && window.open(url, '_blank')}

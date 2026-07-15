@@ -1156,7 +1156,6 @@ const EmployerEmployees: React.FC = () => {
   const [showEWAModal, setShowEWAModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [seeding, setSeeding] = useState(false);
 
 
   const fetchData = useCallback(async (options?: { silent?: boolean }) => {
@@ -1260,28 +1259,6 @@ const EmployerEmployees: React.FC = () => {
   }, [employer?.id, fetchData]);
 
 
-  const handleSeedEmployees = async () => {
-    setSeeding(true);
-    try {
-      const res = await fetch("/api/employer-dashboard/seed/demo-employees", {
-        method: "POST",
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Seed failed");
-      }
-      toast.success("Employees seeded!");
-      fetchData();
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to seed employees",
-      );
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-
   const handleEWASave = (employeeId: string, newSettings: EWASettings) => {
     setEmployees((prev) =>
       prev.map((e) =>
@@ -1352,17 +1329,6 @@ const EmployerEmployees: React.FC = () => {
             >
               <Users className="w-4 h-4 mr-2" /> Bulk Onboard
             </Button>
-            {employees.length < 50 && (
-              <Button
-                variant="outline"
-                onClick={handleSeedEmployees}
-                disabled={seeding}
-                className="bg-white/60 dark:bg-slate-800/60"
-                data-testid="seed-employees-btn"
-              >
-                {seeding ? "Seeding..." : "Seed Employees"}
-              </Button>
-            )}
           </div>
         </div>
 
@@ -1587,17 +1553,8 @@ const EmployerEmployees: React.FC = () => {
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
                 {searchTerm || statusFilter || departmentFilter || countryFilter
                   ? "Try adjusting your search or filters"
-                  : "Add employees or seed data to get started"}
+                  : "Add employees to get started"}
               </p>
-              {employees.length === 0 && (
-                <Button
-                  onClick={handleSeedEmployees}
-                  disabled={seeding}
-                  className="mt-4 bg-primary text-white"
-                >
-                  {seeding ? "Seeding..." : "Seed Employees"}
-                </Button>
-              )}
             </div>
           ) : (
             <div className="divide-y divide-slate-200/50 dark:divide-slate-700/30">

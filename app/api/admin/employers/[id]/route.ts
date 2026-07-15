@@ -184,13 +184,11 @@ export async function PATCH(
   const {
     risk_score,
     risk_rating,
-    status,
     risk_factors,
     override_reason,
   } = body as {
     risk_score?: number;
     risk_rating?: 'A' | 'B' | 'C' | 'D';
-    status?: AdminEmployerStatus;
     risk_factors?: Partial<RiskFactors>;
     override_reason?: string;
   };
@@ -200,7 +198,6 @@ export async function PATCH(
   };
   if (typeof risk_score === 'number') onboardingUpdate.risk_score = risk_score;
   if (typeof risk_rating === 'string') onboardingUpdate.risk_rating = risk_rating;
-  if (typeof status === 'string') onboardingUpdate.status = status;
 
   const { data: targetEmployer, error: fetchEmployerError } = await adminSupabase
     .from('employer_onboarding')
@@ -268,7 +265,7 @@ export async function PATCH(
     target_type: 'employer',
     action: 'employer_risk_updated',
     old_value: null,
-    new_value: { risk_score, risk_rating, status },
+    new_value: { risk_score, risk_rating },
     metadata: { override_reason },
   }).then(({ error }) => { if (error) console.error('[audit] employer_risk_updated:', error); });
 
