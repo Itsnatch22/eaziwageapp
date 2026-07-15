@@ -4,7 +4,7 @@ import React, { useState, useCallback, useTransition } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle, CheckCircle2, Clock, Search, ChevronDown, ChevronUp,
-  ArrowLeft, Activity, BarChart3
+  ArrowLeft, Activity, BarChart3, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,7 +36,10 @@ interface Stats {
 interface Props {
   initialLogs: ErrorLog[];
   stats: Stats;
+  initialTotal: number;
 }
+
+const PAGE_SIZE = 20;
 
 const ROLE_COLORS: Record<string, string> = {
   admin:    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
@@ -73,8 +76,10 @@ function StatCard({
   );
 }
 
-export default function LogsClient({ initialLogs, stats }: Props) {
+export default function LogsClient({ initialLogs, stats, initialTotal }: Props) {
   const [logs, setLogs]               = useState<ErrorLog[]>(initialLogs);
+  const [total, setTotal]             = useState(initialTotal);
+  const [page, setPage]               = useState(1);
   const [filterRole, setFilterRole]   = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [search, setSearch]           = useState('');
@@ -82,19 +87,24 @@ export default function LogsClient({ initialLogs, stats }: Props) {
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
   const [isPending, startTransition]  = useTransition();
 
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   const fetchFiltered = useCallback(
-    async (role: string, status: string, q: string) => {
+    async (role: string, status: string, q: string, pageArg: number) => {
       const params = new URLSearchParams();
       if (role !== 'all') params.set('role', role);
       if (status === 'resolved') params.set('resolved', 'true');
       if (status === 'unresolved') params.set('resolved', 'false');
       if (q.trim()) params.set('search', q.trim());
+      params.set('page', String(pageArg));
+      params.set('limit', String(PAGE_SIZE));
 
       try {
         const res = await fetch(`/api/admin/logs?${params}`);
         if (!res.ok) return;
         const json = await res.json();
         setLogs(json.logs ?? []);
+        setTotal(json.total ?? 0);
       } catch {
         toast.error('Failed to fetch logs');
       }
@@ -104,18 +114,27 @@ export default function LogsClient({ initialLogs, stats }: Props) {
 
   const handleRoleChange = (val: string) => {
     setFilterRole(val);
-    startTransition(() => fetchFiltered(val, filterStatus, search));
+    setPage(1);
+    startTransition(() => fetchFiltered(val, filterStatus, search, 1));
   };
 
   const handleStatusChange = (val: string) => {
     setFilterStatus(val);
-    startTransition(() => fetchFiltered(filterRole, val, search));
+    setPage(1);
+    startTransition(() => fetchFiltered(filterRole, val, search, 1));
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearch(val);
-    startTransition(() => fetchFiltered(filterRole, filterStatus, val));
+    setPage(1);
+    startTransition(() => fetchFiltered(filterRole, filterStatus, val, 1));
+  };
+
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    setPage(nextPage);
+    startTransition(() => fetchFiltered(filterRole, filterStatus, search, nextPage));
   };
 
   const handleResolve = async (id: string) => {
@@ -348,6 +367,40 @@ export default function LogsClient({ initialLogs, stats }: Props) {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {logs.length > 0 && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Showing {(page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + logs.length} of {total}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page <= 1 || isPending}
+              className="h-8 text-xs border-slate-200 dark:border-slate-700"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 mr-1" />
+              Previous
+            </Button>
+            <span className="text-xs text-slate-500 dark:text-slate-400 px-1">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page >= totalPages || isPending}
+              className="h-8 text-xs border-slate-200 dark:border-slate-700"
+            >
+              Next
+              <ChevronRight className="w-3.5 h-3.5 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

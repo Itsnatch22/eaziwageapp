@@ -10,7 +10,10 @@ export async function GET(req: NextRequest) {
   const role    = searchParams.get('role');
   const resolved = searchParams.get('resolved');
   const search  = searchParams.get('search');
-  const limit   = Math.min(parseInt(searchParams.get('limit') ?? '100', 10), 200);
+  const limit   = Math.min(parseInt(searchParams.get('limit') ?? '20', 10), 200);
+  const page    = Math.max(parseInt(searchParams.get('page') ?? '1', 10) || 1, 1);
+  const from    = (page - 1) * limit;
+  const to      = from + limit - 1;
 
   const supabase = createAdminClient();
 
@@ -19,7 +22,7 @@ export async function GET(req: NextRequest) {
     .select('id, message, digest, stack, url, role, user_id, resolved, created_at', { count: 'exact' })
     .order('resolved', { ascending: true })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(from, to);
 
   if (role && role !== 'all') {
     query = query.eq('role', role);

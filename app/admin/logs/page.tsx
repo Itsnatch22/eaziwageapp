@@ -23,7 +23,7 @@ async function fetchLogsData() {
       .select('id, message, digest, stack, url, role, user_id, resolved, created_at')
       .order('resolved', { ascending: true })
       .order('created_at', { ascending: false })
-      .limit(100),
+      .range(0, 19),
     supabaseAdmin
       .from('error_logs')
       .select('role, resolved, created_at'),
@@ -48,7 +48,7 @@ async function fetchLogsData() {
 
 async function LogsContent() {
   const { logs, stats } = await fetchLogsData();
-  return <LogsClient initialLogs={logs} stats={stats} />;
+  return <LogsClient initialLogs={logs} stats={stats} initialTotal={stats.total} />;
 }
 
 function LogsLoading() {
