@@ -206,6 +206,7 @@ export async function GET() {
       mobile_money_number: employee.mobile_money_number || null,
       profile_picture_url: user.user_metadata?.avatar_url,
       currency,
+      created_at: employee.created_at,
     },
     stats: {
       earned_wages: earnedWages,

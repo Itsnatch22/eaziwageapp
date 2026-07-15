@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { EmptyState } from '@/app/empty';
 import {
   TrendingUp, AlertCircle,
@@ -15,6 +15,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
+import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
+import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
 
 type AdvanceStatus = 'pending' | 'processing' | 'approved' | 'disbursed' | 'completed' | 'repaid' | 'failed' | 'rejected' | 'denied' | 'fraud_review' | string;
 type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
@@ -122,6 +124,23 @@ export default function Transactions() {
     employeeId ? [{ table: 'advances', event: 'UPDATE', filter: `employee_id=eq.${employeeId}` }] : [],
     () => void fetchAdvances({ silent: true }),
   );
+
+  // CSAT: prompt right after the 3rd successful withdrawal, not the 1st or
+  // 2nd — a snapshot compare on the existing advances state rather than a
+  // new subscription, since useRealtimeRefresh above already keeps it fresh.
+  const prevDisbursedCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    const disbursed = advances
+      .filter((a) => DISBURSED_STATUSES.includes(a.status as typeof DISBURSED_STATUSES[number]))
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    const prevCount = prevDisbursedCountRef.current;
+    if (prevCount !== null && prevCount < 3 && disbursed.length === 3) {
+      const third = disbursed[2];
+      if (third) notifyEligibleMoment('employee_third_withdrawal', { advanceId: String(third.id) });
+    }
+    prevDisbursedCountRef.current = disbursed.length;
+  }, [advances]);
 
   const allItems: TransactionItem[] = advances
     .map((a) => ({ id: a.id, type: 'advance' as const, amount: a.amount, status: a.status, method: a.disbursement_method, created_at: a.created_at }))

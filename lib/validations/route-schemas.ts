@@ -215,3 +215,33 @@ export const SupportTicketCreateSchema = z.object({
 export const SupportReplySchema = z.object({
   message: z.string().min(1).max(10_000),
 });
+
+// ---------------------------------------------------------------------------
+// Satisfaction / CSAT prompts
+// ---------------------------------------------------------------------------
+
+export const SatisfactionMomentEnum = z.enum([
+  'employee_third_withdrawal',
+  'employee_kyc_verified_3d',
+  'employer_first_bulk_sync',
+  'employer_topup_completed',
+]);
+
+export const SatisfactionPromptShownSchema = z.object({
+  moment: SatisfactionMomentEnum,
+});
+
+export const SatisfactionFeedbackSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  advance_id: z.string().uuid().optional(),
+  moment: SatisfactionMomentEnum,
+});
+
+export const SatisfactionFeedbackCommentSchema = z.object({
+  comment: z.string().min(1).max(2000),
+});
+
+export const SatisfactionDismissSchema = z.object({
+  type: z.enum(['hard', 'passive']),
+  moment: SatisfactionMomentEnum.optional(),
+});

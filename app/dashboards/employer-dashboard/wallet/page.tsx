@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { sessionFetch } from '@/lib/client/session-fetch';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
 
 interface Transaction {
   id: string;
@@ -88,7 +89,20 @@ const WalletPage = () => {
       if (walletRes.ok) {
         const data = await walletRes.json();
         setWallet(data.wallet);
-        setTransactions(data.transactions);
+        // CSAT: detect a top-up transitioning from pending to completed —
+        // diff against the previous state before overwriting, since the
+        // realtime subscription below just triggers a blind re-fetch with
+        // no before/after info of its own.
+        setTransactions((prev: Transaction[]) => {
+          const nextTransactions: Transaction[] = data.transactions ?? [];
+          const justCompleted = nextTransactions.some((next) => {
+            if (next.transaction_type !== 'deposit' || next.status !== 'completed') return false;
+            const prior = prev.find((p) => p.id === next.id);
+            return prior ? prior.status !== 'completed' : false;
+          });
+          if (justCompleted) notifyEligibleMoment('employer_topup_completed');
+          return nextTransactions;
+        });
       }
 
       if (profileRes.ok) {

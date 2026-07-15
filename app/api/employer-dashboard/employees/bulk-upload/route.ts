@@ -43,11 +43,22 @@ export async function POST(req: NextRequest) {
     }
 
     const { employees } = validation.data;
+
+    // CSAT: "first bulk sync" is determined here, server-side, before any
+    // rows from this request are inserted — the count reflects the state
+    // prior to this upload.
+    const { count: existingEmployeeCount } = await adminSupabase
+      .from('employee_onboarding')
+      .select('id', { count: 'exact', head: true })
+      .eq('employer_id', employer.onboarding_id);
+    const isFirstSync = (existingEmployeeCount ?? 0) === 0;
+
     const results = {
       total: employees.length,
       success: 0,
       failed: 0,
-      errors: [] as { email: string; message: string }[]
+      errors: [] as { email: string; message: string }[],
+      isFirstSync,
     };
 
     const seenEmails = new Set<string>();

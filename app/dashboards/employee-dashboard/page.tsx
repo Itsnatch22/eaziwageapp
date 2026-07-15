@@ -19,6 +19,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardingGuide';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
+import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
 
 
 
@@ -48,6 +49,7 @@ interface EmployeeSummary {
   reviewer_notes: string;
   employer_id?: string;
   risk_score?: number;
+  created_at?: string;
 }
 
 
@@ -230,6 +232,22 @@ export default function EmployeeDashboardPage() {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_table) => void fetchStats({ silent: true }),
   );
+
+  // CSAT: prompt once KYC is fully approved and the account has been active
+  // for at least 3 days (no dedicated approved_at column exists, so
+  // employee_onboarding.created_at is used as the onboarding-start proxy).
+  // Safe to call on every render this stays true — the hook debounces
+  // repeat status checks and the server-side eligibility check is the real
+  // gate, so there's no need for edge-detection here.
+  useEffect(() => {
+    const verified = employee?.kyc_status === 'approved' && employee?.status === 'approved';
+    const activeLongEnough = employee?.created_at
+      ? Date.now() - new Date(employee.created_at).getTime() >= 3 * 24 * 60 * 60 * 1000
+      : false;
+    if (verified && activeLongEnough) {
+      notifyEligibleMoment('employee_kyc_verified_3d');
+    }
+  }, [employee?.kyc_status, employee?.status, employee?.created_at]);
 
   const getNextPayday = () => {
     const today = new Date();

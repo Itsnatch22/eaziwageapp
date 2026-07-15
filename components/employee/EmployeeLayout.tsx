@@ -21,6 +21,7 @@ import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
 import PushClient from '@/components/push/PushClient';
 import { useSidebarPanel } from '@/hooks/useSidebarPanel';
 import { SidebarResizeControls } from '../layout/SidebarResizeControls';
+import { SatisfactionPromptMount } from '@/components/shared/SatisfactionPrompt';
 
 interface EmployeeUser {
   id?: string;
@@ -442,6 +443,7 @@ export function EmployeePortalLayout({ children }: EmployeePortalLayoutProps) {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <EmployeeBackground />
       <PushClient />
+      <SatisfactionPromptMount />
 
       <EmployeeSidebarNav
         isOpen={sidebarOpen}

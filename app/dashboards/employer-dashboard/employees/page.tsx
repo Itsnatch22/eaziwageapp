@@ -41,6 +41,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { formatCurrency, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { createClient } from '@/lib/supabase/client';
+import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
 import type { RealtimeChannel } from '@supabase/realtime-js';
 import {
   GradientIconBox,
@@ -67,6 +68,7 @@ interface BulkUploadResults {
   success: number;
   failed: number;
   errors: BulkUploadError[];
+  isFirstSync?: boolean;
 }
 
 interface EmployeeKycUpdateEvent {
@@ -219,6 +221,9 @@ const BulkOnboardModal: React.FC<{
             toast.success(
               `Successfully onboarded ${resultData.success} employees`,
             );
+            if (resultData.isFirstSync) {
+              notifyEligibleMoment('employer_first_bulk_sync');
+            }
             onSuccess();
           }
         } catch (innerErr: unknown) {

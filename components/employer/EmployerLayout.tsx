@@ -23,6 +23,7 @@ import { PaydayRecoupmentModal } from './PaydayRecoupmentModal';
 import { useSidebarPanel } from '@/hooks/useSidebarPanel';
 import { SidebarResizeControls } from '../layout/SidebarResizeControls';
 import { CommandPalette } from './CommandPalette';
+import { SatisfactionPromptMount } from '@/components/shared/SatisfactionPrompt';
 
 
 export const EmployerBackground = () => (
@@ -525,6 +526,7 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
       <PushClient />
       <PaydayRecoupmentModal />
       <CommandPalette />
+      <SatisfactionPromptMount />
 
       <SidebarNav
         isOpen={sidebarOpen}
