@@ -5,7 +5,7 @@ import { EmptyState } from '@/app/empty';
 import {
   TrendingUp, AlertCircle,
   History, Smartphone, Calendar,
-  Loader2, Landmark, Search, ChevronRight, CheckCircle2, Clock
+  Landmark, Search, ChevronRight, CheckCircle2, Clock
 } from 'lucide-react';
 import { ExportButton } from '@/components/ui/ExportButton';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
 import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
+import { ListSkeleton } from '@/components/shared/Skeletons';
 
 type AdvanceStatus = 'pending' | 'processing' | 'approved' | 'disbursed' | 'completed' | 'repaid' | 'failed' | 'rejected' | 'denied' | 'fraud_review' | string;
 type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
@@ -275,10 +276,7 @@ export default function Transactions() {
         
         <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 overflow-hidden min-h-64">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Syncing ledger…</p>
-            </div>
+            <ListSkeleton rows={5} />
           ) : filteredItems.length === 0 ? (
             <EmptyState
               icon={History}

@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { CardGridSkeleton } from '@/components/shared/Skeletons';
 import {
   KYCDocument,
   DocumentStatus,
@@ -453,9 +454,7 @@ export default function KYCReviewPage() {
 
         
         {loading ? (
-          <div className="py-20 flex justify-center">
-            <Loader2 className="w-10 h-10 text-purple-600 animate-spin" />
-          </div>
+          <CardGridSkeleton count={8} />
         ) : filteredItems.length === 0 ? (
           <div className="py-20 text-center bg-white/40 dark:bg-slate-900/40 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">

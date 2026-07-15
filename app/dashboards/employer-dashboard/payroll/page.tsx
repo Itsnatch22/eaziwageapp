@@ -3,10 +3,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, FileText, CheckCircle2, AlertCircle,
   TrendingUp, Users, DollarSign, BarChart3, ChevronRight, Eye,
-  CreditCard, Link2, RefreshCw, X, Copy, Check, XCircle, AlertTriangle,
+  CreditCard, Link2, RefreshCw, X, XCircle, AlertTriangle,
   Plug, Info, Download, Wifi, ChevronDown, ChevronUp,
   TrendingDown, TableIcon, Wallet,
 } from 'lucide-react';
+import { CopyButton } from '@/components/shared/CopyButton';
 
 // ── Payroll simulator currency formatting ─────────────────────────────────────
 const SIM_CURRENCY_CONFIG = {
@@ -219,20 +220,6 @@ const MetricCard = ({ icon: Icon, label, value, subtext, trend, trendUp }: Metri
   </div>
 );
 
-const CopyButton = ({ text }: { text: string }) => {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-      className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-      title="Copy"
-    >
-      {copied
-        ? <Check className="w-3.5 h-3.5 text-emerald-500" />
-        : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-    </button>
-  );
-};
 
 
 
@@ -489,7 +476,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
                 <span className="text-sm text-slate-500">Integration Code</span>
                 <div className="flex items-center gap-2">
                   <code className="font-mono text-primary font-bold tracking-widest">{existingIntegration.integration_code}</code>
-                  <CopyButton text={existingIntegration.integration_code} />
+                  <CopyButton value={existingIntegration.integration_code} label="Copy integration code" variant="ghost" size="sm" />
                 </div>
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -608,7 +595,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
               <Label className="text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider">Integration Code</Label>
               <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <code className="flex-1 font-mono text-primary font-bold tracking-widest">{result.integration_code}</code>
-                <CopyButton text={result.integration_code} />
+                <CopyButton value={result.integration_code} label="Copy integration code" variant="ghost" size="sm" />
               </div>
             </div>
             <div className="space-y-1">
@@ -645,7 +632,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
                   </Button>
                 )}
                 {revealed && (
-                  <CopyButton text={revealedSecret ?? ''} />
+                  <CopyButton value={revealedSecret ?? ''} label="Copy secret" variant="ghost" size="sm" />
                 )}
               </div>
             </div>
@@ -653,7 +640,7 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
               <Label className="text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider">Push Endpoint</Label>
               <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <code className="flex-1 font-mono text-xs text-slate-600 dark:text-slate-300 truncate">{result.instructions?.endpoint}</code>
-                <CopyButton text={result.instructions?.endpoint ?? ''} />
+                <CopyButton value={result.instructions?.endpoint ?? ''} label="Copy endpoint" variant="ghost" size="sm" />
               </div>
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20">

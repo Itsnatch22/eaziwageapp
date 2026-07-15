@@ -6,16 +6,17 @@ import {
   Users, TrendingUp, ArrowRight, CreditCard, Building2, Upload,
   BarChart3, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownRight,
   ChevronRight, Wallet, Calendar, DollarSign, Activity, Clock,
-  FileText, Zap, Landmark, Copy, Check
+  FileText, Zap, Landmark
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
+import { CopyButton } from '@/components/shared/CopyButton';
+import { StatTilesSkeleton } from '@/components/shared/Skeletons';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
-import { toast } from 'sonner';
 import type { RealtimeChannel } from '@supabase/realtime-js';
 import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardingGuide';
 
@@ -311,17 +312,6 @@ const PayrollHealthCard = ({ lastSync }: { lastSync: PeriodData['last_sync'] }) 
 };
 
 const ReferralCodeCard = ({ code }: { code: string }) => {
-  const [copied, setCopied] = useState(false);
-
-  const copyToClipboard = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    void navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      toast.success('Referral code copied!');
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, [code]);
-
   return (
     <div className="bg-linear-to-br from-indigo-500/10 to-purple-500/10 dark:from-indigo-500/20 dark:to-purple-500/20 backdrop-blur-sm rounded-2xl p-6 border border-indigo-500/20 shadow-lg shadow-indigo-500/5">
       <div className="flex items-center justify-between mb-4">
@@ -343,14 +333,13 @@ const ReferralCodeCard = ({ code }: { code: string }) => {
           <div className="flex-1 font-mono font-bold text-xl text-center py-2 tracking-widest text-indigo-600 dark:text-indigo-400 select-all">
             {code}
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-10 w-10 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0"
-            onClick={copyToClipboard}
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-slate-400" />}
-          </Button>
+          <CopyButton
+            value={code}
+            label="Copy referral code"
+            successMessage="Referral code copied!"
+            variant="ghost"
+            className="h-10 w-10 flex items-center justify-center shrink-0"
+          />
         </div>
       </div>
       
@@ -491,8 +480,9 @@ export default function EmployerDashboard() {
   if (data.loading) {
     return (
       <EmployerPortalLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-14 h-14 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="max-w-7xl mx-auto space-y-6">
+          <StatTilesSkeleton count={4} />
+          <StatTilesSkeleton count={4} />
         </div>
       </EmployerPortalLayout>
     );

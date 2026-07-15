@@ -5,6 +5,7 @@ import { Activity, Wallet, TrendingUp, AlertTriangle } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import EmployerDetailNav from '../EmployerDetailNav';
+import { CopyButton } from '@/components/shared/CopyButton';
 
 interface WalletTransaction {
   id: string;
@@ -143,7 +144,16 @@ export default function EmployerWalletClient({ employerId }: { employerId: strin
               {transactions.map((tx) => (
                 <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                   <td className="px-6 py-4 text-sm text-slate-500">{new Date(tx.created_at).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{tx.reference || '—'}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-slate-500">
+                    {tx.reference ? (
+                      <span className="flex items-center gap-1.5">
+                        {tx.reference}
+                        <CopyButton value={tx.reference} label="Copy reference" variant="ghost" size="sm" />
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-sm capitalize text-slate-700 dark:text-slate-300">{tx.type}</td>
                   <td className={cn('px-6 py-4 text-sm font-semibold', Number(tx.amount) >= 0 ? 'text-emerald-600' : 'text-red-600')}>
                     {Number(tx.amount) >= 0 ? '+' : '-'}{formatCurrency(Math.abs(Number(tx.amount)), currency)}

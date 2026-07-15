@@ -11,7 +11,6 @@ import {
   Zap,
   ArrowRight,
   Shield,
-  Loader2,
   Landmark,
   Wallet,
   TrendingUp,
@@ -31,6 +30,7 @@ import { EmployeePortalLayout } from "@/components/employee/EmployeeLayout";
 import { sessionFetch } from "@/lib/client/session-fetch";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/SubmitButton";
+import { StatTilesSkeleton } from "@/components/shared/Skeletons";
 
 interface EmployeeProfile {
   id?: string;
@@ -327,11 +327,8 @@ export default function RequestAdvance() {
   if (loading)
     return (
       <EmployeePortalLayout>
-        <div className="flex flex-col items-center justify-center py-40 gap-4">
-          <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Verifying limit…
-          </p>
+        <div className="max-w-3xl mx-auto space-y-6">
+          <StatTilesSkeleton count={3} />
         </div>
       </EmployeePortalLayout>
     );

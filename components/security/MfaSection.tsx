@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { downloadBackupCodesCsv } from '@/lib/utils';
+import { CopyButton } from '@/components/shared/CopyButton';
 
 interface MfaFactor {
   id: string;
@@ -188,8 +189,9 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
             />
           )}
           {secret && (
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 mt-2 flex items-center justify-center gap-1.5">
               Or enter this key manually: <code className="font-mono">{secret}</code>
+              <CopyButton value={secret} label="Copy setup key" variant="ghost" size="sm" />
             </p>
           )}
         </div>
@@ -287,7 +289,7 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
                       {backupCodes.map((c, idx) => (
                         <div key={idx} className="p-2 bg-white dark:bg-slate-900 rounded-md text-xs font-mono flex items-center justify-between">
                           <span>{c}</span>
-                          <button onClick={() => navigator.clipboard?.writeText(c)} className="ml-2 text-xs text-primary">Copy</button>
+                          <CopyButton value={c} label="Copy backup code" variant="ghost" size="sm" />
                         </div>
                       ))}
                     </div>

@@ -16,6 +16,7 @@ import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
+import { ListSkeleton } from '@/components/shared/Skeletons';
 
 type IconType = React.ComponentType<{ className?: string }>;
 
@@ -617,8 +618,8 @@ export default function ReviewRequests() {
 
         <div className="space-y-4">
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+            <div className="bg-white/60 dark:bg-slate-900/60 rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
+              <ListSkeleton rows={3} />
             </div>
           ) : filteredRequests.length === 0 ? (
             <div className="bg-white/60 dark:bg-slate-900/60 rounded-2xl p-12 text-center border border-slate-200/50 dark:border-slate-700/30">

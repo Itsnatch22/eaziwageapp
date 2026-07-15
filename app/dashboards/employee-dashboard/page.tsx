@@ -7,7 +7,7 @@ import {
   Wallet, TrendingUp, ArrowRight,
   CheckCircle2, History, Calendar,
   Building2, Zap, ChevronRight,
-  Shield, Landmark, Loader2,
+  Shield, Landmark,
   ArrowDownLeft, ArrowUpRight as ArrowUpRightIcon, AlertCircle, Sparkles,
   Calculator,
 } from 'lucide-react';
@@ -20,6 +20,7 @@ import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardin
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
+import { StatTilesSkeleton } from '@/components/shared/Skeletons';
 
 
 
@@ -259,9 +260,8 @@ export default function EmployeeDashboardPage() {
 
   if (loading) return (
     <EmployeePortalLayout>
-      <div className="flex flex-col items-center justify-center py-40 gap-4">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Verifying ledger…</p>
+      <div className="max-w-5xl mx-auto space-y-6">
+        <StatTilesSkeleton count={4} />
       </div>
     </EmployeePortalLayout>
   );

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import * as Sentry from "@sentry/nextjs";
+import { CopyButton } from "@/components/shared/CopyButton";
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -102,8 +103,9 @@ export default function Error({ error, reset }: ErrorProps) {
         </p>
 
         {error.digest && (
-          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/40 px-3 py-1.5 rounded-full inline-block">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/40 pl-3 pr-1.5 py-1.5 rounded-full">
             Error ID: {error.digest}
+            <CopyButton value={error.digest} label="Copy error ID" variant="ghost" size="sm" />
           </span>
         )}
       </div>

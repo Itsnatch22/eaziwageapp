@@ -17,6 +17,7 @@ import { formatCurrency, formatDateTime, cn, convertToUSD, getCurrencyFromCountr
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { toast }                   from 'sonner';
+import { CopyButton } from '@/components/shared/CopyButton';
 
 type EmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
 
@@ -464,7 +465,17 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
                 <p className="text-white/80 text-sm">
                   {data.industry.replace('_', ' ')} • {data.country}
                 </p>
-                <p className="text-white/60 text-xs mt-1">Code: {data.employer_code}</p>
+                <p className="text-white/60 text-xs mt-1 flex items-center gap-1">
+                  Code: {data.employer_code}
+                  <CopyButton
+                    value={data.employer_code}
+                    label="Copy employer code"
+                    variant="ghost"
+                    size="sm"
+                    className="p-1 hover:bg-white/10"
+                    iconClassName="text-white/60"
+                  />
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">

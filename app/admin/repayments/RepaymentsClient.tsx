@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CopyButton } from '@/components/shared/CopyButton';
 
 export type RepaymentSchedule = {
   id: string;
@@ -225,7 +226,12 @@ export default function RepaymentsClient({ schedules }: { schedules: RepaymentSc
                 const canAct = effectiveStatus !== 'paid' && effectiveStatus !== 'waived';
                 return (
                   <TableRow key={s.id}>
-                    <TableCell className="font-mono text-xs">{s.repayment_reference}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      <span className="flex items-center gap-1.5">
+                        {s.repayment_reference}
+                        <CopyButton value={s.repayment_reference} label="Copy reference" variant="ghost" size="sm" />
+                      </span>
+                    </TableCell>
                     <TableCell>{s.employer_name}</TableCell>
                     <TableCell>{s.employee_name}</TableCell>
                     <TableCell className="font-medium">{fmt(s.repayment_amount, s.currency)}</TableCell>

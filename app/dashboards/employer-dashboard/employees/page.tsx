@@ -42,6 +42,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { createClient } from '@/lib/supabase/client';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
+import { StatTilesSkeleton, ListSkeleton } from '@/components/shared/Skeletons';
 import type { RealtimeChannel } from '@supabase/realtime-js';
 import {
   GradientIconBox,
@@ -1125,16 +1126,6 @@ const EmployeeViewModal: React.FC<{
   );
 };
 
-const Skeleton: React.FC<{ className?: string }> = ({ className }) => (
-  <div
-    className={cn(
-      "animate-pulse bg-slate-200 dark:bg-slate-700 rounded-xl",
-      className,
-    )}
-  />
-);
-
-
 
 const EmployerEmployees: React.FC = () => {
   const { currency } = useCurrency();
@@ -1357,11 +1348,7 @@ const EmployerEmployees: React.FC = () => {
 
         
         {loading ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-28" />
-            ))}
-          </div>
+          <StatTilesSkeleton count={4} />
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
@@ -1544,9 +1531,7 @@ const EmployerEmployees: React.FC = () => {
         
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-            </div>
+            <ListSkeleton rows={6} />
           ) : filteredEmployees.length === 0 ? (
             <div className="text-center py-16 px-4">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">

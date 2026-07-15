@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { CopyButton } from '@/components/shared/CopyButton';
 
 export interface ErrorLog {
   id: string;
@@ -296,8 +297,9 @@ export default function LogsClient({ initialLogs, stats, initialTotal }: Props) 
                       {/* Error ID */}
                       <td className="px-4 py-3">
                         {log.digest ? (
-                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/40 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/40 pl-2 pr-1 py-0.5 rounded-full">
                             {log.digest}
+                            <CopyButton value={log.digest} label="Copy error ID" variant="ghost" size="sm" />
                           </span>
                         ) : (
                           <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>

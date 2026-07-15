@@ -5,6 +5,7 @@ import { Activity, Building2, Users, CreditCard, Landmark, Mail, Phone, MapPin }
 import { formatCurrency, cn } from '@/lib/utils';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import EmployerDetailNav from './EmployerDetailNav';
+import { CopyButton } from '@/components/shared/CopyButton';
 
 interface EmployerDetail {
   id: string;
@@ -90,7 +91,10 @@ export default function EmployerOverviewClient({ employerId }: { employerId: str
         <span className={cn('px-2.5 py-1 rounded-lg text-xs font-medium capitalize', statusStyles[employer.status] ?? statusStyles.pending)}>
           {employer.status.replace(/_/g, ' ')}
         </span>
-        <span className="text-sm text-slate-500">{employer.employer_code}</span>
+        <span className="text-sm text-slate-500 flex items-center gap-1">
+          {employer.employer_code}
+          <CopyButton value={employer.employer_code} label="Copy employer code" variant="ghost" size="sm" />
+        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

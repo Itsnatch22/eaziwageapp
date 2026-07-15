@@ -21,6 +21,7 @@ import {
 import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast }                   from 'sonner';
+import { CopyButton } from '@/components/shared/CopyButton';
 import { DOCUMENT_TYPE_LABELS } from '@/lib/validations/kyc-validation';
 
 type EmployeeStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
@@ -700,7 +701,17 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                 <p className="text-white/80 text-sm">
                   {data.job_title} {data.employer_name ? `• ${data.employer_name}` : ''}
                 </p>
-                <p className="text-white/60 text-xs mt-1">ID: {data.employee_code}</p>
+                <p className="text-white/60 text-xs mt-1 flex items-center gap-1">
+                  ID: {data.employee_code}
+                  <CopyButton
+                    value={data.employee_code}
+                    label="Copy employee code"
+                    variant="ghost"
+                    size="sm"
+                    className="p-1 hover:bg-white/10"
+                    iconClassName="text-white/60"
+                  />
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">

@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { StatTilesSkeleton, TableSkeleton } from '@/components/shared/Skeletons';
 
 interface Employer {
   id: string;
@@ -531,10 +532,10 @@ export default function AdminEmployersPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-500">Loading employers...</p>
+      <div className="space-y-6">
+        <StatTilesSkeleton count={4} />
+        <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/60 overflow-hidden">
+          <TableSkeleton rows={6} columns={7} />
         </div>
       </div>
     );

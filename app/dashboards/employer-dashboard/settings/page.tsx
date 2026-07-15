@@ -24,6 +24,7 @@ import { cn, getAdvanceLimit, getCurrencySymbol, getCurrencyFromCountry, downloa
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { createClient } from '@/lib/supabase/client';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { CopyButton } from '@/components/shared/CopyButton';
 
 interface EmployerProfile {
   id: string;
@@ -1179,6 +1180,11 @@ export default function EmployerSettings() {
                       <code className="px-4 py-2 bg-white dark:bg-slate-800 rounded-lg font-mono text-lg font-bold text-primary border border-primary/30">
                         {employer?.company_code || `EW-${employer?.id?.slice(0, 8).toUpperCase() || 'XXXXXXXX'}`}
                       </code>
+                      <CopyButton
+                        value={employer?.company_code || `EW-${employer?.id?.slice(0, 8).toUpperCase() || 'XXXXXXXX'}`}
+                        label="Copy employer code"
+                        variant="ghost"
+                      />
                       <span className="text-xs text-slate-500 dark:text-slate-400">Unique identifier assigned upon registration</span>
                     </div>
                   </div>
@@ -1940,7 +1946,7 @@ export default function EmployerSettings() {
                       {backupCodes.map((c, idx) => (
                         <div key={idx} className="p-2 bg-white dark:bg-slate-900 rounded-md text-xs font-mono flex items-center justify-between">
                           <span>{c}</span>
-                          <button onClick={() => { if (typeof navigator !== 'undefined') void navigator.clipboard.writeText(c); toast.success('Copied!'); }} className="ml-2 text-xs text-primary">Copy</button>
+                          <CopyButton value={c} label="Copy backup code" successMessage="Copied!" variant="ghost" size="sm" />
                         </div>
                       ))}
                     </div>

@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Wallet, TrendingUp, History, Download, CreditCard, ArrowUpRight,
-  ArrowDownLeft, Plus, Calendar, AlertCircle, Info, Loader2, CheckCircle2,
-  Copy, ClipboardCheck, FileText
+  ArrowDownLeft, Plus, Calendar, AlertCircle, Info, CheckCircle2,
+  FileText
 } from 'lucide-react';
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
@@ -14,6 +14,8 @@ import { sessionFetch } from '@/lib/client/session-fetch';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
+import { CopyButton } from '@/components/shared/CopyButton';
+import { TableSkeleton } from '@/components/shared/Skeletons';
 
 interface Transaction {
   id: string;
@@ -67,14 +69,6 @@ const WalletPage = () => {
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   const [repaymentSchedules, setRepaymentSchedules] = useState<RepaymentSchedule[]>([]);
   const [bankDetails, setBankDetails] = useState<BankDetails>({ bank_name: null, bank_account: null });
-  const [copiedRef, setCopiedRef] = useState<string | null>(null);
-
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedRef(key);
-      setTimeout(() => setCopiedRef(null), 2000);
-    }).catch(() => toast.error('Copy failed'));
-  };
 
   const fetchData = useCallback(async () => {
     await Promise.resolve();
@@ -228,9 +222,7 @@ const WalletPage = () => {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
+            <TableSkeleton rows={6} columns={6} />
           ) : transactions.length === 0 ? (
             <div className="py-20 text-center">
               <p className="text-slate-500">No transactions recorded yet.</p>
@@ -258,7 +250,14 @@ const WalletPage = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900 dark:text-white font-mono">
-                        {tx.reference || 'N/A'}
+                        {tx.reference ? (
+                          <span className="flex items-center gap-1.5">
+                            {tx.reference}
+                            <CopyButton value={tx.reference} label="Copy reference" variant="ghost" size="sm" />
+                          </span>
+                        ) : (
+                          'N/A'
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
@@ -378,7 +377,15 @@ const WalletPage = () => {
                         <p>Transfer <span className="font-bold">{schedule.currency} {(schedule.repayment_amount - schedule.paid_amount).toLocaleString()}</span> to:</p>
                         <p>Bank: <span className="font-semibold">{bankDetails.bank_name ?? 'Contact admin for bank details'}</span></p>
                         {bankDetails.bank_account && (
-                          <p>Account: <span className="font-semibold">{bankDetails.bank_account}</span></p>
+                          <p className="flex items-center gap-1.5">
+                            Account: <span className="font-semibold">{bankDetails.bank_account}</span>
+                            <CopyButton
+                              value={bankDetails.bank_account}
+                              label="Copy account number"
+                              variant="ghost"
+                              size="sm"
+                            />
+                          </p>
                         )}
                       </div>
 
@@ -391,26 +398,17 @@ const WalletPage = () => {
                           <code className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-sm font-bold text-slate-900 dark:text-white tracking-wider break-all">
                             {schedule.repayment_reference}
                           </code>
-                          <button
-                            onClick={() => copyToClipboard(schedule.repayment_reference, `ref-${schedule.id}`)}
-                            className="shrink-0 p-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
-                            title="Copy reference"
-                          >
-                            {copiedRef === `ref-${schedule.id}`
-                              ? <ClipboardCheck className="w-4 h-4" />
-                              : <Copy className="w-4 h-4" />}
-                          </button>
+                          <CopyButton value={schedule.repayment_reference} label="Copy reference" variant="icon" />
                         </div>
                       </div>
 
                       <div className="flex gap-2 pt-1">
-                        <button
-                          onClick={() => copyToClipboard(String(schedule.repayment_amount - schedule.paid_amount), `amt-${schedule.id}`)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        >
-                          {copiedRef === `amt-${schedule.id}` ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                          Copy Amount
-                        </button>
+                        <CopyButton
+                          value={String(schedule.repayment_amount - schedule.paid_amount)}
+                          label="Copy Amount"
+                          variant="pill"
+                          size="sm"
+                        />
                       </div>
                     </div>
                   </div>
