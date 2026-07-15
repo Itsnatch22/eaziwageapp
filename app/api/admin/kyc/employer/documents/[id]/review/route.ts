@@ -95,7 +95,7 @@ export async function PATCH(
   const { data: onboarding, error: onboardingError } = await adminSupabase
     .from('employer_onboarding')
     .select(
-      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_percentage, cooldown_period, payday_day_of_month, mobile_money_provider, status'
+      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_amount, max_advance_percentage, cooldown_period, payday_day_of_month, mobile_money_provider, status'
     )
     .eq('user_id', doc.user_id)
     .maybeSingle();

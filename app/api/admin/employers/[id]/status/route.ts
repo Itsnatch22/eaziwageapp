@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/server/admin-auth';
 import { EmployerStatusPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer } from '@/lib/notifications';
 import { resolveDefaultAdvanceRange } from '@/lib/services/advance-defaults';
+import { promoteEmployerToLive, type EmployerOnboardingRow } from '@/lib/services/employer-promotion';
 import { getEnv } from '@/env';
 
 const env = getEnv();
@@ -229,92 +230,37 @@ export async function PATCH(
     .eq('user_id', employer.user_id)
     .maybeSingle();
 
-  // Run sync when approving OR when an employers row already exists (keeps it in sync on
-  // every status change). Never creates an employers row for non-approved statuses.
-  if (resultStatus === 'approved' || existingEmployer) {
-    const { data: profileRow } = await adminSupabase
-      .from('profiles')
-      .select('email, phone')
-      .eq('id', employer.user_id)
+  if (resultStatus === 'approved') {
+    // Route through the canonical promotion path (also used by the KYC review
+    // routes) instead of duplicating the employers-table sync inline — the
+    // duplicate here never set organization_id (required by
+    // advances.organization_id NOT NULL) or stamped
+    // employee_onboarding.live_employer_id. Re-fetch first so we pick up the
+    // company_code/min_advance_amount/max_advance_amount the employer_onboarding
+    // update above just wrote (including any admin-provided employer_code or
+    // resolved default range).
+    const { data: fullOnboarding, error: fullOnboardingError } = await adminSupabase
+      .from('employer_onboarding')
+      .select(
+        'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_amount, max_advance_percentage, cooldown_period, payday_day_of_month, mobile_money_provider'
+      )
+      .eq('id', activeId)
       .maybeSingle();
 
-    // Canonical code — must satisfy employers.company_code check: ^[A-Z0-9]{3,20}$
-    // Priority: admin-provided → employer_onboarding.company_code (stamped above) →
-    //           existing employers row → deterministic fallback from onboarding UUID.
-    const onboardingCode = (employer as Record<string, unknown>).company_code as string | null;
-    const canonicalCode: string =
-      (typeof employer_code === 'string' && employer_code.trim()
-        ? employer_code.trim().replace(/[^A-Z0-9]/gi, '').slice(0, 20).toUpperCase()
-        : null) ??
-      onboardingCode ??
-      existingEmployer?.company_code ??
-      generatePrimaryCompanyCode(employer.id);
-
-    const primaryStatus = toPrimaryEmployerStatus(resultStatus);
-
-    const syncPayload = {
-      user_id:             employer.user_id,
-      company_name:        employer.company_name || 'Unknown company',
-      // Bug 1 fix: single valid code used for both columns — no EW- prefix.
-      company_code:        canonicalCode,
-      employer_code:       canonicalCode,
-      // Bug 2 fix: always carry onboarding_id so the public employers join works.
-      onboarding_id:       activeId,
-      email:               employer.contact_email || profileRow?.email || null,
-      phone:               employer.contact_phone || profileRow?.phone || null,
-      status:              primaryStatus,
-      industry:            employer.industry || null,
-      country:             employer.country || null,
-      registration_number: employer.registration_number || null,
-      tax_id:              employer.tax_id || null,
-      address:             employer.physical_address || null,
-      contact_person:      employer.contact_person || null,
-      contact_email:       employer.contact_email || null,
-      contact_phone:       employer.contact_phone || null,
-      payroll_cycle:       employer.payroll_cycle || null,
-      risk_score:          employer.risk_score ?? null,
-      risk_rating:         employer.risk_rating || null,
-      is_verified:         primaryStatus === 'approved',
-      // PROMOTION PATH — intentionally reads employer_onboarding to populate employers
-      // This is the ONLY place where employer_onboarding values are mapped to employers columns
-      // max_advance_percentage → advance_limit_percent
-      // cooldown_period → cooldown_days
-      advance_limit_percent: (employer as { max_advance_percentage?: number | null }).max_advance_percentage ?? 50,
-      cooldown_days:         (employer as { cooldown_period?: number | null }).cooldown_period ?? 7,
-      min_advance_amount:    (updatePayload.min_advance_amount as number | undefined) ?? employer.min_advance_amount ?? defaultRange?.min_advance_amount ?? 500,
-      max_advance_amount:    (updatePayload.max_advance_amount as number | undefined) ?? (employer as { max_advance_amount?: number | null }).max_advance_amount ?? defaultRange?.max_advance_amount ?? 50000,
-      updated_at:          new Date().toISOString(),
-    };
-
-    // Bug 3 fix: commit employers row FIRST so the FK
-    // (profiles.company_code → employers.company_code) is satisfied before we touch profiles.
-    const { error: syncError } = existingEmployer
-      ? await adminSupabase.from('employers').update(syncPayload).eq('id', existingEmployer.id)
-      : await adminSupabase.from('employers').insert({
-          ...syncPayload,
-          employer_id: employer.user_id,
-          created_at: new Date().toISOString(),
-        });
-
-    if (syncError) {
-      console.error('[PATCH employer status] Primary employers sync error:', syncError);
-      return NextResponse.json({ error: 'Employer status updated, but primary employer sync failed' }, { status: 500 });
+    if (fullOnboardingError || !fullOnboarding) {
+      console.error('[PATCH employer status] Failed to re-fetch onboarding for promotion:', fullOnboardingError);
+      return NextResponse.json({ error: 'Employer status updated, but promotion failed' }, { status: 500 });
     }
 
-    // On a fresh insert existingEmployer is null — resolve the just-created row's id.
-    const { data: resolvedEmployer } = await adminSupabase
-      .from('employers')
-      .select('id')
-      .eq('user_id', employer.user_id)
-      .maybeSingle();
+    const promotion = await promoteEmployerToLive(adminSupabase, fullOnboarding as EmployerOnboardingRow);
+    console.log(`[PATCH employer status] Promoted employer, liveEmployersId=${promotion.liveEmployersId}`);
+    resolvedCompanyCode = fullOnboarding.company_code ?? null;
 
-    const employerLiveId = existingEmployer?.id ?? resolvedEmployer?.id;
-
-    if (resultStatus === 'approved' && employerLiveId && env.PII_ENCRYPTION_KEY) {
+    if (promotion.liveEmployersId && env.PII_ENCRYPTION_KEY) {
       try {
         await adminSupabase.rpc('promote_employer_bank_account', {
           p_onboarding_id: activeId,
-          p_employer_id:   employerLiveId,
+          p_employer_id:   promotion.liveEmployersId,
           p_key:           env.PII_ENCRYPTION_KEY,
         });
         console.log(`[PATCH employer status] Bank account promoted for employer ${activeId}`);
@@ -324,19 +270,22 @@ export async function PATCH(
         console.error('[PATCH employer status] Bank account promotion failed:', bankErr);
       }
     }
+  } else if (existingEmployer) {
+    // Employer was already promoted to `employers` on a prior approval — a
+    // non-approval status change (suspend/reject/pending) doesn't need a full
+    // re-promotion, just the status flag kept in sync.
+    const primaryStatus = toPrimaryEmployerStatus(resultStatus);
+    const { error: syncError } = await adminSupabase
+      .from('employers')
+      .update({ status: primaryStatus, is_verified: primaryStatus === 'approved', updated_at: new Date().toISOString() })
+      .eq('id', existingEmployer.id);
 
-    // profiles.company_code update is safe now — employers row is committed.
-    const { error: profileCodeError } = await adminSupabase
-      .from('profiles')
-      .update({ company_code: canonicalCode })
-      .eq('id', employer.user_id);
-
-    if (profileCodeError) {
-      // Non-fatal: employees can still register; log for investigation.
-      console.error('[PATCH employer status] profiles.company_code update failed:', profileCodeError.message);
+    if (syncError) {
+      console.error('[PATCH employer status] employers status sync error:', syncError);
+      return NextResponse.json({ error: 'Employer status updated, but primary employer sync failed' }, { status: 500 });
     }
 
-    resolvedCompanyCode = canonicalCode;
+    resolvedCompanyCode = existingEmployer.company_code ?? null;
   }
 
   const statusLabel: Record<string, string> = {
