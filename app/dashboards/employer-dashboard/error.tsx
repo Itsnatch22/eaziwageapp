@@ -127,14 +127,16 @@ export default function EmployerError({ error, reset }: ErrorProps) {
       </div>
 
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-sm mx-auto">
-        <Button
-          onClick={reset}
-          size="lg"
-          className="w-full rounded-xl h-11 shadow-sm transition-all active:scale-95"
-        >
-          <RefreshCcw className="w-4 h-4 mr-2" />
-          Try again
-        </Button>
+        <div className="w-full">
+          <Button
+            onClick={reset}
+            size="lg"
+            className="w-full rounded-xl h-11 shadow-sm transition-all active:scale-95"
+          >
+            <RefreshCcw className="w-4 h-4 mr-2" />
+            Try again
+          </Button>
+        </div>
 
         <Link href="/dashboards/employer-dashboard" className="w-full">
           <Button
