@@ -228,7 +228,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (employerIds.length === 0) {
     return NextResponse.json({
       data: [],
-      stats,
+      // Same shape as the main response below ({ ...stats, ...pageStats }) —
+      // without this, total_employees/avg_risk_score/avg_application_fee are
+      // undefined here, and RiskScoringClient.tsx calls .toLocaleString()/
+      // .toFixed() on them unconditionally.
+      stats: { ...stats, avg_risk_score: 0, avg_application_fee: 0, total_employees: 0 },
       pagination: { total: filteredCount ?? 0, page, limit, hasMore: false },
       filters: { countries, industries, risk_ratings: ['A', 'B', 'C', 'D'], statuses: ['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress'] },
       framework,
