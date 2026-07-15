@@ -2,6 +2,8 @@ import { createRouteHandlerClient as createClient } from '@/utils/supabase/serve
 import { NextResponse } from 'next/server';
 import { getCurrencyFromCountry } from '@/lib/utils';
 import { EmployerProfileUpdateSchema } from '@/lib/validations/route-schemas';
+import { createAdminClient } from '@/lib/supabaseAdmin';
+import { getEnv } from '@/env';
 
 export const runtime = 'nodejs';
 
@@ -20,7 +22,7 @@ export async function GET() {
   const { data: onboarding, error: onboardingError } = await supabase
     .from('employer_onboarding')
     .select(
-      'id, user_id, company_name, registration_number, industry, sector, physical_address, city, postal_code, county_region, country, status, current_step, contact_person, contact_email, contact_phone, contact_position, payroll_cycle, payday_day_of_month, mobile_money_provider, mobile_money_number, risk_rating, risk_score, bank_name, bank_account_number, tax_id, vat_number, employee_count, certificate_of_incorporation, business_registration, tax_compliance_certificate, cr12_document, kra_pin_certificate, business_permit, audited_financials, bank_statement, proof_of_address, proof_of_bank_account, employment_contract_template, deleted_at',
+      'id, user_id, company_name, registration_number, industry, sector, physical_address, city, postal_code, county_region, country, status, current_step, contact_person, contact_email, contact_phone, contact_position, payroll_cycle, payday_day_of_month, mobile_money_provider, risk_rating, risk_score, bank_name, tax_id, vat_number, employee_count, deleted_at',
     )
     .eq('user_id', user.id)
     .is('deleted_at', null)
@@ -30,6 +32,22 @@ export async function GET() {
 
   if (onboardingError) {
     return NextResponse.json({ error: onboardingError.message }, { status: 500 });
+  }
+
+  // mobile_money_number and bank_account_number are encrypted at rest
+  // (bytea) — selected separately via decrypt RPCs rather than in the plain
+  // select above, so a raw ciphertext value never accidentally leaks into a
+  // response payload.
+  let decryptedMobileMoneyNumber: string | null = null;
+  if (onboarding) {
+    const { PII_ENCRYPTION_KEY } = getEnv();
+    if (PII_ENCRYPTION_KEY) {
+      const { data: dec } = await createAdminClient().rpc('admin_get_employer_mobile_money', {
+        p_onboarding_id: onboarding.id,
+        p_key: PII_ENCRYPTION_KEY,
+      });
+      decryptedMobileMoneyNumber = dec ?? null;
+    }
   }
 
   const { data: userProfile } = await supabase
@@ -59,24 +77,24 @@ export async function GET() {
     return NextResponse.json({ error: 'No employer profile found.' }, { status: 404 });
   }
 
-  const documents = {
-    certificate_of_incorporation: onboarding.certificate_of_incorporation,
-    business_registration: onboarding.business_registration,
-    tax_compliance_certificate: onboarding.tax_compliance_certificate,
-    cr12_document: onboarding.cr12_document,
-    kra_pin_certificate: onboarding.kra_pin_certificate,
-    business_permit: onboarding.business_permit,
-    audited_financials: onboarding.audited_financials,
-    bank_statement: onboarding.bank_statement,
-    proof_of_address: onboarding.proof_of_address,
-    proof_of_bank_account: onboarding.proof_of_bank_account,
-    employment_contract_template: onboarding.employment_contract_template,
-  };
+  const { data: kycDocuments } = await supabase
+    .from('employer_kyc_documents')
+    .select('document_type, document_url, status, reviewer_notes')
+    .eq('user_id', user.id);
+
+  // Flat type->url map for simple "has this been uploaded" checks, kept for
+  // existing consumers; `kycDocuments` below carries the full per-document
+  // review state (status, reviewer_notes) for the rejection/resubmission flow.
+  const documents = Object.fromEntries(
+    (kycDocuments ?? []).map((d) => [d.document_type, d.document_url]),
+  );
 
   return NextResponse.json({
     profile: {
       ...onboarding,
+      mobile_money_number: decryptedMobileMoneyNumber,
       documents,
+      kycDocuments: kycDocuments ?? [],
       currency,
       avatar_url: userProfile?.avatar_url,
       company_code: userProfile?.company_code || onboarding.id.slice(0, 8).toUpperCase(),
@@ -100,7 +118,9 @@ export async function PUT(req: Request) {
     }
     const body = profileParsed.data;
     
-    const { error: onboardingError } = await supabase
+    // mobile_money_number is encrypted at rest — written via
+    // upsert_employer_onboarding_pii below, not stored raw here.
+    const { data: updatedOnboarding, error: onboardingError } = await supabase
       .from('employer_onboarding')
       .update({
         company_name: body.companyName,
@@ -124,12 +144,30 @@ export async function PUT(req: Request) {
         cooldown_period: body.cooldownPeriod,
         payday_day_of_month: body.paydayDayOfMonth,
         mobile_money_provider: body.mobileMoneyProvider,
-        mobile_money_number: body.mobileMoneyNumber,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .select('id')
+      .maybeSingle();
 
     if (onboardingError) throw onboardingError;
+
+    if (body.mobileMoneyNumber !== undefined && updatedOnboarding?.id) {
+      const { PII_ENCRYPTION_KEY } = getEnv();
+      if (!PII_ENCRYPTION_KEY) {
+        return NextResponse.json({ error: 'Encryption not configured' }, { status: 500 });
+      }
+      // p_bank_account_number: null leaves the existing encrypted value
+      // untouched (see upsert_employer_onboarding_pii's CASE guards) — this
+      // route never edits the bank account, only mobile money.
+      const { error: piiError } = await createAdminClient().rpc('upsert_employer_onboarding_pii', {
+        p_onboarding_id: updatedOnboarding.id,
+        p_bank_account_number: null,
+        p_mobile_money_number: body.mobileMoneyNumber,
+        p_key: PII_ENCRYPTION_KEY,
+      });
+      if (piiError) throw piiError;
+    }
 
     // Already-approved employers operate off the `employers` table, not
     // employer_onboarding — payday/mobile-money/EWA limits need to land there

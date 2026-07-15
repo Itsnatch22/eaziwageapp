@@ -164,10 +164,13 @@ interface FileUploaderProps {
   required?: boolean;
   optional?: boolean;
   tooltip?: string;
+  /** Already on file and not rejected — render as non-interactive so the user
+   *  is never prompted to re-upload something that wasn't flagged. */
+  locked?: boolean;
 }
 
 const FileUploader = ({
-  label, description, onUpload, uploadedFile, uploading, testId, required = false, optional = false, tooltip,
+  label, description, onUpload, uploadedFile, uploading, testId, required = false, optional = false, tooltip, locked = false,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -238,20 +241,36 @@ const FileUploader = ({
 
       <input ref={fileInputRef} type="file" accept={DOCUMENT_ACCEPT} onChange={handleFileSelect} className="hidden" data-testid={testId} />
       <div
-        onClick={() => !uploading && fileInputRef.current?.click()}
-        onDragEnter={handleDragIn}
-        onDragLeave={handleDragOut}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-          dragActive 
-            ? "border-primary bg-primary/5 dark:bg-primary/10 scale-[1.02]" 
-            : uploadedFile 
-              ? "border-primary bg-primary/5 dark:bg-primary/10" 
-              : "border-slate-200 dark:border-slate-700 hover:border-primary/50"
+        onClick={() => !uploading && !locked && fileInputRef.current?.click()}
+        onDragEnter={locked ? undefined : handleDragIn}
+        onDragLeave={locked ? undefined : handleDragOut}
+        onDragOver={locked ? undefined : handleDrag}
+        onDrop={locked ? undefined : handleDrop}
+        className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${
+          locked
+            ? "cursor-default border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-900/10"
+            : "cursor-pointer"
+        } ${
+          !locked && dragActive
+            ? "border-primary bg-primary/5 dark:bg-primary/10 scale-[1.02]"
+            : !locked && uploadedFile
+              ? "border-primary bg-primary/5 dark:bg-primary/10"
+              : !locked
+                ? "border-slate-200 dark:border-slate-700 hover:border-primary/50"
+                : ""
         }`}
       >
-        {uploading ? (
+        {locked ? (
+          <div className="flex items-center justify-center gap-3">
+            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg flex items-center justify-center">
+              <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-medium text-slate-900 dark:text-white">Already submitted</p>
+              <p className="text-xs text-slate-500">No action needed</p>
+            </div>
+          </div>
+        ) : uploading ? (
           <div className="flex items-center justify-center gap-2 py-2">
             <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
             <span className="text-sm text-slate-600 dark:text-slate-400">Uploading...</span>
@@ -384,6 +403,23 @@ export default function EmployerOnboarding() {
     proof_of_bank_account: null,
     employment_contract_template: null,
   });
+
+  // Per-document KYC review state, keyed by document_type. Drives which
+  // upload slots render locked ("already submitted, no action needed") vs.
+  // open for a fresh upload, and surfaces the admin's reviewer_notes only
+  // next to the document that was actually rejected — never the whole
+  // application.
+  const [kycDocReview, setKycDocReview] = useState<
+    Record<string, { status: string; reviewer_notes: string | null }>
+  >({});
+  const isDocLocked = (docType: string) => {
+    const doc = kycDocReview[docType];
+    return Boolean(doc && doc.status !== "rejected");
+  };
+  const rejectionNote = (docType: string) => {
+    const doc = kycDocReview[docType];
+    return doc?.status === "rejected" ? doc.reviewer_notes : null;
+  };
 
   const [countriesOfOperation, setCountriesOfOperation] = useState<string[]>([]);
   const user = useAuthStore((state) => state.user);
@@ -520,12 +556,16 @@ export default function EmployerOnboarding() {
             }
 
 
-            if (profile.documents) {
-              const docs: Record<string, { name: string; url: string } | null> = {};
-              Object.entries(profile.documents).forEach(([key, url]) => {
-                if (url) docs[key] = { name: `Current ${key.replace(/_/g, ' ')}`, url: url as string };
+            // Show only the document(s) an admin actually rejected, with the
+            // reason — every other document (approved, pending, or
+            // under_review) renders locked via FileUploader's `locked` prop
+            // instead of being re-presented as an editable upload slot.
+            if (Array.isArray(profile.kycDocuments)) {
+              const reviewByType: Record<string, { status: string; reviewer_notes: string | null }> = {};
+              profile.kycDocuments.forEach((d: { document_type: string; status: string; reviewer_notes: string | null }) => {
+                reviewByType[d.document_type] = { status: d.status, reviewer_notes: d.reviewer_notes };
               });
-              setUploadedFiles(prev => ({ ...prev, ...docs }));
+              setKycDocReview(reviewByType);
             }
 
             // Resume from the last saved step so a session timeout doesn't reset progress.
@@ -841,6 +881,11 @@ const handleFileUpload = async (file: File, documentType: string) => {
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Registration Documents</h4>
+                {rejectionNote("certificate_of_incorporation") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("certificate_of_incorporation")}
+                  </p>
+                )}
                 <FileUploader
                   label="Certificate of Incorporation"
                   description="Company incorporation certificate"
@@ -848,10 +893,16 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "certificate_of_incorporation")}
                   uploadedFile={uploadedFiles.certificate_of_incorporation}
                   uploading={uploadingFile === "certificate_of_incorporation"}
+                  locked={isDocLocked("certificate_of_incorporation")}
                   testId="upload-coi"
                   optional
                 />
-                
+
+                {rejectionNote("business_registration") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("business_registration")}
+                  </p>
+                )}
                 <FileUploader
                   label="Business Registration"
                   description="Business registration certificate"
@@ -859,6 +910,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "business_registration")}
                   uploadedFile={uploadedFiles.business_registration}
                   uploading={uploadingFile === "business_registration"}
+                  locked={isDocLocked("business_registration")}
                   testId="upload-br"
                   optional
                 />
@@ -921,6 +973,11 @@ const handleFileUpload = async (file: File, documentType: string) => {
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Address & Tax Documents</h4>
+                {rejectionNote("proof_of_address") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("proof_of_address")}
+                  </p>
+                )}
                 <FileUploader
                   label="Proof of Address"
                   description="Utility bill or lease agreement"
@@ -928,10 +985,16 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "proof_of_address")}
                   uploadedFile={uploadedFiles.proof_of_address}
                   uploading={uploadingFile === "proof_of_address"}
+                  locked={isDocLocked("proof_of_address")}
                   testId="upload-poa"
                   optional
                 />
-                
+
+                {rejectionNote("tax_compliance_certificate") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("tax_compliance_certificate")}
+                  </p>
+                )}
                 <FileUploader
                   label="Tax Compliance Certificate"
                   description="KRA tax compliance certificate"
@@ -939,10 +1002,16 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "tax_compliance_certificate")}
                   uploadedFile={uploadedFiles.tax_compliance_certificate}
                   uploading={uploadingFile === "tax_compliance_certificate"}
+                  locked={isDocLocked("tax_compliance_certificate")}
                   testId="upload-tcc"
                   optional
                 />
-                
+
+                {rejectionNote("kra_pin_certificate") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("kra_pin_certificate")}
+                  </p>
+                )}
                 <FileUploader
                   label="KRA PIN Certificate"
                   description="KRA PIN registration certificate"
@@ -950,6 +1019,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "kra_pin_certificate")}
                   uploadedFile={uploadedFiles.kra_pin_certificate}
                   uploading={uploadingFile === "kra_pin_certificate"}
+                  locked={isDocLocked("kra_pin_certificate")}
                   testId="upload-kra"
                   optional
                 />
@@ -983,7 +1053,12 @@ const handleFileUpload = async (file: File, documentType: string) => {
               </Button>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Ownership Documents</h4>
-                <FileUploader label="CR12 / Company Directors" description="Company registry document showing directors" onUpload={(file) => handleFileUpload(file, "cr12_document")} uploadedFile={uploadedFiles.cr12_document} uploading={uploadingFile === "cr12_document"} testId="upload-cr12" optional />
+                {rejectionNote("cr12_document") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("cr12_document")}
+                  </p>
+                )}
+                <FileUploader label="CR12 / Company Directors" description="Company registry document showing directors" onUpload={(file) => handleFileUpload(file, "cr12_document")} uploadedFile={uploadedFiles.cr12_document} uploading={uploadingFile === "cr12_document"} locked={isDocLocked("cr12_document")} testId="upload-cr12" optional />
               </div>
               <button type="button" onClick={nextStep} className="w-full text-center text-sm text-primary font-medium hover:underline">
                 Skip this step for now →
@@ -1075,6 +1150,11 @@ const handleFileUpload = async (file: File, documentType: string) => {
 
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Business Documents</h4>
+                {rejectionNote("business_permit") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("business_permit")}
+                  </p>
+                )}
                 <FileUploader
                   label="Business Permit"
                   description="Current business operating permit"
@@ -1082,10 +1162,16 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "business_permit")}
                   uploadedFile={uploadedFiles.business_permit}
                   uploading={uploadingFile === "business_permit"}
+                  locked={isDocLocked("business_permit")}
                   testId="upload-permit"
                   optional
                 />
-                
+
+                {rejectionNote("employment_contract_template") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("employment_contract_template")}
+                  </p>
+                )}
                 <FileUploader
                   label="Employment Contract Template"
                   description="Sample employee contract"
@@ -1093,6 +1179,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "employment_contract_template")}
                   uploadedFile={uploadedFiles.employment_contract_template}
                   uploading={uploadingFile === "employment_contract_template"}
+                  locked={isDocLocked("employment_contract_template")}
                   testId="upload-contract"
                   optional
                 />
@@ -1202,6 +1289,11 @@ const handleFileUpload = async (file: File, documentType: string) => {
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Financial Documents</h4>
+                {rejectionNote("audited_financials") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("audited_financials")}
+                  </p>
+                )}
                 <FileUploader
                   label="Audited Financials"
                   description="Most recent audited financial statements"
@@ -1209,10 +1301,16 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "audited_financials")}
                   uploadedFile={uploadedFiles.audited_financials}
                   uploading={uploadingFile === "audited_financials"}
+                  locked={isDocLocked("audited_financials")}
                   testId="upload-financials"
                   optional
                 />
-                
+
+                {rejectionNote("bank_statement") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("bank_statement")}
+                  </p>
+                )}
                 <FileUploader
                   label="Bank Statement"
                   description="Last 3 months bank statements"
@@ -1220,10 +1318,16 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "bank_statement")}
                   uploadedFile={uploadedFiles.bank_statement}
                   uploading={uploadingFile === "bank_statement"}
+                  locked={isDocLocked("bank_statement")}
                   testId="upload-bank-stmt"
                   optional
                 />
-                
+
+                {rejectionNote("proof_of_bank_account") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("proof_of_bank_account")}
+                  </p>
+                )}
                 <FileUploader
                   label="Proof of Bank Account"
                   description="Bank confirmation letter or account opening document"
@@ -1231,6 +1335,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   onUpload={(file) => handleFileUpload(file, "proof_of_bank_account")}
                   uploadedFile={uploadedFiles.proof_of_bank_account}
                   uploading={uploadingFile === "proof_of_bank_account"}
+                  locked={isDocLocked("proof_of_bank_account")}
                   testId="upload-bank-proof"
                   optional
                 />

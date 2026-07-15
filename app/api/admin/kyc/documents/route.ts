@@ -7,20 +7,6 @@ import { getEnv } from '@/env';
 
 const EMPLOYEE_KYC_BUCKET = 'employee-kyc-documents';
 
-const EMPLOYER_DOCUMENT_FIELDS = [
-  'certificate_of_incorporation',
-  'business_registration',
-  'tax_compliance_certificate',
-  'cr12_document',
-  'kra_pin_certificate',
-  'business_permit',
-  'audited_financials',
-  'bank_statement',
-  'proof_of_address',
-  'proof_of_bank_account',
-  'employment_contract_template',
-] as const;
-
 type EmployeeIdentityRow = {
   user_id: string | null;
   national_id: string | null;
@@ -44,76 +30,49 @@ type EmployeeKycDocumentRow = {
 };
 
 
-async function findLatestEmployerDocumentUrl(
-  adminSupabase: SupabaseClient,
-  userId: string,
-  documentType: (typeof EMPLOYER_DOCUMENT_FIELDS)[number]
-) {
-  const bucket = adminSupabase.storage.from('employer-documents');
+type EmployerKycDocumentRow = {
+  id: string;
+  document_type: string;
+  document_url: string | null;
+  status: string;
+  reviewer_notes: string | null;
+};
 
-  const { data: nestedFiles } = await bucket.list(`${userId}/${documentType}`, {
-    limit: 1,
-    sortBy: { column: 'created_at', order: 'desc' },
-  });
-
-  const nestedFile = nestedFiles?.find((file) => file.name && file.id);
-  let storagePath = nestedFile ? `${userId}/${documentType}/${nestedFile.name}` : null;
-
-  if (!storagePath) {
-    const { data: flatFiles } = await bucket.list(userId, {
-      limit: 100,
-      sortBy: { column: 'created_at', order: 'desc' },
-    });
-
-    const flatFile = flatFiles?.find((file) => file.name?.startsWith(`${documentType}_`) && file.id);
-    storagePath = flatFile ? `${userId}/${flatFile.name}` : null;
-  }
-
-  if (!storagePath) return null;
-
-  const { data: signedData } = await bucket.createSignedUrl(storagePath, 60 * 60 * 24);
-  return signedData?.signedUrl ?? null;
-}
-
+// Employer documents now live in employer_kyc_documents, not inline columns
+// on employer_onboarding — fetch per-user rows and flatten them onto the app
+// object as document_type -> document_url (matching what the existing admin
+// UI already expects), plus a `kycDocuments` array carrying the full
+// per-document review state (id, status, reviewer_notes) for the granular
+// rejection UI.
 async function hydrateEmployerDocumentUrls(
   adminSupabase: SupabaseClient,
   employerApps: Record<string, unknown>[]
 ) {
-  return Promise.all(
-    employerApps.map(async (app) => {
-      const onboardingId = typeof app.id === 'string' ? app.id : null;
-      const userId = typeof app.user_id === 'string' ? app.user_id : null;
-      if (!onboardingId && !userId) return app;
+  const userIds = [...new Set(employerApps.map((app) => app.user_id).filter((id): id is string => typeof id === 'string'))];
+  if (userIds.length === 0) return employerApps;
 
-      const recoveredEntries = await Promise.all(
-        EMPLOYER_DOCUMENT_FIELDS.map(async (field) => {
-          const storedValue = typeof app[field] === 'string' && app[field] ? app[field] as string : null;
+  const { data: docs } = await adminSupabase
+    .from('employer_kyc_documents')
+    .select('id, user_id, document_type, document_url, status, reviewer_notes')
+    .in('user_id', userIds);
 
-          if (storedValue && !storedValue.startsWith('http')) {
-            const { data: signedData } = await adminSupabase.storage
-              .from('employer-documents')
-              .createSignedUrl(storedValue, 60 * 60 * 24);
-            return [field, signedData?.signedUrl ?? null] as const;
-          }
+  const docsByUser = new Map<string, EmployerKycDocumentRow[]>();
+  (docs ?? []).forEach((d) => {
+    const list = docsByUser.get(d.user_id) ?? [];
+    list.push(d);
+    docsByUser.set(d.user_id, list);
+  });
 
-          if (storedValue) return [field, storedValue] as const;
+  return employerApps.map((app) => {
+    const userId = typeof app.user_id === 'string' ? app.user_id : null;
+    const userDocs = (userId && docsByUser.get(userId)) || [];
 
-          const url = await findLatestEmployerDocumentUrl(
-            adminSupabase,
-            onboardingId ?? userId!,
-            field
-          ) ?? (userId ? await findLatestEmployerDocumentUrl(adminSupabase, userId, field) : null);
-
-          return [field, url] as const;
-        })
-      );
-
-      return {
-        ...app,
-        ...Object.fromEntries(recoveredEntries.filter(([, url]) => url !== null)),
-      };
-    })
-  );
+    return {
+      ...app,
+      ...Object.fromEntries(userDocs.map((d) => [d.document_type, d.document_url])),
+      kycDocuments: userDocs,
+    };
+  });
 }
 
 // bank_account_number is stored as encrypted bytea — a blind select('*') on

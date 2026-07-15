@@ -2,25 +2,12 @@ import { createRouteHandlerClient as createClient } from '@/utils/supabase/serve
 import { NextRequest, NextResponse } from 'next/server';
 import { documentTypeSchema } from '@/lib/validations/employer-onboarding';
 import { isDocumentFile } from '@/lib/upload-file-types';
+import { createAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
 const BUCKET = 'employer-documents';
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-const DOC_TYPE_TO_COLUMN: Record<string, string> = {
-  certificate_of_incorporation: 'certificate_of_incorporation',
-  business_registration: 'business_registration',
-  tax_compliance_certificate: 'tax_compliance_certificate',
-  cr12_document: 'cr12_document',
-  kra_pin_certificate: 'kra_pin_certificate',
-  business_permit: 'business_permit',
-  audited_financials: 'audited_financials',
-  bank_statement: 'bank_statement',
-  proof_of_address: 'proof_of_address',
-  proof_of_bank_account: 'proof_of_bank_account',
-  employment_contract_template: 'employment_contract_template',
-};
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -103,20 +90,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Uploaded but could not create URL.' }, { status: 500 });
   }
 
-  const column = DOC_TYPE_TO_COLUMN[documentType];
-  if (column) {
-    const { error: updateError } = await supabase
-      .from('employer_onboarding')
-      .update({ [column]: storagePath })
-      .eq('id', onboarding.id);
+  // employer_kyc_documents has no INSERT/UPDATE RLS policy for regular users
+  // (only a read-your-own-rows SELECT policy) — writes must go through the
+  // service-role client.
+  const adminSupabase = createAdminClient();
+  const { error: docError } = await adminSupabase
+    .from('employer_kyc_documents')
+    .upsert(
+      {
+        user_id: user.id,
+        document_type: documentType,
+        document_url: signedData.signedUrl,
+        storage_path: storagePath,
+        status: 'pending',
+      },
+      { onConflict: 'user_id,document_type' },
+    );
 
-    if (updateError) {
-      console.error('[upload] DB write-back failed:', updateError);
-      return NextResponse.json(
-        { error: 'File uploaded but failed to save record. Contact support.' },
-        { status: 500 },
-      );
-    }
+  if (docError) {
+    console.error('[upload] DB write-back failed:', docError);
+    return NextResponse.json(
+      { error: 'File uploaded but failed to save record. Contact support.' },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({

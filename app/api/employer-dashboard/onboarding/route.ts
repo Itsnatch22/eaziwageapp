@@ -12,20 +12,6 @@ export const runtime = 'nodejs';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const EMPLOYER_DOCUMENT_FIELDS = [
-  'certificate_of_incorporation',
-  'business_registration',
-  'tax_compliance_certificate',
-  'cr12_document',
-  'kra_pin_certificate',
-  'business_permit',
-  'audited_financials',
-  'bank_statement',
-  'proof_of_address',
-  'proof_of_bank_account',
-  'employment_contract_template',
-] as const;
-
 async function getOrCreateDraft(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: existing } = await supabase
     .from('employer_onboarding')
@@ -93,6 +79,12 @@ export async function POST(req: NextRequest) {
 
   const {
     beneficial_owners,
+    // The 11 KYC document URLs are intentionally not destructured here —
+    // they're already durably persisted in employer_kyc_documents by the
+    // per-file upload endpoint (app/api/employer-dashboard/onboarding/upload/route.ts)
+    // before this final-submit call happens. employer_onboarding no longer
+    // has columns for them.
+    /* eslint-disable @typescript-eslint/no-unused-vars */
     certificate_of_incorporation,
     business_registration,
     tax_compliance_certificate,
@@ -104,10 +96,12 @@ export async function POST(req: NextRequest) {
     proof_of_address,
     proof_of_bank_account,
     employment_contract_template,
-    // PII — written via upsert_employer_onboarding_pii RPC, not stored raw
+    // PII — encrypted at rest, written via upsert_employer_onboarding_pii
+    // RPC rather than stored raw in the plain .update() below
     bank_account_number,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mobile_money_number,
     tax_id,
+    /* eslint-enable @typescript-eslint/no-unused-vars */
     ...fields
   } = parsed.data;
 
@@ -115,36 +109,18 @@ export async function POST(req: NextRequest) {
     const onboardingId = await getOrCreateDraft(supabase, user.id);
 
     const employerCurrency = getCurrencyFromCountry(fields.country);
-    type OnboardingDraft = Record<(typeof EMPLOYER_DOCUMENT_FIELDS)[number], string | null>;
-
-    const { data: existingDraft } = await supabase
-      .from('employer_onboarding')
-      .select(EMPLOYER_DOCUMENT_FIELDS.join(','))
-      .eq('id', onboardingId)
-      .maybeSingle() as { data: OnboardingDraft | null; error: unknown };
-
-    const documentUrls = {
-      certificate_of_incorporation: certificate_of_incorporation || existingDraft?.certificate_of_incorporation || null,
-      business_registration: business_registration || existingDraft?.business_registration || null,
-      tax_compliance_certificate: tax_compliance_certificate || existingDraft?.tax_compliance_certificate || null,
-      cr12_document: cr12_document || existingDraft?.cr12_document || null,
-      kra_pin_certificate: kra_pin_certificate || existingDraft?.kra_pin_certificate || null,
-      business_permit: business_permit || existingDraft?.business_permit || null,
-      audited_financials: audited_financials || existingDraft?.audited_financials || null,
-      bank_statement: bank_statement || existingDraft?.bank_statement || null,
-      proof_of_address: proof_of_address || existingDraft?.proof_of_address || null,
-      proof_of_bank_account: proof_of_bank_account || existingDraft?.proof_of_bank_account || null,
-      employment_contract_template: employment_contract_template || existingDraft?.employment_contract_template || null,
-    };
 
     const { error: upsertError } = await supabase
       .from('employer_onboarding')
       .update({
         ...fields,
         currency: employerCurrency,
-        ...documentUrls,
 
-        status: 'pending',
+        // 'submitted' — unlike pending/under_review/approved/rejected, this
+        // is the one status trg_recompute_employer_onboarding_status can
+        // never derive on its own, so it's a legitimate one-time manual
+        // write at the moment the employer actually submits the form.
+        status: 'submitted',
         risk_score: 0,
         current_step: 7,
         terms_accepted_at: new Date().toISOString(),
@@ -160,10 +136,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Encryption not configured' }, { status: 500 });
     }
 
-    const { error: piiError } = await supabase.rpc('upsert_employer_onboarding_pii', {
-      p_onboarding_id:       onboardingId,
-      p_bank_account_number: bank_account_number ?? null,
-      p_key:                 PII_ENCRYPTION_KEY,
+    // upsert_employer_onboarding_pii is restricted to service_role — must go
+    // through the admin client, not the regular user-scoped one.
+    const { error: piiError } = await createAdminClient().rpc('upsert_employer_onboarding_pii', {
+      p_onboarding_id:        onboardingId,
+      p_bank_account_number:  bank_account_number ?? null,
+      p_mobile_money_number:  mobile_money_number ?? null,
+      p_key:                  PII_ENCRYPTION_KEY,
     });
 
     if (piiError) {

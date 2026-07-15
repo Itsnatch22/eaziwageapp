@@ -90,16 +90,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use admin client to bypass RLS — the user is updating their own record but
-    // employer_onboarding RLS may only allow inserts, not updates from the user role.
+    // employer_kyc_documents has no INSERT/UPDATE RLS policy for regular users
+    // (only a read-your-own-rows SELECT policy) — writes must go through the
+    // service-role client.
     const adminSupabase = createAdminClient();
-    const { error: updateError } = await adminSupabase
-      .from('employer_onboarding')
-      .update({ [documentType]: fileUrl })
-      .eq('id', existingProfile.id);
+    const { error: docError } = await adminSupabase
+      .from('employer_kyc_documents')
+      .upsert(
+        {
+          user_id: user.id,
+          document_type: documentType,
+          document_url: fileUrl,
+          storage_path: filePath,
+          status: 'pending',
+        },
+        { onConflict: 'user_id,document_type' },
+      );
 
-    if (updateError) {
-      throw updateError;
+    if (docError) {
+      throw docError;
     }
 
     const { notifyAdmin } = await import('@/lib/notifications');

@@ -33,6 +33,28 @@ import {
   DOCUMENT_TYPE_LABELS,
 } from '@/lib/validations/kyc-validation';
 
+interface EmployerKycDocRow {
+  id: string;
+  document_type: string;
+  document_url: string | null;
+  status: DocumentStatus;
+  reviewer_notes: string | null;
+}
+
+const EMPLOYER_DOC_LABELS: Record<string, string> = {
+  certificate_of_incorporation: 'Certificate of Incorporation',
+  business_registration: 'Business Registration',
+  tax_compliance_certificate: 'Tax Compliance Certificate',
+  cr12_document: 'CR12 Document',
+  kra_pin_certificate: 'KRA PIN Certificate',
+  business_permit: 'Business Permit',
+  audited_financials: 'Audited Financials',
+  bank_statement: 'Bank Statement',
+  proof_of_address: 'Proof of Address',
+  proof_of_bank_account: 'Proof of Bank Account',
+  employment_contract_template: 'Employment Contract Template',
+};
+
 interface EmployerApplication {
   id: string;
   user_id: string;
@@ -55,6 +77,7 @@ interface EmployerApplication {
   proof_of_bank_account?: string;
   employment_contract_template?: string;
   reviewer_notes?: string;
+  kycDocuments?: EmployerKycDocRow[];
 
   bank_name?: string;
   bank_account_number?: string;
@@ -311,6 +334,26 @@ export default function KYCReviewPage() {
     } finally { setActionLoading(false); }
   };
 
+  // Per-document employer review — the primary rejection path per product
+  // decision: reject the specific document, not the whole application.
+  // handleReviewEmployer above remains as a bulk "review everything at once"
+  // convenience action.
+  const handleReviewEmployerDocument = async (docId: string, status: 'approved' | 'rejected', notes: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/kyc/employer/documents/${docId}/review?status=${status}&notes=${encodeURIComponent(notes)}`, {
+        method: 'PATCH'
+      });
+      if (res.ok) {
+        toast.success('Document updated');
+        fetchData();
+      } else {
+        const d = await res.json();
+        toast.error(d.error || 'Failed');
+      }
+    } finally { setActionLoading(false); }
+  };
+
   const getUserName = (uid: string) => usersById[uid]?.full_name || 'Unknown User';
 
   const employeeDocuments = documents.filter(d => (usersById[d.user_id]?.role || 'employee') === 'employee');
@@ -456,6 +499,7 @@ export default function KYCReviewPage() {
         onClose={() => setShowReviewModal(false)}
         onReviewEmployee={handleReviewEmployee}
         onReviewEmployer={handleReviewEmployer}
+        onReviewEmployerDocument={handleReviewEmployerDocument}
         loading={actionLoading}
       />
     </>
@@ -470,10 +514,11 @@ interface ReviewModalProps {
   onClose: () => void;
   onReviewEmployee: (docId: string, status: 'approved' | 'rejected', notes: string) => void;
   onReviewEmployer: (appId: string, status: 'approved' | 'rejected', notes: string) => void;
+  onReviewEmployerDocument: (docId: string, status: 'approved' | 'rejected', notes: string) => void;
   loading: boolean;
 }
 
-const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmployee, onReviewEmployer, loading }: ReviewModalProps) => {
+const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmployee, onReviewEmployer, onReviewEmployerDocument, loading }: ReviewModalProps) => {
   const [notes, setNotes] = useState(() => doc?.reviewer_notes || employer?.reviewer_notes || '');
 
   if (!isOpen) return null;
@@ -547,18 +592,17 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
               
               <div className="space-y-4">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Verification Documents</h4>
+                <p className="text-xs text-slate-400 -mt-2">Approve or reject each document individually — rejecting one doesn&apos;t affect the others.</p>
                 <div className="grid gap-3">
-                  <DocLink label="Inc. Certificate" url={employer.certificate_of_incorporation} />
-                  <DocLink label="Business Reg." url={employer.business_registration} />
-                  <DocLink label="Tax Compliance" url={employer.tax_compliance_certificate} />
-                  <DocLink label="CR12 Document" url={employer.cr12_document} />
-                  <DocLink label="KRA PIN Cert" url={employer.kra_pin_certificate} />
-                  <DocLink label="Business Permit" url={employer.business_permit} />
-                  <DocLink label="Audited Financials" url={employer.audited_financials} />
-                  <DocLink label="Bank Statement" url={employer.bank_statement} />
-                  <DocLink label="Proof of Address" url={employer.proof_of_address} />
-                  <DocLink label="Proof of Bank Account" url={employer.proof_of_bank_account} />
-                  <DocLink label="Employment Contract" url={employer.employment_contract_template} />
+                  {Object.entries(EMPLOYER_DOC_LABELS).map(([docType, label]) => (
+                    <EmployerDocRow
+                      key={docType}
+                      label={label}
+                      doc={employer.kycDocuments?.find((d) => d.document_type === docType)}
+                      onReview={onReviewEmployerDocument}
+                      loading={loading}
+                    />
+                  ))}
                 </div>
               </div>
             </div>
@@ -608,7 +652,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
             className={cn("flex-1 h-12 rounded-xl text-white font-bold shadow-lg", isEmployer ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700")}
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
-            Approve {isEmployer ? 'Employer' : 'Document'}
+            {isEmployerApp ? 'Approve All Documents' : isEmployer ? 'Approve Employer' : 'Approve Document'}
           </Button>
           <Button
             onClick={() => handleReview('rejected')}
@@ -617,7 +661,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
             className="flex-1 h-12 rounded-xl font-bold shadow-lg"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <XCircle className="w-5 h-5 mr-2" />}
-            Reject {isEmployer ? 'Employer' : 'Document'}
+            {isEmployerApp ? 'Reject All Documents' : isEmployer ? 'Reject Employer' : 'Reject Document'}
           </Button>
         </div>
       </div>
@@ -710,18 +754,83 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
   );
 };
 
-const DocLink = ({ label, url }: { label: string, url?: string }) => (
-  <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-    <div className="flex items-center gap-3">
-      <FileText className="w-4 h-4 text-slate-400" />
-      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+// Per-document employer review row — this is the primary rejection path
+// (reject this specific document, not the whole application). Falls back to
+// a disabled "Not submitted" row when the employer hasn't uploaded this
+// document type yet.
+const EmployerDocRow = ({
+  label,
+  doc,
+  onReview,
+  loading,
+}: {
+  label: string;
+  doc?: EmployerKycDocRow;
+  onReview: (docId: string, status: 'approved' | 'rejected', notes: string) => void;
+  loading: boolean;
+}) => {
+  if (!doc) {
+    return (
+      <div className="flex items-center justify-between p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-3">
+          <FileText className="w-4 h-4 text-slate-300" />
+          <span className="text-sm font-medium text-slate-400">{label}</span>
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">Not submitted</span>
+      </div>
+    );
+  }
+
+  const handleReject = () => {
+    const reason = window.prompt(`Reason for rejecting "${label}":`);
+    if (!reason || !reason.trim()) {
+      toast.error('A reason is required to reject a document');
+      return;
+    }
+    onReview(doc.id, 'rejected', reason.trim());
+  };
+
+  return (
+    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{label}</span>
+        </div>
+        <StatusBadge status={doc.status} />
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        {doc.document_url ? (
+          <Button variant="ghost" size="sm" onClick={() => window.open(doc.document_url!, '_blank')} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+            View <ExternalLink className="w-3 h-3 ml-1" />
+          </Button>
+        ) : <span />}
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={loading || doc.status === 'approved'}
+            onClick={() => onReview(doc.id, 'approved', '')}
+            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-30"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={loading || doc.status === 'rejected'}
+            onClick={handleReject}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-30"
+          >
+            <XCircle className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+      {doc.status === 'rejected' && doc.reviewer_notes && (
+        <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg px-2 py-1">
+          Rejected: {doc.reviewer_notes}
+        </p>
+      )}
     </div>
-    {url ? (
-      <Button variant="ghost" size="sm" onClick={() => window.open(url, '_blank')} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-        View <ExternalLink className="w-3 h-3 ml-1" />
-      </Button>
-    ) : (
-      <span className="text-xs text-slate-400 italic">Not provided</span>
-    )}
-  </div>
-);
+  );
+};
