@@ -11,7 +11,7 @@ export const UserRoleEnum = z.enum([
 ]);
 export type UserRole = z.infer<typeof UserRoleEnum>;
 
-export const DocumentStatusEnum = z.enum(['pending', 'approved', 'rejected']);
+export const DocumentStatusEnum = z.enum(['pending', 'under_review', 'approved', 'rejected']);
 export type DocumentStatus = z.infer<typeof DocumentStatusEnum>;
 
 export const EmployeeStatusEnum = z.enum([
@@ -23,21 +23,19 @@ export const EmployeeStatusEnum = z.enum([
 ]);
 export type EmployeeStatus = z.infer<typeof EmployeeStatusEnum>;
 
+// Matches employee_kyc_documents.document_type's CHECK constraint exactly — these
+// are the 8 documents the granular per-document KYC review flow operates on.
+// face_id (selfie/liveness) is a separate concept stored on employee_onboarding.face_id,
+// not a row in this table — see the face_id branch in the upload route.
 export const DocumentTypeEnum = z.enum([
-  'national_id',
-  'passport',
-  'drivers_license',
-  'kra_pin',
-  'nhif_card',
-  'nssf_card',
-  'bank_statement',
-  'payslip',
-  'employment_letter',
-  'employment_contract',
+  'id_front',
+  'id_back',
+  'address_proof',
   'tax_certificate',
-  'utility_bill',
-  'selfie',
-  'face_id',
+  'payslip_1',
+  'payslip_2',
+  'bank_statement',
+  'employment_contract',
 ]);
 export type DocumentType = z.infer<typeof DocumentTypeEnum>;
 
@@ -187,20 +185,14 @@ export const ApiErrorResponseSchema = z.object({
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
-  national_id: 'National ID',
-  passport: 'Passport',
-  drivers_license: 'Driving License',
-  kra_pin: 'KRA PIN Certificate',
-  nhif_card: 'NHIF Card',
-  nssf_card: 'NSSF Card',
-  bank_statement: 'Bank Statement',
-  payslip: 'Payslip',
-  employment_letter: 'Employment Letter',
-  employment_contract: 'Employment Contract',
+  id_front: 'National ID (Front)',
+  id_back: 'National ID (Back)',
+  address_proof: 'Proof of Address',
   tax_certificate: 'Tax Compliance Certificate',
-  utility_bill: 'Utility Bill (Proof of Address)',
-  selfie: 'Selfie/Photo',
-  face_id: 'Face ID Verification',
+  payslip_1: 'Payslip (Month 1)',
+  payslip_2: 'Payslip (Month 2)',
+  bank_statement: 'Bank Statement',
+  employment_contract: 'Employment Contract',
 };
 
 export const STATUS_CONFIG = {

@@ -99,7 +99,10 @@ export const ReviewRequestPatchSchema = z.object({
 export const KycDocQuerySchema = z.object({
   status: z.enum(['approved', 'rejected']),
   notes: z.string().max(1000).optional(),
-});
+}).refine(
+  (d) => d.status !== 'rejected' || (d.notes && d.notes.trim().length > 0),
+  { message: 'A reason is required when rejecting a document.', path: ['notes'] },
+);
 
 // ---------------------------------------------------------------------------
 // Admin — notifications

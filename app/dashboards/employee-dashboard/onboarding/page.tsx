@@ -257,14 +257,19 @@ type OnboardingDocKey =
   | "bank_statement"
   | "employment_contract";
 
+// docKey and the employee_kyc_documents.document_type CHECK constraint values
+// are now identical for all 8 real documents — this used to remap onto a
+// stale, broader taxonomy (national_id/utility_bill/payslip) that the CHECK
+// constraint no longer accepts, which made every upload except
+// tax_certificate/bank_statement/employment_contract fail outright.
 const DOC_KEY_TO_TYPE: Record<OnboardingDocKey, string> = {
   face_id: "face_id",
-  id_front: "national_id",
-  id_back: "national_id",
-  address_proof: "utility_bill",
+  id_front: "id_front",
+  id_back: "id_back",
+  address_proof: "address_proof",
   tax_certificate: "tax_certificate",
-  payslip_1: "payslip",
-  payslip_2: "payslip",
+  payslip_1: "payslip_1",
+  payslip_2: "payslip_2",
   bank_statement: "bank_statement",
   employment_contract: "employment_contract",
 };
@@ -317,12 +322,15 @@ interface FileUploaderProps {
   accept?: string;
   kind?: "image" | "document";
   description?: string;
-  tooltip?: string;     
+  tooltip?: string;
   onUpload: (file: File) => void;
   uploadedFile: UploadedDocument | null;
   uploading: boolean;
   required?: boolean;
   testId?: string;
+  /** Already on file and not rejected — render as non-interactive so the user
+   *  is never prompted to re-upload something that wasn't flagged. */
+  locked?: boolean;
 }
 
 interface Step {
@@ -408,6 +416,7 @@ const FileUploader = ({
   required = false,
   testId,
   tooltip,
+  locked = false,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -487,21 +496,38 @@ const FileUploader = ({
         className="hidden"
       />
       <div
-        onClick={() => !uploading && fileInputRef.current?.click()}
-        onDragEnter={handleDragIn}
-        onDragLeave={handleDragOut}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
+        onClick={() => !uploading && !locked && fileInputRef.current?.click()}
+        onDragEnter={locked ? undefined : handleDragIn}
+        onDragLeave={locked ? undefined : handleDragOut}
+        onDragOver={locked ? undefined : handleDrag}
+        onDrop={locked ? undefined : handleDrop}
         className={cn(
-          "relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 group",
-          dragActive
+          "relative border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-300 group",
+          locked
+            ? "cursor-default border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-900/10"
+            : "cursor-pointer",
+          !locked && dragActive
             ? "border-primary bg-primary/5 scale-[1.02]"
-            : uploadedFile
+            : !locked && uploadedFile
               ? "border-primary bg-primary/3 dark:bg-primary/3"
-              : "border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50",
+              : !locked
+                ? "border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                : "",
         )}
       >
-        {uploading ? (
+        {locked ? (
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <Check className="w-5 h-5" />
+            </div>
+            <p className="text-xs font-bold text-slate-900 dark:text-white">
+              Already submitted
+            </p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase">
+              No action needed
+            </p>
+          </div>
+        ) : uploading ? (
           <div className="flex flex-col items-center gap-2 py-2">
             <Loader2 className="w-6 h-6 text-primary animate-spin" />
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
@@ -602,6 +628,22 @@ export default function Onboarding() {
     bank_statement: null,
     employment_contract: null,
   });
+  // Per-document KYC review state, keyed by document_type (== OnboardingDocKey
+  // for the 8 real documents). Drives which upload slots render locked
+  // ("already submitted, no action needed") vs. open for a fresh upload, and
+  // surfaces the admin's reviewer_notes only next to the document that was
+  // actually rejected — never the whole application.
+  const [kycDocReview, setKycDocReview] = useState<
+    Partial<Record<OnboardingDocKey, { status: string; reviewer_notes: string | null }>>
+  >({});
+  const isDocLocked = (docKey: OnboardingDocKey) => {
+    const doc = kycDocReview[docKey];
+    return Boolean(doc && doc.status !== "rejected");
+  };
+  const rejectionNote = (docKey: OnboardingDocKey) => {
+    const doc = kycDocReview[docKey];
+    return doc?.status === "rejected" ? doc.reviewer_notes : null;
+  };
 
   const [formData, setFormData] = useState<OnboardingFormData>({
     employer_id: "",
@@ -680,42 +722,31 @@ export default function Onboarding() {
               start_date: profile.start_date || "",
             }));
 
-            setUploadedFiles((prev) => ({
-              ...prev,
-              id_front: profile.id_front
-                ? { name: "Previous ID Front", url: profile.id_front }
-                : null,
-              id_back: profile.id_back
-                ? { name: "Previous ID Back", url: profile.id_back }
-                : null,
-              address_proof: profile.utility_bill
-                ? {
-                    name: "Previous Proof of Address",
-                    url: profile.utility_bill,
-                  }
-                : null,
-              tax_certificate: profile.tax_certificate
-                ? {
-                    name: "Previous Tax Certificate",
-                    url: profile.tax_certificate,
-                  }
-                : null,
-              payslip_1: profile.payslip
-                ? { name: "Previous Payslip", url: profile.payslip }
-                : null,
-              bank_statement: profile.bank_statement
-                ? {
-                    name: "Previous Bank Statement",
-                    url: profile.bank_statement,
-                  }
-                : null,
-              employment_contract: profile.employment_contract
-                ? {
-                    name: "Previous Contract",
-                    url: profile.employment_contract,
-                  }
-                : null,
-            }));
+            // Show only the document(s) an admin actually rejected, with the
+            // reason — every other document (approved, pending, or
+            // under_review) renders locked via FileUploader's `locked` prop
+            // instead of being re-presented as an editable upload slot.
+            // (employee_onboarding no longer has per-document URL columns to
+            // read here — document_type/status/reviewer_notes come from
+            // employee_kyc_documents via /api/employee-dashboard/profile's
+            // kycDocuments array.)
+            const kycDocuments: {
+              document_type: string;
+              status: string;
+              reviewer_notes: string | null;
+            }[] = Array.isArray(data?.profile?.kycDocuments)
+              ? data.profile.kycDocuments
+              : [];
+            const reviewByType: Partial<
+              Record<OnboardingDocKey, { status: string; reviewer_notes: string | null }>
+            > = {};
+            kycDocuments.forEach((d) => {
+              reviewByType[d.document_type as OnboardingDocKey] = {
+                status: d.status,
+                reviewer_notes: d.reviewer_notes,
+              };
+            });
+            setKycDocReview(reviewByType);
           }
         }
       } catch {
@@ -1059,24 +1090,27 @@ export default function Onboarding() {
         return !!(
           formData.national_id &&
           formData.date_of_birth &&
-          uploadedFiles.id_front
+          (uploadedFiles.id_front || isDocLocked("id_front")) &&
+          (uploadedFiles.id_back || isDocLocked("id_back"))
         );
       case 4:
         return !!(
           formData.country &&
           formData.address_line1 &&
           formData.city &&
-          uploadedFiles.address_proof
+          (uploadedFiles.address_proof || isDocLocked("address_proof"))
         );
       case 5:
-        return true;
+        return !!(uploadedFiles.tax_certificate || isDocLocked("tax_certificate"));
       case 6:
         return !!(
           (formData.employer_id || formData.company_code) &&
           formData.job_title &&
           formData.joining_month &&
           formData.joining_year &&
-          uploadedFiles.payslip_1
+          (uploadedFiles.payslip_1 || isDocLocked("payslip_1")) &&
+          (uploadedFiles.payslip_2 || isDocLocked("payslip_2")) &&
+          (uploadedFiles.employment_contract || isDocLocked("employment_contract"))
         );
 
       case 7:
@@ -1085,7 +1119,7 @@ export default function Onboarding() {
           formData.bank_name &&
           formData.mobile_money_number &&
           formData.bank_account &&
-          uploadedFiles.bank_statement
+          (uploadedFiles.bank_statement || isDocLocked("bank_statement"))
         );
       default:
         return false;
@@ -1364,6 +1398,11 @@ export default function Onboarding() {
                     className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
                   />
                 </div>
+                {rejectionNote("id_front") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("id_front")}
+                  </p>
+                )}
                 <FileUploader
                   label="Document Photo (Front)"
                   kind="image"
@@ -1371,6 +1410,22 @@ export default function Onboarding() {
                   onUpload={(f: File) => handleFileUpload(f, "id_front")}
                   uploadedFile={uploadedFiles.id_front}
                   uploading={uploadingFile === "id_front"}
+                  locked={isDocLocked("id_front")}
+                  required
+                />
+                {rejectionNote("id_back") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("id_back")}
+                  </p>
+                )}
+                <FileUploader
+                  label="Document Photo (Back)"
+                  kind="image"
+                  tooltip="The back of your ID/passport carries additional verification details (e.g. issue/expiry dates) that regulators require alongside the front."
+                  onUpload={(f: File) => handleFileUpload(f, "id_back")}
+                  uploadedFile={uploadedFiles.id_back}
+                  uploading={uploadingFile === "id_back"}
+                  locked={isDocLocked("id_back")}
                   required
                 />
               </div>
@@ -1378,7 +1433,7 @@ export default function Onboarding() {
           </div>
         );
 
-      case 4: 
+      case 4:
         return (
           <div className="py-6">
             <div className="text-center mb-8">
@@ -1497,6 +1552,11 @@ export default function Onboarding() {
                   Upload a utility bill, bank statement, or lease agreement
                   (less than 3 months old)
                 </p>
+                {rejectionNote("address_proof") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("address_proof")}
+                  </p>
+                )}
                 <FileUploader
                   label="Address Proof Document"
                   description="Utility bill, bank statement, or lease"
@@ -1504,6 +1564,7 @@ export default function Onboarding() {
                   onUpload={(file) => handleFileUpload(file, "address_proof")}
                   uploadedFile={uploadedFiles.address_proof}
                   uploading={uploadingFile === "address_proof"}
+                  locked={isDocLocked("address_proof")}
                   testId="upload-address-proof"
                   required
                 />
@@ -1562,12 +1623,17 @@ export default function Onboarding() {
               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
-                  Tax Certificate (Optional)
+                  Tax Certificate
                 </h4>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   Upload your tax registration certificate or compliance
                   certificate
                 </p>
+                {rejectionNote("tax_certificate") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("tax_certificate")}
+                  </p>
+                )}
                 <FileUploader
                   label="Tax Certificate"
                   description="TIN certificate or compliance document"
@@ -1575,21 +1641,11 @@ export default function Onboarding() {
                   onUpload={(file) => handleFileUpload(file, "tax_certificate")}
                   uploadedFile={uploadedFiles.tax_certificate}
                   uploading={uploadingFile === "tax_certificate"}
+                  locked={isDocLocked("tax_certificate")}
                   testId="upload-tax-cert"
+                  required
                 />
               </div>
-
-              <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                Don&apos;t have your TIN yet? You can{" "}
-                <button
-                  type="button"
-                  onClick={nextStep}
-                  className="text-primary font-medium hover:underline"
-                >
-                  skip this step
-                </button>{" "}
-                and add it later.
-              </p>
             </div>
           </div>
         );
@@ -1799,12 +1855,46 @@ export default function Onboarding() {
                 </p>
               </div>
 
+              {rejectionNote("payslip_1") && (
+                <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                  Rejected: {rejectionNote("payslip_1")}
+                </p>
+              )}
               <FileUploader
                 label="Latest Payslip"
                 tooltip="Verifies your current salary so we can calculate your eligible advance limit accurately. We use your net pay — not gross — to set a fair limit."
                 onUpload={(f: File) => handleFileUpload(f, "payslip_1")}
                 uploadedFile={uploadedFiles.payslip_1}
                 uploading={uploadingFile === "payslip_1"}
+                locked={isDocLocked("payslip_1")}
+                required
+              />
+              {rejectionNote("payslip_2") && (
+                <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                  Rejected: {rejectionNote("payslip_2")}
+                </p>
+              )}
+              <FileUploader
+                label="Previous Payslip"
+                tooltip="A second payslip lets us confirm your salary is consistent month to month, not a one-off, before setting your advance limit."
+                onUpload={(f: File) => handleFileUpload(f, "payslip_2")}
+                uploadedFile={uploadedFiles.payslip_2}
+                uploading={uploadingFile === "payslip_2"}
+                locked={isDocLocked("payslip_2")}
+                required
+              />
+              {rejectionNote("employment_contract") && (
+                <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                  Rejected: {rejectionNote("employment_contract")}
+                </p>
+              )}
+              <FileUploader
+                label="Employment Contract"
+                tooltip="Confirms your employment terms and job title directly with your employer, independent of what's entered in this form."
+                onUpload={(f: File) => handleFileUpload(f, "employment_contract")}
+                uploadedFile={uploadedFiles.employment_contract}
+                uploading={uploadingFile === "employment_contract"}
+                locked={isDocLocked("employment_contract")}
                 required
               />
             </div>
@@ -1903,12 +1993,18 @@ export default function Onboarding() {
                 </div>
               </div>
 
+              {rejectionNote("bank_statement") && (
+                <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                  Rejected: {rejectionNote("bank_statement")}
+                </p>
+              )}
               <FileUploader
                 label="Recent Bank Statement"
                 tooltip="Confirms your bank account details and shows your salary is deposited regularly. We check that the account matches the name on your ID to prevent fraud."
                 onUpload={(f: File) => handleFileUpload(f, "bank_statement")}
                 uploadedFile={uploadedFiles.bank_statement}
                 uploading={uploadingFile === "bank_statement"}
+                locked={isDocLocked("bank_statement")}
                 required
               />
             </div>

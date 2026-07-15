@@ -114,92 +114,29 @@ export async function PATCH(
   const doc = reviewedDoc[0];
   log('info', 'doc_update', 'KYC document updated', { docId: doc.id, userId: doc.user_id, status });
 
-  const { data: docsForUser, error: docsError } = await adminSupabase
-    .from('employee_kyc_documents')
-    .select('status, document_type')
-    .eq('user_id', doc.user_id);
-
-  if (docsError) {
-    log('error', 'onboarding_recompute', 'Failed to fetch user KYC documents', { docId: doc.id, userId: doc.user_id }, docsError);
-    return NextResponse.json({ error: 'Failed to finalize KYC review' }, { status: 500 });
-  }
-
-  const totalDocs = docsForUser?.length ?? 0;
-  const hasRejected = (docsForUser ?? []).some((d) => d.status === 'rejected');
-  const allApproved = totalDocs > 0 && (docsForUser ?? []).every((d) => d.status === 'approved');
-
-  // Risk Settings → Verification Requirements: require_id_verification etc.
-  // gate which document *categories* must be present (and approved) before an
-  // application can be marked approved — previously stored but never checked,
-  // so an employee could get approved having submitted only, say, a payslip.
-  const { data: riskRow } = await adminSupabase
-    .from('global_settings')
-    .select('risk_settings')
-    .eq('id', 'default')
-    .maybeSingle();
-  const riskSettings = (riskRow?.risk_settings as {
-    require_id_verification?: boolean;
-    require_face_id?: boolean;
-    require_address_proof?: boolean;
-    require_employment_contract?: boolean;
-  } | null) ?? {};
-
-  const REQUIRED_CATEGORY_TYPES: Record<string, string[]> = {
-    require_id_verification:      ['national_id', 'passport', 'drivers_license'],
-    require_face_id:              ['selfie', 'face_id'],
-    require_address_proof:        ['utility_bill'],
-    require_employment_contract:  ['employment_contract', 'employment_letter'],
-  };
-
-  // require_id_verification defaults ON — the employee onboarding upload flow
-  // (app/dashboards/employee-dashboard/kyc/page.tsx) already always requires
-  // national_id, so this is a no-op by default. The other three default OFF:
-  // that same upload flow has no selfie/utility-bill/employment-contract step
-  // at all, so defaulting them to required would make approval permanently
-  // impossible until an admin explicitly opts in (and adds the matching
-  // upload step for employees to actually satisfy it).
-  const DEFAULT_REQUIRED: Record<string, boolean> = {
-    require_id_verification: true,
-    require_face_id: false,
-    require_address_proof: false,
-    require_employment_contract: false,
-  };
-
-  const approvedTypes = new Set((docsForUser ?? []).filter((d) => d.status === 'approved').map((d) => d.document_type));
-  const missingRequiredCategories = Object.entries(REQUIRED_CATEGORY_TYPES)
-    .filter(([settingKey]) => riskSettings[settingKey as keyof typeof riskSettings] ?? DEFAULT_REQUIRED[settingKey])
-    .filter(([, types]) => !types.some((t) => approvedTypes.has(t)))
-    .map(([settingKey]) => settingKey);
-
-  let onboardingStatus: 'approved' | 'rejected' | 'pending' = 'pending';
-  if (hasRejected) onboardingStatus = 'rejected';
-  else if (allApproved && missingRequiredCategories.length === 0) onboardingStatus = 'approved';
-
-  log('info', 'onboarding_recompute', 'Recomputed onboarding status', {
-    docId: doc.id,
-    userId: doc.user_id,
-    totalDocs,
-    hasRejected,
-    allApproved,
-    missingRequiredCategories,
-    onboardingStatus,
-  });
-
+  // trg_recompute_onboarding_status already ran synchronously as part of the
+  // update above (it fires AFTER UPDATE OF status on employee_kyc_documents,
+  // within the same statement/transaction) and set employee_onboarding.status
+  // accordingly. Read that back rather than recomputing our own version here —
+  // this used to compute a second, independent status (factoring in risk-settings
+  // "required document category" gates the trigger doesn't know about) and write
+  // it directly, which the trigger's own write from the update above would then
+  // silently race with/override anyway. If category-gated approval requirements
+  // still matter with the new fixed 8-document schema, that needs to live in the
+  // trigger itself, not duplicated here — flagging rather than guessing at that
+  // product decision.
   const { data: employeeOnboarding, error: employeeError } = await adminSupabase
     .from('employee_onboarding')
-    .update({ status: onboardingStatus, updated_at: new Date().toISOString() })
+    .select('id,employer_id,monthly_salary,status')
     .eq('user_id', doc.user_id)
-    .select('id,employer_id,monthly_salary')
-    .limit(1)
     .maybeSingle();
 
   if (employeeError) {
-    log('error', 'onboarding_sync', 'Failed to sync employee onboarding status', {
+    log('error', 'onboarding_sync', 'Failed to fetch employee onboarding status', {
       docId: doc.id,
       userId: doc.user_id,
-      onboardingStatus,
     }, employeeError);
-    return NextResponse.json({ error: 'Failed to sync employee status' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to finalize KYC review' }, { status: 500 });
   }
 
   if (!employeeOnboarding) {
@@ -208,6 +145,15 @@ export async function PATCH(
       userId: doc.user_id,
     });
   }
+
+  const onboardingStatus = employeeOnboarding?.status as
+    | 'pending' | 'under_review' | 'approved' | 'rejected' | 'suspended' | undefined;
+
+  log('info', 'onboarding_recompute', 'Read trigger-derived onboarding status', {
+    docId: doc.id,
+    userId: doc.user_id,
+    onboardingStatus,
+  });
 
   // profiles.is_active is the only thing proxy.ts checks to let a user into their
   // dashboard — this route previously only updated employee_onboarding.status and

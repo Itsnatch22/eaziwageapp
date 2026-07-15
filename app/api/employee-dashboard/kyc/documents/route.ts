@@ -119,12 +119,53 @@ export async function POST(req: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        { 
-          error: 'No file provided', 
+        {
+          error: 'No file provided',
           code: 'FILE_REQUIRED',
-          keys: Array.from(form.keys()) 
-        }, 
+          keys: Array.from(form.keys())
+        },
         { status: 400 }
+      );
+    }
+
+    // face_id (selfie/liveness) isn't one of the 8 real KYC documents — it's stored
+    // directly on employee_onboarding.face_id, not as an employee_kyc_documents row
+    // (whose document_type is now CHECK-constrained to just those 8). Upload to
+    // storage and hand back the URL without touching that table.
+    if (rawDocType === 'face_id') {
+      if (!isImageFile(file)) {
+        return NextResponse.json(
+          { error: 'Invalid file type. Upload an image file.', code: 'INVALID_FILE_TYPE' },
+          { status: 422 }
+        );
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json({ error: 'File size must be under 5 MB.', code: 'FILE_TOO_LARGE' }, { status: 422 });
+      }
+
+      const ext = getSafeFileExtension(file);
+      const storagePath = `${user.id}/face_id/${Date.now()}.${ext}`;
+      const arrayBuffer = await file.arrayBuffer();
+      const { error: uploadError } = await adminSupabase.storage
+        .from(BUCKET)
+        .upload(storagePath, arrayBuffer, { contentType: file.type, upsert: true });
+
+      if (uploadError) {
+        console.error('[KYC Upload] Storage error (face_id):', uploadError);
+        return NextResponse.json({ error: 'Upload failed', code: 'UPLOAD_ERROR' }, { status: 500 });
+      }
+
+      const { data: signedData } = await adminSupabase.storage
+        .from(BUCKET)
+        .createSignedUrl(storagePath, 60 * 60 * 24);
+
+      if (!signedData) {
+        return NextResponse.json({ error: 'Could not generate URL', code: 'SIGNED_URL_ERROR' }, { status: 500 });
+      }
+
+      return NextResponse.json(
+        { document_type: 'face_id', document_url: signedData.signedUrl, storage_path: storagePath },
+        { status: 201 }
       );
     }
 
@@ -141,19 +182,9 @@ export async function POST(req: NextRequest) {
     }
     const documentType = parsedDocType.data;
 
-    const imageOnlyDocumentTypes = new Set(['face_id', 'selfie']);
-    const validFile = imageOnlyDocumentTypes.has(documentType)
-      ? isImageFile(file)
-      : isDocumentFile(file);
-
-    if (!validFile) {
+    if (!isDocumentFile(file)) {
       return NextResponse.json(
-        {
-          error: imageOnlyDocumentTypes.has(documentType)
-            ? 'Invalid file type. Upload an image file.'
-            : 'Invalid file type. Upload an image or document file.',
-          code: 'INVALID_FILE_TYPE',
-        },
+        { error: 'Invalid file type. Upload an image or document file.', code: 'INVALID_FILE_TYPE' },
         { status: 422 }
       );
     }

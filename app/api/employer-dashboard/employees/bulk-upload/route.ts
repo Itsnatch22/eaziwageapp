@@ -103,7 +103,8 @@ export async function POST(req: NextRequest) {
             job_title: emp.job_title,
             department: emp.department,
             monthly_salary: emp.monthly_salary,
-            status: 'pending',
+            // status omitted — the column defaults to 'pending', matching
+            // what a brand-new zero-document row would derive anyway.
             invitation_sent: false
           });
 

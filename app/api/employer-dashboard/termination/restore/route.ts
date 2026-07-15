@@ -29,15 +29,42 @@ export async function POST() {
 
     if (restoreEmployerError) throw restoreEmployerError;
 
-    await adminSupabase
-      .from('employee_onboarding')
-      .update({ status: 'approved' }) 
-      .eq('employer_id', employer.onboarding_id);
-    
-    await adminSupabase
+    const { data: restoredEmployees } = await adminSupabase
       .from('employees')
       .update({ deleted_at: null, status: 'Active' })
-      .eq('employer_id', employer.id);
+      .eq('employer_id', employer.id)
+      .select('user_id');
+
+    // Don't blanket-claim every restored employee's KYC is 'approved' — that's
+    // simply false for anyone who was legitimately rejected or never finished
+    // submitting documents before termination. Instead, force
+    // trg_recompute_onboarding_status to re-derive each employee's real status
+    // from their actual employee_kyc_documents rows: Postgres fires an
+    // `AFTER UPDATE OF status` trigger whenever the column is named in the SET
+    // list, even when the value is unchanged, so this self-update is a safe,
+    // no-op-at-the-data-level way to trigger a fresh, accurate recompute.
+    // (An employee with zero submitted documents has no employee_kyc_documents
+    // rows to touch here, so their status stays whatever termination left it —
+    // a known edge case, not solved by this technique.)
+    const restoredUserIds = (restoredEmployees ?? [])
+      .map((e) => e.user_id)
+      .filter((id): id is string => Boolean(id));
+
+    if (restoredUserIds.length > 0) {
+      const { data: docsToRecompute } = await adminSupabase
+        .from('employee_kyc_documents')
+        .select('id, status')
+        .in('user_id', restoredUserIds);
+
+      await Promise.allSettled(
+        (docsToRecompute ?? []).map((doc) =>
+          adminSupabase
+            .from('employee_kyc_documents')
+            .update({ status: doc.status })
+            .eq('id', doc.id),
+        ),
+      );
+    }
 
     await adminSupabase.from('system_audit_logs').insert({
       admin_id: user.id,

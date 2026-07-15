@@ -140,6 +140,7 @@ const MetricCard = ({ icon, label, value, variant = 'purple', onClick, active }:
 const StatusBadge = ({ status }: { status: DocumentStatus }) => {
   const config = {
     pending: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+    under_review: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
     approved: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300',
     rejected: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300',
   };

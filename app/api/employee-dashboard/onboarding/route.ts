@@ -197,15 +197,13 @@ const { data: existing } = await adminSupabase
      mobile_money_provider,
      mobile_money_number,
      face_id,
-     id_front,
-     id_back,
-     address_proof,
-     tax_certificate,
-     payslip_1,
-     payslip_2,
-     bank_statement,
-     employment_contract,
    } = data;
+   // The 8 KYC document URLs (id_front, id_back, address_proof, tax_certificate,
+   // payslip_1, payslip_2, bank_statement, employment_contract) are intentionally
+   // not destructured here — they're already durably persisted in
+   // employee_kyc_documents by the per-file upload endpoint
+   // (app/api/employee-dashboard/kyc/documents/route.ts) before this final-submit
+   // call happens. employee_onboarding no longer has columns for them.
 
    const generatedEmployeeCode = employee_code || generateEmployeeCode(employerId, user.id);
 
@@ -242,16 +240,12 @@ const { data: existing } = await adminSupabase
      mobile_money_provider,
 
      face_id: face_id || null,
-     id_front: id_front || null,
-     id_back: id_back || null,
-     address_proof: address_proof || null,
-     tax_certificate: tax_certificate || null,
-     payslip_1: payslip_1 || null,
-     payslip_2: payslip_2 || null,
-     bank_statement: bank_statement || null,
-     employment_contract: employment_contract || null,
 
-     status: 'pending' as const,
+     // status is intentionally omitted: on INSERT the column defaults to 'pending'
+     // (correct for a brand-new application); on UPDATE (resubmission) leaving it
+     // out means this write doesn't touch the column at all, preserving whatever
+     // trg_recompute_onboarding_status already derived from the per-document
+     // resubmissions that happened before this final-submit call.
      terms_accepted_at: new Date().toISOString(),
      submitted_at: new Date().toISOString(),
    };
@@ -311,26 +305,12 @@ const { data: existing } = await adminSupabase
        .select('id')
        .single();
 
-     const docSyncs = [];
-     const idDocType = data.id_type === 'passport' ? 'passport' : 'national_id';
-     
-     if (face_id) docSyncs.push({ user_id: user.id, document_type: 'face_id', document_url: face_id, status: 'pending' });
-     if (id_front) docSyncs.push({
-       user_id: user.id,
-       document_type: idDocType,
-       document_url: id_front,
-       document_number: national_id,
-       status: 'pending',
-     });
-     if (address_proof) docSyncs.push({ user_id: user.id, document_type: 'utility_bill', document_url: address_proof, status: 'pending' });
-     if (tax_certificate) docSyncs.push({ user_id: user.id, document_type: 'tax_certificate', document_url: tax_certificate, status: 'pending' });
-     if (payslip_1) docSyncs.push({ user_id: user.id, document_type: 'payslip', document_url: payslip_1, status: 'pending' });
-     if (bank_statement) docSyncs.push({ user_id: user.id, document_type: 'bank_statement', document_url: bank_statement, status: 'pending' });
-     if (employment_contract) docSyncs.push({ user_id: user.id, document_type: 'employment_contract', document_url: employment_contract, status: 'pending' });
-
-     if (docSyncs.length > 0) {
-       await adminSupabase.from('employee_kyc_documents').upsert(docSyncs, { onConflict: 'user_id,document_type' });
-     }
+     // No employee_kyc_documents sync here — the per-file upload endpoint
+     // (app/api/employee-dashboard/kyc/documents/route.ts) already upserts each
+     // document's row (with a real storage_path) at upload time, which is also
+     // what drives trg_recompute_onboarding_status. Re-syncing here previously
+     // used a stale document_type taxonomy that no longer matches the table's
+     // CHECK constraint and never set storage_path, so it always failed silently.
 
      if (emp?.id && (bank_name || bank_account || mobile_money_provider || mobile_money_number)) {
        if (bank_name && bank_account) {

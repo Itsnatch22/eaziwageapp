@@ -25,10 +25,6 @@ interface EmployeeUpsertPayload {
 
 type EmployeeActionStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
 
-function toOnboardingStatus(status: EmployeeActionStatus): 'approved' | 'pending' | 'rejected' | 'suspended' {
-  return status === 'active' || status === 'approved' ? 'approved' : status;
-}
-
 function toLiveEmployeeStatus(status: EmployeeActionStatus): 'Active' | 'Inactive' {
   return status === 'active' || status === 'approved' ? 'Active' : 'Inactive';
 }
@@ -112,7 +108,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
     }
 
-    const resolvedStatus = toOnboardingStatus(status);
     const liveStatus = toLiveEmployeeStatus(status);
     const kycStatus = toKycStatus(status);
     const normalizedEmploymentType =
@@ -120,25 +115,67 @@ export async function PATCH(
         ? onboardingRecord.employment_type.replace(/_/g, '-').toLowerCase()
         : undefined;
 
-    if (onboardingRecord) {
-      if (normalizedEmploymentType && normalizedEmploymentType !== onboardingRecord.employment_type) {
-        const { error: normaliseError } = await adminSupabase
-          .from('employee_onboarding')
-          .update({ employment_type: normalizedEmploymentType })
-          .eq('id', onboardingRecord.id);
+    if (status === 'rejected' && !reason?.trim()) {
+      return NextResponse.json({ error: 'A reason is required when rejecting an employee.' }, { status: 422 });
+    }
 
-        if (normaliseError) {
-          console.error('[PATCH status] failed to normalise employment_type:', normaliseError);
-          return NextResponse.json({ error: 'Failed to normalise employment data' }, { status: 500 });
-        }
+    if (onboardingRecord && normalizedEmploymentType && normalizedEmploymentType !== onboardingRecord.employment_type) {
+      const { error: normaliseError } = await adminSupabase
+        .from('employee_onboarding')
+        .update({ employment_type: normalizedEmploymentType })
+        .eq('id', onboardingRecord.id);
+
+      if (normaliseError) {
+        console.error('[PATCH status] failed to normalise employment_type:', normaliseError);
+        return NextResponse.json({ error: 'Failed to normalise employment data' }, { status: 500 });
       }
+    }
 
+    // No direct employee_onboarding.status write for approved/pending/rejected —
+    // bulk-updating employee_kyc_documents below fires
+    // trg_recompute_onboarding_status, which derives the rollup status itself.
+    // 'suspended' is the one exception the trigger explicitly carves out (it
+    // skips recompute while status is already 'suspended'), so that one is
+    // still written directly.
+    if (status === 'approved' || status === 'active') {
+      const { error: docsError } = await adminSupabase
+        .from('employee_kyc_documents')
+        .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: user.id })
+        .eq('user_id', userId);
+
+      if (docsError) {
+        console.error('[PATCH status] documents approve error:', docsError);
+        return NextResponse.json({ error: 'Failed to approve KYC documents' }, { status: 500 });
+      }
+    } else if (status === 'rejected') {
+      const { error: docsError } = await adminSupabase
+        .from('employee_kyc_documents')
+        .update({ status: 'rejected', reviewer_notes: reason, reviewed_at: new Date().toISOString(), reviewed_by: user.id })
+        .eq('user_id', userId);
+
+      if (docsError) {
+        console.error('[PATCH status] documents reject error:', docsError);
+        return NextResponse.json({ error: 'Failed to reject KYC documents' }, { status: 500 });
+      }
+    } else if (status === 'pending') {
+      // Resets every document back to pending review. The trigger then derives
+      // 'pending' if this employee hasn't submitted all 8 documents yet, or
+      // 'under_review' if all 8 exist but aren't all approved — there's no way
+      // to force a literal 'pending' once documents already exist, so per
+      // product decision, "Pending" here means "back in the review queue."
+      const { error: docsError } = await adminSupabase
+        .from('employee_kyc_documents')
+        .update({ status: 'pending' })
+        .eq('user_id', userId);
+
+      if (docsError) {
+        console.error('[PATCH status] documents reset error:', docsError);
+        return NextResponse.json({ error: 'Failed to reset KYC documents' }, { status: 500 });
+      }
+    } else if (status === 'suspended' && onboardingRecord) {
       const { error: updateError } = await adminSupabase
         .from('employee_onboarding')
-        .update({ 
-          status: resolvedStatus,
-          updated_at: new Date().toISOString()
-        })
+        .update({ status: 'suspended', updated_at: new Date().toISOString() })
         .eq('id', onboardingRecord.id);
 
       if (updateError) {
