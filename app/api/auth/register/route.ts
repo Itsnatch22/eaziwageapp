@@ -12,6 +12,7 @@ import { createToken }               from '@/lib/token';
 import { getCurrencyFromCountry }     from '@/lib/utils';
 import WelcomeEmail                  from '@/lib/emails/WelcomeEmail';
 import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
+import { resolveEmployerByCode }      from '@/lib/services/resolve-employer-by-code';
 
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
@@ -183,20 +184,6 @@ function generateEmployerCode(): string {
   return random;
 }
 
-interface EmployerRecord {
-  id: string;
-  status: string;
-  user_id: string;
-  employer_code: string;
-  onboarding_id: string | null;
-}
-
-interface OnboardingRecord {
-  id: string;
-  status: string;
-  user_id: string;
-}
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
 
@@ -258,61 +245,37 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let employerUserId: string | null = null;
   let employerOnboardingId: string | null = null;
 
+  // No company_code means either the employee skipped company selection
+  // entirely, or explicitly used "My company isn't listed" (employer_referral
+  // is set in that case). Both are legitimate — employee_onboarding.employer_id
+  // is nullable specifically so this doesn't block account creation; the
+  // employee can link an employer later from settings once one exists.
   if (input.role === 'employee' && input.company_code) {
-    // Primary lookup: employer_onboarding.company_code — canonical source populated
-    // at registration and admin approval for all employers (legacy + new).
-    let resolvedOnboarding: OnboardingRecord | null = null;
+    const resolved = await resolveEmployerByCode(supabase, input.company_code);
 
-    const { data: onboardingByCode } = await supabase
-      .from('employer_onboarding')
-      .select('id, status, user_id')
-      .ilike('company_code', input.company_code)
-      .maybeSingle<OnboardingRecord>();
-
-    if (onboardingByCode) {
-      resolvedOnboarding = onboardingByCode;
-    } else {
-      // Secondary fallback: employers table (company_code or employer_code) for
-      // records pre-dating the onboarding backfill migration.
-      const { data: employerByCode } = await supabase
-        .from('employers')
-        .select('id, status, user_id, onboarding_id')
-        .or(`company_code.ilike.${input.company_code},employer_code.ilike.${input.company_code}`)
-        .maybeSingle<EmployerRecord>();
-
-      if (employerByCode?.onboarding_id) {
-        const { data: linked } = await supabase
-          .from('employer_onboarding')
-          .select('id, status, user_id')
-          .eq('id', employerByCode.onboarding_id)
-          .maybeSingle<OnboardingRecord>();
-        resolvedOnboarding = linked ?? null;
-      }
-    }
-
-    if (!resolvedOnboarding) {
+    if (resolved.status === 'not_found') {
       return NextResponse.json(
         { error: 'Company code not found. Please search again or continue without a code.' },
         { status: 422, headers: rateResult.headers },
       );
     }
 
-    if (resolvedOnboarding.status === 'rejected' || resolvedOnboarding.status === 'suspended') {
+    if (resolved.status === 'rejected' || resolved.status === 'suspended') {
       return NextResponse.json(
-        { error: `This company is currently ${resolvedOnboarding.status} on EaziWage. Please contact support.` },
+        { error: `This company is currently ${resolved.status} on EaziWage. Please contact support.` },
         { status: 422, headers: rateResult.headers },
       );
     }
 
-    if (resolvedOnboarding.status !== 'approved') {
+    if (resolved.status === 'not_approved') {
       return NextResponse.json(
         { error: 'This company has not finished onboarding yet. Please try again once they have completed setup, or continue without a code.' },
         { status: 422, headers: rateResult.headers },
       );
     }
 
-    employerUserId = resolvedOnboarding.user_id;
-    employerOnboardingId = resolvedOnboarding.id;
+    employerUserId = resolved.userId;
+    employerOnboardingId = resolved.onboardingId;
   }
 
   // Resolve the FK-safe company_code for profiles.company_code.

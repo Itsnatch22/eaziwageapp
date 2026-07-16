@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Building2, Lock, Bell, HelpCircle, 
+  Building2, Lock, Bell, HelpCircle,
   ChevronRight, CheckCircle2,
-  Shield, CreditCard, Smartphone, 
-  Mail, Phone, MapPin,
+  Shield, CreditCard, Smartphone,
+  Mail, Phone, MapPin, Search,
   User, Loader2,
   Briefcase, Landmark, Clock, AlertTriangle, History,
   type LucideIcon
@@ -47,6 +47,7 @@ type EmployeeSettingsProfile = {
   bank_name?: string;
   city?: string;
   company_name?: string;
+  employer_id?: string | null;
   employment_type?: string;
   job_title?: string;
   mobile_money_number?: string;
@@ -55,6 +56,15 @@ type EmployeeSettingsProfile = {
   postal_code?: string;
   country?: string;
   currency?: string;
+};
+
+type EmployerOption = {
+  id: string;
+  company_name: string;
+  company_code: string;
+  industry?: string;
+  city?: string;
+  country?: string;
 };
 
 type Profile = {
@@ -108,6 +118,106 @@ const SettingsCard = ({ icon: Icon, title, description, children, locked = false
     {children}
   </div>
 );
+
+const LinkEmployerCard = ({
+  onLink,
+  linking,
+}: {
+  onLink: (company: EmployerOption) => Promise<void>;
+  linking: boolean;
+}) => {
+  const [query, setQuery] = useState('');
+  const [companies, setCompanies] = useState<EmployerOption[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [fetched, setFetched] = useState(false);
+  const [selected, setSelected] = useState<EmployerOption | null>(null);
+
+  useEffect(() => {
+    if (fetched) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearchLoading(true);
+    fetch('/api/employee-dashboard/employers')
+      .then((res) => (res.ok ? res.json() : { employers: [] }))
+      .then((data) => setCompanies(data.employers ?? []))
+      .catch(() => setCompanies([]))
+      .finally(() => {
+        setSearchLoading(false);
+        setFetched(true);
+      });
+  }, [fetched]);
+
+  const results = query.trim()
+    ? companies.filter((c) => c.company_name?.toLowerCase().includes(query.trim().toLowerCase()))
+    : companies;
+
+  return (
+    <SettingsCard
+      icon={Building2}
+      title="Link Your Employer"
+      description="Your account isn't linked to a company yet — search for yours below to unlock wage advances"
+    >
+      {selected ? (
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+              <Building2 className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-slate-900 dark:text-white text-sm truncate">{selected.company_name}</p>
+              {selected.city && <p className="text-xs text-slate-500">{selected.city}{selected.country ? `, ${selected.country}` : ''}</p>}
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setSelected(null)} disabled={linking}>
+              Change
+            </Button>
+          </div>
+          <Button className="w-full bg-primary text-white" onClick={() => onLink(selected)} disabled={linking}>
+            {linking ? (
+              <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Linking…</span>
+            ) : (
+              `Link to ${selected.company_name}`
+            )}
+          </Button>
+          <p className="text-[10px] text-slate-400 text-center">This can&apos;t be changed once linked — contact support if you selected the wrong company.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="relative">
+            <Input
+              placeholder="Search by company name…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="pl-10"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          </div>
+          {searchLoading ? (
+            <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : results.length > 0 ? (
+            <div className="max-h-64 overflow-y-auto space-y-1.5">
+              {results.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelected(c)}
+                  className="w-full p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left flex items-center gap-3 border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                >
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+                    <Building2 className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-900 dark:text-white text-sm truncate">{c.company_name}</p>
+                    {c.city && <p className="text-xs text-slate-500 truncate">{c.city}{c.country ? `, ${c.country}` : ''}</p>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 text-center py-6">No companies found. If yours isn&apos;t on EaziWage yet, contact support for help onboarding them.</p>
+          )}
+        </div>
+      )}
+    </SettingsCard>
+  );
+};
 
 const ToggleItem = ({ icon: Icon, label, description, checked, onToggle, disabled }: { icon: LucideIcon; label: string; description: string; checked: boolean; onToggle: (checked: boolean) => void; disabled?: boolean; }) => (
   <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800">
@@ -169,6 +279,7 @@ export default function EmployeeSettings() {
   const [notificationPrefs, setNotificationPrefs] = useState({ emailAlerts: true, pushNotifications: true });
   const [notificationLoading, setNotificationLoading] = useState(false);
   const { subscribe, unsubscribe, status: pushStatus } = usePushNotifications();
+  const [linkingEmployer, setLinkingEmployer] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'security') Promise.resolve().then(() => setLogPage(0));
@@ -268,6 +379,32 @@ export default function EmployeeSettings() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLinkEmployer = async (company: EmployerOption) => {
+    setLinkingEmployer(true);
+    try {
+      const res = await fetch('/api/employee-dashboard/link-employer', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_code: company.company_code }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Linked to ${data.company_name || company.company_name}`);
+        const profileRes = await fetch('/api/employee-dashboard/profile');
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          setProfile(profileData.profile);
+        }
+      } else {
+        toast.error(data.error || 'Failed to link employer');
+      }
+    } catch {
+      toast.error('Failed to link employer');
+    } finally {
+      setLinkingEmployer(false);
     }
   };
 
@@ -513,44 +650,50 @@ export default function EmployeeSettings() {
             
             {activeTab === 'employment' && (
               <div className="space-y-6">
-                <SettingsCard icon={Building2} title="Work Details" description="Information about your professional affiliation" locked>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Employer</Label>
-                      <Input value={employee?.company_name || 'Loading...'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Job Title</Label>
-                      <Input value={employee?.job_title || 'N/A'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Employment Type</Label>
-                      <Input value={employee?.employment_type?.replace('_', ' ') || 'Full-time'} readOnly className="bg-slate-50 dark:bg-slate-800/50 capitalize" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Monthly Salary</Label>
-                      <div className="relative">
-                        <Input value={employee?.monthly_salary ? Number(employee.monthly_salary).toLocaleString() : '---'} readOnly className="bg-slate-50 dark:bg-slate-800/50 pl-12" />
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{profile?.employee?.currency || 'KES'}</span>
+                {!employee?.employer_id ? (
+                  <LinkEmployerCard onLink={handleLinkEmployer} linking={linkingEmployer} />
+                ) : (
+                  <>
+                    <SettingsCard icon={Building2} title="Work Details" description="Information about your professional affiliation" locked>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Employer</Label>
+                          <Input value={employee?.company_name || 'Loading...'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Job Title</Label>
+                          <Input value={employee?.job_title || 'N/A'} readOnly className="bg-slate-50 dark:bg-slate-800/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Employment Type</Label>
+                          <Input value={employee?.employment_type?.replace('_', ' ') || 'Full-time'} readOnly className="bg-slate-50 dark:bg-slate-800/50 capitalize" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Monthly Salary</Label>
+                          <div className="relative">
+                            <Input value={employee?.monthly_salary ? Number(employee.monthly_salary).toLocaleString() : '---'} readOnly className="bg-slate-50 dark:bg-slate-800/50 pl-12" />
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{profile?.employee?.currency || 'KES'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </SettingsCard>
+
+                    <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shrink-0">
+                          <Briefcase className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white">Employment Verified</h4>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                            Your account is linked to <span className="font-bold text-slate-900 dark:text-white">{employee?.company_name || '---'}</span>.
+                            Your salary advances are automatically reconciled via your company&apos;s payroll system.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </SettingsCard>
-
-                <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shrink-0">
-                      <Briefcase className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 dark:text-white">Employment Verified</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        Your account is linked to <span className="font-bold text-slate-900 dark:text-white">{employee?.company_name || '---'}</span>. 
-                        Your salary advances are automatically reconciled via your company&apos;s payroll system.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
             )}
 

@@ -171,6 +171,39 @@ export async function GET(request: Request) {
     }
   }
 
+  // OAuth sign-up never went through /api/auth/register, so no
+  // employee_onboarding row exists yet — without this, an employee who
+  // signs up via Google/Apple has zero trace anywhere admin looks (that
+  // route reads employee_onboarding, not profiles) and their own dashboard
+  // never resolves past "Setup Required" cleanly. employer_id is left null;
+  // they can link a company later from settings, same as the no-code
+  // registration-form path.
+  const effectiveRole = profile?.role_normalized ?? profile?.role ?? requestedRole;
+  if (effectiveRole === 'employee') {
+    const { data: existingOnboarding } = await supabaseAdmin
+      .from('employee_onboarding')
+      .select('id')
+      .eq('user_id', data.user.id)
+      .maybeSingle();
+
+    if (!existingOnboarding) {
+      const { error: stubError } = await supabaseAdmin
+        .from('employee_onboarding')
+        .insert({
+          user_id: data.user.id,
+          employer_id: null,
+          status: 'pending',
+          submitted_at: null,
+          full_name: fallbackName,
+          email: data.user.email,
+        });
+
+      if (stubError) {
+        console.error('[auth callback] failed to create employee_onboarding stub:', stubError);
+      }
+    }
+  }
+
   const resolvedRole =
     profile?.role_normalized ??
     profile?.role ??
