@@ -32,7 +32,18 @@ function toPublicStatus(status: string): PublicStatus {
   return 'down';
 }
 
-export async function GET() {
+// GitHub Actions' every-5-minute cron for sync-health.yml doesn't reliably
+// fire that often — observed gaps of 55min to 3+ hours between runs despite
+// every run succeeding when it does trigger, a known limitation of GitHub's
+// shared-runner scheduler for high-frequency schedules. Vercel Cron isn't a
+// fix either on the Hobby plan (throttled to once/day regardless of the
+// configured schedule). Rather than let a real visitor see stale data,
+// trigger a live check inline whenever the cached result is older than this
+// — the background cron becomes a best-effort warm cache; this is what
+// actually guarantees freshness for anyone looking at the page.
+const STALE_THRESHOLD_MS = 10 * 60 * 1000;
+
+export async function GET(req: Request) {
   try {
     const { data: healthRows, error: healthError } = await supabaseAdmin
       .from('api_health')
@@ -41,7 +52,37 @@ export async function GET() {
 
     if (healthError) throw healthError;
 
-    const services = (healthRows || []).map((row) => ({
+    let rows = healthRows ?? [];
+
+    const mostRecentUpdate = rows.reduce((latest, r) => {
+      const t = r.updated_at ? new Date(r.updated_at).getTime() : 0;
+      return t > latest ? t : latest;
+    }, 0);
+    const isStale = rows.length === 0 || Date.now() - mostRecentUpdate > STALE_THRESHOLD_MS;
+
+    if (isStale && process.env.CRON_SECRET) {
+      try {
+        const origin = new URL(req.url).origin;
+        const refreshRes = await fetch(`${origin}/api/admin/check-api-health`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (refreshRes.ok) {
+          const { data: freshRows } = await supabaseAdmin
+            .from('api_health')
+            .select('name, status, updated_at')
+            .in('name', Object.keys(PUBLIC_LABELS));
+          if (freshRows) rows = freshRows;
+        }
+      } catch (refreshErr) {
+        // Non-fatal — fall back to whatever cached data we have rather than
+        // failing the whole public status page over a refresh hiccup.
+        console.error('[public-status] Inline refresh failed:', refreshErr);
+      }
+    }
+
+    const services = rows.map((row) => ({
       name: PUBLIC_LABELS[row.name] ?? row.name,
       status: toPublicStatus(row.status),
     }));
