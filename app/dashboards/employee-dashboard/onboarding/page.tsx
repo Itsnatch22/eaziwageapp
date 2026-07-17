@@ -817,10 +817,10 @@ export default function Onboarding() {
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-            { headers: { "Accept-Language": "en" } },
-          );
+          // Proxied server-side — Nominatim never returns CORS headers for
+          // browser-originated requests, so calling it directly from here
+          // fails silently every time.
+          const res = await fetch(`/api/geocode/reverse?lat=${latitude}&lon=${longitude}`);
           if (!res.ok) throw new Error("Geocoding failed");
           const geo = await res.json() as { address?: Record<string, string> };
           const addr = geo.address ?? {};
