@@ -187,8 +187,11 @@ export async function POST(req: Request) {
 
     if (!currentWallet) return NextResponse.json({ error: 'Failed to initialize wallet' }, { status: 500 });
 
-    const reference = `DEP-${employer.id}-${Date.now()}`;
-    
+    // reference is intentionally left unset here (nullable column) — which
+    // DusuPay operation this request will actually go through (collection
+    // for prefunded employers, payout for debit_order/invoice) isn't known
+    // until admin approval, so the merchant_reference is minted there instead.
+    // See app/api/admin/wallet/topup-requests/[id]/approve/route.ts.
 
     // Prefer the wallet's stored currency; fall back to onboarding data so local_currency is never null.
     const employerCurrency =
@@ -210,7 +213,7 @@ export async function POST(req: Request) {
       amount: amount,
       type: 'deposit',
       status: 'pending',
-      reference,
+      reference: null,
       description: 'Top-up request (pending admin approval)',
       local_currency: employerCurrency,
       rate_snapshot: rateSnapshot,

@@ -38,6 +38,97 @@ interface AdvanceRow {
   status: string;
 }
 
+interface WalletTxRow {
+  id: string;
+  reference: string | null;
+  status: string;
+}
+
+// Employer wallet top-up 'processing' rows (DEP- collection, EWA-FUND- payout)
+// need the same reconciliation coverage as advances — a missed webhook would
+// otherwise leave one stuck in 'processing' forever with no employer credit
+// and no admin visibility. Mirrors the advances loop below; the only
+// meaningful mismatch here is "DusuPay says this reached a terminal state but
+// our DB still shows processing", since 'processing' is the only non-terminal
+// wallet_transactions status this reconciliation job cares about.
+async function reconcileWalletTopups(log: (msg: string) => void): Promise<{ checked: number; mismatches: number }> {
+  const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: rows, error } = await supabaseAdmin
+    .from('wallet_transactions')
+    .select('id, reference, status')
+    .eq('status', 'processing')
+    .not('reference', 'is', null)
+    .gte('created_at', since)
+    .limit(MAX_PER_RUN);
+
+  if (error) {
+    console.error('[reconcile-dusupay] Failed to fetch wallet_transactions:', error);
+    return { checked: 0, mismatches: 0 };
+  }
+
+  const walletRows = ((rows ?? []) as WalletTxRow[]).filter(
+    (r) => r.reference && (r.reference.startsWith('DEP-') || r.reference.startsWith('EWA-FUND-')),
+  );
+
+  let checked = 0;
+  let mismatches = 0;
+
+  for (const tx of walletRows) {
+    if (!tx.reference) continue;
+    checked++;
+
+    let result;
+    try {
+      result = await dusupay.checkPayoutStatus(tx.reference);
+    } catch (err) {
+      console.error('[reconcile-dusupay] Wallet tx status check threw', { txId: tx.id, err });
+      continue;
+    }
+
+    if (!result.success) {
+      continue;
+    }
+
+    const dusupayMapped = mapDusupayStatus(result.status);
+    // Only a confirmed terminal DusuPay status (completed/failed) that
+    // disagrees with our still-'processing' row counts as a mismatch worth
+    // recording — DusuPay's own 'processing'/pending states agreeing with
+    // ours isn't news.
+    if (dusupayMapped && dusupayMapped !== 'processing' && dusupayMapped !== tx.status) {
+      mismatches++;
+
+      const { error: insertError } = await supabaseAdmin
+        .from('dusupay_reconciliation_mismatches')
+        .insert({
+          wallet_transaction_id: tx.id,
+          merchant_reference: tx.reference,
+          supabase_status: tx.status,
+          dusupay_status: result.status ?? null,
+          dusupay_raw: result.raw ?? null,
+        });
+
+      if (insertError) {
+        console.error('[reconcile-dusupay] Failed to record wallet tx mismatch', { txId: tx.id, insertError });
+      }
+    }
+
+    if (DELAY_MS > 0) await sleep(DELAY_MS);
+  }
+
+  if (mismatches > 0) {
+    void notifyAdmin({
+      type: 'system_alert',
+      title: `DusuPay reconciliation: ${mismatches} wallet top-up mismatch(es) found`,
+      message: `Checked ${checked} processing wallet top-ups against DusuPay's live status — ${mismatches} had actually reached a terminal state DusuPay-side without our webhook catching it. Review in dusupay_reconciliation_mismatches.`,
+      metadata: { checked, mismatches },
+    }).catch((err) => console.error('[reconcile-dusupay] notifyAdmin failed:', err));
+  }
+
+  log(`[reconcile-dusupay] Wallet top-ups: checked ${checked}/${walletRows.length}, ${mismatches} mismatch(es)`);
+  return { checked, mismatches };
+}
+
 async function run(): Promise<NextResponse> {
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
@@ -110,7 +201,16 @@ async function run(): Promise<NextResponse> {
   }
 
   console.log(`[reconcile-dusupay] Checked ${checked}/${rows.length} advances, ${mismatches} mismatch(es)`);
-  return NextResponse.json({ checked, total: rows.length, mismatches });
+
+  const walletResult = await reconcileWalletTopups(console.log);
+
+  return NextResponse.json({
+    checked: checked + walletResult.checked,
+    total: rows.length,
+    mismatches: mismatches + walletResult.mismatches,
+    advances: { checked, total: rows.length, mismatches },
+    walletTopups: walletResult,
+  });
 }
 
 function authorize(req: NextRequest): boolean {

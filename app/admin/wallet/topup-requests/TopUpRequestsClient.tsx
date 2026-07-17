@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 type RiskRating = 'A' | 'B' | 'C' | 'D';
 type LocalCurrency = 'KES' | 'UGX' | 'TZS' | 'RWF';
-type TopUpStatus = 'pending' | 'completed' | 'failed' | 'rejected';
+type TopUpStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'rejected';
 
 interface TopUpRequestMetadata {
   employer_id: string;
@@ -175,10 +175,13 @@ export default function TopUpRequestsClient({
       if (!res.ok) throw new Error(json?.error || 'Approval failed');
 
       setRequests(prev => prev.filter(r => r.id !== request.id));
-      setAdminWallet(prev => ({
-        ...prev,
-        balance: prev.balance - (request.usd_amount ?? 0),
-      }));
+      // Approval now only *initiates* a real DusuPay collection or payout —
+      // the admin wallet's USD balance (for the payout leg) and the employer's
+      // available balance (for the collection leg) only change once DusuPay
+      // confirms via webhook, not synchronously here. Optimistically
+      // decrementing it at this point would show a number that hasn't
+      // actually moved yet (or, for a prefunded/collection employer, never
+      // moves at all — the admin wallet isn't touched by that leg).
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Approval failed');
     } finally {

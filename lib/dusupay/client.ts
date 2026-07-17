@@ -9,6 +9,19 @@ import {
   CollectionResponse,
 } from './types';
 
+// Thrown only when fetch() itself fails — DNS, connection reset, abort,
+// timeout — meaning DusuPay's server never actually responded. Callers must
+// treat this differently from a plain Error (which means a real HTTP
+// response WAS received, just not a success): the outcome here is genuinely
+// unknown, so it is never safe to assume "failed" and retry with the same
+// merchant_reference. See the P4 plan / this session's resilience trace.
+export class DusupayNetworkError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'DusupayNetworkError';
+  }
+}
+
 export class DusupayClient {
   private publicKey: string;
   private secretKey: string;
@@ -46,13 +59,23 @@ export class DusupayClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.headers,
-        ...options.headers,
-      },
-    });
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...this.headers,
+          ...options.headers,
+        },
+      });
+    } catch (err: unknown) {
+      // fetch() threw before any response arrived — a network-level failure,
+      // not a rejection from DusuPay's server. Whether the request was ever
+      // received/processed on their end is unknown.
+      const message = err instanceof Error ? err.message : 'Network request failed';
+      throw new DusupayNetworkError(`DusuPay request failed before a response was received: ${message}`, err);
+    }
 
     const rawBody = await response.text();
     let data: Record<string, unknown>;

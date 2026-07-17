@@ -92,6 +92,10 @@ export async function POST(req: NextRequest) {
 
     if (isCollection) {
       await handleCollectionEvent(event, payload, merchantReference, internalReference, mlog);
+    } else if (merchantReference.startsWith('EWA-FUND-')) {
+      // Employer wallet funding payout (debit_order/invoice employers) — has
+      // its own handler since handlePayoutEvent only knows about `advances`.
+      await handleEmployerFundingPayout(event, payload, merchantReference, internalReference, mlog);
     } else {
       await handlePayoutEvent(event, payload, merchantReference, internalReference, mlog);
     }
@@ -308,7 +312,7 @@ async function handleCollectionEvent(
   // Terminal status guard: skip if wallet_transactions already has a completed row for this reference.
   const { data: existingWalletTx } = await supabaseAdmin
     .from('wallet_transactions')
-    .select('status')
+    .select('id, status')
     .eq('reference', merchantRef)
     .maybeSingle();
 
@@ -317,8 +321,11 @@ async function handleCollectionEvent(
     return;
   }
 
-  const parts = merchantRef.split('-');
-  const employerId = parts[1];
+  // employerId is itself a UUID (contains hyphens), so a naive split('-')
+  // would only capture its first segment — anchor on the numeric timestamp
+  // suffix instead to correctly extract the full UUID in between.
+  const depMatch = merchantRef.match(/^DEP-(.+)-(\d+)$/);
+  const employerId = depMatch?.[1];
   const amount = Number(payload.transaction_amount);
 
   if (!Number.isFinite(amount)) {
@@ -326,7 +333,10 @@ async function handleCollectionEvent(
     return;
   }
 
-  if (!employerId) return;
+  if (!employerId) {
+    log.error('DEP- webhook reference did not match expected format', { merchantRef });
+    return;
+  }
 
   const { data: wallet } = await supabaseAdmin
     .from('employer_wallets')
@@ -346,6 +356,32 @@ async function handleCollectionEvent(
   const walletId = wallet?.id || (await supabaseAdmin.from('employer_wallets').select('id').eq('employer_id', employerId).single()).data?.id;
 
   const status = (event === 'transaction.completed' || payload.status === 'COMPLETED') ? 'completed' : 'failed';
+
+  // Credit the employer's actual available balance BEFORE the upsert below —
+  // credit_employer_wallet_prefunded() itself flips this row to 'completed'
+  // (and is safe to call even if the upsert hasn't run yet, since it looks
+  // the row up by id, not by relying on the upsert having happened first).
+  // Only total_advanced increases here — this is the employer's own money
+  // collected via DusuPay, not an admin-fronted loan, so outstanding_liability
+  // and admin_wallets are correctly left untouched (see the RPC definition).
+  if (status === 'completed') {
+    if (existingWalletTx?.id) {
+      const { error: creditError } = await supabaseAdmin.rpc('credit_employer_wallet_prefunded', {
+        p_employer_id: employerId,
+        p_amount: amount,
+        p_wallet_transaction_id: existingWalletTx.id,
+      });
+      if (creditError) {
+        log.error('credit_employer_wallet_prefunded RPC failed', { err: creditError, employerId, amount });
+        void notifyAdmin({
+          type: 'system_alert',
+          title: 'Employer Wallet Credit Failed',
+          message: `DusuPay confirmed a wallet top-up collection for employer ${employerId} but crediting the wallet failed. Manual intervention required. Reference: ${merchantRef}.`,
+          metadata: { employerId, amount, merchantRef, error: creditError.message },
+        }).catch(() => {});
+      }
+    }
+  }
 
   await supabaseAdmin
     .from('wallet_transactions')
@@ -383,6 +419,146 @@ async function handleCollectionEvent(
   }
 
   log.info('Wallet funding processed', { employerId, amount, status });
+}
+
+// Employer wallet funding payout (debit_order/invoice employers) — EaziWage
+// pays the employer real cash via DusuPay. The ledger update
+// (fund_employer_from_admin, real admin-fronted liability) is deliberately
+// deferred to here rather than run synchronously in the approve route, so
+// employer_wallets/admin_wallets only change once DusuPay actually confirms
+// the money moved.
+async function handleEmployerFundingPayout(
+  event: string,
+  payload: DusupayWebhookPayload,
+  merchantRef: string,
+  internalRef: string,
+  log: Logger,
+) {
+  const match = merchantRef.match(/^EWA-FUND-(.+)-(\d+)$/);
+  const employerId = match?.[1];
+  if (!employerId) {
+    log.error('EWA-FUND- webhook reference did not match expected format', { merchantRef });
+    return;
+  }
+
+  const { data: tx } = await supabaseAdmin
+    .from('wallet_transactions')
+    .select('id, status, amount, usd_amount, local_currency, description, metadata')
+    .eq('reference', merchantRef)
+    .maybeSingle();
+
+  if (!tx) {
+    log.error('No wallet_transactions row found for EWA-FUND- reference', { merchantRef });
+    return;
+  }
+
+  if (['completed', 'failed'].includes(tx.status)) {
+    log.info('Wallet transaction already in terminal status — skipping', { txId: tx.id, status: tx.status });
+    return;
+  }
+
+  const isCompleted = event === 'transaction.completed' || payload.status === 'COMPLETED';
+  const isFailed = ['transaction.failed', 'request.failed'].includes(event);
+
+  if (!isCompleted && !isFailed) {
+    log.info('Non-terminal event for employer funding payout — skipping', { event, merchantRef });
+    return;
+  }
+
+  if (isFailed) {
+    await supabaseAdmin.from('wallet_transactions').update({
+      status: 'failed',
+      metadata: Object.assign({}, tx.metadata ?? {}, { failure_reason: 'DusuPay reported the payout as failed', webhook_event: event }),
+    }).eq('id', tx.id);
+
+    void notifyAdmin({
+      type: 'system_alert',
+      title: 'Employer Funding Payout Failed',
+      message: `DusuPay reported the wallet funding payout for employer ${employerId} (reference ${merchantRef}) as failed.`,
+      metadata: { employerId, merchantRef, amount: tx.amount },
+    }).catch(() => {});
+
+    log.info('Employer funding payout marked failed', { employerId, merchantRef });
+    return;
+  }
+
+  const { data: adminWallet } = await supabaseAdmin
+    .from('admin_wallets')
+    .select('id')
+    .eq('name', 'Main Stanbic Source')
+    .maybeSingle();
+
+  if (!adminWallet) {
+    log.error('Admin wallet not found — cannot fund employer', { merchantRef, employerId });
+    void notifyAdmin({
+      type: 'system_alert',
+      title: 'Employer Funding Payout — Admin Wallet Missing',
+      message: `DusuPay confirmed a wallet funding payout for employer ${employerId} (reference ${merchantRef}) but the admin wallet could not be found. Manual intervention required.`,
+      metadata: { employerId, merchantRef, amount: tx.amount },
+    }).catch(() => {});
+    return;
+  }
+
+  // Defensive: the approve route already refuses to initiate a payout with a
+  // null usd_amount, but never fall back to treating the local-currency
+  // amount as USD here either — that would deduct the wrong figure from the
+  // admin wallet for money that has already actually been sent.
+  if (tx.usd_amount === null) {
+    log.error('EWA-FUND- webhook has no usd_amount — refusing to credit ledger with an unsafe fallback', { merchantRef, employerId });
+    void notifyAdmin({
+      type: 'system_alert',
+      title: 'Employer Funding Ledger Update Blocked — Missing USD Amount',
+      message: `DusuPay confirmed a wallet funding payout for employer ${employerId} (reference ${merchantRef}) but the wallet_transactions row has no usd_amount. Real money has moved but the ledger was NOT updated — resolve manually.`,
+      metadata: { employerId, merchantRef, amount: tx.amount },
+    }).catch(() => {});
+    return;
+  }
+
+  const approvedBy = (tx.metadata as Record<string, unknown> | null)?.approved_by;
+
+  const { error: rpcError } = await supabaseAdmin.rpc('fund_employer_from_admin', {
+    p_employer_id: employerId,
+    p_admin_wallet_id: adminWallet.id,
+    p_amount_usd: tx.usd_amount,
+    p_amount_local: tx.amount,
+    p_description: tx.description || `Wallet funding payout confirmed ${merchantRef}`,
+    p_admin_id: typeof approvedBy === 'string' ? approvedBy : null,
+    p_currency: tx.local_currency || 'KES',
+    p_existing_wallet_transaction_id: tx.id,
+  });
+
+  if (rpcError) {
+    log.error('fund_employer_from_admin RPC failed for confirmed payout', { err: rpcError, employerId, merchantRef });
+    void notifyAdmin({
+      type: 'system_alert',
+      title: 'Employer Funding Ledger Update Failed',
+      message: `DusuPay confirmed a wallet funding payout for employer ${employerId} (reference ${merchantRef}) but crediting the ledger failed. Manual intervention required — real money has moved.`,
+      metadata: { employerId, merchantRef, amount: tx.amount, error: rpcError.message },
+    }).catch(() => {});
+    return;
+  }
+
+  try {
+    const { data: employer } = await supabaseAdmin
+      .from('employers')
+      .select('user_id, company_name, currency')
+      .eq('id', employerId)
+      .maybeSingle();
+
+    if (employer?.user_id) {
+      await notifyEmployer({
+        userId: employer.user_id,
+        type: 'wallet_topup_approved',
+        title: 'Wallet Funding Confirmed',
+        message: `Your wallet funding of ${employer.currency ?? tx.local_currency ?? 'KES'} ${Number(tx.amount).toLocaleString()} has been confirmed and credited.`,
+        metadata: { amount: tx.amount, reference: merchantRef, companyName: employer.company_name },
+      });
+    }
+  } catch (notifyErr) {
+    log.error('Employer notification failed', { err: notifyErr, employerId });
+  }
+
+  log.info('Employer funding payout confirmed and credited', { employerId, merchantRef, amount: tx.amount });
 }
 
 interface AdvancePayoutRow {

@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../supabaseAdmin';
 import { dusupayClient } from '../dusupay/client';
-import { PayoutMethod, Currency } from '../dusupay/types';
+import { PayoutMethod, Currency, PayoutStatus } from '../dusupay/types';
 import { generateMerchantReference, formatPhoneNumber, resolveProviderCode, COUNTRY_PROVIDER_PREFIXES } from '../dusupay/utils';
 import { runFraudChecks } from '../fraud-engine';
 import { generateRepaymentReference, resolveEffectivePaydayDayOfMonth } from '../repayment/utils';
@@ -722,9 +722,32 @@ export class PayoutService {
         description: `EaziWage Advance: ${advanceId}`,
       });
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : 'DusuPay sendFunds failed';
-      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
-      throw new Error(reason);
+      // DusuPay support confirmed merchant_reference is a true server-side
+      // idempotency key: "In case you perform another request with a
+      // merchant reference which has already been used, you will receive an
+      // error message and that request will not even reach our end." That
+      // means a duplicate submission can never cause a second real payout —
+      // so on ANY failure here (network-ambiguous or an explicit rejection,
+      // including a duplicate-reference rejection from a prior attempt that
+      // actually succeeded), it's always safe to check DusuPay's real status
+      // for this exact reference before giving up. Without this, a payout
+      // that actually succeeded but whose response we never received (or
+      // whose retry was rejected as a dupe precisely because the original
+      // went through) would get permanently marked 'failed' in our records.
+      let verified;
+      try {
+        verified = await dusupayClient.verifyTransaction(merchantReference);
+      } catch {
+        verified = null;
+      }
+
+      if (verified?.data?.transaction_status === PayoutStatus.COMPLETED) {
+        payoutResponse = verified;
+      } else {
+        const reason = err instanceof Error ? err.message : 'DusuPay sendFunds failed';
+        await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
+        throw new Error(reason);
+      }
     }
 
     await supabaseAdmin.from('dusupay_transactions').upsert({
