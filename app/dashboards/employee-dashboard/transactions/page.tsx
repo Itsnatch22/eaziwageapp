@@ -19,7 +19,7 @@ import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
 import { ListSkeleton } from '@/components/shared/Skeletons';
 
-type AdvanceStatus = 'pending' | 'processing' | 'approved' | 'disbursed' | 'completed' | 'repaid' | 'failed' | 'rejected' | 'denied' | 'fraud_review' | string;
+type AdvanceStatus = 'pending' | 'processing' | 'approved' | 'disbursed' | 'completed' | 'repaid' | 'failed' | 'rejected' | 'fraud_review' | string;
 type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
 type FilterType = 'all' | 'pending' | 'completed' | 'failed';
 
@@ -63,7 +63,6 @@ const getStatusConfig = (status: AdvanceStatus): StatusConfig => {
       return { icon: CheckCircle2, label: 'Approved', color: 'text-blue-600', bg: 'bg-blue-500/10 border-blue-500/20' };
     case 'failed':
     case 'rejected':
-    case 'denied':
       return { icon: AlertCircle, label: 'Failed', color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' };
     default:
       return { icon: Clock, label: status, color: 'text-slate-500', bg: 'bg-slate-50 border-slate-200' };
@@ -149,7 +148,7 @@ export default function Transactions() {
 
   const isPending = (status: AdvanceStatus) => ['pending', 'processing', 'approved', 'fraud_review'].includes(status);
   const isCompleted = (status: AdvanceStatus) => ['disbursed', 'completed', 'repaid'].includes(status);
-  const isFailed = (status: AdvanceStatus) => ['failed', 'rejected', 'denied'].includes(status);
+  const isFailed = (status: AdvanceStatus) => ['failed', 'rejected'].includes(status);
 
   const filteredItems = allItems.filter((item) => {
     const matchesFilter =

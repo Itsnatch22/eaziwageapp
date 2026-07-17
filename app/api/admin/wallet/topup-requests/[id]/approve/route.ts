@@ -53,6 +53,20 @@ export async function PATCH(
 
     if (!employerId) return NextResponse.json({ error: 'Unable to resolve employer for this top-up request' }, { status: 500 });
 
+    // usd_amount/rate_snapshot are captured once at request time (see
+    // app/api/employer-dashboard/wallet/route.ts POST) and are null if the
+    // exchange_rates lookup failed then. Falling back to tx.amount (the LOCAL
+    // currency figure) here would silently deduct that number as if it were
+    // already USD from the admin wallet — e.g. crediting the employer KES
+    // 50,000 while debiting the admin wallet $50,000 instead of ~$400. Fail
+    // loudly instead; the admin can retry once exchange_rates has a value.
+    if (tx.usd_amount === null || tx.rate_snapshot === null) {
+      return NextResponse.json(
+        { error: 'This request has no USD exchange-rate snapshot (rate lookup failed at request time). Cannot safely approve — refresh exchange rates and ask the employer to resubmit the request.' },
+        { status: 422 },
+      );
+    }
+
     const { data: adminWallet, error: adminWalletErr } = await adminSupabase
       .from('admin_wallets')
       .select('id, balance')
@@ -64,7 +78,7 @@ export async function PATCH(
     // and wallet_transactions are local-currency-denominated (credit the local amount).
     // Passing the same figure for both previously overstated the USD amount as if it
     // were local currency, undercrediting the employer by the exchange-rate factor.
-    const amountToDeductUSD = tx.usd_amount ?? tx.amount;
+    const amountToDeductUSD = tx.usd_amount;
     const amountToCreditLocal = tx.amount;
 
     // Passing p_existing_wallet_transaction_id tells the RPC to complete THIS

@@ -239,8 +239,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'account_number is required for bank_account' }, { status: 400 });
     }
 
-    const created = await createPaymentMethod(adminSupabase, employee.id, payload);
-    return NextResponse.json({ success: true, method: created });
+    try {
+      const created = await createPaymentMethod(adminSupabase, employee.id, payload);
+      return NextResponse.json({ success: true, method: created });
+    } catch (createErr) {
+      // assertValidProvider's rejection is a real, user-facing 422, not a
+      // 500 — distinguish it from an actual unexpected failure so the "not
+      // a valid provider for your country" message reaches the employee
+      // instead of a generic "Internal server error".
+      if (createErr instanceof Error && createErr.message.startsWith('Selected provider is not available')) {
+        return NextResponse.json({ error: createErr.message }, { status: 422 });
+      }
+      throw createErr;
+    }
   } catch (err) {
     console.error('Payment methods POST error', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

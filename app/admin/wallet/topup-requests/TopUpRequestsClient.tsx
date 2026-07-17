@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 type RiskRating = 'A' | 'B' | 'C' | 'D';
 type LocalCurrency = 'KES' | 'UGX' | 'TZS' | 'RWF';
-type TopUpStatus = 'pending' | 'completed' | 'failed';
+type TopUpStatus = 'pending' | 'completed' | 'failed' | 'rejected';
 
 interface TopUpRequestMetadata {
   employer_id: string;
@@ -124,6 +124,7 @@ export default function TopUpRequestsClient({
   const [requests, setRequests] = useState<TopUpRequest[]>(initialRequests);
   const [adminWallet, setAdminWallet] = useState<AdminWallet>(initialAdminWallet);
   const [approving, setApproving] = useState<Record<string, boolean>>({});
+  const [rejecting, setRejecting] = useState<Record<string, boolean>>({});
   const [syncing, setSyncing] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +185,34 @@ export default function TopUpRequestsClient({
       setApproving(prev => ({ ...prev, [request.id]: false }));
     }
   }, [adminWallet.balance]);
+
+  const handleReject = useCallback(async (request: TopUpRequest) => {
+    const reason = window.prompt(`Reason for declining ${request.company_name}'s top-up request:`);
+    if (!reason?.trim()) return;
+
+    setRejecting(prev => ({ ...prev, [request.id]: true }));
+    setConfirmingId(null);
+    setError(null);
+
+    try {
+      const res = await fetch(
+        `/api/admin/wallet/topup-requests/${encodeURIComponent(request.id)}/reject`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason.trim() }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Rejection failed');
+
+      setRequests(prev => prev.filter(r => r.id !== request.id));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Rejection failed');
+    } finally {
+      setRejecting(prev => ({ ...prev, [request.id]: false }));
+    }
+  }, []);
 
   const insufficientFundsRequests = useMemo(
     () => new Set(requests.filter(r => (r.usd_amount ?? 0) > adminWallet.balance).map(r => r.id)),
@@ -303,6 +332,7 @@ export default function TopUpRequestsClient({
                 {requests.map((request) => {
                   const isInsufficient = insufficientFundsRequests.has(request.id);
                   const isApproving = approving[request.id];
+                  const isRejecting = rejecting[request.id];
                   const isConfirming = confirmingId === request.id;
 
                   return (
@@ -430,20 +460,39 @@ export default function TopUpRequestsClient({
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => setConfirmingId(request.id)}
-                            disabled={isInsufficient || isApproving}
-                            className={cn(
-                              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all',
-                              isInsufficient || isApproving
-                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
-                                : 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-950/50'
-                            )}
-                            title={isInsufficient ? 'Insufficient USD balance' : undefined}
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Approve
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleReject(request)}
+                              disabled={isRejecting || isApproving}
+                              className={cn(
+                                'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold transition-all',
+                                isRejecting || isApproving
+                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+                                  : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50'
+                              )}
+                            >
+                              {isRejecting ? (
+                                <div className="w-3 h-3 border-2 border-red-700 dark:border-red-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <XCircle className="w-4 h-4" />
+                              )}
+                              Reject
+                            </button>
+                            <button
+                              onClick={() => setConfirmingId(request.id)}
+                              disabled={isInsufficient || isApproving || isRejecting}
+                              className={cn(
+                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all',
+                                isInsufficient || isApproving || isRejecting
+                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+                                  : 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-950/50'
+                              )}
+                              title={isInsufficient ? 'Insufficient USD balance' : undefined}
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              Approve
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

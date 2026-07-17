@@ -153,8 +153,9 @@ function DepositModal({
   const [reference, setReference] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const [confirming, setConfirming] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleReview = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -169,9 +170,14 @@ function DepositModal({
       return;
     }
 
+    setConfirming(true);
+  };
+
+  const handleConfirm = async () => {
+    setError('');
     try {
       await onSubmit({
-        amount: numAmount,
+        amount: parseFloat(amount),
         reference: reference.trim() || undefined,
         description: description.trim() || undefined,
       });
@@ -179,13 +185,79 @@ function DepositModal({
       setAmount('');
       setReference('');
       setDescription('');
+      setConfirming(false);
       onClose();
     } catch (err) {
+      setConfirming(false);
       setError((err as Error).message || 'Failed to record deposit');
     }
   };
 
+  const handleClose = () => {
+    setConfirming(false);
+    onClose();
+  };
+
   if (!isOpen) return null;
+
+  if (confirming) {
+    const numAmount = parseFloat(amount);
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full border border-slate-200/50 dark:border-slate-700/30">
+          <div className="flex items-center justify-between p-6 border-b border-slate-200/50 dark:border-slate-700/30">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Confirm Stanbic Deposit</h2>
+            <button
+              onClick={handleClose}
+              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-slate-500" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {error && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+                {error}
+              </div>
+            )}
+
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              This credits the Main Stanbic Source wallet, which backs every employer funding operation. Please confirm the amount is correct before proceeding.
+            </p>
+
+            <div className="text-center py-4">
+              <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                {formatCurrency(numAmount, 'USD')}
+              </div>
+              {reference && (
+                <div className="text-sm text-slate-500 dark:text-slate-400 mt-2">Ref: {reference}</div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
+              >
+                {isLoading ? 'Recording...' : `Confirm ${formatCurrency(numAmount, 'USD')}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -200,7 +272,7 @@ function DepositModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleReview} className="p-6 space-y-4">
           {error && (
             <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
               {error}
@@ -255,7 +327,7 @@ function DepositModal({
           <div className="flex gap-3 pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isLoading}
               className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
@@ -266,7 +338,7 @@ function DepositModal({
               disabled={isLoading}
               className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
             >
-              {isLoading ? 'Recording...' : 'Record Deposit'}
+              Review Deposit
             </button>
           </div>
         </form>

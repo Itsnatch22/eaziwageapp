@@ -34,17 +34,21 @@ export const COUNTRY_PROVIDER_PREFIXES: Record<string, string> = {
 };
 
 /**
- * Maps a payment method's free-text provider_name (e.g. "Airtel", entered by the
- * employee at payment-method creation — there's no dropdown tied to DusuPay's real
- * provider list) to the exact provider_code DusuPay's API expects (e.g. "airtel_ke").
- * Falls back to the lowercased raw name if there's no match, so an unmapped provider
- * fails with DusuPay's own "invalid provider_code" error instead of a silent no-op —
- * that failure is at least diagnosable, unlike this function returning nothing.
+ * Maps a payment method's provider_name (e.g. "Airtel Money") to the exact
+ * provider_code DusuPay's API expects (e.g. "airtel_ke"). provider_name is
+ * now validated against payout_providers at payment-method creation time
+ * (see lib/paymentMethodsService.ts), but this still returns null rather than
+ * guessing on no match — as defense-in-depth for any pre-existing
+ * unvalidated record, and for the payday-recoupment caller, which resolves
+ * an employer's free-text mobile_money_provider field (not yet covered by
+ * that validation). Callers MUST treat null as "do not call DusuPay" — a
+ * previous version fell back to the lowercased raw text, which meant an
+ * unmapped provider still reached a live payout call with a guessed code.
  */
-export function resolveProviderCode(countryCode: string | null | undefined, providerName: string): string {
+export function resolveProviderCode(countryCode: string | null | undefined, providerName: string): string | null {
   // Strip separators entirely rather than replacing with '_' — "M-Pesa" and "mpesa"
   // must normalize to the same key ("mpesa") to hit the map below.
   const key = providerName.toLowerCase().replace(/[^a-z0-9]/g, '');
   const providers = MOBILE_MONEY_PROVIDERS[(countryCode ?? '').toUpperCase()] ?? {};
-  return providers[key] ?? key;
+  return providers[key] ?? null;
 }

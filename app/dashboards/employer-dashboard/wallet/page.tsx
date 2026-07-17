@@ -21,7 +21,7 @@ interface Transaction {
   id: string;
   amount: number;
   transaction_type: 'deposit' | 'withdrawal' | 'payout' | 'refund' | 'arrears_payment';
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'completed' | 'failed' | 'rejected';
   reference: string;
   description: string;
   created_at: string;

@@ -64,6 +64,25 @@ export async function POST(
   }
 
   const providerCode = resolveProviderCode(employer.country, employer.mobile_money_provider);
+
+  if (!providerCode) {
+    await adminSupabase.from('payday_recoupments').update({
+      status: 'failed',
+      failure_reason: `Unrecognized mobile money provider "${employer.mobile_money_provider}" on file`,
+      responded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+
+    await notifyAdmin({
+      type: 'system_alert',
+      title: 'Payday Recoupment Failed — Unrecognized Mobile Money Provider',
+      message: `${employer.company_name || employer.id} confirmed a payday recoupment but their mobile money provider "${employer.mobile_money_provider}" doesn't resolve to a known DusuPay provider code. Manual collection required.`,
+      metadata: { employer_id: employer.id, recoupment_id: id, provider_name: employer.mobile_money_provider },
+    });
+
+    return NextResponse.json({ error: 'Mobile money provider on file is not recognized. Please update it in Settings.' }, { status: 422 });
+  }
+
   const dialCode = COUNTRY_PROVIDER_PREFIXES[employer.country ?? ''] ?? '254';
   const msisdn = formatPhoneNumber(employer.mobile_money_number, dialCode);
   const merchantReference = generatePaydayRecoupmentReference(employer.id, new Date(recoupment.payday_date));

@@ -22,7 +22,13 @@ export async function PATCH(
 
     const raw = await request.json().catch(() => ({}));
     const parsed = TopupRejectSchema.safeParse(raw);
-    const reason: string = parsed.success ? (parsed.data.reason ?? '') : '';
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? 'A reason is required when rejecting a top-up request.' },
+        { status: 422 },
+      );
+    }
+    const reason = parsed.data.reason;
 
     const { data: tx, error: txError } = await adminSupabase
       .from('wallet_transactions')

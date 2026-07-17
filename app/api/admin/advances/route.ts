@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 const QuerySchema = z.object({
   page:   z.coerce.number().int().min(0).default(0),
   limit:  z.coerce.number().int().min(1).max(200).default(50),
-  status: z.enum(['pending', 'approved', 'disbursed', 'rejected', 'cancelled']).optional(),
+  status: z.enum(['pending', 'approved', 'disbursed', 'rejected']).optional(),
   search: z.string().max(100).optional(),
   // employer_onboarding.id — matches the id used by /admin/employers/[id] pages,
   // resolved below to the live employers.id that advances.employer_id references.

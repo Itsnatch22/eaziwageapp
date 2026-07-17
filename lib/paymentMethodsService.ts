@@ -31,7 +31,40 @@ export async function decryptAndMaskRow(
   } as PaymentMethod;
 }
 
+// payment_methods.method_type uses 'bank_account'; payout_providers.method_type
+// uses 'bank_transfer' — the tables predate each other and were never reconciled.
+const PAYOUT_PROVIDER_METHOD_TYPE: Record<PaymentMethodCreate['method_type'], string> = {
+  mobile_money: 'mobile_money',
+  bank_account: 'bank_transfer',
+};
+
+// Re-validates against payout_providers server-side rather than trusting the
+// frontend dropdown alone — a direct API call bypasses client-side filtering
+// entirely, and this table is the actual source of truth for what DusuPay can
+// disburse to. Previously this was a free-text field with no validation at
+// any layer, so a typo or unsupported provider name flowed straight through
+// to a real payout attempt.
+async function assertValidProvider(supabaseClient: SupabaseClient, payload: PaymentMethodCreate) {
+  const { data, error } = await supabaseClient
+    .from('payout_providers')
+    .select('id')
+    .eq('country_code', payload.country_code)
+    .eq('method_type', PAYOUT_PROVIDER_METHOD_TYPE[payload.method_type])
+    .eq('provider_name', payload.provider_name)
+    .eq('enabled', true)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[paymentMethodsService] provider validation query failed:', error);
+    throw new Error('Payment method operation failed');
+  }
+  if (!data) {
+    throw new Error('Selected provider is not available for your country. Please choose from the list.');
+  }
+}
+
 export async function createPaymentMethod(supabaseClient: SupabaseClient, employeeId: string, payload: PaymentMethodCreate) {
+  await assertValidProvider(supabaseClient, payload);
 
   const { data, error } = await supabaseClient
     .from('payment_methods')

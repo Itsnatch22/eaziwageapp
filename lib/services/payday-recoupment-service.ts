@@ -103,6 +103,14 @@ export async function checkAndCreatePaydayRecoupment(
     return (raced as PaydayRecoupmentRow) ?? null;
   }
 
+  // Mirrors the current recoupment cycle onto employer_wallets so admin
+  // employer-list views can see "is this employer overdue" without joining
+  // payday_recoupments. Cleared in applyPaydayRecoupmentCollection once collected.
+  await supabaseAdmin
+    .from('employer_wallets')
+    .update({ repayment_due_date: todayStr })
+    .eq('employer_id', employerId);
+
   if (employerUserId) {
     void notifyEmployer({
       userId: employerUserId,
@@ -198,6 +206,13 @@ export async function applyPaydayRecoupmentCollection(
     collected_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq('id', recoupmentId);
+
+  // Cycle resolved — clear the overdue signal set by checkAndCreatePaydayRecoupment.
+  // A future payday cycle will set it again if a new recoupment is created.
+  await supabaseAdmin
+    .from('employer_wallets')
+    .update({ repayment_due_date: null })
+    .eq('employer_id', employerId);
 
   void notifyAdmin({
     type: 'system_alert',

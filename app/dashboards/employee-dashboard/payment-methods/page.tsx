@@ -30,6 +30,14 @@ interface PaymentMethod {
   verification_notes?: string | null;
 }
 
+interface PayoutProvider {
+  id: number;
+  provider_key: string;
+  provider_name: string;
+  method_type: 'mobile_money' | 'bank_transfer';
+  country_code: string;
+}
+
 const PaymentMethods = () => {
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +62,9 @@ const PaymentMethods = () => {
     country_code: 'KE',
     is_default: false
   });
+
+  const [providers, setProviders] = useState<PayoutProvider[]>([]);
+  const [providersLoading, setProvidersLoading] = useState(true);
 
   const fetchMethods = async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -102,10 +113,32 @@ const PaymentMethods = () => {
     }
   };
 
+  const fetchProviders = async () => {
+    try {
+      const res = await fetch('/api/employee-dashboard/payout-providers');
+      if (res.ok) {
+        const data = await res.json();
+        setProviders(data.providers || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProvidersLoading(false);
+    }
+  };
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchMethods({ silent: true });
+    void fetchProviders();
   }, []);
+
+  // payment_methods.method_type uses 'bank_account'; payout_providers.method_type
+  // uses 'bank_transfer' — map between the two rather than renaming either table's
+  // established vocabulary.
+  const availableProviders = providers.filter((p) =>
+    newMethod.method_type === 'mobile_money' ? p.method_type === 'mobile_money' : p.method_type === 'bank_transfer'
+  );
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -416,13 +449,29 @@ const PaymentMethods = () => {
 
                   <div className="space-y-2">
                     <Label>{newMethod.method_type === 'mobile_money' ? 'Provider' : 'Bank Name'}</Label>
-                    <Input
-                      placeholder={newMethod.method_type === 'mobile_money' ? "e.g. M-Pesa, Airtel" : "e.g. Stanbic, KCB"}
+                    <Select
                       value={newMethod.provider_name}
-                      onChange={e => setNewMethod({ ...newMethod, provider_name: e.target.value })}
-                      className="rounded-xl h-12 bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10"
-                      required
-                    />
+                      onValueChange={(v) => setNewMethod({ ...newMethod, provider_name: v })}
+                      disabled={providersLoading || availableProviders.length === 0}
+                    >
+                      <SelectTrigger className="rounded-xl h-12 bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10">
+                        <SelectValue placeholder={
+                          providersLoading
+                            ? 'Loading…'
+                            : availableProviders.length === 0
+                              ? 'No providers available'
+                              : newMethod.method_type === 'mobile_money' ? 'Select provider' : 'Select bank'
+                        } />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableProviders.map((p) => (
+                          <SelectItem key={p.id} value={p.provider_name}>{p.provider_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!providersLoading && availableProviders.length === 0 && (
+                      <p className="text-xs text-amber-600">No {newMethod.method_type === 'mobile_money' ? 'mobile money providers' : 'banks'} are currently available for your country. Contact support.</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">

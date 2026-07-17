@@ -150,7 +150,7 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
 
   const update = action === 'approve'
     ? { status: 'approved', approved_at: new Date().toISOString(), approved_by: user.id }
-    : { status: 'denied' };
+    : { status: 'rejected' };
 
   const { error: updateError } = await supabase.from('advances').update(update).eq('id', id);
   if (updateError) {
@@ -158,5 +158,5 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
     return NextResponse.json({ error: 'Failed to update advance status' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, message: `Advance ${action}d` });
+  return NextResponse.json({ success: true, message: action === 'approve' ? 'Advance approved' : 'Advance rejected' });
 }

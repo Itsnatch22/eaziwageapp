@@ -8,7 +8,7 @@ import { AlertCircle } from 'lucide-react';
 
 type RiskRating = 'A' | 'B' | 'C' | 'D';
 type LocalCurrency = 'KES' | 'UGX' | 'TZS' | 'RWF';
-type TopUpStatus = 'pending' | 'completed' | 'failed';
+type TopUpStatus = 'pending' | 'completed' | 'failed' | 'rejected';
 
 interface TopUpRequestMetadata {
   employer_id: string;

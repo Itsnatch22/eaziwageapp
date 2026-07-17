@@ -325,7 +325,7 @@ export async function PATCH(
   } else {
     const { error: updateError } = await supabase
       .from('advances')
-      .update({ status: 'denied' })
+      .update({ status: 'rejected' })
       .eq('id', id);
 
     if (updateError) {
@@ -348,7 +348,7 @@ export async function PATCH(
             message: action === 'approve'
                 ? 'Your advance request has been approved and is now being processed for disbursement.'
                 : 'Your advance request was not approved. Check your dashboard for details.',
-            metadata: { advance_id: id, status: action === 'approve' ? 'approved' : 'denied' }
+            metadata: { advance_id: id, status: action === 'approve' ? 'approved' : 'rejected' }
         });
     }
   } catch (notifyErr) {
@@ -356,7 +356,7 @@ export async function PATCH(
   }
 
   return NextResponse.json({
-    message: action === 'approve' ? 'Advance approved and disbursement initiated' : 'Advance denied',
-    status: action === 'approve' ? 'approved' : 'denied',
+    message: action === 'approve' ? 'Advance approved and disbursement initiated' : 'Advance rejected',
+    status: action === 'approve' ? 'approved' : 'rejected',
   });
 }

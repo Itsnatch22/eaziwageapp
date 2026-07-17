@@ -693,12 +693,21 @@ export class PayoutService {
       account = formatPhoneNumber(account, dialCode);
     }
 
-    // provider_name is free text entered at payment-method creation (e.g. "Airtel"),
-    // not one of DusuPay's real provider_code values (e.g. "airtel_ke"). Only resolved
-    // for mobile money — bank provider_code handling is unverified and untouched here.
+    // provider_name is now validated against payout_providers at payment-method
+    // creation time, but resolveProviderCode still returns null on no match
+    // (pre-existing unvalidated records, or a provider added to payout_providers
+    // after the fact under a different name) — never fall back to sending
+    // DusuPay a guessed code. Only resolved for mobile money — bank
+    // provider_code handling is unverified and untouched here.
     const providerCode = payoutMethod === PayoutMethod.MOBILE_MONEY
       ? resolveProviderCode(pm.country_code, pm.provider_name)
       : pm.provider_name;
+
+    if (!providerCode) {
+      const reason = `Unrecognized mobile money provider "${pm.provider_name}" — cannot resolve a DusuPay provider code`;
+      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
+      throw new Error(reason);
+    }
 
     let payoutResponse;
     try {

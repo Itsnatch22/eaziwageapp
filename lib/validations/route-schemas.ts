@@ -71,7 +71,7 @@ export const StanbicDepositSchema = z.object({
 });
 
 export const TopupRejectSchema = z.object({
-  reason: z.string().max(1000).optional(),
+  reason: z.string().trim().min(1, 'A reason is required when rejecting a top-up request.').max(1000),
 });
 
 // ---------------------------------------------------------------------------
