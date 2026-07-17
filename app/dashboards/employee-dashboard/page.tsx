@@ -51,6 +51,7 @@ interface EmployeeSummary {
   employer_id?: string;
   risk_score?: number;
   created_at?: string;
+  submitted_at?: string | null;
 }
 
 
@@ -182,6 +183,7 @@ export default function EmployeeDashboardPage() {
 
   const fetchStats = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
+    let redirecting = false;
     try {
       const res = await fetch('/api/employee-dashboard/overview');
       const data = await res.json();
@@ -189,15 +191,32 @@ export default function EmployeeDashboardPage() {
         setError(res.status === 404 ? 'profile_not_found' : data?.message || 'Error');
         return;
       }
+
+      // A brand-new registration stub (status='pending', submitted_at=null —
+      // see app/api/employee-dashboard/onboarding/route.ts's own
+      // isRegistrationStub check) previously rendered the full dashboard
+      // with "Documents Submitted" / "verification is being processed"
+      // copy, even though the employee had submitted nothing. Redirect to
+      // onboarding immediately instead, mirroring the employer dashboard's
+      // incomplete-profile redirect. `redirecting` keeps the skeleton up
+      // (via the finally block below) instead of flashing the full
+      // dashboard with blank/zeroed stats before navigation completes.
+      const isRegistrationStub = data.employee?.status === 'pending' && !data.employee?.submitted_at;
+      if (isRegistrationStub) {
+        redirecting = true;
+        router.replace('/dashboards/employee-dashboard/onboarding');
+        return;
+      }
+
       setStats(data.stats);
       setEmployee(data.employee);
-      
+
     } catch {
       setError('Failed to load');
     } finally {
-      setLoading(false);
+      if (!redirecting) setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

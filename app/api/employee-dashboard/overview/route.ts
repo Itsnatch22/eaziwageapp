@@ -43,6 +43,7 @@ export async function GET() {
       user_id,
       employer_id,
       status,
+      submitted_at,
       full_name,
       job_title,
       monthly_salary,
@@ -199,6 +200,12 @@ export async function GET() {
       job_title: employee.job_title || 'Employee',
       status: employee.status,
       kyc_status: employee.status,
+      // 'pending' status alone doesn't distinguish a brand-new registration
+      // stub (nothing submitted yet — app/api/employee-dashboard/onboarding
+      // POST calls this "isRegistrationStub") from a real submission
+      // genuinely awaiting review, since employee_onboarding has no distinct
+      // status for either. submitted_at is the actual signal.
+      submitted_at: employee.submitted_at,
       risk_score: employee.risk_score,
       bank_name: employee.bank_name || null,
       bank_account: employee.bank_account || null,
