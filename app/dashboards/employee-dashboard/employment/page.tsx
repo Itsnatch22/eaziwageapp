@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import {
   Building2, Briefcase, Calendar, DollarSign, Shield,
@@ -8,6 +8,9 @@ import {
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { formatCurrency, cn, calculateFeePercentage, formatStatusLabel } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useAuthStore } from '@/lib/stores/auth';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { createClient } from '@/lib/supabase/client';
 
 function AvatarWithFallback({ avatarUrl, fullName }: { avatarUrl: string | null; fullName: string }) {
   const [imgError, setImgError] = useState(false);
@@ -88,37 +91,77 @@ const DetailCard = ({ icon: Icon, label, value, subValue, variant = 'blue' }: De
 
 const EmploymentDetails = () => {
   const { currency } = useCurrency();
+  const user = useAuthStore((state) => state.user);
   const [data, setData] = useState<EmploymentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notYetApproved, setNotYetApproved] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [liveEmployeeId, setLiveEmployeeId] = useState<string | null>(null);
+
+  const fetchDetails = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const res = await fetch('/api/employee-dashboard/employment');
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+        setNotYetApproved(false);
+        setLoadError(false);
+      } else if (res.status === 404) {
+        // The employees row (live table) is only minted by the
+        // sync_employee_from_onboarding trigger on KYC approval — a 404
+        // here is the expected state while onboarding is still
+        // pending/under_review, not an error. Show a proper pending
+        // message instead of the generic failure state below.
+        setNotYetApproved(true);
+      } else {
+        setLoadError(true);
+      }
+    } catch (err) {
+      console.error('Failed to load employment details', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchDetails() {
-      try {
-        const res = await fetch('/api/employee-dashboard/employment');
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        } else if (res.status === 404) {
-          // The employees row (live table) is only minted by the
-          // sync_employee_from_onboarding trigger on KYC approval — a 404
-          // here is the expected state while onboarding is still
-          // pending/under_review, not an error. Show a proper pending
-          // message instead of the generic failure state below.
-          setNotYetApproved(true);
-        } else {
-          setLoadError(true);
-        }
-      } catch (err) {
-        console.error('Failed to load employment details', err);
-        setLoadError(true);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchDetails();
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchDetails();
+  }, [fetchDetails]);
+
+  // Resolve the live employees.id for the employee_ewa_settings realtime
+  // filter below — mirrors the identical lookup on the employee dashboard
+  // home page, since employee_ewa_settings keys on employees.id, not the
+  // employee_onboarding id this page otherwise deals in.
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+    supabase
+      .from('employees')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data: row }) => setLiveEmployeeId(row?.id ?? null));
+  }, [user?.id]);
+
+  // Refresh on KYC approval (which promotes employee_onboarding into
+  // employees and unblocks this page — see notYetApproved above), on any
+  // employee_kyc_documents review outcome, and on EWA/policy changes that
+  // affect the withdrawal limit shown below.
+  useRealtimeRefresh(
+    [
+      ...(user?.id ? [
+        { table: 'employee_onboarding', filter: `user_id=eq.${user.id}` },
+        { table: 'employees', filter: `user_id=eq.${user.id}` },
+        { table: 'employee_kyc_documents', filter: `user_id=eq.${user.id}` },
+      ] : []),
+      ...(liveEmployeeId ? [
+        { table: 'employee_ewa_settings', filter: `employee_id=eq.${liveEmployeeId}` },
+      ] : []),
+    ],
+    () => void fetchDetails({ silent: true }),
+  );
 
   if (loading) {
     return (

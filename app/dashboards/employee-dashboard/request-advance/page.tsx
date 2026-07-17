@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Info,
@@ -31,6 +31,9 @@ import { sessionFetch } from "@/lib/client/session-fetch";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { StatTilesSkeleton } from "@/components/shared/Skeletons";
+import { useAuthStore } from "@/lib/stores/auth";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+import { createClient } from "@/lib/supabase/client";
 
 interface EmployeeProfile {
   id?: string;
@@ -198,24 +201,27 @@ export default function RequestAdvance() {
     useState<DisbursementMethod>("mobile_money");
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string | null>(null);
+  const [liveEmployeeId, setLiveEmployeeId] = useState<string | null>(null);
+  const user = useAuthStore((state) => state.user);
 
-  useEffect(() => {
-    let cancelled = false;
+  // isInitial guards the amount/payment-method default-selection logic below
+  // so a realtime refresh (KYC approval landing mid-session, advance status
+  // changing, etc.) re-syncs employee/advance data without clobbering
+  // whatever amount or payment method the employee has already chosen.
+  const fetchData = useCallback(async (options?: { silent?: boolean; isInitial?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const res = await fetch("/api/employee-dashboard/overview");
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error("Failed to load portal data");
+        return;
+      }
 
-    async function fetchData(options?: { silent?: boolean }) {
-      if (!options?.silent) setLoading(true);
-      try {
-        const res = await fetch("/api/employee-dashboard/overview");
-        const data = await res.json();
-        if (!res.ok) {
-          toast.error("Failed to load portal data");
-          return;
-        }
-        if (cancelled) return;
+      const profile = { ...(data?.employee || {}), ...(data?.stats || {}) };
+      setEmployee(profile);
 
-        const profile = { ...(data?.employee || {}), ...(data?.stats || {}) };
-        setEmployee(profile);
-
+      if (options?.isInitial) {
         const available = Math.min(
           profile.advance_limit || 0,
           profile.earned_wages || 0,
@@ -223,59 +229,91 @@ export default function RequestAdvance() {
         if (available > 0) {
           setAmount(Math.min(500, available));
         }
+      }
 
-
-        try {
-          const pmRes = await fetch('/api/employee-dashboard/payment-methods');
-          if (pmRes.ok) {
-            const pmData = await pmRes.json();
-            const list: PaymentMethod[] = (pmData.methods || []).map((m: {
-              id: string;
-              method_type?: string;
-              type?: string;
-              provider_name?: string;
-              provider?: string;
-              account_number?: string;
-              phone_number?: string;
-              account_name?: string;
-              country_code?: string;
-              is_default?: boolean;
-              is_primary?: boolean;
-              is_verified?: boolean;
-            }) => ({
-              id: m.id,
-              method_type: m.method_type || m.type || '',
-              provider_name: m.provider_name || m.provider || '',
-              account_number: m.account_number || m.phone_number || null,
-              account_name: m.account_name || null,
-              phone_number: m.phone_number || null,
-              country_code: m.country_code || null,
-              is_default: m.is_default || m.is_primary || false,
-              is_verified: m.is_verified || false,
-            }));
-            setPaymentMethods(list);
+      try {
+        const pmRes = await fetch('/api/employee-dashboard/payment-methods');
+        if (pmRes.ok) {
+          const pmData = await pmRes.json();
+          const list: PaymentMethod[] = (pmData.methods || []).map((m: {
+            id: string;
+            method_type?: string;
+            type?: string;
+            provider_name?: string;
+            provider?: string;
+            account_number?: string;
+            phone_number?: string;
+            account_name?: string;
+            country_code?: string;
+            is_default?: boolean;
+            is_primary?: boolean;
+            is_verified?: boolean;
+          }) => ({
+            id: m.id,
+            method_type: m.method_type || m.type || '',
+            provider_name: m.provider_name || m.provider || '',
+            account_number: m.account_number || m.phone_number || null,
+            account_name: m.account_name || null,
+            phone_number: m.phone_number || null,
+            country_code: m.country_code || null,
+            is_default: m.is_default || m.is_primary || false,
+            is_verified: m.is_verified || false,
+          }));
+          setPaymentMethods(list);
+          if (options?.isInitial) {
             const def = list.find((l) => l.is_default);
             if (def) {
               setSelectedPaymentMethodId(def.id);
               setDisbursementMethod(def.method_type === 'bank_account' ? 'bank_transfer' : 'mobile_money');
             }
           }
-        } catch (e) {
-          console.error('Failed to load payment methods', e);
         }
-      } catch {
-        if (!cancelled) toast.error("Connection error");
-      } finally {
-        if (!cancelled) setLoading(false);
+      } catch (e) {
+        console.error('Failed to load payment methods', e);
       }
+    } catch {
+      toast.error("Connection error");
+    } finally {
+      setLoading(false);
     }
-
-    void fetchData({ silent: true });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchData({ silent: true, isInitial: true });
+  }, [fetchData]);
+
+  // Resolve the live employees.id for the advances/EWA realtime filters —
+  // mirrors the identical lookup on the employee dashboard home page.
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+    supabase
+      .from('employees')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data: row }) => setLiveEmployeeId(row?.id ?? null));
+  }, [user?.id]);
+
+  // Refresh when: KYC/employer status changes (unlocks/locks requesting),
+  // an advance's status changes (approved/rejected/disbursed while the
+  // employee is sitting on this page), EWA limit overrides change, or a
+  // payment method's verification status changes.
+  useRealtimeRefresh(
+    [
+      ...(user?.id ? [
+        { table: 'employee_onboarding', filter: `user_id=eq.${user.id}` },
+        { table: 'employees', filter: `user_id=eq.${user.id}` },
+        { table: 'payment_methods', filter: `user_id=eq.${user.id}` },
+      ] : []),
+      ...(liveEmployeeId ? [
+        { table: 'advances', filter: `employee_id=eq.${liveEmployeeId}` },
+        { table: 'employee_ewa_settings', filter: `employee_id=eq.${liveEmployeeId}` },
+      ] : []),
+    ],
+    () => void fetchData({ silent: true }),
+  );
 
   const maxAmount = Math.min(
     employee?.advance_limit || 0,
