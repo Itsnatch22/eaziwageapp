@@ -42,7 +42,14 @@ export function useAuthStore<T>(selector: (state: AuthState) => T): T {
   // value via Object.is, which holds here since every selector in this
   // codebase either reads a property straight off `state` or derives a
   // primitive from it.
-  return useSyncExternalStore(subscribe, () => selector(state));
+  //
+  // A third arg (getServerSnapshot) is mandatory for SSR — without it React
+  // throws "Missing getServerSnapshot" during server rendering. The
+  // client-init block below is gated on `typeof window !== 'undefined'`, so
+  // `state` never changes from its module-level default on the server;
+  // reusing the same selector closure there is correct and matches the
+  // pre-hydration client snapshot exactly, avoiding a hydration mismatch.
+  return useSyncExternalStore(subscribe, () => selector(state), () => selector(state));
 }
 
 export function updateUserAvatar(avatarUrl: string) {
