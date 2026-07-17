@@ -313,7 +313,7 @@ const PaymentMethods = () => {
 
         <Banner
           variant="announcement"
-          message="We're building automatic bank account verification — until it's ready, bank accounts still go through the manual review below."
+          message="We're are currently implementing bank account verification — until it's ready, please use mobile verification for your payment method."
           className="rounded-2xl"
         />
 
