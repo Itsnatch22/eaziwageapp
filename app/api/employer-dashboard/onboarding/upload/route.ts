@@ -66,8 +66,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // The employer_docs_upload/read/delete RLS policies on storage.objects all
+  // check (storage.foldername(name))[1] = auth.uid()::text — the first path
+  // segment must be the authenticated user's own ID. This previously used
+  // onboarding.id (employer_onboarding's own primary key, a different UUID
+  // from the user's auth ID), which can never satisfy that check — every
+  // upload failed RLS with "new row violates row-level security policy".
+  // app/api/employer-dashboard/settings/documents/route.ts already uses the
+  // correct `${user.id}/...` pattern for the same bucket; mirrored here.
   const ext = file.name.split('.').pop() ?? 'bin';
-  const storagePath = `${onboarding.id}/${documentType}/${Date.now()}.${ext}`;
+  const storagePath = `${user.id}/${documentType}/${Date.now()}.${ext}`;
 
   const arrayBuffer = await file.arrayBuffer();
   const { error: uploadError } = await supabase.storage
