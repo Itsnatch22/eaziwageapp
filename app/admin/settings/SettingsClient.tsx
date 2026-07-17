@@ -36,6 +36,7 @@ interface GlobalSettings {
   auto_approval_enabled?: boolean;
   weekend_advances_enabled?: boolean;
   enabled_countries?: string[];
+  low_balance_threshold_usd?: number;
 }
 
 interface RiskSettings {
@@ -450,7 +451,29 @@ const GlobalSettingsTab: React.FC<GlobalSettingsTabProps> = ({
         </div>
       </SectionCard>
 
-      
+
+      <SectionCard title="Wallet Alerts" icon={AlertTriangle} description="Admin Stanbic wallet low-balance threshold">
+        <div className="max-w-xs">
+          <Label className="text-sm">Low Balance Threshold</Label>
+          <div className="relative mt-1">
+            <Input
+              type="number"
+              step="100"
+              min="0"
+              value={settings.low_balance_threshold_usd ?? 2000}
+              onChange={(e) => onUpdate({ ...settings, low_balance_threshold_usd: parseFloat(e.target.value) })}
+              className="pr-14"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">USD</span>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            A banner appears on the admin wallet page, and approving a debit_order/invoice employer&apos;s
+            top-up requires explicit confirmation, once the Main Stanbic Source balance is at or below this.
+          </p>
+        </div>
+      </SectionCard>
+
+
       <SectionCard title="Cooldown & Frequency" icon={Clock} description="Time-based restrictions">
         <div className="grid md:grid-cols-2 gap-6">
           <RangeSlider

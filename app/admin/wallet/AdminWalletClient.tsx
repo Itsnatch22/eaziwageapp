@@ -40,7 +40,8 @@ interface AdminWalletTransaction {
 
 interface SyncSuccessResponse {
   wallet: Pick<AdminWallet, 'id' | 'balance' | 'currency' | 'last_reconciled_at'>;
-  transaction: AdminWalletTransaction;
+  transaction?: AdminWalletTransaction;
+  currencyAnomaly?: boolean;
 }
 
 interface SyncConflictResponse {
@@ -76,6 +77,7 @@ interface AdminWalletClientProps {
   initialWallet: AdminWallet | null;
   initialTransactions: AdminWalletTransaction[];
   exchangeRates: ExchangeRate[];
+  lowBalanceThresholdUsd: number | null;
 }
 
 function getSyncStatusIndicator(lastReconciledAt: string | null): {
@@ -467,6 +469,7 @@ export default function AdminWalletClient({
   initialWallet,
   initialTransactions,
   exchangeRates,
+  lowBalanceThresholdUsd,
 }: AdminWalletClientProps) {
   const [wallet, setWallet] = useState<AdminWallet | null>(initialWallet);
   const [transactions, setTransactions] = useState<AdminWalletTransaction[]>(initialTransactions);
@@ -512,9 +515,19 @@ export default function AdminWalletClient({
         updated_at: new Date().toISOString(),
       });
 
-      setTransactions([data.transaction, ...transactions]);
+      // The sync route doesn't return the inserted admin_wallet_transactions
+      // row directly — only prepend if a future response ever includes one;
+      // otherwise the realtime subscription above already refreshes the list.
+      if (data.transaction) {
+        setTransactions([data.transaction, ...transactions]);
+      }
       setCurrentPage(1);
-      toast.success('Wallet synced successfully');
+
+      if (data.currencyAnomaly) {
+        toast.warning('Balance synced, but Stanbic returned a non-USD currency — currency was left unchanged. Review the latest transaction before trusting it.', { duration: 8000 });
+      } else {
+        toast.success('Wallet synced successfully');
+      }
     } catch (error) {
       setSyncError('Failed to sync wallet');
       toast.error('Sync failed');
@@ -579,6 +592,11 @@ export default function AdminWalletClient({
   const syncStatus = useMemo(
     () => getSyncStatusIndicator(wallet?.last_reconciled_at || null),
     [wallet?.last_reconciled_at]
+  );
+
+  const isLowBalance = useMemo(
+    () => wallet != null && lowBalanceThresholdUsd != null && wallet.balance <= lowBalanceThresholdUsd,
+    [wallet, lowBalanceThresholdUsd]
   );
 
   // Silent data refresh — called both on interval and on Realtime events
@@ -674,6 +692,18 @@ export default function AdminWalletClient({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+      )}
+
+      {isLowBalance && wallet && (
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">Low Balance Warning</h3>
+            <p className="text-sm text-red-800 dark:text-red-200">
+              The Main Stanbic Source balance ({formatCurrency(wallet.balance, wallet.currency)}) is at or below the configured low-balance threshold ({formatCurrency(lowBalanceThresholdUsd ?? 0, 'USD')}). Approving a debit_order/invoice employer&apos;s top-up will require explicit confirmation until this is resolved — either record a new Stanbic deposit or adjust the threshold in Settings.
+            </p>
+          </div>
         </div>
       )}
 

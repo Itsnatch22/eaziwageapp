@@ -39,12 +39,12 @@ interface EmployerRow {
 }
 
 export async function PATCH(
-  _request: NextRequest,
+  request: NextRequest,
   context: IdRouteContext
 ) {
   const { id } = await context.params;
   try {
-    const rateLimitResponse = await checkAdminRateLimit(_request);
+    const rateLimitResponse = await checkAdminRateLimit(request);
     if (rateLimitResponse) return rateLimitResponse;
 
     const auth = await requireAdmin();
@@ -225,6 +225,54 @@ export async function PATCH(
       return NextResponse.json(
         { error: 'This request has no USD exchange-rate snapshot (rate lookup failed at request time). Cannot safely approve — refresh exchange rates and ask the employer to resubmit the request.' },
         { status: 422 },
+      );
+    }
+
+    // Balance check against the shared merchant pool this payout will draw
+    // from. Uses the most recently synced admin_wallets.balance — never a
+    // live Stanbic call here, that would add latency and a new failure point
+    // to a critical action (see the Stanbic alerting briefing). A hard block
+    // for genuinely insufficient funds; a one-time explicit confirmation for
+    // "this would leave the pool below the configured low-balance threshold"
+    // rather than a silent approval either way.
+    const requestBody = await request.json().catch(() => ({})) as { confirmLowBalance?: boolean };
+
+    const [{ data: adminWalletRow, error: adminWalletErr }, { data: globalRow }] = await Promise.all([
+      adminSupabase.from('admin_wallets').select('balance').eq('name', 'Main Stanbic Source').maybeSingle(),
+      adminSupabase.from('global_settings').select('platform_settings').eq('id', 'default').maybeSingle(),
+    ]);
+
+    if (adminWalletErr) throw adminWalletErr;
+
+    const syncedBalance = Number(adminWalletRow?.balance ?? 0);
+    const lowBalanceThreshold = (globalRow?.platform_settings as { low_balance_threshold_usd?: number } | null)?.low_balance_threshold_usd;
+
+    if (tx.usd_amount > syncedBalance) {
+      return NextResponse.json(
+        {
+          error: `Insufficient synced balance: the admin wallet's last-synced balance ($${syncedBalance.toFixed(2)}) cannot cover this request ($${tx.usd_amount.toFixed(2)}). Sync the balance or investigate before approving.`,
+          code: 'INSUFFICIENT_BALANCE',
+          syncedBalance,
+          requestedUsd: tx.usd_amount,
+        },
+        { status: 409 },
+      );
+    }
+
+    if (
+      typeof lowBalanceThreshold === 'number'
+      && (syncedBalance - tx.usd_amount) <= lowBalanceThreshold
+      && requestBody.confirmLowBalance !== true
+    ) {
+      return NextResponse.json(
+        {
+          error: `Approving this will bring the admin wallet's balance to $${(syncedBalance - tx.usd_amount).toFixed(2)}, at or below the configured low-balance threshold ($${lowBalanceThreshold.toFixed(2)}). Confirm to proceed anyway.`,
+          code: 'LOW_BALANCE_WARNING',
+          syncedBalance,
+          requestedUsd: tx.usd_amount,
+          thresholdUsd: lowBalanceThreshold,
+        },
+        { status: 409 },
       );
     }
 

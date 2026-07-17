@@ -22,6 +22,10 @@ export const GlobalPlatformSettingsSchema = z.object({
   auto_approval_enabled: z.boolean().optional(),
   weekend_advances_enabled: z.boolean().optional(),
   enabled_countries: z.array(z.string()).optional(),
+  // Minimum admin_wallets (Main Stanbic Source) USD balance before the
+  // low-balance banner and topup-approval warning kick in. See
+  // app/admin/wallet/AdminWalletClient.tsx and the topup-requests approve route.
+  low_balance_threshold_usd: z.number().min(0).optional(),
 });
 
 // risk_score (employers.risk_score / employees.risk_score) is stored on a 0–5

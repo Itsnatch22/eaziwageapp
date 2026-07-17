@@ -58,6 +58,27 @@ async function fetchExchangeRates(): Promise<ExchangeRate[]> {
   }
 }
 
+async function fetchLowBalanceThreshold(): Promise<number | null> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('global_settings')
+      .select('platform_settings')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching low balance threshold:', error);
+      return null;
+    }
+
+    const value = (data?.platform_settings as { low_balance_threshold_usd?: number } | null)?.low_balance_threshold_usd;
+    return typeof value === 'number' ? value : null;
+  } catch (error) {
+    console.error('Error fetching low balance threshold:', error);
+    return null;
+  }
+}
+
 function WalletSkeleton() {
   return (
     <div className="max-w-6xl mx-auto space-y-6 px-4 py-6">
@@ -76,15 +97,21 @@ function WalletSkeleton() {
 }
 
 export default async function AdminWalletPage() {
-  const [walletData, exchangeRates] = await Promise.all([
+  const [walletData, exchangeRates, lowBalanceThresholdUsd] = await Promise.all([
     fetchInitialData(),
     fetchExchangeRates(),
+    fetchLowBalanceThreshold(),
   ]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <Suspense fallback={<WalletSkeleton />}>
-        <AdminWalletClient initialWallet={walletData.wallet} initialTransactions={walletData.transactions as never} exchangeRates={exchangeRates} />
+        <AdminWalletClient
+          initialWallet={walletData.wallet}
+          initialTransactions={walletData.transactions as never}
+          exchangeRates={exchangeRates}
+          lowBalanceThresholdUsd={lowBalanceThresholdUsd}
+        />
       </Suspense>
     </div>
   );

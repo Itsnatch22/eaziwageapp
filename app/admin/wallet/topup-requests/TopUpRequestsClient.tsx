@@ -152,27 +152,36 @@ export default function TopUpRequestsClient({
   }, []);
 
   const handleApprove = useCallback(async (request: TopUpRequest) => {
-    const usdAmount = request.usd_amount ?? 0;
-    if (usdAmount > adminWallet.balance) {
-      setError('Insufficient USD balance to approve this request.');
-      return;
-    }
-
-    if (!window.confirm(`Approve $${usdAmount.toFixed(2)} for ${request.company_name}?`)) {
-      return;
-    }
-
     setApproving(prev => ({ ...prev, [request.id]: true }));
     setConfirmingId(null);
     setError(null);
 
-    try {
+    // The server enforces balance checks with the freshest synced figure —
+    // a hard 409 (INSUFFICIENT_BALANCE) for genuinely insufficient funds, or
+    // a 409 (LOW_BALANCE_WARNING) when this would drop the pool below the
+    // configured threshold but can still technically cover the request. The
+    // latter requires an explicit confirm-and-retry rather than a silent pass.
+    const doApprove = async (confirmLowBalance = false): Promise<void> => {
       const res = await fetch(
         `/api/admin/wallet/topup-requests/${encodeURIComponent(request.id)}/approve`,
-        { method: 'PATCH' }
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirmLowBalance }),
+        }
       );
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Approval failed');
+
+      if (!res.ok) {
+        if (json?.code === 'LOW_BALANCE_WARNING' && !confirmLowBalance) {
+          if (window.confirm(`${json.error}\n\nProceed anyway?`)) {
+            await doApprove(true);
+            return;
+          }
+          return;
+        }
+        throw new Error(json?.error || 'Approval failed');
+      }
 
       setRequests(prev => prev.filter(r => r.id !== request.id));
       // Approval now only *initiates* a real DusuPay collection or payout —
@@ -182,12 +191,16 @@ export default function TopUpRequestsClient({
       // decrementing it at this point would show a number that hasn't
       // actually moved yet (or, for a prefunded/collection employer, never
       // moves at all — the admin wallet isn't touched by that leg).
+    };
+
+    try {
+      await doApprove();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Approval failed');
     } finally {
       setApproving(prev => ({ ...prev, [request.id]: false }));
     }
-  }, [adminWallet.balance]);
+  }, []);
 
   const handleReject = useCallback(async (request: TopUpRequest) => {
     const reason = window.prompt(`Reason for declining ${request.company_name}'s top-up request:`);
