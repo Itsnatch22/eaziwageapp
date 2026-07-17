@@ -223,6 +223,45 @@ export async function PATCH(
     resultStatus = (refetched?.status as typeof status) ?? status;
   }
 
+  // The document bulk-update + trigger above can land on a status other than
+  // what the admin requested (e.g. clicking Approve on an employer with zero
+  // KYC documents leaves them at 'submitted', not 'approved') with no error
+  // surfaced anywhere — the request just silently "succeeds" at nothing.
+  // Compute the same counts the trigger itself uses so the admin gets a
+  // precise, actionable reason instead.
+  let statusMismatchReason: string | null = null;
+  if (
+    (status === 'approved' || status === 'pending' || status === 'rejected') &&
+    resultStatus !== status
+  ) {
+    const REQUIRED_DOCUMENT_TYPES = [
+      'certificate_of_incorporation', 'business_registration', 'tax_compliance_certificate',
+      'cr12_document', 'kra_pin_certificate', 'business_permit', 'audited_financials',
+      'bank_statement', 'proof_of_address', 'proof_of_bank_account', 'employment_contract_template',
+    ];
+    const REQUIRED_COUNT = REQUIRED_DOCUMENT_TYPES.length;
+
+    const { data: kycDocs } = await adminSupabase
+      .from('employer_kyc_documents')
+      .select('document_type, status')
+      .eq('user_id', employer.user_id);
+
+    const docs = kycDocs ?? [];
+    const submittedCount = docs.filter((d) => REQUIRED_DOCUMENT_TYPES.includes(d.document_type)).length;
+    const rejectedCount = docs.filter((d) => d.status === 'rejected').length;
+    const approvedCount = docs.filter((d) => d.status === 'approved').length;
+
+    if (rejectedCount > 0) {
+      statusMismatchReason = `${rejectedCount} document(s) are marked rejected — resolve those before this employer can be approved.`;
+    } else if (submittedCount < REQUIRED_COUNT) {
+      statusMismatchReason = `Only ${submittedCount} of ${REQUIRED_COUNT} required KYC documents have been submitted.`;
+    } else if (approvedCount < REQUIRED_COUNT) {
+      statusMismatchReason = `${approvedCount} of ${REQUIRED_COUNT} required documents are approved — the rest still need review.`;
+    } else {
+      statusMismatchReason = `Employer status is now '${resultStatus}', not '${status}'.`;
+    }
+  }
+
   let resolvedCompanyCode: string | null = null;
   const { data: existingEmployer } = await adminSupabase
     .from('employers')
@@ -324,6 +363,16 @@ export async function PATCH(
     reason: reason || null,
     created_at: new Date().toISOString(),
   });
+
+  if (statusMismatchReason) {
+    return NextResponse.json({
+      error: `Could not set status to '${status}': ${statusMismatchReason}`,
+      data: {
+        status: resultStatus,
+        company_code: resolvedCompanyCode,
+      },
+    }, { status: 422 });
+  }
 
   return NextResponse.json({
     message: `Employer status updated to ${resultStatus}`,

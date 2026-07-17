@@ -426,12 +426,16 @@ const EmployerDetailModal: React.FC<EmployerDetailModalProps> = ({
         body:    JSON.stringify({ status: newStatus, reason }),
       });
 
+      const json = await res.json().catch(() => null);
+
       if (res.ok) {
         toast.success(`Employer ${newStatus}`);
         fetchEmployerDetail();
         onRefresh();
       } else {
-        toast.error('Failed to update status.');
+        toast.error(json?.error || 'Failed to update status.');
+        fetchEmployerDetail();
+        onRefresh();
       }
     } catch {
       toast.error('Failed to update status.');
@@ -1076,12 +1080,14 @@ export default function AdminEmployers({ initialData }: { initialData?: Employer
         body:    JSON.stringify({ status: newStatus, reason }),
       });
 
+      const json = await res.json().catch(() => null);
+
       if (res.ok) {
         toast.success(`Employer ${newStatus}`);
-        fetchEmployers();
       } else {
-        toast.error('Action failed.');
+        toast.error(json?.error || 'Action failed.');
       }
+      fetchEmployers();
     } catch {
       toast.error('Action failed.');
     }
@@ -1123,6 +1129,8 @@ export default function AdminEmployers({ initialData }: { initialData?: Employer
     setBulkActionLoading(true);
 
     let successCount = 0;
+    let failCount = 0;
+    let firstFailureReason: string | null = null;
     for (const id of selectedIds) {
       try {
         const res = await fetch(`/api/admin/employers/${id}/status`, {
@@ -1131,16 +1139,34 @@ export default function AdminEmployers({ initialData }: { initialData?: Employer
           body:    JSON.stringify({ status: actionType, reason }),
         });
 
-        if (res.ok) successCount++;
+        if (res.ok) {
+          successCount++;
+        } else {
+          failCount++;
+          if (!firstFailureReason) {
+            const json = await res.json().catch(() => null);
+            firstFailureReason = json?.error || null;
+          }
+        }
       } catch {
-        
+        failCount++;
       }
     }
 
     setBulkActionLoading(false);
     setSelectedIds(new Set());
     fetchEmployers();
-    toast.success(`Successfully updated ${successCount} employer(s)`);
+
+    if (failCount === 0) {
+      toast.success(`Successfully updated ${successCount} employer(s)`);
+    } else if (successCount === 0) {
+      toast.error(firstFailureReason || `Failed to update ${failCount} employer(s)`);
+    } else {
+      toast.warning(
+        `Updated ${successCount} employer(s); ${failCount} failed${firstFailureReason ? ` — ${firstFailureReason}` : ''}`,
+        { duration: 8000 },
+      );
+    }
   };
 
     return (
