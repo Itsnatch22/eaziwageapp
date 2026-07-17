@@ -711,13 +711,35 @@ const handleFileUpload = async (file: File, documentType: string) => {
     switch (currentStep) {
       case 0: return true;
       case 1: return agreedToTerms;
-      case 2: return !!(formData.company_name && formData.registration_number && formData.country);
-      case 3: return !!(formData.physical_address && formData.city);
-      case 4: return true;
-      case 5: return !!(formData.industry && formData.sector && formData.employee_count && countriesOfOperation.length > 0);
+      case 2:
+        return !!(
+          formData.company_name && formData.registration_number && formData.country &&
+          (uploadedFiles.certificate_of_incorporation || isDocLocked("certificate_of_incorporation")) &&
+          (uploadedFiles.business_registration || isDocLocked("business_registration"))
+        );
+      case 3:
+        return !!(
+          formData.physical_address && formData.city &&
+          (uploadedFiles.proof_of_address || isDocLocked("proof_of_address")) &&
+          (uploadedFiles.tax_compliance_certificate || isDocLocked("tax_compliance_certificate")) &&
+          (uploadedFiles.kra_pin_certificate || isDocLocked("kra_pin_certificate"))
+        );
+      case 4:
+        return !!(uploadedFiles.cr12_document || isDocLocked("cr12_document"));
+      case 5:
+        return !!(
+          formData.industry && formData.sector && formData.employee_count && countriesOfOperation.length > 0 &&
+          (uploadedFiles.business_permit || isDocLocked("business_permit")) &&
+          (uploadedFiles.employment_contract_template || isDocLocked("employment_contract_template"))
+        );
       case 6: {
         const payday = Number(formData.payday_day_of_month);
-        return !!formData.payroll_cycle && Number.isInteger(payday) && payday >= 1 && payday <= 31;
+        return !!(
+          formData.payroll_cycle && Number.isInteger(payday) && payday >= 1 && payday <= 31 &&
+          (uploadedFiles.audited_financials || isDocLocked("audited_financials")) &&
+          (uploadedFiles.bank_statement || isDocLocked("bank_statement")) &&
+          (uploadedFiles.proof_of_bank_account || isDocLocked("proof_of_bank_account"))
+        );
       }
       case 7: return !!(formData.contact_person && formData.contact_email && formData.contact_phone);
       default: return false;
@@ -798,7 +820,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
               <div className="flex gap-3">
                 <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-800 dark:text-amber-200 text-left">
-                  <strong>Note:</strong> Documents marked as optional can be skipped and uploaded later.
+                  <strong>Note:</strong> All KYC documents below are required to complete onboarding.
                 </p>
               </div>
             </div>
@@ -895,7 +917,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "certificate_of_incorporation"}
                   locked={isDocLocked("certificate_of_incorporation")}
                   testId="upload-coi"
-                  optional
+                  required
                 />
 
                 {rejectionNote("business_registration") && (
@@ -912,7 +934,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "business_registration"}
                   locked={isDocLocked("business_registration")}
                   testId="upload-br"
-                  optional
+                  required
                 />
               </div>
             </div>
@@ -987,7 +1009,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "proof_of_address"}
                   locked={isDocLocked("proof_of_address")}
                   testId="upload-poa"
-                  optional
+                  required
                 />
 
                 {rejectionNote("tax_compliance_certificate") && (
@@ -1004,7 +1026,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "tax_compliance_certificate"}
                   locked={isDocLocked("tax_compliance_certificate")}
                   testId="upload-tcc"
-                  optional
+                  required
                 />
 
                 {rejectionNote("kra_pin_certificate") && (
@@ -1021,7 +1043,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "kra_pin_certificate"}
                   locked={isDocLocked("kra_pin_certificate")}
                   testId="upload-kra"
-                  optional
+                  required
                 />
               </div>
             </div>
@@ -1058,11 +1080,8 @@ const handleFileUpload = async (file: File, documentType: string) => {
                     Rejected: {rejectionNote("cr12_document")}
                   </p>
                 )}
-                <FileUploader label="CR12 / Company Directors" description="Company registry document showing directors" onUpload={(file) => handleFileUpload(file, "cr12_document")} uploadedFile={uploadedFiles.cr12_document} uploading={uploadingFile === "cr12_document"} locked={isDocLocked("cr12_document")} testId="upload-cr12" optional />
+                <FileUploader label="CR12 / Company Directors" description="Company registry document showing directors" onUpload={(file) => handleFileUpload(file, "cr12_document")} uploadedFile={uploadedFiles.cr12_document} uploading={uploadingFile === "cr12_document"} locked={isDocLocked("cr12_document")} testId="upload-cr12" required />
               </div>
-              <button type="button" onClick={nextStep} className="w-full text-center text-sm text-primary font-medium hover:underline">
-                Skip this step for now →
-              </button>
             </div>
           </div>
         );
@@ -1164,7 +1183,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "business_permit"}
                   locked={isDocLocked("business_permit")}
                   testId="upload-permit"
-                  optional
+                  required
                 />
 
                 {rejectionNote("employment_contract_template") && (
@@ -1181,7 +1200,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "employment_contract_template"}
                   locked={isDocLocked("employment_contract_template")}
                   testId="upload-contract"
-                  optional
+                  required
                 />
               </div>
             </div>
@@ -1303,7 +1322,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "audited_financials"}
                   locked={isDocLocked("audited_financials")}
                   testId="upload-financials"
-                  optional
+                  required
                 />
 
                 {rejectionNote("bank_statement") && (
@@ -1320,7 +1339,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "bank_statement"}
                   locked={isDocLocked("bank_statement")}
                   testId="upload-bank-stmt"
-                  optional
+                  required
                 />
 
                 {rejectionNote("proof_of_bank_account") && (
@@ -1337,7 +1356,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   uploading={uploadingFile === "proof_of_bank_account"}
                   locked={isDocLocked("proof_of_bank_account")}
                   testId="upload-bank-proof"
-                  optional
+                  required
                 />
               </div>
             </div>
