@@ -1,7 +1,7 @@
 'use client';
 
 import { createClient } from "../supabase/client";
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 interface AuthState {
@@ -14,27 +14,35 @@ let state: AuthState = {
   loading: true,
 };
 
-const listeners = new Set<(state: AuthState) => void>();
+const listeners = new Set<() => void>();
 
 const setState = (patch: Partial<AuthState>) => {
   state = { ...state, ...patch };
-  listeners.forEach((l) => l(state));
+  listeners.forEach((l) => l());
 };
 
+// Every call site in this codebase passes an inline arrow function selector
+// (e.g. `useAuthStore(s => s.user)`) — a fresh reference on every render.
+// The previous implementation re-subscribed on every render as a result
+// (useEffect depended on [selector]), and at least one caller
+// (AdminPortalLayout) had a downstream effect keyed on the resulting value's
+// object identity, which combined into an observed live infinite render/
+// prefetch loop. useSyncExternalStore is built for exactly this — it
+// doesn't require the selector to be stable, and its snapshot comparison
+// prevents the tear-down/rebuild-every-render churn regardless.
 export function useAuthStore<T>(selector: (state: AuthState) => T): T {
-  const [value, setValue] = useState(() => selector(state));
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    listeners.add(onStoreChange);
+    return () => listeners.delete(onStoreChange);
+  }, []);
 
-  useEffect(() => {
-    const listener = (newState: AuthState) => {
-      setValue(selector(newState));
-    };
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, [selector]);
-
-  return value;
+  // getSnapshot is allowed to be a fresh closure every render (selector
+  // itself may be inline at the call site) — useSyncExternalStore only
+  // cares that repeated calls against an unchanged `state` return the same
+  // value via Object.is, which holds here since every selector in this
+  // codebase either reads a property straight off `state` or derives a
+  // primitive from it.
+  return useSyncExternalStore(subscribe, () => selector(state));
 }
 
 export function updateUserAvatar(avatarUrl: string) {
