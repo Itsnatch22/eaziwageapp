@@ -6,7 +6,7 @@ import {
   BadgeCheck, Info, Loader2, Landmark
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
-import { formatCurrency, cn, calculateFeePercentage } from '@/lib/utils';
+import { formatCurrency, cn, calculateFeePercentage, formatStatusLabel } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
 
 function AvatarWithFallback({ avatarUrl, fullName }: { avatarUrl: string | null; fullName: string }) {
@@ -90,6 +90,8 @@ const EmploymentDetails = () => {
   const { currency } = useCurrency();
   const [data, setData] = useState<EmploymentData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notYetApproved, setNotYetApproved] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     async function fetchDetails() {
@@ -98,9 +100,19 @@ const EmploymentDetails = () => {
         if (res.ok) {
           const json = await res.json();
           setData(json);
+        } else if (res.status === 404) {
+          // The employees row (live table) is only minted by the
+          // sync_employee_from_onboarding trigger on KYC approval — a 404
+          // here is the expected state while onboarding is still
+          // pending/under_review, not an error. Show a proper pending
+          // message instead of the generic failure state below.
+          setNotYetApproved(true);
+        } else {
+          setLoadError(true);
         }
       } catch (err) {
         console.error('Failed to load employment details', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -119,7 +131,36 @@ const EmploymentDetails = () => {
     );
   }
 
-  if (!data) return <div>Failed to load details.</div>;
+  if (notYetApproved) {
+    return (
+      <EmployeePortalLayout>
+        <div className="flex flex-col items-center justify-center py-40 gap-4 text-center px-4">
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+            <Shield className="w-8 h-8 text-amber-500" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">Verification in progress</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+              Employment details become available once your identity and employer verification are approved.
+            </p>
+          </div>
+        </div>
+      </EmployeePortalLayout>
+    );
+  }
+
+  if (loadError || !data) {
+    return (
+      <EmployeePortalLayout>
+        <div className="flex flex-col items-center justify-center py-40 gap-4 text-center px-4">
+          <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+            <Info className="w-8 h-8 text-red-500" />
+          </div>
+          <p className="text-sm font-bold text-slate-900 dark:text-white">Couldn&apos;t load employment details</p>
+        </div>
+      </EmployeePortalLayout>
+    );
+  }
 
   const { employment, policy } = data;
 
@@ -158,7 +199,7 @@ const EmploymentDetails = () => {
                        ID: {employment.employee_code}
                     </span>
                     <span className="px-3 py-1 bg-emerald-400/20 rounded-full text-[10px] font-bold uppercase tracking-widest border border-emerald-400/30 text-emerald-300">
-                       {employment.status}
+                       {formatStatusLabel(employment.status)}
                     </span>
                  </div>
               </div>

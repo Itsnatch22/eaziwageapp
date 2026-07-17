@@ -12,7 +12,7 @@ import {
   Calculator,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, cn, calculateFeePercentage } from '@/lib/utils';
+import { formatCurrency, cn, calculateFeePercentage, formatStatusLabel } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -522,7 +522,7 @@ export default function EmployeeDashboardPage() {
                       "text-[9px] font-bold uppercase tracking-wider",
                       isVerified ? "text-emerald-500" : "text-amber-500"
                     )}>
-                      {value}
+                      {formatStatusLabel(value)}
                     </span>
                   </div>
                 ))}

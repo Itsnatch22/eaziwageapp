@@ -7,6 +7,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Formats a raw snake_case/db status value ("under_review") into a display
+ *  label ("Under Review"). Passing through already-formatted values ("Active")
+ *  is a no-op. Returns the fallback for null/undefined/empty input. */
+export function formatStatusLabel(value: string | null | undefined, fallback = 'Unknown'): string {
+  if (!value) return fallback;
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /** Triggers a browser download of MFA backup codes as `mfa-codes.csv`. */
 export function downloadBackupCodesCsv(codes: string[]): void {
   const csvContent = ['Backup Code', ...codes].join('\n');
