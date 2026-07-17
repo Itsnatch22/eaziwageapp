@@ -159,10 +159,19 @@ const { data: existing } = await adminSupabase
      .eq('user_id', user.id)
      .maybeSingle();
 
-   // Allow: no record, registration stub (pending + submitted_at=null), or rejected (resubmission).
-   // Block: actually-submitted pending/under_review/approved/suspended records.
-   const isRegistrationStub = existing?.status === 'pending' && !existing?.submitted_at;
-   if (existing && !isRegistrationStub && existing.status !== 'rejected') {
+   // status alone does NOT mean a real submission happened: the
+   // trg_recompute_onboarding_status trigger on employee_kyc_documents
+   // flips employee_onboarding.status to 'under_review' (or 'rejected',
+   // or even 'approved') purely from document upload/review counts,
+   // independent of this route ever running — an applicant who has
+   // uploaded all required docs via the wizard but hasn't reached the
+   // final "Submit Application" step yet can already be sitting at
+   // 'under_review' with submitted_at still null. Gating on status
+   // ('pending' only) instead of submitted_at falsely 409'd exactly that
+   // in-progress case. submitted_at is the only reliable "was this ever
+   // actually submitted" signal — it's set nowhere except here, below.
+   const hasGenuineSubmission = existing != null && existing.submitted_at != null;
+   if (existing && hasGenuineSubmission && existing.status !== 'rejected') {
      return NextResponse.json(
        { error: 'You already have an active KYC application.' },
        { status: 409 },

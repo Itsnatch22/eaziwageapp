@@ -192,16 +192,24 @@ export default function EmployeeDashboardPage() {
         return;
       }
 
-      // A brand-new registration stub (status='pending', submitted_at=null —
-      // see app/api/employee-dashboard/onboarding/route.ts's own
-      // isRegistrationStub check) previously rendered the full dashboard
-      // with "Documents Submitted" / "verification is being processed"
-      // copy, even though the employee had submitted nothing. Redirect to
-      // onboarding immediately instead, mirroring the employer dashboard's
-      // incomplete-profile redirect. `redirecting` keeps the skeleton up
-      // (via the finally block below) instead of flashing the full
-      // dashboard with blank/zeroed stats before navigation completes.
-      const isRegistrationStub = data.employee?.status === 'pending' && !data.employee?.submitted_at;
+      // submitted_at=null means the "Submit Application" step was never
+      // reached — status alone can't be used for this check because
+      // trg_recompute_onboarding_status (on employee_kyc_documents) bumps
+      // employee_onboarding.status to 'under_review' purely from upload
+      // counts, independent of actual submission — an employee who's
+      // uploaded all required docs via the wizard but hasn't hit Submit
+      // yet can already be sitting at 'under_review' with submitted_at
+      // still null (mirrors the identical fix in
+      // app/api/employee-dashboard/onboarding/route.ts's own dedup guard).
+      // Previously this rendered the full dashboard with "Documents
+      // Submitted" / "verification is being processed" copy for someone
+      // who'd submitted nothing. `redirecting` keeps the skeleton up (via
+      // the finally block below) instead of flashing that before
+      // navigation completes. status !== 'approved' is a defensive
+      // belt-and-braces check, not the primary signal — it guards against
+      // ever bouncing a fully-approved employee back into onboarding in
+      // the unlikely event submitted_at is null on an approved record.
+      const isRegistrationStub = !data.employee?.submitted_at && data.employee?.status !== 'approved';
       if (isRegistrationStub) {
         redirecting = true;
         router.replace('/dashboards/employee-dashboard/onboarding');
