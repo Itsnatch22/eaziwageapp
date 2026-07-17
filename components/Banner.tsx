@@ -45,9 +45,9 @@ const VARIANT_ICONS: Record<BannerVariant, LucideIcon> = {
   error: AlertTriangle,
 };
 
-// Standby component — not wired into the root layout or any route yet.
-// Intended for future site-wide/dashboard announcements; a consumer decides
-// where to render it and how (if at all) to persist the dismissed state.
+// Not wired into the root layout — each consumer mounts it on its own page
+// (e.g. app/dashboards/employee-dashboard/payment-methods/page.tsx) and
+// decides whether/how to persist the dismissed state.
 export function Banner({
   variant = "announcement",
   title,

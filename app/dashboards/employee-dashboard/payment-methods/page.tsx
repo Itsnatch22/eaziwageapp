@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Banner } from '@/components/Banner';
 
 type BankVerificationStatus = 'unverified' | 'pending_review' | 'approved' | 'rejected';
 
@@ -310,7 +311,13 @@ const PaymentMethods = () => {
           </Button>
         </div>
 
-        
+        <Banner
+          variant="announcement"
+          message="We're building automatic bank account verification — until it's ready, bank accounts still go through the manual review below."
+          className="rounded-2xl"
+        />
+
+
         <div className="grid gap-4">
           {loading ? (
             <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>
