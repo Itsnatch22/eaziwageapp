@@ -607,12 +607,14 @@ export default function Onboarding() {
 
   const [capturingFaceId, setCapturingFaceId] = useState(false);
   const [faceIdCaptured, setFaceIdCaptured] = useState(false);
+  const [cameraUnavailable, setCameraUnavailable] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const faceIdFileInputRef = useRef<HTMLInputElement>(null);
 
   const [uploadingFile, setUploadingFile] = useState<OnboardingDocKey | null>(
     null,
@@ -946,19 +948,35 @@ export default function Onboarding() {
       });
       streamRef.current = stream;
       setCapturingFaceId(true);
+      setCameraUnavailable(false);
     } catch (err: unknown) {
       const name = err instanceof DOMException ? err.name : '';
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        toast.error("Camera permission denied. Please allow camera access and try again.");
+        toast.error("Camera permission denied. Please allow camera access and try again, or upload a photo instead.");
       } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-        toast.error("Camera is in use by another app. Close it and try again.");
+        toast.error("Camera is in use by another app. Close it and try again, or upload a photo instead.");
       } else if (name === 'NotFoundError') {
-        toast.error("No camera found on this device.");
+        toast.error("No camera found on this device. Upload a photo instead.");
       } else {
-        toast.error("Could not start camera. Please try again.");
+        toast.error("Could not start camera. Please try again, or upload a photo instead.");
       }
       setCapturingFaceId(false);
+      // Camera access can be permanently blocked (site permission set to
+      // "never allow"), a device with no camera, or hardware already in use
+      // by another app — none of which the "Start Camera" retry button can
+      // fix on its own, and without this fallback the employee is stuck and
+      // cannot complete onboarding at all. Surface a manual upload option
+      // instead of leaving them at a dead end.
+      setCameraUnavailable(true);
     }
+  };
+
+  const handleManualFaceIdUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await handleFileUpload(file, "face_id");
+    setFaceIdCaptured(true);
   };
 
   const stopFaceCapture = () => {
@@ -1331,6 +1349,30 @@ export default function Onboarding() {
                   >
                     <Camera className="w-5 h-5 mr-2" /> Start Camera
                   </Button>
+
+                  <input
+                    ref={faceIdFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    onChange={handleManualFaceIdUpload}
+                    className="hidden"
+                  />
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => faceIdFileInputRef.current?.click()}
+                      disabled={uploadingFile === "face_id"}
+                      className="text-sm font-medium text-primary hover:underline disabled:opacity-50"
+                    >
+                      {uploadingFile === "face_id" ? "Uploading…" : "Or upload a photo instead"}
+                    </button>
+                    {cameraUnavailable && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                        Camera unavailable — you can upload a clear photo of your face instead.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
