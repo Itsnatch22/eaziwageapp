@@ -655,7 +655,18 @@ export function RiskReviewCompletedEmail({
     declined:  { label: 'Score Declined',   variant: 'red'    as const, icon: '📉', color: '#dc2626' },
   };
 
-  const cfg = outcomeConfig[outcome];
+  // Same defensive-fallback treatment as EmployerStatusChangeEmail above —
+  // the call site in lib/notifications.ts casts `outcome` through `any`,
+  // so TypeScript's exhaustive union here doesn't actually guarantee a
+  // matching key at runtime. No caller wires this notification up yet, but
+  // better to not repeat the exact crash class that shipped for
+  // employer status.
+  const cfg = outcomeConfig[outcome] ?? {
+    label: 'Score Updated',
+    variant: 'blue' as const,
+    icon: 'ℹ️',
+    color: '#2563eb',
+  };
   const ratingPill: Record<RiskRating, 'green' | 'blue' | 'yellow' | 'red'> = {
     A: 'green', B: 'blue', C: 'yellow', D: 'red',
   };
