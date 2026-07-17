@@ -1,5 +1,5 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { Resend } from 'resend';
 import { onboardingSubmitSchema, stepUpdateSchema } from '@/lib/validations/employer-onboarding';
 import { getCurrencyFromCountry } from '@/lib/utils';
@@ -165,26 +165,44 @@ export async function POST(req: NextRequest) {
       if (ownersError) throw ownersError;
     }
 
-    await resend.emails.send({
-      from: 'EaziWage <noreply@eaziwage.com>',
-      to: fields.contact_email,
-      subject: 'Application Received — EaziWage Employer Portal',
-      react: EmployerOnboardingConfirmation({
-        companyName: fields.company_name,
-        contactPerson: fields.contact_person,
-        contactEmail: fields.contact_email,
-      }),
-    });
+    // The applicant confirmation email and admin notification (which itself
+    // sends another email) are not required for the submission itself to
+    // succeed — awaiting them here previously blocked the response (and thus
+    // the client's post-submit redirect) on however long Resend took to
+    // answer two sequential sends. `after()` runs them once the response has
+    // already gone out, while still guaranteeing they execute on Vercel's
+    // serverless runtime (unlike a bare un-awaited promise, which can be
+    // killed once the function returns).
+    after(async () => {
+      try {
+        await resend.emails.send({
+          from: 'EaziWage <noreply@eaziwage.com>',
+          to: fields.contact_email,
+          subject: 'Application Received — EaziWage Employer Portal',
+          react: EmployerOnboardingConfirmation({
+            companyName: fields.company_name,
+            contactPerson: fields.contact_person,
+            contactEmail: fields.contact_email,
+          }),
+        });
+      } catch (err) {
+        console.error('[onboarding/submit] confirmation email failed:', err);
+      }
 
-    await notifyAdmin({
-      type: 'employer_kyc',
-      title: 'Employer Onboarding Submitted',
-      message: `${fields.company_name} has submitted their onboarding application for review.`,
-      metadata: {
-        user_id: user.id,
-        onboarding_id: onboardingId,
-        company_name: fields.company_name,
-      },
+      try {
+        await notifyAdmin({
+          type: 'employer_kyc',
+          title: 'Employer Onboarding Submitted',
+          message: `${fields.company_name} has submitted their onboarding application for review.`,
+          metadata: {
+            user_id: user.id,
+            onboarding_id: onboardingId,
+            company_name: fields.company_name,
+          },
+        });
+      } catch (err) {
+        console.error('[onboarding/submit] notifyAdmin failed:', err);
+      }
     });
 
     return NextResponse.json(
