@@ -64,7 +64,7 @@ export async function PATCH(
 
     const { data: initialOnboardingRecord, error: fetchError } = await adminSupabase
       .from('employee_onboarding')
-      .select('id, user_id, employer_id, employee_code, full_name, email, phone, job_title, department, monthly_salary, start_date, employment_type')
+      .select('id, user_id, employer_id, employee_code, full_name, email, job_title, department, monthly_salary, start_date, employment_type')
       .or(`id.eq.${id},user_id.eq.${id}`)
       .maybeSingle();
     let onboardingRecord = initialOnboardingRecord;
@@ -88,7 +88,7 @@ export async function PATCH(
     if (!onboardingRecord && initialEmployeeRecord?.user_id) {
       const { data: fallbackOnboarding, error: fallbackError } = await adminSupabase
         .from('employee_onboarding')
-        .select('id, user_id, employer_id, employee_code, full_name, email, phone, job_title, department, monthly_salary, start_date, employment_type')
+        .select('id, user_id, employer_id, employee_code, full_name, email, job_title, department, monthly_salary, start_date, employment_type')
         .eq('user_id', initialEmployeeRecord.user_id)
         .maybeSingle();
 
@@ -228,7 +228,7 @@ export async function PATCH(
         upsertPayload.employee_code = onboardingRecord.employee_code;
         upsertPayload.full_name = displayName;
         upsertPayload.email = profileData?.email || onboardingRecord.email;
-        upsertPayload.phone = profileData?.phone || onboardingRecord.phone;
+        upsertPayload.phone = profileData?.phone;
         upsertPayload.job_title = onboardingRecord.job_title;
         upsertPayload.department = onboardingRecord.department;
         upsertPayload.monthly_salary = onboardingRecord.monthly_salary;
