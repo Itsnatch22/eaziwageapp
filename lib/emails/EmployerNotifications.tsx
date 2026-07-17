@@ -358,7 +358,21 @@ export function RiskProfileUpdatedEmail({
   );
 }
 
-export type EmployerStatus = 'approved' | 'suspended' | 'rejected' | 'pending' | 'under_review';
+// Must cover every value the live employer_onboarding_status_check CHECK
+// constraint allows ('draft', 'pending', 'submitted', 'under_review',
+// 'risk_review_in_progress', 'approved', 'rejected', 'suspended') — a status
+// missing from statusConfig below throws when this email renders, which
+// previously crashed the whole notification (in-app row included, since the
+// email fallback is invoked from the same delivery chain).
+export type EmployerStatus =
+  | 'draft'
+  | 'pending'
+  | 'submitted'
+  | 'under_review'
+  | 'risk_review_in_progress'
+  | 'approved'
+  | 'rejected'
+  | 'suspended';
 
 export interface EmployerStatusChangeEmailProps {
   companyName: string;
@@ -429,9 +443,50 @@ export function EmployerStatusChangeEmail({
       accentColor: '#0891b2',
       bodyText: `${companyName}'s account is currently under compliance review. Advance disbursements may be temporarily limited. Our team will contact you with further information.`,
     },
+    risk_review_in_progress: {
+      label: 'Under Risk Review',
+      variant: 'blue',
+      banner: 'info',
+      icon: '🔎',
+      accentColor: '#0891b2',
+      bodyText: `${companyName}'s account is currently undergoing a risk review. We will notify you once it is complete.`,
+    },
+    submitted: {
+      label: 'Submitted',
+      variant: 'blue',
+      banner: 'info',
+      icon: '📨',
+      accentColor: '#2563eb',
+      bodyText: `${companyName}'s application has been submitted and is awaiting review by our compliance team.`,
+    },
+    draft: {
+      label: 'Draft',
+      variant: 'yellow',
+      banner: 'info',
+      icon: '📝',
+      accentColor: '#64748b',
+      bodyText: `${companyName}'s application is incomplete. Please finish onboarding to proceed.`,
+    },
   };
 
-  const cfg = statusConfig[newStatus];
+  // Defensive fallback — status values are read from the DB (see the
+  // employer_onboarding_status_check CHECK constraint), not restricted to
+  // this map at the TypeScript level (the call site in lib/notifications.ts
+  // casts through `any`). A value this map hasn't been updated to cover
+  // should never crash the whole notification — fall back to a generic
+  // config instead of throwing.
+  const fallbackConfig = {
+    label: String(newStatus).replace(/_/g, ' '),
+    variant: 'blue' as const,
+    banner: 'info' as const,
+    icon: 'ℹ️',
+    accentColor: '#2563eb',
+    bodyText: `${companyName}'s account status has been updated. Log in to your dashboard for details.`,
+  };
+  const getStatusConfig = (status: EmployerStatus | undefined) =>
+    (status && statusConfig[status]) || fallbackConfig;
+
+  const cfg = getStatusConfig(newStatus);
 
   return (
     <EmailLayout
@@ -451,7 +506,7 @@ export function EmployerStatusChangeEmail({
         {previousStatus && (
           <MetaRow
             label="Previous Status"
-            value={<StatusPill label={statusConfig[previousStatus].label} variant={statusConfig[previousStatus].variant} />}
+            value={<StatusPill label={getStatusConfig(previousStatus).label} variant={getStatusConfig(previousStatus).variant} />}
           />
         )}
         <MetaRow
