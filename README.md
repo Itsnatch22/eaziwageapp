@@ -1,6 +1,6 @@
 # EaziWage — Earned Wage Access Platform
 
-EaziWage is a production-grade **Earned Wage Access (EWA)** platform that enables employees to access a portion of their earned wages before payday. Built on **Next.js 16**, **TypeScript**, and **Supabase**, the system connects employees, employers, and administrators through secure, role-based dashboards with real-time fund disbursement via the **DusuPay** payment gateway.
+EaziWage is a production-grade **Earned Wage Access (EWA)** platform that enables employees to access a portion of their earned wages before payday. Built on **Next.js 16**, **TypeScript**, and **Supabase**, the system connects employees, employers, and administrators through secure, role-based dashboards with real fund movement via the **DusuPay** payment gateway.
 
 ---
 
@@ -31,22 +31,23 @@ Financial stress is one of the leading causes of reduced productivity in the wor
 
 ### For Employees
 - **Request Wage Advances** — Calculate and request advances based on employer-configured limits
-- **Real-Time Disbursement** — Receive funds via M-Pesa, Airtel Money, MTN MoMo, Tigo Pesa, or bank transfer
+- **Real Disbursement** — Receive funds via M-Pesa, Airtel Money, MTN MoMo, Tigo Pesa, or bank transfer, validated against DusuPay's own supported-provider list before a request can be submitted
 - **KYC Document Upload** — Submit ID, tax, and employment documents for verification
-- **Advance History** — Track pending, approved, completed, and failed transactions
+- **Advance History** — Track pending, approved, processing, completed, failed, and rejected transactions
 
 ### For Employers
 - **Employee Management** — Onboard employees, configure EWA settings, and manage eligibility
 - **Advance Review & Approval** — Review requests with risk-adjusted fee calculations
-- **Risk Insights Dashboard** — View automated risk scores based on financial health, compliance, and payroll sustainability
-- **Wallet & Balance Monitoring** — Track internal credit balances and funding history
+- **Risk Insights Dashboard** — View automated risk scores (0–5 scale) based on financial health, compliance, and payroll sustainability
+- **Wallet & Funding** — Track outstanding liability, request wallet top-ups, and (depending on funding model — see [System Architecture](#system-architecture)) either pay EaziWage directly via DusuPay or receive funded credit from EaziWage
+- **Payday Recoupment** — Automated payday-triggered collection of outstanding balances via DusuPay mobile money, with a manual bank-transfer fallback
 
 ### For Administrators
 - **KYC Review & Verification** — Approve or reject employee and employer onboarding documents
-- **Fund Management** — Move funds between the platform's Stanbic source and employer wallets
+- **Fund Management** — Record Stanbic deposits into the platform's admin wallet, and approve employer wallet top-up requests (which now route through a real DusuPay collection or payout, depending on the employer's funding model)
 - **Fraud Detection** — Monitor automated alerts for amount thresholds, frequency violations, and velocity attacks
-- **Reconciliation & Reporting** — Reconcile DusuPay transactions, generate exports, and audit all fund movements
-- **System Health & Notifications** — Real-time alerts via Pusher and email for critical events
+- **Reconciliation & Reporting** — A daily job cross-checks advance and wallet-funding statuses against DusuPay's live transaction status and records any drift for review
+- **System Health & Notifications** — In-app, web push, and email alerts for critical events; live dashboard updates via Supabase Realtime
 
 ---
 
@@ -54,80 +55,95 @@ Financial stress is one of the leading causes of reduced productivity in the wor
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Framework** | Next.js 16 (App Router) | React framework with SSR, API routes, and middleware |
+| **Framework** | Next.js 16 (App Router) | React framework with SSR, API routes, and `proxy.ts` (Next 16's replacement for `middleware.ts`) for auth/role gating |
 | **Language** | TypeScript 5 | Type-safe development across the entire stack |
 | **Styling** | Tailwind CSS v4 + shadcn/ui | Utility-first CSS and accessible UI components |
-| **Database** | Supabase (PostgreSQL) | Relational data with Row-Level Security (RLS) |
-| **ORM** | Drizzle ORM | Type-safe SQL queries and schema management |
-| **Auth** | Supabase Auth + bcryptjs | Session-based auth with role-based access control |
-| **Payments** | DusuPay API | Mobile money and bank payout collections/disbursements |
-| **Email** | Resend + React Email | Transactional and notification emails |
-| **Real-Time** | Pusher | Live notifications and dashboard updates |
-| **Rate Limiting** | Upstash Redis | API rate limiting and brute-force protection |
-| **Validation** | Zod | Runtime schema validation for all inputs |
-| **Analytics** | Vercel Analytics | Production traffic and performance monitoring |
+| **Database** | Supabase (PostgreSQL) | Relational data with Row-Level Security (RLS) as the primary access-control boundary |
+| **ORM** | Drizzle ORM + direct Supabase clients | Schema management (`lib/db/schema.ts`); most business logic uses Supabase clients directly |
+| **Auth** | Supabase Auth | Session-based auth with role-based access control, enforced in `proxy.ts` |
+| **Payments** | DusuPay API | Mobile money and bank payout/collection — two client implementations exist (`lib/dusupay.ts` for the webhook/verify path, `lib/dusupay/client.ts` for outbound payout/collection calls) — see [System Architecture](#system-architecture) |
+| **Email** | Resend + React Email | Templates in `lib/emails/*.tsx`; dispatched via `lib/email-service.ts` |
+| **Real-Time** | Supabase Realtime | Live dashboard updates and in-app notifications (migrated off Pusher — do not reintroduce Pusher code) |
+| **Push Notifications** | Web Push (VAPID) | Browser push as part of the notification delivery chain in `lib/notifications.ts` |
+| **Rate Limiting** | Upstash Redis | API rate limiting and brute-force protection (no-op'd under `PLAYWRIGHT_TEST=1`) |
+| **Validation** | Zod | Runtime schema validation for all inputs (`lib/validations/`) |
+| **Testing** | Vitest + Playwright | Unit tests (`tests/unit/*.test.ts`) and end-to-end tests (`tests/*.spec.ts`) |
 
 ---
 
 ## System Architecture
 
-### Three-Tier Virtual Wallet
+### Three-Tier Money Flow
 
 ```
 ┌─────────────────────────────────────────────┐
 │         Admin Wallet (Main Stanbic)         │
-│        Platform primary liquidity pool      │
+│      USD-denominated platform liquidity     │
 └──────────────────┬──────────────────────────┘
-                   │ fund_employer_from_admin()
+                   │ Employer wallet top-up approval
+                   │ (routes through real DusuPay calls,
+                   │  see below)
                    ▼
 ┌─────────────────────────────────────────────┐
-│           Employer Virtual Wallet           │
-│    Internal credit/balance per employer     │
+│              Employer Wallet                │
+│   Liability tracker, not a prepaid balance:  │
+│   total_advanced / outstanding_liability /   │
+│   total_repaid / reserved_amount             │
 └──────────────────┬──────────────────────────┘
                    │ reserveFunds() → disburseAdvance()
                    ▼
 ┌─────────────────────────────────────────────┐
-│          DusuPay Wallet Mirror              │
-│    Real-time balance at payment gateway     │
+│              DusuPay Gateway                 │
+│   Real mobile money / bank disbursement      │
 └─────────────────────────────────────────────┘
 ```
 
+Employer wallets track what an employer owes EaziWage, not a spendable prepaid balance. How an employer's top-up request actually moves money depends on `employers.funding_model`:
+
+- **`prefunded`** — a collection leg. The employer pays their own money into EaziWage via a DusuPay mobile money collection; on admin approval, `initializeCollection()` is called and the employer's available balance (`total_advanced`) is credited once DusuPay confirms via webhook.
+- **`debit_order` / `invoice`** — a payout leg. EaziWage sends the employer real cash via DusuPay (`sendFunds()`, resolved against their bank or mobile money on file), recorded as real liability (`outstanding_liability`) that is collected back automatically on their payday through the recoupment flow below.
+
+Either way, a DusuPay call that fails ambiguously (no confirmed response) is never assumed to have failed — the row is left in a `processing` state and resolved by a daily reconciliation job that checks DusuPay's real transaction status, never by an automatic or one-click retry with the same reference.
+
+Individual employee advances are always disbursed the same way regardless of the employer's funding model: `reserveFunds()` holds the amount against the employer's available balance, then `disburseAdvance()` sends it to the employee via DusuPay.
+
+**Payday recoupment**: on an employer's configured payday, `payday_recoupments` are created for their full outstanding liability and collected via a DusuPay mobile money charge (with a manual bank-transfer admin fallback) — independent of and unaffected by their funding model.
+
 ### Core Services
 
-- **`lib/services/payout-service.ts`** — Centralized fund movement, reservation, and disbursement
-- **`lib/dusupay/client.ts`** — DusuPay API wrapper for collections, payouts, and verification
+- **`lib/services/payout-service.ts`** — Centralized fund movement: eligibility checks, fraud screening, fund reservation, and employee disbursement
+- **`lib/services/payday-recoupment-service.ts`** — Payday-triggered liability collection from employers
+- **`lib/dusupay.ts`** — DusuPay client used by the webhook handler (`app/api/webhook/dusupay/route.ts`) and the status-verify route (`app/api/dusupay/verify/route.ts`) — the security-critical inbound path
+- **`lib/dusupay/client.ts`** — DusuPay client used for outbound calls: employee/employer payouts, mobile money collections, and admin balance sync. The two clients are not interchangeable — check which one a file imports before assuming shared behavior
 - **`lib/fraud-engine.ts`** — Rule-based fraud detection (amount, frequency, velocity)
-- **`lib/auth.ts`** — Authentication helpers and session management
-- **`lib/email-service.ts`** — Resend-based email dispatch with React Email templates
-- **`lib/notifications.ts`** — Pusher real-time push notifications
+- **`lib/server/admin-auth.ts`** — Canonical admin-access check (`system_admins` table, falling back to `profiles.role`)
+- **`lib/notifications.ts`** — Multi-channel notification dispatch: writes an in-app row, attempts Web Push, falls back to a Resend email — the in-app row is always the guaranteed delivery
+- **`lib/paymentMethodsService.ts`** — The only place that should read decrypted `payment_methods` PII
 
 ---
 
 ## End-to-End Workflow
 
 ### 1. Employee Request
-- Employee visits the **Request Advance** page
+- Employee visits the **Request Advance** page and selects a saved, verified payment method (`payment_methods` table — mobile money or bank, PII-encrypted at rest)
 - System calculates the **platform fee** based on the employer's risk score
 - Employee sees **Gross Amount**, **Fee**, and **Net Disbursement**
-- Request is saved to the `advances` table with `pending` status
-- Payment details are pulled automatically from `employee_onboarding` (mobile money or bank)
+- Request is saved to the `advances` table with `pending` status; a partial unique index guarantees an employee can never have two pending requests at once, which also protects against accidental duplicate submissions on a network retry
 
 ### 2. Employer Review & Approval
-- Employer views the request in their **Advances Dashboard**
-- On **Approve**, the system calls `payoutService.reserveFunds()`
-- This creates a `pending` transaction in the employer's wallet, locking the funds
-- Approval is blocked if the employer has insufficient balance or outstanding arrears
+- Employer views the request in their **Advances Dashboard** (or it's handled automatically if the employer has opted into auto-approval for low-risk employees)
+- On approval, the system calls `payoutService.reserveFunds()`, which locks the amount against the employer's available balance (`total_advanced - total_repaid - reserved_amount`)
+- Approval is blocked if the employer has insufficient available balance, disbursements are frozen, or the employer is in default
 
-### 3. Admin Oversight & Disbursement
-- Admins track all requests in the **Admin Advances** page
-- For `approved` advances, an admin (or automated trigger) initiates `payoutService.disburseAdvance()`
-- The service fetches the employee's onboarding details and sends a payout request to **DusuPay**
+### 3. Disbursement
+- Approval synchronously triggers `payoutService.disburseAdvance()`, which re-runs eligibility and fraud checks, resolves the employee's payout provider, and calls DusuPay
+- If DusuPay's response is ambiguous (no confirmation received), the service checks DusuPay's real transaction status before ever marking the advance failed — a duplicate submission with the same reference is guaranteed by DusuPay to be rejected outright rather than processed twice, so this can never cause a duplicate real payout
 
-### 4. DusuPay Verification & Webhook
-- DusuPay calls `/api/v1/payouts/verify` to confirm transaction authenticity
-- Final status is delivered via signed webhook to `/api/v1/payouts/webhook`
-- **Success:** Advance status moves to `completed`; reserved funds are finalized
+### 4. DusuPay Webhook Confirmation
+- DusuPay delivers a signed webhook to `/api/webhook/dusupay`, verified via HMAC-SHA256
+- **Success:** Advance status moves to `completed`; a repayment schedule is created
 - **Failure:** Advance status moves to `failed`; reserved funds are released back to the employer
+- A daily reconciliation job independently cross-checks every non-terminal advance and wallet-funding transaction against DusuPay's real status, catching anything a missed or delayed webhook would otherwise leave stuck
 
 ---
 
@@ -138,36 +154,38 @@ eaziwageapp/
 ├── app/                          # Next.js App Router
 │   ├── page.tsx                  # Login page
 │   ├── layout.tsx                # Root layout with fonts & analytics
-│   ├── api/                      # API routes (auth, advances, webhooks, etc.)
+│   ├── api/                      # API routes (auth, advances, webhooks, cron, etc.)
 │   ├── admin/                    # Admin dashboard pages
 │   ├── dashboards/               # Employer & employee dashboards
 │   ├── register/                 # Account registration
 │   ├── forgot-password/          # Password recovery
 │   └── ...
+├── proxy.ts                      # Auth/role gate for all routes (Next 16 middleware equivalent)
 ├── components/
 │   ├── admin/                    # Admin-specific layouts & components
 │   ├── employer/                 # Employer dashboard components
 │   ├── employee/                 # Employee dashboard components
+│   ├── shared/                   # Cross-role shared components (CopyButton, Skeletons, etc.)
 │   ├── layout/                   # Shared layout components (chat, notifications)
 │   └── ui/                       # shadcn/ui base components
 ├── lib/
-│   ├── services/                 # Business logic (payout, earnings)
-│   ├── dusupay/                  # DusuPay integration (client, types, utils, webhooks)
+│   ├── services/                 # Business logic (payout, payday recoupment, earnings)
+│   ├── dusupay.ts                # DusuPay client — webhook/verify path
+│   ├── dusupay/                  # DusuPay client — outbound payout/collection path (types, utils, webhooks)
 │   ├── emails/                   # React Email templates
 │   ├── auth.ts                   # Authentication utilities
 │   ├── fraud-engine.ts           # Fraud detection engine
-│   ├── email-service.ts          # Email delivery service
-│   ├── notifications.ts          # Pusher notification helpers
-│   ├── supabaseAdmin.ts          # Service-role Supabase client
-│   ├── supabaseServer.ts         # Server-side Supabase client
+│   ├── email-service.ts          # Resend-based email delivery
+│   ├── notifications.ts          # In-app / web push / email notification dispatch
+│   ├── supabaseAdmin.ts          # Service-role Supabase client (bypasses RLS — trusted contexts only)
+│   ├── supabaseServer.ts         # Server-side user-scoped Supabase client
+│   ├── constants/                # Canonical column-name constants and status-list guards
 │   └── validations/              # Zod schemas for all inputs
-├── actions/                      # Next.js Server Actions
 ├── types/                        # Shared TypeScript types
-├── constants/                    # Static data and constants
-├── hooks/                        # Custom React hooks
-├── supabase/                     # SQL migrations and schema definitions
-├── emails/                       # Standalone email components
+├── hooks/                        # Custom React hooks (useNotifications, useRealtimeRefresh, etc.)
+├── supabase/migrations/          # SQL migration history, tracked in full
 ├── public/                       # Static assets
+├── tests/                        # Playwright specs + tests/unit (Vitest)
 └── env.ts                        # Environment variable validation
 ```
 
@@ -175,34 +193,46 @@ eaziwageapp/
 
 ## Environment Variables
 
-Create a `.env.local` file with the following variables. The application validates all required variables on startup via `env.ts`.
+Create a `.env.local` file with the following variables. `env.ts` validates a subset of these at server startup — the app will not start if a required one is missing or malformed. DusuPay and Stanbic/cron secrets outside that subset are read directly from `process.env` where used.
 
-### Public (Client-Side)
+### Required — validated by `env.ts`
 
 | Variable | Description |
 |----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous/public API key |
 | `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | Google reCAPTCHA v3 site key |
-| `NEXT_PUBLIC_PUSHER_APP_KEY` | Pusher application key |
-| `NEXT_PUBLIC_PUSHER_CLUSTER` | Pusher cluster (e.g., `mt1`) |
-| `NEXT_PUBLIC_APP_URL` | Base URL of the deployed application |
-
-### Server-Side Only
-
-| Variable | Description |
-|----------|-------------|
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key (bypasses RLS) |
 | `RECAPTCHA_SECRET_KEY` | Google reCAPTCHA v3 secret key |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
 | `RESEND_API_KEY` | Resend API key for transactional email |
-| `ADMIN_EMAILS` | Comma-separated list of admin email addresses |
+| `PII_ENCRYPTION_KEY` | Encryption key for payment-method/bank-account PII and OTP hashing (min 16 characters) |
 | `ADMIN_PASSWORD` | Initial admin account password |
-| `PUSHER_APP_ID` | Pusher application ID |
-| `PUSHER_APP_SECRET` | Pusher application secret |
+| `STANBIC_API_KEY` **or** `STANBIC_SANDBOX_API_KEY` | At least one is required |
 
-> **Note:** DusuPay credentials (`public-key`, `secret-key`) are configured in the DusuPay merchant dashboard and used in API request headers.
+### Optional — validated only if present
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_APP_URL` | Base URL of the deployed application |
+| `ADMIN_NOTIFICATION_EMAIL` | Where critical admin alerts are sent |
+| `VAPID_PUBLIC_KEY` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `SUPABASE_PRIVATE_VAPID_KEY` / `PUSH_VAPID_CONTACT` | Web push notification keys |
+| `STANBIC_CLIENT_SECRET` | Required if `STANBIC_TOKEN_URL` is set |
+| `STANBIC_BASE_URL` / `STANBIC_SANDBOX_BASE_URL` / `STANBIC_SANDBOX_URL_ENDPOINT` / `STANBIC_TOKEN_URL` | Stanbic API endpoint configuration |
+
+### Read directly from `process.env` — not validated by `env.ts`
+
+| Variable | Description |
+|----------|-------------|
+| `DUSUPAY_PUBLIC_KEY` / `DUSUPAY_SECRET_KEY` | DusuPay merchant API credentials |
+| `DUSUPAY_WEBHOOK_SECRET` | Used to verify inbound webhook signatures |
+| `DUSUPAY_ENVIRONMENT` | `sandbox` or `production` |
+| `DUSUPAY_SANDBOX_BASE_URL` / `DUSUPAY_PRODUCTION_BASE_URL` | Override the default DusuPay API host per environment |
+| `CRON_SECRET` | Bearer token required by every `/api/cron/*` and `/api/internal/*` route |
+| `TEST_ADMIN_EMAIL` / `_PASSWORD`, `TEST_EMPLOYER_EMAIL` / `_PASSWORD`, `TEST_EMPLOYEE_EMAIL` / `_PASSWORD` | Playwright test account credentials — a spec skips gracefully rather than failing if these are absent |
+
+> There is no Pusher configuration — it was fully migrated to Supabase Realtime. Do not add `PUSHER_*` env vars back.
 
 ---
 
@@ -216,7 +246,7 @@ Create a `.env.local` file with the following variables. The application validat
 - DusuPay merchant account (sandbox or production)
 - Upstash Redis instance
 - Resend account
-- Pusher account
+- Stanbic API credentials (sandbox or production)
 
 ### Installation
 
@@ -246,19 +276,25 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | `npm run build` | Build the application for production |
 | `npm run start` | Start the production server |
 | `npm run lint` | Run ESLint across the codebase |
+| `npm run test:unit` | Run Vitest unit tests |
+| `npm run test:unit:watch` | Run Vitest in watch mode |
+| `npm run test:unit:coverage` | Run Vitest with coverage |
+| `npm run test:e2e` | Run the full Playwright end-to-end suite (starts its own dev server on port 3001) |
+| `npm run test:webhook` | Run only the DusuPay webhook Playwright spec |
 
 ---
 
 ## Security & Compliance
 
-- **Row-Level Security (RLS):** All Supabase tables enforce RLS policies to ensure users can only access data they are authorized to view.
-- **Webhook Signature Verification:** DusuPay callbacks are verified using HMAC-SHA256 signatures to prevent spoofing.
-- **Idempotency:** Every payout uses a unique `merchant_reference` to prevent duplicate disbursements.
+- **Row-Level Security (RLS):** The primary access-control boundary — Supabase tables enforce RLS policies so users can only access data they are authorized to view, and application-layer checks are treated as a secondary layer, not the source of truth.
+- **Webhook Signature Verification:** DusuPay callbacks are verified using HMAC-SHA256 signatures before any processing.
+- **Idempotency:** Every payout and collection uses a `merchant_reference` derived deterministically from the underlying record (never regenerated per retry). DusuPay confirmed this is enforced as a true server-side idempotency key — a duplicate reference is rejected before it's ever processed, ruling out duplicate disbursement even across retries.
+- **PII Encryption:** Payment method account numbers/phone numbers and employer bank account numbers are encrypted at rest (`pgcrypto`) and only ever decrypted server-side through dedicated RPCs — API responses that read these tables explicitly select non-sensitive fields rather than returning rows wholesale.
 - **Fraud Detection:** Automated rules monitor for amount thresholds, excessive frequency, and velocity attacks.
 - **Rate Limiting:** Upstash Redis protects authentication endpoints and sensitive API routes from brute-force attacks.
 - **reCAPTCHA v3:** Login and registration flows are protected by invisible bot detection.
 - **Input Validation:** All user inputs are validated with Zod schemas before processing or storage.
-- **Role Isolation:** Employer, employee, and admin dashboards are strictly separated with middleware-enforced access control.
+- **Role Isolation:** Employer, employee, and admin routes are strictly separated — `proxy.ts` enforces role prefixes and resolves the session on every request before a route handler runs.
 
 ---
 
@@ -271,9 +307,11 @@ The easiest way to deploy EaziWage is on the **[Vercel Platform](https://vercel.
 3. Add all environment variables from `.env.local` to the Vercel project settings
 4. Deploy
 
-Ensure your DusuPay callback URLs point to your production domain:
-- Verification: `https://your-domain.com/api/v1/payouts/verify`
-- Webhook: `https://your-domain.com/api/v1/payouts/webhook`
+Ensure your DusuPay dashboard's callback URLs point to your production domain:
+- Webhook: `https://your-domain.com/api/webhook/dusupay`
+- Status verification: `https://your-domain.com/api/dusupay/verify`
+
+Five scheduled GitHub Actions workflows (`.github/workflows/`) call back into the deployed app on a schedule and require `CRON_SECRET` as a Bearer token: stats/health sync every 5 minutes, exchange-rate sync, overdue-repayment sweep, and DusuPay reconciliation daily.
 
 ---
 
@@ -284,4 +322,3 @@ This project is proprietary and confidential. Unauthorized copying, distribution
 ---
 
 **Built with care for financial inclusion across East Africa.**
-
