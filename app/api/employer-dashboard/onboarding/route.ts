@@ -96,11 +96,17 @@ export async function POST(req: NextRequest) {
     proof_of_address,
     proof_of_bank_account,
     employment_contract_template,
-    // PII — encrypted at rest, written via upsert_employer_onboarding_pii
-    // RPC rather than stored raw in the plain .update() below
+    // PII — encrypted at rest (bytea columns), written via
+    // upsert_employer_onboarding_pii RPC rather than stored raw in the plain
+    // .update() below. tax_id is a plain text column (confirmed live) and is
+    // NOT in this bucket — it was previously grouped in here by mistake,
+    // which meant it was destructured out of `fields` but never passed to
+    // the PII RPC either, so it was silently dropped and never persisted no
+    // matter what an employer entered at onboarding. It's left in `fields`
+    // now so the normal .update() call below writes it like any other
+    // plain column.
     bank_account_number,
     mobile_money_number,
-    tax_id,
     /* eslint-enable @typescript-eslint/no-unused-vars */
     ...fields
   } = parsed.data;

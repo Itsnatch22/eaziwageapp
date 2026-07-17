@@ -39,14 +39,22 @@ export async function GET() {
   // select above, so a raw ciphertext value never accidentally leaks into a
   // response payload.
   let decryptedMobileMoneyNumber: string | null = null;
+  let decryptedBankAccountNumber: string | null = null;
   if (onboarding) {
     const { PII_ENCRYPTION_KEY } = getEnv();
     if (PII_ENCRYPTION_KEY) {
-      const { data: dec } = await createAdminClient().rpc('admin_get_employer_mobile_money', {
-        p_onboarding_id: onboarding.id,
-        p_key: PII_ENCRYPTION_KEY,
-      });
-      decryptedMobileMoneyNumber = dec ?? null;
+      const [{ data: mmDec }, { data: bankDec }] = await Promise.all([
+        createAdminClient().rpc('admin_get_employer_mobile_money', {
+          p_onboarding_id: onboarding.id,
+          p_key: PII_ENCRYPTION_KEY,
+        }),
+        createAdminClient().rpc('admin_get_employer_bank_account', {
+          p_onboarding_id: onboarding.id,
+          p_key: PII_ENCRYPTION_KEY,
+        }),
+      ]);
+      decryptedMobileMoneyNumber = mmDec ?? null;
+      decryptedBankAccountNumber = bankDec ?? null;
     }
   }
 
@@ -93,6 +101,7 @@ export async function GET() {
     profile: {
       ...onboarding,
       mobile_money_number: decryptedMobileMoneyNumber,
+      bank_account_number: decryptedBankAccountNumber,
       documents,
       kycDocuments: kycDocuments ?? [],
       currency,
