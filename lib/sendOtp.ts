@@ -75,10 +75,40 @@ export async function sendOtpSms(phoneNumber: string, otp: string, countryCode =
   await sendSms(phoneNumber, message, countryCode);
 }
 
+// Africa's Talking has known, recurring reliability issues — the admin
+// api_health dashboard pulls their own status feed and regularly shows the
+// SMS component as degraded. Without a timeout, a slow-but-not-fully-down
+// window (exactly what "degraded" means) can leave this call hanging far
+// longer than a user will wait. A transient network/timeout failure is
+// retried a couple of times with backoff — nothing was definitively sent or
+// rejected yet, so it's safe to try again.
+const SMS_TIMEOUT_MS = 10_000;
+const SMS_MAX_ATTEMPTS = 3;
+const SMS_RETRY_DELAYS_MS = [500, 1500];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`Africa's Talking request timed out after ${ms}ms`)), ms);
+    }),
+  ]);
+}
+
 /**
  * Sends an arbitrary SMS via Africa's Talking — shared by OTP delivery
  * (sendOtpSms above) and admin alert SMS (lib/notifications.ts's notifyAdmin,
  * gated by the Notifications tab's sms_* toggles).
+ *
+ * Retries only on a network/timeout failure (Africa's Talking never
+ * definitively responded). A response that DID arrive with a non-Success
+ * per-recipient status (invalid number, blacklisted, insufficient balance,
+ * etc.) is their actual answer for that number — retrying won't change it,
+ * so that case fails immediately without a retry.
  */
 export async function sendSms(phoneNumber: string, message: string, countryCode = 'KE'): Promise<void> {
   const to = normalizeToE164(phoneNumber, countryCode);
@@ -89,12 +119,32 @@ export async function sendSms(phoneNumber: string, message: string, countryCode 
     options.from = process.env.AT_SENDER_ID;
   }
 
-  const response = await getSmsClient().send(options);
+  let lastNetworkError: unknown = null;
 
-  const recipients = response?.SMSMessageData?.Recipients ?? [];
-  const failed = recipients.find((r: { status: string }) => r.status !== 'Success');
+  for (let attempt = 0; attempt < SMS_MAX_ATTEMPTS; attempt++) {
+    let response;
+    try {
+      response = await withTimeout(getSmsClient().send(options), SMS_TIMEOUT_MS);
+    } catch (err) {
+      lastNetworkError = err;
+      if (attempt < SMS_MAX_ATTEMPTS - 1) {
+        await sleep(SMS_RETRY_DELAYS_MS[attempt] ?? 1500);
+        continue;
+      }
+      throw new Error(
+        `Africa's Talking SMS failed after ${SMS_MAX_ATTEMPTS} attempts: ${err instanceof Error ? err.message : 'Network error'}`
+      );
+    }
 
-  if (failed) {
+    const recipients = response?.SMSMessageData?.Recipients ?? [];
+    const failed = recipients.find((r: { status: string }) => r.status !== 'Success');
+
+    if (!failed) return;
+
     throw new Error(`Africa's Talking SMS failed: ${failed.status}`);
   }
+
+  // Unreachable — the loop above always returns or throws — kept only to
+  // satisfy TypeScript's control-flow analysis of a guaranteed return path.
+  throw new Error(`Africa's Talking SMS failed: ${lastNetworkError instanceof Error ? lastNetworkError.message : 'Unknown error'}`);
 }

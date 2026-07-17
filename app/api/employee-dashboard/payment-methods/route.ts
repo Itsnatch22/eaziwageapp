@@ -130,9 +130,9 @@ export async function POST(req: NextRequest) {
 
       try {
         await sendOtpSms(phoneNumber, otp);
-        console.info('[payment-methods] OTP sent via Twilio'); // do not log phone number — PII
+        console.info("[payment-methods] OTP sent via Africa's Talking"); // do not log phone number — PII
       } catch (smsErr) {
-        console.error('[payment-methods] Twilio SMS failed', smsErr);
+        console.error("[payment-methods] Africa's Talking SMS failed", smsErr);
         return NextResponse.json({ error: 'Failed to send verification SMS. Try again.' }, { status: 500 });
       }
 
