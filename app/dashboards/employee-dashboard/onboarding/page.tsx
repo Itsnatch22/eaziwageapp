@@ -1124,6 +1124,7 @@ export default function Onboarding() {
         return !!(
           (formData.employer_id || formData.company_code) &&
           formData.job_title &&
+          formData.employment_type &&
           formData.joining_month &&
           formData.joining_year &&
           (uploadedFiles.payslip_1 || isDocLocked("payslip_1")) &&
@@ -1135,6 +1136,7 @@ export default function Onboarding() {
         return !!(
           formData.country &&
           formData.bank_name &&
+          formData.mobile_money_provider &&
           formData.mobile_money_number &&
           formData.bank_account &&
           (uploadedFiles.bank_statement || isDocLocked("bank_statement"))
