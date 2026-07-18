@@ -4,7 +4,7 @@ import { createServerClient }        from '@supabase/ssr';
 import { z }                         from 'zod';
 
 import { getEnv }                          from '@/env';
-import { rateLimiter, checkRateLimit }     from '@/lib/rate-limit';
+import { loginLimiter, checkRateLimit }     from '@/lib/rate-limit';
 import { sendAccountLockedEmail }          from '@/lib/security-alerts';
 import type { LoginContext }               from '@/lib/security-alerts';
 import { handleLoginSecurity }             from '@/lib/security-service';
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   console.log('[login] === LOGIN ATTEMPT START ===');
   console.log('[login] IP:', ip, 'User-Agent:', userAgent.substring(0, 50));
 
-  const rateResult = await checkRateLimit(rateLimiter, `login:${ip}`);
+  const rateResult = await checkRateLimit(loginLimiter, `login:${ip}`);
   if (!rateResult.success) {
     console.log('[login] BLOCKED: Rate limit exceeded for IP:', ip);
     return NextResponse.json(

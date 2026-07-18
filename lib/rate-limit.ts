@@ -47,6 +47,25 @@ function createLimiter(prefix: string, tokens = 7, window: `${number} ${"ms" | "
 export const rateLimiter = createLimiter("ratelimit:register");
 
 /**
+ * Rate limiter for login attempts — split out from `rateLimiter` (which
+ * register/forgot-password/reset-password still use). 7/hour is right for
+ * those rare, deliberate actions but was far too tight for login, a routine
+ * action that legitimately happens many times an hour when testing multiple
+ * roles from one IP.
+ */
+export const loginLimiter = createLimiter("ratelimit:login", 25, "1 h");
+
+/**
+ * Rate limiter for payment-method OTP confirmation attempts. Previously
+ * reused advanceLimiter's 5-per-6-hours ceiling (meant for advance-request
+ * creation, a rare cooldown-governed action) as a generic hard cap — a
+ * handful of mistyped or expired OTP codes could lock a user out of
+ * verifying a payment method for 6 hours. Deliberately mirrors
+ * mfaVerifyLimiter's shape (also a short-code verification attempt counter).
+ */
+export const otpConfirmLimiter = createLimiter("ratelimit:otp_confirm", 8, "15 m");
+
+/**
  * Rate limiter for email verification resend
  * Limits to 3 resend attempts per hour per email
  */

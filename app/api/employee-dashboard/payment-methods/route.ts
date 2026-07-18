@@ -4,7 +4,7 @@ import { createHmac } from 'crypto';
 import { z } from 'zod';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
-import { checkRateLimit, advanceLimiter } from '@/lib/rate-limit';
+import { checkRateLimit, otpConfirmLimiter } from '@/lib/rate-limit';
 import { getEnv } from '@/env';
 import {
   createPaymentMethod,
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
       if (!id || !otp) return NextResponse.json({ error: 'Missing id or otp for confirm_verification' }, { status: 400 });
 
       // Rate limit OTP confirm attempts per user — hard cap regardless of what the DB says
-      const otpRateResult = await checkRateLimit(advanceLimiter, `otp-confirm:${user.id}`);
+      const otpRateResult = await checkRateLimit(otpConfirmLimiter, `otp-confirm:${user.id}`);
       if (!otpRateResult.success) {
         return NextResponse.json(
           { error: 'Too many verification attempts. Please wait before trying again.' },
