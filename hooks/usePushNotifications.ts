@@ -29,21 +29,25 @@ export function usePushNotifications() {
     }).catch(() => setStatus('unsubscribed'));
   }, []);
 
-  const subscribe = useCallback(async () => {
+  // Returns whether the subscription actually succeeded — callers that
+  // persist a "push enabled" preference must check this rather than
+  // assuming success, since every failure path here is caught internally
+  // (to drive the denied/unsupported UI hints) instead of throwing.
+  const subscribe = useCallback(async (): Promise<boolean> => {
     setError(null);
     setStatus('loading');
 
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         setStatus('unsupported');
-        return;
+        return false;
       }
 
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         setStatus('denied');
         setError('Notification permission was denied.');
-        return;
+        return false;
       }
 
       // Reuse an existing registration to avoid a race between register() and ready
@@ -89,14 +93,16 @@ export function usePushNotifications() {
       }
 
       setStatus('subscribed');
+      return true;
     } catch (err) {
       console.error('[usePushNotifications] subscribe error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong.');
       setStatus('unsubscribed');
+      return false;
     }
   }, []);
 
-  const unsubscribe = useCallback(async () => {
+  const unsubscribe = useCallback(async (): Promise<boolean> => {
     setError(null);
     setStatus('loading');
 
@@ -115,10 +121,12 @@ export function usePushNotifications() {
       }
 
       setStatus('unsubscribed');
+      return true;
     } catch (err) {
       console.error('[usePushNotifications] unsubscribe error:', err);
       setError(err instanceof Error ? err.message : 'Failed to unsubscribe.');
       setStatus('subscribed'); // revert
+      return false;
     }
   }, []);
 

@@ -98,6 +98,7 @@ interface Settings {
   cooldownPeriod: number;
   emailNotifications: boolean;
   advanceAlerts: boolean;
+  pushNotifications: boolean;
   payrollCycle: string;
 }
 
@@ -577,6 +578,7 @@ export default function EmployerSettings() {
     cooldownPeriod: 7,
     emailNotifications: true,
     advanceAlerts: true,
+    pushNotifications: false,
     payrollCycle: 'monthly',
   });
 
@@ -1015,15 +1017,22 @@ export default function EmployerSettings() {
   setNotifLoading(true);
   try {
 
-    if (key === 'pushNotifications') {
-      if (value) await subscribe();
-      else await unsubscribe();
+    if (key === 'pushNotifications' && value) {
+      // Only bail on a failed subscribe — see identical comment on the
+      // employee settings page's handleNotificationUpdate.
+      const subscribed = await subscribe();
+      if (!subscribed) {
+        toast.error('Could not enable push notifications — check your browser permissions.');
+        return;
+      }
+    } else if (key === 'pushNotifications' && !value) {
+      await unsubscribe();
     }
 
     const newPrefs = {
       emailNotifications: key === 'emailNotifications' ? value : settings.emailNotifications,
       advanceAlerts: key === 'advanceAlerts' ? value : settings.advanceAlerts,
-      pushNotifications: key === 'pushNotifications' ? value : (settings as Settings & { pushNotifications?: boolean }).pushNotifications ?? false,
+      pushNotifications: key === 'pushNotifications' ? value : settings.pushNotifications,
     };
 
     const res = await fetch('/api/employer-dashboard/notifications/preferences', {
@@ -1033,9 +1042,7 @@ export default function EmployerSettings() {
     });
 
     if (res.ok) {
-      if (key !== 'pushNotifications') {
-        setSettings((prev) => ({ ...prev, [key]: value }));
-      }
+      setSettings((prev) => ({ ...prev, [key]: value }));
       toast.success(value ? 'Enabled' : 'Disabled');
     } else {
       const err = await res.json();
@@ -1560,7 +1567,7 @@ export default function EmployerSettings() {
         icon={Smartphone}
         label="Push Notifications"
         description="Real-time alerts directly in your browser"
-        checked={(settings as Settings & { pushNotifications?: boolean }).pushNotifications ?? false}
+        checked={settings.pushNotifications}
         onToggle={(v) => void handleNotificationUpdate('pushNotifications', v)}
         disabled={notifLoading || pushStatus === 'unsupported'}
       />

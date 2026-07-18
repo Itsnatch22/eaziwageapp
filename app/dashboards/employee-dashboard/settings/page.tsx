@@ -412,14 +412,20 @@ export default function EmployeeSettings() {
   setNotificationLoading(true);
   try {
 
-    if (key === 'pushNotifications') {
-      if (value) {
-        await subscribe(); // registers sw + saves to system_push_subscriptions
-      } else {
-        await unsubscribe(); // deactivates in system_push_subscriptions
+    if (key === 'pushNotifications' && value) {
+      // Only bail on a failed subscribe — the preference would then claim
+      // push is on when no subscription actually exists. A failed
+      // unsubscribe is not blocking: the user's intent (stop sending push)
+      // is still honored server-side via the preference itself even if the
+      // browser-level subscription teardown didn't succeed.
+      const subscribed = await subscribe();
+      if (!subscribed) {
+        toast.error('Could not enable push notifications — check your browser permissions.');
+        return;
       }
+    } else if (key === 'pushNotifications' && !value) {
+      await unsubscribe();
     }
-
 
     const newPrefs = { ...notificationPrefs, [key]: value };
     const res = await fetch('/api/employee-dashboard/notifications/preferences', {
