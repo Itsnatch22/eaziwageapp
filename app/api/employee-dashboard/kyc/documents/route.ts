@@ -10,6 +10,7 @@ import { notifyAdmin, notifyEmployer } from '@/lib/notifications';
 import { getSafeFileExtension, isDocumentFile, isImageFile } from '@/lib/upload-file-types';
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { formatStatusLabel } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
@@ -296,13 +297,13 @@ export async function POST(req: NextRequest) {
             userId: employer.user_id,
             type: 'employee',
             title: 'KYC Document Uploaded',
-            message: `${profile?.full_name || 'An employee'} has uploaded a new ${documentType}.`,
+            message: `${profile?.full_name || 'An employee'} has uploaded a new ${formatStatusLabel(documentType)}.`,
           });
 
           await notifyAdmin({
             type: 'review_request',
             title: 'New KYC Document',
-            message: `${profile?.full_name || 'An employee'} from ${employer.company_name} uploaded a ${documentType}.`,
+            message: `${profile?.full_name || 'An employee'} from ${employer.company_name} uploaded a ${formatStatusLabel(documentType)}.`,
             metadata: {
               user_id: user.id,
               employer_id: empOnboarding.employer_id,

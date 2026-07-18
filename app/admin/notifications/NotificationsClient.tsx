@@ -13,6 +13,9 @@ import { formatDateTime, cn }      from '@/lib/utils';
 import { toast }                   from 'sonner';
 import Link from 'next/link';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
+import { Pagination } from '@/components/shared/Pagination';
+
+const PAGE_SIZE = 10;
 
 
 interface Notification {
@@ -106,6 +109,7 @@ export default function AdminNotificationsPage() {
   const [loading,       setLoading]       = useState(true);
   const [searchTerm,    setSearchTerm]    = useState('');
   const [filter,        setFilter]        = useState<'all' | 'unread'>('all');
+  const [currentPage,   setCurrentPage]   = useState(1);
 
   const [health,        setHealth]        = useState<HealthData | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
@@ -246,6 +250,13 @@ export default function AdminNotificationsPage() {
     }
     return true;
   });
+
+  // safePage clamps to the new totalPages on every render, so changing the
+  // search term or filter automatically lands on a valid page without a
+  // separate reset effect.
+  const totalPages = Math.max(1, Math.ceil(filteredNotifications.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedNotifications = filteredNotifications.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const failedCount = health?.failed.length ?? 0;
 
@@ -465,7 +476,7 @@ export default function AdminNotificationsPage() {
             <div className="flex items-center justify-center py-20">
               <div className="w-10 h-10 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
             </div>
-          ) : filteredNotifications.length === 0 ? (
+          ) : paginatedNotifications.length === 0 ? (
             <div className="text-center py-20 px-4">
               <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800/50 rounded-3xl flex items-center justify-center mx-auto mb-4">
                 <Bell className="w-10 h-10 text-slate-300" />
@@ -479,7 +490,7 @@ export default function AdminNotificationsPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredNotifications.map(notif => (
+              {paginatedNotifications.map(notif => (
                 <div
                   key={notif.id}
                   className={cn(
@@ -543,6 +554,13 @@ export default function AdminNotificationsPage() {
               ))}
             </div>
           )}
+          <Pagination
+            currentPage={safePage}
+            totalItems={filteredNotifications.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+            className="border-t border-slate-100 dark:border-slate-800"
+          />
         </div>
       </div>
     </>

@@ -19,6 +19,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Pagination } from '@/components/shared/Pagination';
+
+const PAGE_SIZE = 10;
 
 interface Notification {
   id: string;
@@ -32,6 +35,7 @@ interface Notification {
 export default function EmployeeNotificationsPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
     const user = useAuthStore((state) => state.user);
 
     const fetchNotifications = useCallback(async () => {
@@ -154,6 +158,9 @@ export default function EmployeeNotificationsPage() {
     };
 
     const unreadCount = notifications.filter(n => !n.read).length;
+    const totalPages = Math.max(1, Math.ceil(notifications.length / PAGE_SIZE));
+    const safePage = Math.min(currentPage, totalPages);
+    const paginatedNotifications = notifications.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
     return (
         <EmployeePortalLayout>
@@ -221,7 +228,7 @@ export default function EmployeeNotificationsPage() {
                         </div>
                     ) : (
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {notifications.map((notif) => (
+                            {paginatedNotifications.map((notif) => (
                                 <div 
                                     key={notif.id}
                                     className={cn(
@@ -299,6 +306,13 @@ export default function EmployeeNotificationsPage() {
                             ))}
                         </div>
                     )}
+                    <Pagination
+                        currentPage={safePage}
+                        totalItems={notifications.length}
+                        pageSize={PAGE_SIZE}
+                        onPageChange={setCurrentPage}
+                        className="border-t border-slate-100 dark:border-slate-800"
+                    />
                 </div>
 
                 

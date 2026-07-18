@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/lib/supabaseAdmin";
+import { formatStatusLabel } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
     await notifyAdmin({
         type: 'employer_kyc',
         title: 'New KYC Document Uploaded',
-        message: `${documentType.replace(/_/g, ' ')} uploaded by employer.`,
+        message: `${formatStatusLabel(documentType)} uploaded by employer.`,
         metadata: {
             employer_id: existingProfile.id,
             document_type: documentType,
