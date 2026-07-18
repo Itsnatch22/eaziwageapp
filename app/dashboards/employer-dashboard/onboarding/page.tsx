@@ -22,6 +22,7 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { DOCUMENT_ACCEPT, isDocumentFile } from "@/lib/upload-file-types";
 import { DocTooltip } from "@/components/shared/DocTooltip";
 import type { KycAdditionalFile } from "@/lib/constants/kyc-multi-file";
+import { AFRICAN_NATIONALITIES } from "@/lib/constants/nationalities";
 
 const COUNTRIES = [
   { code: "KE", name: "Kenya" },
@@ -389,7 +390,16 @@ const BeneficialOwnerRow = ({ owner, index, onUpdate, onRemove }: BeneficialOwne
       <Input placeholder="ID Number" value={owner.id_number} onChange={(e) => onUpdate(index, "id_number", e.target.value)} className="h-11 rounded-lg bg-white dark:bg-slate-800/50" />
     </div>
     <div className="grid grid-cols-2 gap-3">
-      <Input placeholder="Nationality" value={owner.nationality} onChange={(e) => onUpdate(index, "nationality", e.target.value)} className="h-11 rounded-lg bg-white dark:bg-slate-800/50" />
+      <Select value={owner.nationality || undefined} onValueChange={(v) => onUpdate(index, "nationality", v)}>
+        <SelectTrigger className="h-11 rounded-lg bg-white dark:bg-slate-800/50" aria-label={`Nationality for owner ${index + 1}`}>
+          <SelectValue placeholder="Nationality" />
+        </SelectTrigger>
+        <SelectContent className="max-h-64">
+          {AFRICAN_NATIONALITIES.map((n) => (
+            <SelectItem key={n} value={n}>{n}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Input type="number" placeholder="Ownership %" value={owner.ownership_percentage} onChange={(e) => onUpdate(index, "ownership_percentage", parseFloat(e.target.value) || 0)} className="h-11 rounded-lg bg-white dark:bg-slate-800/50" min="0" max="100" />
     </div>
     <div className="flex items-center gap-2">
@@ -1171,7 +1181,7 @@ const handleRemoveAttachment = async (documentType: string, storagePath: string)
                     Rejected: {rejectionNote("cr12_document")}
                   </p>
                 )}
-                <FileUploader label="CR12 / Company Directors" description="Company registry document showing directors" onUpload={(file) => handleFileUpload(file, "cr12_document")} uploadedFile={uploadedFiles.cr12_document} uploading={uploadingFile === "cr12_document"} locked={isDocLocked("cr12_document")} testId="upload-cr12" required />
+                <FileUploader label="Registered Company/Shareholders" description="Company registry document showing registered company and shareholders" onUpload={(file) => handleFileUpload(file, "cr12_document")} uploadedFile={uploadedFiles.cr12_document} uploading={uploadingFile === "cr12_document"} locked={isDocLocked("cr12_document")} testId="upload-cr12" required />
               </div>
             </div>
           </div>

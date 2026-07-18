@@ -499,7 +499,7 @@ const faqItems = [
   },
   {
     question: "What documents are required for employer verification?",
-    answer: "You need: Certificate of Incorporation, KRA PIN Certificate, CR12 Document (Company Directors), Business Permit, and Proof of Bank Account. Audited Financials are recommended for better risk scoring."
+    answer: "You need: Certificate of Incorporation, KRA PIN Certificate, Registered Company/Shareholders document, Business Permit, and Proof of Bank Account. Audited Financials are recommended for better risk scoring."
   },
   {
     question: "How is the advance fee calculated?",
@@ -1072,7 +1072,7 @@ export default function EmployerSettings() {
     { key: 'certificate_of_incorporation', label: 'Certificate of Incorporation' },
     { key: 'business_registration', label: 'Business Registration' },
     { key: 'tax_compliance_certificate', label: 'Tax Compliance Certificate' },
-    { key: 'cr12_document', label: 'CR12 Document' },
+    { key: 'cr12_document', label: 'Registered Company/Shareholders' },
     { key: 'kra_pin_certificate', label: 'KRA PIN Certificate' },
     { key: 'business_permit', label: 'Business Permit' },
     { key: 'audited_financials', label: 'Audited Financials' },

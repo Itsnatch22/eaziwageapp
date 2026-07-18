@@ -54,7 +54,7 @@ const EMPLOYER_DOC_LABELS: Record<string, string> = {
   certificate_of_incorporation: 'Certificate of Incorporation',
   business_registration: 'Business Registration',
   tax_compliance_certificate: 'Tax Compliance Certificate',
-  cr12_document: 'CR12 Document',
+  cr12_document: 'Registered Company/Shareholders',
   kra_pin_certificate: 'KRA PIN Certificate',
   business_permit: 'Business Permit',
   audited_financials: 'Audited Financials',
