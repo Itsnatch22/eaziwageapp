@@ -62,7 +62,7 @@ export async function PATCH(
 
   const { data: initialEmployer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
-    .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
+    .select('id,user_id,company_name,status,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
     .eq('id', id)
     .maybeSingle();
   let employer = initialEmployer;
@@ -78,7 +78,7 @@ export async function PATCH(
     if (primaryEmp) {
       const { data: fallbackOnboarding } = await adminSupabase
         .from('employer_onboarding')
-        .select('id,user_id,company_name,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
+        .select('id,user_id,company_name,status,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
         .eq('user_id', primaryEmp.user_id)
         .maybeSingle();
       
@@ -154,6 +154,18 @@ export async function PATCH(
     // carve-outs — write them directly since no document bulk-update above
     // would ever produce them.
     ...(status === 'suspended' || status === 'risk_review_in_progress' ? { status } : {}),
+    // The recompute trigger deliberately skips recomputing status while the
+    // *current* status is 'suspended'/'risk_review_in_progress' (so document
+    // activity can't silently override a manual hold) — but that means the
+    // document bulk-update above can never move status OUT of a hold either,
+    // even when the admin is explicitly requesting approved/pending/rejected.
+    // Without this, un-suspending an employer was structurally impossible:
+    // every attempt 422'd with a "status still 'suspended'" mismatch,
+    // confirmed live against a real employer stuck exactly this way.
+    ...((employer.status === 'suspended' || employer.status === 'risk_review_in_progress') &&
+      (status === 'approved' || status === 'pending' || status === 'rejected')
+      ? { status }
+      : {}),
   };
 
   const resolvedMinAdvance =
