@@ -3,7 +3,7 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { getEnv } from '@/env';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis } from '@upstash/redis';
 import { z } from 'zod';
 import { dbErrorResponse } from '@/lib/api-errors';
@@ -65,7 +65,7 @@ async function verifyAdminUser(supabase: SupabaseClient): Promise<{ user: AdminU
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-reports:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-reports:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(
@@ -230,7 +230,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-reports-create:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-reports-create:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(

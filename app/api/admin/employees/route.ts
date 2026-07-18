@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 
 const QueryParamsSchema = z.object({
@@ -89,7 +89,7 @@ function buildFromOnboarding(rows: OnboardingRow[], pendingKycByUserId: Map<stri
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-    const rateResult = await checkRateLimit(apiLimiter, `admin-employees:${ip}`);
+    const rateResult = await checkRateLimit(adminApiLimiter, `admin-employees:${ip}`);
 
     if (!rateResult.success) {
       return NextResponse.json(

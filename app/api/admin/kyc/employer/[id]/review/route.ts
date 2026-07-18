@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { notifyEmployer } from '@/lib/notifications';
 import { activateUser, deactivateUser } from '@/lib/activation';
@@ -18,7 +18,7 @@ export async function PATCH(
   const notes = searchParams.get('notes') || '';
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-employer-kyc-review:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-employer-kyc-review:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(

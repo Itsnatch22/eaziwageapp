@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient }             from '@supabase/supabase-js';
 import { getEnv }                   from '@/env';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { convertToUSD }             from '@/lib/utils';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
@@ -30,7 +30,7 @@ function resolveCurrency(country?: string | null): string {
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip         = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-billing:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-billing:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(

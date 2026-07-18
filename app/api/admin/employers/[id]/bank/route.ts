@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { EmployerBankPatchSchema } from '@/lib/validations/route-schemas';
 import { getEnv } from '@/env';
@@ -10,7 +10,7 @@ export async function PATCH(
 ): Promise<NextResponse> {
   const { id } = await params;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-employer-bank:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-employer-bank:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(

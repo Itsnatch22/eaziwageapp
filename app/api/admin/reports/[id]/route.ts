@@ -3,7 +3,7 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { getEnv } from '@/env';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { Redis } from '@upstash/redis';
 import { dbErrorResponse } from '@/lib/api-errors';
 
@@ -51,7 +51,7 @@ export async function DELETE(
 ): Promise<NextResponse> {
   const { id } = await params;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-reports-delete:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-reports-delete:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(

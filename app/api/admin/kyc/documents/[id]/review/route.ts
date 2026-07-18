@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { KycDocQuerySchema } from '@/lib/validations/route-schemas';
 import { notifyEmployee } from '@/lib/notifications';
@@ -57,7 +57,7 @@ export async function PATCH(
   const { status, notes } = queryParsed.data;
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-kyc-review:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-kyc-review:${ip}`);
 
   if (!rateResult.success) {
     log('warn', 'rate_limit', 'Rate limit exceeded', { docId, ip });

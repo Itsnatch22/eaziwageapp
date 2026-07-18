@@ -3,7 +3,7 @@ import { createServerClient }        from '@supabase/ssr';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 import { getEnv }                      from '@/env';
-import { apiLimiter, checkRateLimit }  from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit }  from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 import type { User } from '@supabase/supabase-js';
@@ -45,7 +45,7 @@ async function isSystemAdmin(user: User): Promise<boolean> {
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
-  const rate = await checkRateLimit(apiLimiter, `admin-notifications:${ip}`);
+  const rate = await checkRateLimit(adminApiLimiter, `admin-notifications:${ip}`);
   if (!rate.success) {
     return NextResponse.json(
       { error: 'Too many requests. Please wait and try again.' },
@@ -109,7 +109,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip = getClientIp(req);
-  const rate = await checkRateLimit(apiLimiter, `admin-notifications:${ip}`);
+  const rate = await checkRateLimit(adminApiLimiter, `admin-notifications:${ip}`);
   if (!rate.success) {
     return NextResponse.json(
       { error: 'Too many requests.' },
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
 export async function DELETE(req: NextRequest) {
     const ip = getClientIp(req);
-    const rateResult = await checkRateLimit(apiLimiter, `admin-notif-delete:${ip}`);
+    const rateResult = await checkRateLimit(adminApiLimiter, `admin-notif-delete:${ip}`);
     if (!rateResult.success) return NextResponse.json({ error: 'Too many requests.' }, { status: 429 });
 
     const { searchParams } = new URL(req.url);

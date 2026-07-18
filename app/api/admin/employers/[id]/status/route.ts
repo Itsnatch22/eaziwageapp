@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { EmployerStatusPatchSchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer } from '@/lib/notifications';
@@ -25,7 +25,7 @@ export async function PATCH(
 ): Promise<NextResponse> {
   const { id } = await params;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-employer-status:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-employer-status:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(

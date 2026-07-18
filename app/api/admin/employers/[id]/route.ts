@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getEnv } from '@/env';
 
@@ -34,7 +34,7 @@ export async function GET(
   const { id } = await params;
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-employer-detail:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-employer-detail:${ip}`);
   if (!rateResult.success) {
     return NextResponse.json(
       { error: 'Too many requests.', code: 'RATE_LIMITED' },
@@ -167,7 +167,7 @@ export async function PATCH(
 ): Promise<NextResponse> {
   const { id } = await params;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-employer-patch:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-employer-patch:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(

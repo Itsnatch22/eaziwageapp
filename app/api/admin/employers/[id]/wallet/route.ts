@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 
 // :id is the employer_onboarding id (matches /api/admin/employers/[id] and the
@@ -12,7 +12,7 @@ export async function GET(
   const { id } = await params;
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-employer-wallet:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-employer-wallet:${ip}`);
   if (!rateResult.success) {
     return NextResponse.json(
       { error: 'Too many requests.', code: 'RATE_LIMITED' },

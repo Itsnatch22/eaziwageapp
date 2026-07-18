@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
 
@@ -110,7 +110,7 @@ function calculateApplicationFee(crs: number): number {
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-employers:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-employers:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { generateReportCsv, type ReportType } from '@/lib/services/report-generation';
 
 type AdminUserMetadata = Record<string, unknown>;
@@ -51,7 +51,7 @@ export async function GET(
 ): Promise<NextResponse> {
   const { id } = await params;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const rateResult = await checkRateLimit(apiLimiter, `admin-reports-download:${ip}`);
+  const rateResult = await checkRateLimit(adminApiLimiter, `admin-reports-download:${ip}`);
 
   if (!rateResult.success) {
     return NextResponse.json(
