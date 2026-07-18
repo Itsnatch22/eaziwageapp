@@ -286,7 +286,7 @@ export class PayoutService {
       .select(`
         *,
         e:employees(id, full_name, kyc_status, status:status, risk_score, employer_id, country, monthly_salary, created_at),
-        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access, instant_enabled, funding_model, risk_tier, funding_buffer_percent, credit_limit)
+        er:employers(is_verified, ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access, instant_enabled, funding_model, risk_tier, funding_buffer_percent, credit_limit)
       `)
       .eq('id', advanceId)
       .maybeSingle();
@@ -337,6 +337,7 @@ export class PayoutService {
     }
 
     interface EmployerRow {
+      is_verified?: boolean | null;
       ewa_enabled?: boolean | null;
       disbursements_frozen?: boolean | null;
       freeze_reason?: string | null;
@@ -395,6 +396,20 @@ export class PayoutService {
     if (!employer?.ewa_enabled) {
       await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'EWA not enabled for this employer' }).eq('id', advanceId);
       throw new Error('EWA not enabled for employer');
+    }
+
+    // is_verified is kept live-synced to the employer's actual KYC rollup
+    // (trg_sync_employer_kyc_to_live) independent of the employer's account
+    // status, which an admin controls separately and can stay 'approved'
+    // indefinitely. A KYC document rejected after the employer was already
+    // approved flips this to false without touching account status — this
+    // is the real money-movement chokepoint, so it must be checked here even
+    // though app/api/employee-dashboard/request-advance/route.ts already
+    // checks it at request-creation time (an advance can sit pending for
+    // days between those two points).
+    if (employer?.is_verified !== true) {
+      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'Employer KYC verification is not currently valid' }).eq('id', advanceId);
+      throw new Error('Employer KYC verification is not currently valid');
     }
 
     // Employer arrears gate: if a past payday's recoupment was declined or never

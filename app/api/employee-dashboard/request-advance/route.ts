@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
     // organization_id is required for the advances.organization_id NOT NULL constraint.
     const { data: employerRecord, error: employerLookupError } = await adminSupabase
       .from('employers')
-      .select('id, organization_id, status, ewa_enabled, disbursements_frozen, is_defaulted, auto_approve')
+      .select('id, organization_id, status, is_verified, ewa_enabled, disbursements_frozen, is_defaulted, auto_approve')
       .eq('onboarding_id', employee.employer_id)
       .maybeSingle();
 
@@ -262,6 +262,15 @@ export async function POST(req: NextRequest) {
     }
     if (employerRecord.status !== 'approved') {
       return errorResponse(403, 'Your employer account is not yet fully activated. Please contact support.');
+    }
+    // status ('approved') is the admin-controlled account flag and can stay
+    // 'approved' indefinitely; is_verified is kept live-synced to the
+    // employer's actual KYC rollup (trg_sync_employer_kyc_to_live) and flips
+    // to false the moment a KYC document is rejected post-approval, even
+    // though the account itself remains active — that must independently
+    // block money movement here.
+    if (employerRecord.is_verified !== true) {
+      return errorResponse(403, 'Your employer’s KYC verification is not currently valid. Please contact support.');
     }
     if (employerRecord.ewa_enabled === false) {
       return errorResponse(403, 'EWA is not currently enabled for your employer.');
