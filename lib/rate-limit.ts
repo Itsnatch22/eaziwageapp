@@ -66,9 +66,11 @@ export const apiLimiter = createLimiter("ratelimit:api");
 
 /**
  * MFA action limiter (enroll / disable / generate codes)
- * Limits to 10 actions per 10 minutes per user/IP
+ * Raised from 10 to 30 actions per 10 minutes per user/IP — the old ceiling
+ * was tripping during normal admin testing sessions well before anything
+ * resembling abuse.
  */
-export const mfaActionLimiter = createLimiter("ratelimit:mfa_action");
+export const mfaActionLimiter = createLimiter("ratelimit:mfa_action", 30, "10 m");
 
 /**
  * MFA verify limiter (TOTP verification attempts)
