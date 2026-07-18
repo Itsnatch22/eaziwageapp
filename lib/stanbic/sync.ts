@@ -136,6 +136,20 @@ export async function syncStanbicBalance(
     if (rawText.trim()) {
       parsed = JSON.parse(rawText);
       log.info('Stanbic response parsed', { keys: Object.keys(parsed) });
+      // A 200 that parses to an empty {} / [] is the confusing case: auth and
+      // transport succeeded but Stanbic returned no balance. Dump the response
+      // headers + raw body so the next occurrence shows whether it's an Azure
+      // APIM subscription problem (diagnostic header) or an unconfigured
+      // sandbox balance — the empty-*body* branch below already does this, but
+      // an empty-*object* never reached it.
+      if (isRecord(parsed) && Object.keys(parsed).length === 0) {
+        const headerDump: Record<string, string> = {};
+        stanbicRes.headers.forEach((v, k) => { headerDump[k] = v; });
+        log.warn('Stanbic returned an empty object — no balance data', {
+          responseHeaders: headerDump,
+          rawBody: rawText.slice(0, 500),
+        });
+      }
     } else {
       // Empty body with 200 usually means the subscription key header was missing
       // or the account number is not in the URL. Log response headers to diagnose.
