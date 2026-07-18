@@ -1811,6 +1811,7 @@ export default function Onboarding() {
                     value={employerSearch}
                     onChange={(e) => setEmployerSearch(e.target.value)}
                     placeholder="Search companies..."
+                    aria-label="Search for your employer by company name"
                     className="pl-10 h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800"
                   />
                 </div>
@@ -1874,7 +1875,8 @@ export default function Onboarding() {
                     if (e.target.value) updateField("employer_id", "");
                   }}
                   placeholder="e.g. 4VP9HM"
-                  className="h-10 mt-2 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-slate-800 text-xs"
+                  aria-label="Company code, if your employer isn't listed above"
+                  className="h-12 mt-2 rounded-xl bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-slate-800"
                 />
                 </div>
               </div>
@@ -1886,6 +1888,7 @@ export default function Onboarding() {
                   <Input
                     value={formData.job_title}
                     onChange={(e) => updateField("job_title", e.target.value)}
+                    aria-label="Your job title at this employer"
                     className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
                     placeholder="e.g. Sales Manager"
                   />
@@ -1897,6 +1900,7 @@ export default function Onboarding() {
                   <Input
                     value={formData.department}
                     onChange={(e) => updateField("department", e.target.value)}
+                    aria-label="Your department (optional)"
                     className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
                     placeholder="e.g. Operations"
                   />
@@ -1910,7 +1914,7 @@ export default function Onboarding() {
                   value={formData.employment_type}
                   onValueChange={(v) => updateField("employment_type", v)}
                 >
-                  <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                  <SelectTrigger aria-label="Employment type — full-time, part-time, or contract" className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
@@ -1930,6 +1934,7 @@ export default function Onboarding() {
                   onChange={(e) =>
                     updateField("monthly_salary", e.target.value)
                   }
+                  aria-label="Your gross monthly salary, used to calculate your advance limit"
                   className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
                   placeholder="Enter amount..."
                 />
@@ -1944,7 +1949,7 @@ export default function Onboarding() {
                     value={formData.joining_month}
                     onValueChange={(v) => updateField("joining_month", v)}
                   >
-                    <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                    <SelectTrigger aria-label="Month you joined this employer" className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
                       <SelectValue placeholder="Month" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
@@ -1954,7 +1959,7 @@ export default function Onboarding() {
                         "March",
                         "April",
                         "May",
-                        "Jun",
+                        "June",
                         "July",
                         "August",
                         "September",
@@ -1975,7 +1980,7 @@ export default function Onboarding() {
                     value={formData.joining_year}
                     onValueChange={(v) => updateField("joining_year", v)}
                   >
-                    <SelectTrigger className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                    <SelectTrigger aria-label="Year you joined this employer" className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
                       <SelectValue placeholder="Year" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
