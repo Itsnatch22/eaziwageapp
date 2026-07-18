@@ -129,11 +129,11 @@ const getDocumentPreviewKind = (doc: KYCDocument) => {
 
 const GradientIconBox = ({ icon: Icon, variant = 'purple' }: { icon: IconType; variant?: GradientVariant }) => {
   const variants = {
-    purple: 'from-purple-600 to-indigo-600',
-    green: 'from-emerald-500 to-green-600',
-    amber: 'from-amber-500 to-orange-500',
-    red: 'from-red-500 to-rose-500',
-    blue: 'from-blue-500 to-cyan-500',
+    purple: 'from-purple-600 to-purple-700',
+    green: 'from-emerald-500 to-emerald-600',
+    amber: 'from-amber-500 to-amber-600',
+    red: 'from-red-500 to-red-600',
+    blue: 'from-blue-500 to-blue-600',
   };
   return (
     <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center bg-linear-to-br shadow-lg', variants[variant as keyof typeof variants])}>

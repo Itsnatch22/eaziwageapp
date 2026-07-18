@@ -96,7 +96,7 @@ function getSyncStatusIndicator(lastReconciledAt: string | null): {
   const hoursDiff = minutesAgo / 60;
 
   if (hoursDiff < 2) {
-    return { color: 'bg-green-500', label: 'Synced recently', minutesAgo, isStale: false };
+    return { color: 'bg-emerald-500', label: 'Synced recently', minutesAgo, isStale: false };
   } else if (hoursDiff < 24) {
     return { color: 'bg-amber-500', label: 'Synced 2-24 hours ago', minutesAgo, isStale: true };
   } else {
@@ -250,7 +250,7 @@ function DepositModal({
                 type="button"
                 onClick={handleConfirm}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
+                className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
               >
                 {isLoading ? 'Recording...' : `Confirm ${formatCurrency(numAmount, 'USD')}`}
               </button>
@@ -292,7 +292,7 @@ function DepositModal({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="e.g. 5000.00"
-              className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               disabled={isLoading}
             />
           </div>
@@ -306,7 +306,7 @@ function DepositModal({
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               placeholder="e.g. STB-2026-001"
-              className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               disabled={isLoading}
               maxLength={100}
             />
@@ -321,7 +321,7 @@ function DepositModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g. Monthly capital injection"
-              className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               disabled={isLoading}
             />
           </div>
@@ -338,7 +338,7 @@ function DepositModal({
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
             >
               Review Deposit
             </button>
@@ -368,7 +368,7 @@ function TransactionTable({
   const getStatusBadgeColor = (status: TxStatus): string => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300';
+        return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300';
       case 'pending':
         return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300';
       case 'failed':
@@ -416,7 +416,7 @@ function TransactionTable({
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-medium">
                       {TX_TYPE_LABELS[tx.type]}
                     </td>
-                    <td className={`px-4 py-3 font-semibold ${isCredit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <td className={`px-4 py-3 font-semibold ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                       {isCredit ? '+' : '−'}{formatCurrency(Math.abs(displayAmount), displayCurrency)}
                     </td>
                     <td className="px-4 py-3">
@@ -756,8 +756,8 @@ export default function AdminWalletClient({
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
                 Live
               </div>
@@ -793,7 +793,7 @@ export default function AdminWalletClient({
                 <button
                   onClick={handleSync}
                   disabled={isSyncing}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
                   {isSyncing ? 'Syncing…' : 'Sync with Stanbic'}
@@ -812,7 +812,7 @@ export default function AdminWalletClient({
               <button
                 onClick={handleSync}
                 disabled={isSyncing}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
               >
                 <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
                 {isSyncing ? 'Syncing…' : 'Sync Wallet'}

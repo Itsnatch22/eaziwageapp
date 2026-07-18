@@ -451,12 +451,12 @@ export default function TopUpRequestsClient({
                                 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold transition-all',
                                 isApproving || isInsufficient
                                   ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
-                                  : 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-950/50'
+                                  : 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-950/50'
                               )}
                             >
                               {isApproving ? (
                                 <>
-                                  <div className="w-3 h-3 border-2 border-green-700 dark:border-green-400 border-t-transparent rounded-full animate-spin" />
+                                  <div className="w-3 h-3 border-2 border-emerald-700 dark:border-emerald-400 border-t-transparent rounded-full animate-spin" />
                                   Approving…
                                 </>
                               ) : (

@@ -68,7 +68,7 @@ const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'green' }: Gradien
   const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12', lg: 'w-14 h-14' };
   const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6', lg: 'w-7 h-7' };
   const variants: Record<VariantColor, string> = {
-    green: 'from-green-600 to-green-700 shadow-green-500/25',
+    green: 'from-emerald-600 to-emerald-700 shadow-emerald-500/25',
     slate: 'from-slate-600 to-slate-800 shadow-slate-500/25',
     black: 'from-slate-800 to-black shadow-black/25',
   };
@@ -94,7 +94,7 @@ const MetricCard = ({ icon, label, value, subtext, trend, trendUp, variant = 'gr
       <GradientIconBox icon={icon} size="md" variant={variant} />
       {trend && (
         <div className={cn('flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium',
-          trendUp ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'
+          trendUp ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                  : 'bg-slate-200 dark:bg-slate-600/20 text-slate-800 dark:text-slate-400')}>
           <TrendingUp className={cn('w-3 h-3', !trendUp && 'rotate-180')} />
           {trend}
@@ -113,11 +113,11 @@ const AlertCard = ({ icon: Icon, title, count, description, link, variant }: {
   icon: IconComponent; title: string; count: number; description: string; link: string; variant: 'green'|'slate'|'black';
 }) => {
   const variants = {
-    green: 'bg-green-50 dark:bg-green-900/20 border-green-200/50 dark:border-green-700/30',
+    green: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/50 dark:border-emerald-700/30',
     slate: 'bg-slate-100 dark:bg-slate-900/20 border-slate-200/50 dark:border-slate-700/30',
     black: 'bg-slate-200 dark:bg-slate-900/20 border-slate-300/50 dark:border-slate-700/30',
   };
-  const iconColors = { green: 'text-green-600', slate: 'text-slate-600', black: 'text-slate-700' };
+  const iconColors = { green: 'text-emerald-600', slate: 'text-slate-600', black: 'text-slate-700' };
   return (
     <div className={cn('rounded-2xl p-4 flex items-center gap-4 border', variants[variant])}>
       <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-white/60 dark:bg-slate-800/60 shadow-sm">
@@ -139,11 +139,11 @@ const AlertCard = ({ icon: Icon, title, count, description, link, variant }: {
 const NotificationCenter = ({ notifications }: { notifications: Notification[] }) => {
   const getNotificationConfig = (type: string) => {
     const config = {
-      review_request:  { icon: Shield,        bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-600 dark:text-green-400' },
+      review_request:  { icon: Shield,        bg: 'bg-emerald-100 dark:bg-emerald-900/30',  text: 'text-emerald-600 dark:text-emerald-400' },
       employer_kyc:    { icon: Building2,     bg: 'bg-amber-100 dark:bg-amber-500/20',  text: 'text-amber-600' },
       flagged_advance: { icon: AlertTriangle, bg: 'bg-red-100 dark:bg-red-500/20',      text: 'text-red-600' },
       system_alert:    { icon: Bell,          bg: 'bg-blue-100 dark:bg-blue-500/20',     text: 'text-blue-600' },
-      employee:        { icon: Shield,        bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-600 dark:text-green-400' },
+      employee:        { icon: Shield,        bg: 'bg-emerald-100 dark:bg-emerald-900/30',  text: 'text-emerald-600 dark:text-emerald-400' },
     };
     return config[type as keyof typeof config] || config.system_alert;
   };
@@ -162,7 +162,7 @@ const NotificationCenter = ({ notifications }: { notifications: Notification[] }
             className={cn(
               'p-3 rounded-xl border transition-all hover:shadow-sm',
               bg,
-              !notification.read && 'bg-green-50/30 dark:bg-green-900/10'
+              !notification.read && 'bg-emerald-50/30 dark:bg-emerald-900/10'
             )}
           >
             <div className="flex items-start gap-3">
@@ -171,7 +171,7 @@ const NotificationCenter = ({ notifications }: { notifications: Notification[] }
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className={cn('font-semibold text-sm', !notification.read ? 'text-green-700 dark:text-green-400' : text)}>
+                  <p className={cn('font-semibold text-sm', !notification.read ? 'text-emerald-700 dark:text-emerald-400' : text)}>
                     {notification.title}
                   </p>
                   <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -312,7 +312,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-14 h-14 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
+        <div className="w-14 h-14 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
   }
@@ -330,10 +330,10 @@ export default function AdminDashboard() {
               <span className={cn(
                 "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
                 cacheStatus === 'HIT' 
-                  ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300' 
+                  ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' 
                   : 'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-300'
               )}>
-                <span className={cn('w-2 h-2 rounded-full', cacheStatus === 'HIT' ? 'bg-green-500' : 'bg-slate-500')} />
+                <span className={cn('w-2 h-2 rounded-full', cacheStatus === 'HIT' ? 'bg-emerald-500' : 'bg-slate-500')} />
                 Cache {cacheStatus}
               </span>
             )}
@@ -427,14 +427,14 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="grid sm:grid-cols-3 gap-4">
-            <div className="p-4 bg-linear-to-br from-green-500/5 to-green-600/5 dark:from-green-500/10 dark:to-green-600/10 rounded-xl border border-green-200/30 dark:border-green-700/20">
+            <div className="p-4 bg-linear-to-br from-emerald-500/5 to-emerald-600/5 dark:from-emerald-500/10 dark:to-emerald-600/10 rounded-xl border border-emerald-200/30 dark:border-emerald-700/20">
               <p className="text-sm text-slate-500 dark:text-slate-400">Disbursed This Month</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{formatCurrency(stats?.monthly.disbursed || 0, 'USD')}</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{formatCurrency(stats?.monthly.disbursed || 0, 'USD')}</p>
               <p className="text-xs text-slate-400 mt-1">{stats?.monthly.advance_count || 0} advances</p>
             </div>
-            <div className="p-4 bg-linear-to-br from-green-500/5 to-green-600/5 dark:from-green-500/10 dark:to-green-600/10 rounded-xl border border-green-200/30">
+            <div className="p-4 bg-linear-to-br from-emerald-500/5 to-emerald-600/5 dark:from-emerald-500/10 dark:to-emerald-600/10 rounded-xl border border-emerald-200/30">
               <p className="text-sm text-slate-500 dark:text-slate-400">Platform Fees</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(stats?.monthly.fees || 0, 'USD')}</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(stats?.monthly.fees || 0, 'USD')}</p>
               <p className="text-xs text-slate-400 mt-1">Revenue this month</p>
             </div>
             <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
@@ -459,7 +459,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <NotificationCenter notifications={notifications} />
-          <Link href="/admin/notifications" className="inline-flex items-center gap-1 text-sm text-green-600 mt-4 hover:gap-2 transition-all">
+          <Link href="/admin/notifications" className="inline-flex items-center gap-1 text-sm text-emerald-600 mt-4 hover:gap-2 transition-all">
             View All <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -474,7 +474,7 @@ export default function AdminDashboard() {
           { link: '/admin/reconciliation', icon: BarChart3, label: 'Reconciliation', count: reconciliationCount ?? stats?.pending_reconciliation ?? null, variant: 'green' as const },
         ].map((item, i) => (
           <Link key={i} href={item.link} className="group">
-            <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:border-green-300 dark:hover:border-green-600/30 transition-all hover:shadow-lg hover:shadow-green-500/10">
+            <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 hover:border-emerald-300 dark:hover:border-emerald-600/30 transition-all hover:shadow-lg hover:shadow-emerald-500/10">
               <div className="flex items-center gap-3">
                 <GradientIconBox icon={item.icon} size="sm" variant={item.variant} />
                 <div>

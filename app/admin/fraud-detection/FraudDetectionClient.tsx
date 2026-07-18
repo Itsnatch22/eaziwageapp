@@ -81,7 +81,7 @@ const RiskBadge: React.FC<RiskBadgeProps> = ({ level }) => {
   const config: Record<RiskLevel, { color: string; icon: React.ElementType }> = {
     low: { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400', icon: ShieldCheck },
     moderate: { color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400', icon: Shield },
-    elevated: { color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400', icon: ShieldAlert },
+    elevated: { color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400', icon: ShieldAlert },
     high: { color: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400', icon: ShieldOff },
   };
   const { color, icon: Icon } = config[level] ?? config.moderate;
@@ -105,10 +105,10 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, title, value, subtitle, trend, color = 'primary' }) => {
   const colorClasses: Record<StatColor, string> = {
-    primary: 'from-purple-500 to-violet-600',
-    emerald: 'from-emerald-500 to-green-600',
-    amber: 'from-amber-500 to-orange-600',
-    red: 'from-red-500 to-rose-600',
+    primary: 'from-purple-500 to-purple-600',
+    emerald: 'from-emerald-500 to-emerald-600',
+    amber: 'from-amber-500 to-amber-600',
+    red: 'from-red-500 to-red-600',
   };
 
   return (
@@ -195,12 +195,12 @@ const RiskTaxonomySection: React.FC = () => {
             <div className="flex items-start gap-4">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                 category.severity === 'high' ? 'bg-red-100 dark:bg-red-500/20' :
-                category.severity === 'elevated' ? 'bg-orange-100 dark:bg-orange-500/20' :
+                category.severity === 'elevated' ? 'bg-amber-100 dark:bg-amber-500/20' :
                 'bg-amber-100 dark:bg-amber-500/20'
               }`}>
                 <category.icon className={`w-5 h-5 ${
                   category.severity === 'high' ? 'text-red-600 dark:text-red-400' :
-                  category.severity === 'elevated' ? 'text-orange-600 dark:text-orange-400' :
+                  category.severity === 'elevated' ? 'text-amber-600 dark:text-amber-400' :
                   'text-amber-600 dark:text-amber-400'
                 }`} />
               </div>
@@ -266,7 +266,7 @@ const RiskScoringSection: React.FC = () => {
     <div className="grid lg:grid-cols-2 gap-6">
       
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-purple-500/10 to-violet-500/10">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-purple-500/10 to-purple-500/10">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Building2 className="w-5 h-5 text-purple-500" />
             Employer Risk Score (ERS)
@@ -279,7 +279,7 @@ const RiskScoringSection: React.FC = () => {
                 <span className="text-sm text-slate-700 dark:text-slate-300">{item.factor}</span>
                 <div className="flex items-center gap-2">
                   <div className="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-linear-to-r from-purple-500 to-violet-500 rounded-full" style={{ width: `${item.weight}%` }} />
+                    <div className="h-full bg-linear-to-r from-purple-500 to-purple-600 rounded-full" style={{ width: `${item.weight}%` }} />
                   </div>
                   <span className="text-sm font-semibold text-slate-900 dark:text-white w-10 text-right">{item.weight}%</span>
                 </div>
@@ -291,7 +291,7 @@ const RiskScoringSection: React.FC = () => {
 
       
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-emerald-500/10 to-green-500/10">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-emerald-500/10 to-emerald-500/10">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-emerald-500" />
             Employee Risk Score (eRS)
@@ -304,7 +304,7 @@ const RiskScoringSection: React.FC = () => {
                 <span className="text-sm text-slate-700 dark:text-slate-300">{item.factor}</span>
                 <div className="flex items-center gap-2">
                   <div className="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-linear-to-r from-emerald-500 to-green-500 rounded-full" style={{ width: `${item.weight}%` }} />
+                    <div className="h-full bg-linear-to-r from-emerald-500 to-emerald-600 rounded-full" style={{ width: `${item.weight}%` }} />
                   </div>
                   <span className="text-sm font-semibold text-slate-900 dark:text-white w-10 text-right">{item.weight}%</span>
                 </div>
@@ -325,14 +325,14 @@ const RiskScoringSection: React.FC = () => {
               <div key={i} className={`p-4 rounded-xl border-2 ${
                 band.color === 'emerald' ? 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10' :
                 band.color === 'amber' ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10' :
-                band.color === 'orange' ? 'border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10' :
+                band.color === 'orange' ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10' :
                 'border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10'
               }`}>
                 <p className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{band.range}</p>
                 <p className={`text-sm font-semibold mb-2 ${
                   band.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
                   band.color === 'amber' ? 'text-amber-600 dark:text-amber-400' :
-                  band.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
+                  band.color === 'orange' ? 'text-amber-600 dark:text-amber-400' :
                   'text-red-600 dark:text-red-400'
                 }`}>{band.level} Risk</p>
                 <p className="text-xs text-slate-600 dark:text-slate-400">{band.action}</p>
@@ -549,7 +549,7 @@ const BehavioralAnalyticsSection: React.FC = () => {
     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <Activity className="w-5 h-5 text-violet-500" />
+          <Activity className="w-5 h-5 text-purple-500" />
           Behavioral Analytics Layer
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -570,8 +570,8 @@ const BehavioralAnalyticsSection: React.FC = () => {
             </div>
           ))}
         </div>
-        <div className="mt-4 p-4 bg-violet-50 dark:bg-violet-500/10 rounded-xl border border-violet-200 dark:border-violet-500/30">
-          <p className="text-sm text-violet-700 dark:text-violet-300">
+        <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-500/10 rounded-xl border border-purple-200 dark:border-purple-500/30">
+          <p className="text-sm text-purple-700 dark:text-purple-300">
             <strong>Auto-escalation:</strong> Flags automatically escalate into reduced limits → temporary freeze → review queue
           </p>
         </div>
@@ -600,7 +600,7 @@ const SuspensionProcessSection: React.FC = () => {
     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <RefreshCw className="w-5 h-5 text-indigo-500" />
+          <RefreshCw className="w-5 h-5 text-purple-500" />
           Temporary Suspension Process
         </h3>
       </div>
@@ -815,7 +815,7 @@ const ManualRulesSection: React.FC<ManualRulesSectionProps> = ({ rules, onToggle
         </div>
         <Button
           onClick={() => setShowCreateModal(true)}
-          className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
+          className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white"
           data-testid="create-rule-btn"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -969,7 +969,7 @@ const ManualRulesSection: React.FC<ManualRulesSectionProps> = ({ rules, onToggle
               </Button>
               <Button
                 onClick={handleCreate}
-                className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
+                className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white"
                 data-testid="save-rule-btn"
               >
                 <Save className="w-4 h-4 mr-2" />
@@ -1048,7 +1048,7 @@ const ManualRulesSection: React.FC<ManualRulesSectionProps> = ({ rules, onToggle
               </Button>
               <Button
                 onClick={handleUpdate}
-                className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
+                className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white"
               >
                 <Save className="w-4 h-4 mr-2" />
                 Update Rule
@@ -1223,7 +1223,7 @@ export default function FraudDetection(): React.ReactElement {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-              <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
                 <Shield className="w-5 h-5 text-white" />
               </div>
               Fraud Prevention & Risk Management
@@ -1237,7 +1237,7 @@ export default function FraudDetection(): React.ReactElement {
               <Download className="w-4 h-4 mr-2" />
               Export Report
             </Button>
-            <Button className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white" data-testid="refresh-data-btn">
+            <Button className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white" data-testid="refresh-data-btn">
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh Data
             </Button>
@@ -1346,7 +1346,7 @@ export default function FraudDetection(): React.ReactElement {
                   Close
                 </Button>
                 <Button
-                  className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
+                  className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white"
                   onClick={() => {
                     toast.success(`Alert "${reviewAlert.title}" moved to manual review`);
                     setReviewAlert(null);

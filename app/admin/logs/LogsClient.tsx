@@ -45,7 +45,7 @@ const PAGE_SIZE = 20;
 const ROLE_COLORS: Record<string, string> = {
   admin:    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
   employer: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  employee: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  employee: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   public:   'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
@@ -309,7 +309,7 @@ export default function LogsClient({ initialLogs, stats, initialTotal }: Props) 
                       {/* Status */}
                       <td className="px-4 py-3">
                         {log.resolved ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                             <CheckCircle2 className="w-3 h-3" />
                             Resolved
                           </span>
@@ -330,7 +330,7 @@ export default function LogsClient({ initialLogs, stats, initialTotal }: Props) 
                               variant="outline"
                               onClick={() => handleResolve(log.id)}
                               disabled={resolvingIds.has(log.id)}
-                              className="h-7 text-xs border-slate-200 dark:border-slate-700 hover:bg-green-50 hover:text-green-700 hover:border-green-200 dark:hover:bg-green-900/20 dark:hover:text-green-300 transition-colors"
+                              className="h-7 text-xs border-slate-200 dark:border-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 dark:hover:bg-emerald-900/20 dark:hover:text-emerald-300 transition-colors"
                             >
                               {resolvingIds.has(log.id) ? 'Saving…' : 'Mark Resolved'}
                             </Button>

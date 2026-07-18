@@ -162,7 +162,7 @@ const GradientIconBox: React.FC<GradientIconBoxProps> = ({
     lg: 'w-7 h-7',
   };
   const variants: Record<VariantColor, string> = {
-    green: 'from-green-600 to-green-700',
+    green: 'from-emerald-600 to-emerald-700',
     slate: 'from-slate-600 to-slate-800',
     black: 'from-slate-800 to-black',
   };
@@ -214,13 +214,13 @@ interface StatusBadgeProps {
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const config: Record<EmployeeStatus, { bg: string; text: string; label: string }> = {
     active: { 
-      bg:    'bg-green-100 dark:bg-green-500/20', 
-      text:  'text-green-700 dark:text-green-300', 
+      bg:    'bg-emerald-100 dark:bg-emerald-500/20', 
+      text:  'text-emerald-700 dark:text-emerald-300', 
       label: 'Active',
     },
     approved: { 
-      bg:    'bg-green-100 dark:bg-green-500/20', 
-      text:  'text-green-700 dark:text-green-300', 
+      bg:    'bg-emerald-100 dark:bg-emerald-500/20', 
+      text:  'text-emerald-700 dark:text-emerald-300', 
       label: 'Active',
     },
     pending: { 
@@ -259,8 +259,8 @@ const KYCBadge: React.FC<KYCBadgeProps> = ({ status }) => {
   const config: Record<KYCStatus, { icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color: string; bg: string }> = {
     approved: { 
       icon:  CheckCircle2, 
-      color: 'text-green-600', 
-      bg:    'bg-green-100 dark:bg-green-500/20',
+      color: 'text-emerald-600', 
+      bg:    'bg-emerald-100 dark:bg-emerald-500/20',
     },
     pending: { 
       icon:  Clock, 
@@ -304,7 +304,7 @@ const FilterButton: React.FC<FilterButtonProps> = ({ active, onClick, children }
     className={cn(
       'px-4 py-2 rounded-xl text-sm font-medium transition-all',
       active 
-        ? 'bg-green-600 text-white shadow-lg shadow-green-500/25'
+        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/25'
         : 'bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800',
     )}
   >
@@ -336,7 +336,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
     className={cn(
       'flex items-center gap-4 p-4 rounded-xl transition-colors group',
       isSelected 
-        ? 'bg-green-50/80 dark:bg-green-900/20 ring-1 ring-green-300 dark:ring-green-700'
+        ? 'bg-emerald-50/80 dark:bg-emerald-900/20 ring-1 ring-emerald-300 dark:ring-emerald-700'
         : 'bg-white/40 dark:bg-slate-800/40 hover:bg-white/60 dark:hover:bg-slate-800/60',
     )}
   >
@@ -345,12 +345,12 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
       type="checkbox"
       checked={isSelected}
       onChange={() => onToggleSelect(employee.id)}
-      className="w-4 h-4 rounded border-slate-300 text-green-600 focus:ring-green-500 cursor-pointer shrink-0"
+      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
       data-testid={`select-employee-${employee.id}`}
     />
     
     
-    <div className="w-11 h-11 bg-linear-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center shadow-md shrink-0">
+    <div className="w-11 h-11 bg-linear-to-br from-emerald-600 to-emerald-700 rounded-xl flex items-center justify-center shadow-md shrink-0">
       <span className="text-white font-bold text-sm">
         {employee.full_name.split(' ').map(n => n[0]).join('').toUpperCase() || 
          employee.job_title.charAt(0) || 'E'}
@@ -391,7 +391,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
         className={cn(
           'font-bold',
           employee.risk_score && employee.risk_score >= RISK_SCORE.THRESHOLDS.HIGH
-            ? 'text-green-600'
+            ? 'text-emerald-600'
             : employee.risk_score && employee.risk_score >= 3
             ? 'text-slate-600'
             : 'text-slate-700',
@@ -406,7 +406,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
     <div className="flex items-center gap-1 w-20 justify-end shrink-0">
       <button 
         onClick={() => onViewDetails(employee)}
-        className="p-2 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors"
+        className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
         title="View Details"
         data-testid={`view-employee-${employee.id}`}
       >
@@ -414,7 +414,7 @@ const EmployeeRow: React.FC<EmployeeRowProps> = ({
       </button>
       <button 
         onClick={() => onQuickAction(employee)}
-        className="p-2 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors"
+        className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
         title="Quick Actions"
       >
         <MoreHorizontal className="w-4 h-4" />
@@ -688,7 +688,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
         onClick={e => e.stopPropagation()}
       >
         
-        <div className="bg-linear-to-r from-green-600 to-green-700 p-6">
+        <div className="bg-linear-to-r from-emerald-600 to-emerald-700 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -735,7 +735,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
               className={cn(
                 'flex-1 py-3 text-sm font-medium transition-colors capitalize',
                 activeTab === tab
-                  ? 'text-green-600 border-b-2 border-green-600'
+                  ? 'text-emerald-600 border-b-2 border-emerald-600'
                   : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300',
               )}
             >
@@ -748,21 +748,21 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
         <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 250px)' }}>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-10 h-10 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
             </div>
           ) : activeTab === 'overview' ? (
             <div className="space-y-6">
               
               {employeeDetail?.advance_stats && (
                 <div className="grid sm:grid-cols-4 gap-4">
-                  <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl text-center">
-                    <p className="text-2xl font-bold text-green-600">
+                  <div className="p-4 bg-emerald-50/50 dark:bg-emerald-900/20 rounded-xl text-center">
+                    <p className="text-2xl font-bold text-emerald-600">
                       {employeeDetail.advance_stats.advance_count}
                     </p>
                     <p className="text-xs text-slate-500">Total Advances</p>
                   </div>
-                  <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl text-center">
-                    <p className="text-2xl font-bold text-green-600">
+                  <div className="p-4 bg-emerald-50/50 dark:bg-emerald-900/20 rounded-xl text-center">
+                    <p className="text-2xl font-bold text-emerald-600">
                       {formatCurrency(convertToUSD(employeeDetail.advance_stats.total_advances, data.currency || 'KES', rates), 'USD')}
                     </p>
                     <p className="text-xs text-slate-500">Amount Advanced</p>
@@ -840,7 +840,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                     </Button>
                     <Button
                       onClick={handleSaveEdit}
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
                       Save Changes
                     </Button>
@@ -904,7 +904,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       <Briefcase className="w-4 h-4" /> Employment Details
                       <button
                         onClick={() => setEditMode(true)}
-                        className="ml-auto text-green-600 hover:text-green-700"
+                        className="ml-auto text-emerald-600 hover:text-emerald-700"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -930,13 +930,13 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Advance Limit</span>
-                        <span className="font-medium text-green-600">
+                        <span className="font-medium text-emerald-600">
                           {formatCurrency(convertToUSD(data.advance_limit, data.currency || 'KES', rates), 'USD')}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Earned Wages</span>
-                        <span className="font-medium text-green-600">
+                        <span className="font-medium text-emerald-600">
                           {formatCurrency(convertToUSD(data.earned_wages, data.currency || 'KES', rates), 'USD')}
                         </span>
                       </div>
@@ -946,7 +946,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
               )}
 
               
-              <div className="bg-linear-to-r from-green-50 to-green-50 dark:from-green-900/20 dark:to-green-900/20 rounded-xl p-5 border border-green-200/50 dark:border-green-700/30">
+              <div className="bg-linear-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-900/20 rounded-xl p-5 border border-emerald-200/50 dark:border-emerald-700/30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <GradientIconBox icon={Shield} size="sm" variant="green" />
@@ -962,7 +962,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       className={cn(
                         'text-3xl font-bold',
                         data.risk_score && data.risk_score >= RISK_SCORE.THRESHOLDS.HIGH
-                          ? 'text-green-600'
+                          ? 'text-emerald-600'
                           : data.risk_score && data.risk_score >= 3
                           ? 'text-slate-600'
                           : 'text-slate-700',
@@ -1005,7 +1005,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                         className={cn(
                           'w-10 h-10 rounded-xl flex items-center justify-center',
                           adv.status === 'disbursed'
-                            ? 'bg-green-100 dark:bg-green-500/20'
+                            ? 'bg-emerald-100 dark:bg-emerald-500/20'
                             : adv.status === 'approved'
                             ? 'bg-slate-100 dark:bg-slate-500/20'
                             : 'bg-slate-100 dark:bg-slate-500/20',
@@ -1015,7 +1015,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                           className={cn(
                             'w-5 h-5',
                             adv.status === 'disbursed'
-                              ? 'text-green-600'
+                              ? 'text-emerald-600'
                               : adv.status === 'approved'
                               ? 'text-slate-600'
                               : 'text-slate-600',
@@ -1033,7 +1033,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                           className={cn(
                             'px-2 py-1 rounded-full text-xs font-medium',
                             adv.status === 'disbursed'
-                              ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'
+                              ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                               : adv.status === 'approved'
                               ? 'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-300'
                               : 'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-300',
@@ -1111,7 +1111,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
 	                    >
 	                      <span className="text-sm text-slate-600 dark:text-slate-400">{doc.label}</span>
 	                      {data[doc.key] ? (
-	                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+	                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
 	                      ) : (
 	                        <XCircle className="w-5 h-5 text-slate-300" />
 	                      )}
@@ -1123,7 +1123,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
               <div className="flex gap-2 mt-6">
                 <Button
                   variant="outline"
-                  className="flex-1 border-green-300 text-green-700 hover:bg-green-50"
+                  className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                   onClick={() => handleKYCChange('approved')}
                   disabled={data.kyc_status === 'approved'}
                 >
@@ -1147,7 +1147,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                 </h3>
                 <button
                   onClick={() => setShowAddPayment(v => !v)}
-                  className="flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-700"
+                  className="flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add Method
                 </button>
@@ -1197,7 +1197,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                     </div>
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <Button size="sm" onClick={handleAddPayment} className="bg-green-600 hover:bg-green-700 text-white text-xs">Save Method</Button>
+                    <Button size="sm" onClick={handleAddPayment} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">Save Method</Button>
                     <Button size="sm" variant="outline" onClick={() => setShowAddPayment(false)} className="text-xs">Cancel</Button>
                   </div>
                 </div>
@@ -1205,7 +1205,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
 
               {paymentLoading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="w-6 h-6 text-green-500 animate-spin" />
+                  <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
                 </div>
               ) : paymentMethods.length === 0 ? (
                 <div className="text-center py-10 text-slate-400">
@@ -1219,18 +1219,18 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                     <div key={pm.id} className={cn(
                       'p-4 rounded-xl border-2 flex items-start gap-3 transition-all',
                       pm.is_default
-                        ? 'border-green-300 bg-green-50 dark:bg-green-900/20'
+                        ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20'
                         : 'border-slate-200 dark:border-slate-700',
                     )}>
                       <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
                         {pm.method_type === 'mobile_money'
-                          ? <Smartphone className="w-4 h-4 text-green-600" />
+                          ? <Smartphone className="w-4 h-4 text-emerald-600" />
                           : <Building2 className="w-4 h-4 text-blue-600" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-sm text-slate-900 dark:text-white">{pm.provider_name}</p>
-                          {pm.is_default && <span className="text-[10px] font-bold bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 px-2 py-0.5 rounded-full flex items-center gap-1"><Star className="w-3 h-3" /> Default</span>}
+                          {pm.is_default && <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1"><Star className="w-3 h-3" /> Default</span>}
                           {!pm.is_verified && <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Unverified</span>}
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">
@@ -1242,7 +1242,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       {!pm.is_default && (
                         <button
                           onClick={() => handleSetDefault(pm.id)}
-                          className="text-xs text-green-600 hover:text-green-700 font-semibold shrink-0"
+                          className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold shrink-0"
                         >
                           Set Default
                         </button>
@@ -1263,11 +1263,11 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                   className={cn(
                     'p-4 rounded-xl border-2 text-left transition-all',
                     data.status === 'approved'
-                      ? 'border-green-300 bg-green-50 dark:bg-green-500/10'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-green-300',
+                      ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-500/10'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300',
                   )}
                 >
-                  <CheckCircle2 className="w-6 h-6 text-green-600 mb-2" />
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600 mb-2" />
                   <p className="font-semibold text-slate-900 dark:text-white">Activate Account</p>
                   <p className="text-xs text-slate-500">Enable EWA access for this employee</p>
                 </button>
@@ -1370,7 +1370,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={handleRiskOverride}
                 >
                   Save Override
@@ -1405,7 +1405,7 @@ const QuickActionsModal: React.FC<QuickActionsModalProps> = ({
     icon:    React.ComponentType<React.SVGProps<SVGSVGElement>>;
     color:   string;
   }> = [
-    { label: 'Activate',    action: 'approved',     icon: CheckCircle2, color: 'text-green-600' },
+    { label: 'Activate',    action: 'approved',     icon: CheckCircle2, color: 'text-emerald-600' },
     { label: 'Suspend',     action: 'suspended',    icon: Ban,          color: 'text-slate-600' },
     { label: 'Set Pending', action: 'pending',      icon: Clock,        color: 'text-slate-600' },
     { label: 'Approve KYC', action: 'kyc_approve',  icon: FileText,     color: 'text-slate-600' },
@@ -1720,7 +1720,7 @@ export default function AdminEmployees({ initialEmployees, initialStats }: { ini
         
         {selectedIds.size > 0 && (
           <div
-            className="bg-green-600 rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-green-500/25"
+            className="bg-emerald-600 rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-emerald-500/25"
             data-testid="bulk-actions-bar"
           >
             <div className="flex items-center gap-3">
@@ -1779,7 +1779,7 @@ export default function AdminEmployees({ initialEmployees, initialStats }: { ini
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
-              <div className="w-12 h-12 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
+              <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
             </div>
           ) : filteredEmployees.length === 0 ? (
             <EmptyState
@@ -1797,7 +1797,7 @@ export default function AdminEmployees({ initialEmployees, initialStats }: { ini
                   type="checkbox"
                   checked={selectedIds.size === filteredEmployees.length && filteredEmployees.length > 0}
                   onChange={toggleSelectAll}
-                  className="w-4 h-4 rounded border-slate-300 text-green-600 focus:ring-green-500 cursor-pointer shrink-0"
+                  className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
                   data-testid="select-all-employees"
                 />
                 <div className="w-11" />

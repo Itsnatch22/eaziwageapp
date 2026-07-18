@@ -107,11 +107,11 @@ const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'purple' }: Gradie
   const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12', lg: 'w-14 h-14' };
   const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6', lg: 'w-7 h-7' };
   const variants = {
-    purple: 'from-purple-600 to-indigo-600',
-    green: 'from-emerald-500 to-green-600',
-    amber: 'from-amber-500 to-orange-500',
-    red: 'from-red-500 to-rose-500',
-    blue: 'from-blue-500 to-cyan-500'
+    purple: 'from-purple-600 to-purple-700',
+    green: 'from-emerald-500 to-emerald-600',
+    amber: 'from-amber-500 to-amber-600',
+    red: 'from-red-500 to-red-600',
+    blue: 'from-blue-500 to-blue-600'
   };
   
   return (
@@ -289,7 +289,7 @@ const ReviewDetailModal = ({ request, isOpen, onClose, onSubmitResponse }: Revie
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="bg-linear-to-r from-purple-600 to-indigo-600 p-6">
+        <div className="bg-linear-to-r from-purple-600 to-purple-700 p-6">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-lg font-bold text-white">{request.subject}</h3>

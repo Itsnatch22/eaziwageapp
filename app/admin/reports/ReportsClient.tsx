@@ -134,14 +134,14 @@ const reportTemplates = [
 ];
 
 const typeColors = {
-  financial: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300',
+  financial: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
   operational: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
   compliance: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
   performance: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
 };
 
 const statusColors = {
-  ready: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300',
+  ready: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
   generating: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
   failed: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
   scheduled: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300'
@@ -313,7 +313,7 @@ export default function AdminReports() {
         <div className="flex items-center gap-3">
           <Button
             onClick={() => setShowNewReportModal(true)}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             <BarChart3 className="w-4 h-4 mr-2" />
             Generate Report
@@ -336,8 +336,8 @@ export default function AdminReports() {
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.reportsThisMonth}</p>
@@ -428,7 +428,7 @@ export default function AdminReports() {
                 <div className="p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 flex-1 min-w-0">
-                      <div className="w-12 h-12 bg-linear-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shrink-0">
+                      <div className="w-12 h-12 bg-linear-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shrink-0">
                         <Icon className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -505,7 +505,7 @@ export default function AdminReports() {
                         <Button
                           size="sm"
                           onClick={() => handleDownload(report)}
-                          className="bg-green-600 hover:bg-green-700"
+                          className="bg-emerald-600 hover:bg-emerald-700"
                         >
                           <Download className="w-4 h-4 mr-1" />
                           Download
@@ -559,7 +559,7 @@ export default function AdminReports() {
             {!searchQuery && selectedType === 'all' && selectedPeriod === 'all' && (
               <Button
                 onClick={() => setShowNewReportModal(true)}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <BarChart3 className="w-4 h-4 mr-2" />
                 Generate First Report
@@ -672,7 +672,7 @@ export default function AdminReports() {
                 <Button
                   onClick={handleGenerateReport}
                   disabled={!selectedTemplate || isGenerating}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                 >
                   {isGenerating ? (
                     <>

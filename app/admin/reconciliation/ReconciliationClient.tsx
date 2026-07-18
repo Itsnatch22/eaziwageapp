@@ -45,9 +45,9 @@ const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'purple' }: Gradie
   const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12' };
   const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6' };
   const variants = {
-    purple: 'from-purple-600 to-indigo-600 shadow-purple-500/25',
+    purple: 'from-purple-600 to-purple-700 shadow-purple-500/25',
     green: 'from-primary to-emerald-600 shadow-primary/25',
-    amber: 'from-amber-500 to-orange-500 shadow-amber-500/25'
+    amber: 'from-amber-500 to-amber-600 shadow-amber-500/25'
   };
   
   return (
@@ -103,7 +103,7 @@ const EmployerReconRow = ({ employer, onExpand, expanded }: EmployerReconRowProp
         onClick={onExpand}
       >
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-linear-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+          <div className="w-12 h-12 bg-linear-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center shadow-md">
             <Building2 className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1 min-w-0">

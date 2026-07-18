@@ -44,7 +44,7 @@ export default function AdminWalletGlimpse() {
           <p className="text-sm text-slate-500">{wallet?.name ?? 'Admin Stanbic Wallet'}</p>
           <p className="font-semibold text-slate-900 dark:text-white mt-1">{wallet ? `${wallet.currency} ${formatCurrency(wallet.balance, wallet.currency)}` : '—'}</p>
         </div>
-        <Link href="/admin/wallet" className="text-xs text-green-600 hover:underline">View</Link>
+        <Link href="/admin/wallet" className="text-xs text-emerald-600 hover:underline">View</Link>
       </div>
       <div className="flex items-center justify-between text-xs text-slate-500">
         <div>{/* intentionally blank for alignment */}</div>

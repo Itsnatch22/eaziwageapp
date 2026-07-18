@@ -302,9 +302,9 @@ const SectionCard: React.FC<SectionCardProps> = ({
   description 
 }) => (
   <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-    <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-purple-500/5 to-violet-500/5">
+    <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-purple-500/5 to-purple-500/5">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center">
+        <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
           <Icon className="w-5 h-5 text-white" />
         </div>
         <div>
@@ -708,7 +708,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
               data-testid={`employer-${employer.id}`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-violet-600 rounded-lg flex items-center justify-center text-white font-bold">
+                <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold">
                   {employer.company_name?.charAt(0) || 'E'}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -736,7 +736,7 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-linear-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center text-white text-xl font-bold">
+                  <div className="w-14 h-14 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center text-white text-xl font-bold">
                     {selectedEmployer.company_name?.charAt(0) || 'E'}
                   </div>
                   <div>
@@ -1098,7 +1098,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
               data-testid={`employee-${employee.id}`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-linear-to-br from-emerald-500 to-green-600 rounded-full flex items-center justify-center text-white font-bold">
+                <div className="w-10 h-10 bg-linear-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
                   {employee.full_name?.charAt(0) || 'E'}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1126,7 +1126,7 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-linear-to-br from-emerald-500 to-green-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+                  <div className="w-14 h-14 bg-linear-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
                     {selectedEmployee.full_name?.charAt(0) || 'E'}
                   </div>
                   <div>
@@ -1708,7 +1708,7 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
         </div>
         <Button 
           onClick={() => setShowModal(true)}
-          className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
+          className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white"
           data-testid="add-blackout-btn"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -1856,7 +1856,7 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
               <Button variant="outline" onClick={() => { setShowModal(false); setEditingBlackout(null); }} className="rounded-xl">
                 Cancel
               </Button>
-              <Button onClick={saveBlackout} className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white">
+              <Button onClick={saveBlackout} className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white">
                 <Save className="w-4 h-4 mr-2" />
                 {editingBlackout ? 'Update' : 'Create'}
               </Button>
@@ -1989,7 +1989,7 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-violet-600 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
                     <doc.icon className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -2027,13 +2027,13 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
                     <Button variant="outline" onClick={() => { setEditing(false); setEditedContent(selectedDoc); }} className="rounded-xl">
                       Cancel
                     </Button>
-                    <Button onClick={saveDocument} className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white">
+                    <Button onClick={saveDocument} className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white">
                       <Save className="w-4 h-4 mr-2" />
                       Save Document
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={() => setEditing(true)} className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white">
+                  <Button onClick={() => setEditing(true)} className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white">
                     <Edit className="w-4 h-4 mr-2" />
                     Edit
                   </Button>
@@ -2198,7 +2198,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-linear-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
                 <ClipboardList className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -2209,7 +2209,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-linear-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-linear-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -2220,7 +2220,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-linear-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-linear-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center">
                 <Users className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -2231,7 +2231,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
                 <User className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -2380,7 +2380,7 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
                       categoryLabel = 'Risk & Compliance';
                       break;
                     case 'notification_settings':
-                      badgeStyles = 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400';
+                      badgeStyles = 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400';
                       categoryLabel = 'Notifications';
                       break;
                     case 'employer_settings':
@@ -2392,11 +2392,11 @@ const AuditTrailTab: React.FC<AuditTrailTabProps> = ({ token }) => {
                       categoryLabel = 'Employee Settings';
                       break;
                     case 'legal_document':
-                      badgeStyles = 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400';
+                      badgeStyles = 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
                       categoryLabel = 'Legal';
                       break;
                     case 'blackout':
-                      badgeStyles = 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400';
+                      badgeStyles = 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400';
                       categoryLabel = 'Blackout';
                       break;
                   }
@@ -2902,7 +2902,7 @@ const AdminSettings: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-              <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
                 <Settings className="w-5 h-5 text-white" />
               </div>
               Admin Settings Portal
@@ -2922,7 +2922,7 @@ const AdminSettings: React.FC = () => {
               <Button 
                 onClick={handleSaveChanges}
                 disabled={saving || !canSaveCurrentTab}
-                className="rounded-xl bg-linear-to-r from-purple-500 to-violet-600 text-white"
+                className="rounded-xl bg-linear-to-r from-purple-500 to-purple-600 text-white"
                 data-testid="save-settings-btn"
               >
                 {saving ? (

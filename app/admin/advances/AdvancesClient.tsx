@@ -312,11 +312,11 @@ export function GradientIconBox({
   };
 
   const gradientMap: Record<VariantColor, string> = {
-    purple: 'from-purple-600 to-indigo-600',
-    green: 'from-emerald-500 to-green-600',
-    amber: 'from-amber-500 to-orange-500',
-    red: 'from-red-500 to-rose-500',
-    blue: 'from-blue-500 to-cyan-500',
+    purple: 'from-purple-600 to-purple-700',
+    green: 'from-emerald-500 to-emerald-600',
+    amber: 'from-amber-500 to-amber-600',
+    red: 'from-red-500 to-red-600',
+    blue: 'from-blue-500 to-blue-600',
   };
 
   return (
@@ -375,7 +375,7 @@ export function AdvanceDetailModal({
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="bg-linear-to-r from-purple-600 to-indigo-600 p-6">
+        <div className="bg-linear-to-r from-purple-600 to-purple-700 p-6">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
               <CreditCard className="w-6 h-6 text-white" />

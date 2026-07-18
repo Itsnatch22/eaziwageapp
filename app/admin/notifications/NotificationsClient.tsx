@@ -47,7 +47,7 @@ interface HealthData {
 
 const DeliveryStatusBadge = ({ status }: { status: string }) => {
   const cfg: Record<string, { label: string; classes: string; icon: React.ReactNode }> = {
-    sent:           { label: 'Push sent',    classes: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',  icon: <Wifi className="w-3 h-3" /> },
+    sent:           { label: 'Push sent',    classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',  icon: <Wifi className="w-3 h-3" /> },
     fallback_email: { label: 'Email sent',   classes: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',      icon: <MailX className="w-3 h-3 rotate-180" /> },
     failed:         { label: 'Failed',       classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',          icon: <WifiOff className="w-3 h-3" /> },
     pending:        { label: 'Pending',      classes: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',  icon: <Clock className="w-3 h-3" /> },
@@ -88,11 +88,11 @@ function getNotificationAction(notif: Notification): { label: string; href: stri
 
 const NotificationIcon = ({ type }: { type: string }) => {
   const config = {
-    review_request:  { icon: Shield,        bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-600 dark:text-green-400' },
+    review_request:  { icon: Shield,        bg: 'bg-emerald-100 dark:bg-emerald-900/30',  text: 'text-emerald-600 dark:text-emerald-400' },
     employer_kyc:    { icon: Building2,     bg: 'bg-amber-100 dark:bg-amber-500/20',  text: 'text-amber-600' },
     flagged_advance: { icon: AlertTriangle, bg: 'bg-red-100 dark:bg-red-500/20',      text: 'text-red-600' },
     system_alert:    { icon: Bell,          bg: 'bg-blue-100 dark:bg-blue-500/20',     text: 'text-blue-600' },
-    employee:        { icon: Shield,        bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-600 dark:text-green-400' },
+    employee:        { icon: Shield,        bg: 'bg-emerald-100 dark:bg-emerald-900/30',  text: 'text-emerald-600 dark:text-emerald-400' },
   };
 
   const { icon: Icon, bg, text } = config[type as keyof typeof config] || config.system_alert;
@@ -331,9 +331,9 @@ export default function AdminNotificationsPage() {
             <div className="flex items-center gap-3">
               <div className={cn(
                 'w-9 h-9 rounded-xl flex items-center justify-center',
-                failedCount > 0 ? 'bg-red-100 dark:bg-red-900/30' : 'bg-green-100 dark:bg-green-900/30'
+                failedCount > 0 ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'
               )}>
-                <Activity className={cn('w-4 h-4', failedCount > 0 ? 'text-red-600' : 'text-green-600')} />
+                <Activity className={cn('w-4 h-4', failedCount > 0 ? 'text-red-600' : 'text-emerald-600')} />
               </div>
               <div className="text-left">
                 <p className="font-semibold text-slate-900 dark:text-white text-sm">Delivery Health</p>
@@ -346,7 +346,7 @@ export default function AdminNotificationsPage() {
                   <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500">
                     {(health.breakdown.sent ?? 0) > 0 && (
                       <span className="flex items-center gap-1">
-                        <Wifi className="w-3 h-3 text-green-500" />
+                        <Wifi className="w-3 h-3 text-emerald-500" />
                         {health.breakdown.sent} push
                       </span>
                     )}
@@ -369,7 +369,7 @@ export default function AdminNotificationsPage() {
                     </span>
                   )}
                   {failedCount === 0 && (
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full text-xs font-semibold">
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-semibold">
                       All delivered
                     </span>
                   )}
@@ -389,11 +389,11 @@ export default function AdminNotificationsPage() {
             <div className="border-t border-slate-200/50 dark:border-slate-700/30">
               {healthLoading ? (
                 <div className="flex items-center justify-center py-10">
-                  <div className="w-6 h-6 border-2 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
                 </div>
               ) : !health || health.failed.length === 0 ? (
                 <div className="text-center py-10 px-4">
-                  <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-2" />
+                  <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No failed deliveries in the last 24 hours</p>
                   {health && health.atRiskCount > 0 && (
                     <p className="text-xs text-amber-600 mt-1">
@@ -483,7 +483,7 @@ export default function AdminNotificationsPage() {
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-3xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="w-10 h-10 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
             </div>
           ) : paginatedNotifications.length === 0 ? (
             <div className="text-center py-20 px-4">
@@ -504,7 +504,7 @@ export default function AdminNotificationsPage() {
                   key={notif.id}
                   className={cn(
                     'p-6 flex items-start gap-4 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30 relative group',
-                    !notif.read && 'bg-green-50/30 dark:bg-green-900/10'
+                    !notif.read && 'bg-emerald-50/30 dark:bg-emerald-900/10'
                   )}
                   onClick={() => !notif.read && markAsRead([notif.id])}
                 >
@@ -513,7 +513,7 @@ export default function AdminNotificationsPage() {
                     <div className="flex items-center justify-between mb-1">
                       <h3 className={cn(
                         'text-base font-bold text-slate-900 dark:text-white',
-                        !notif.read && 'text-green-700 dark:text-green-400'
+                        !notif.read && 'text-emerald-700 dark:text-emerald-400'
                       )}>
                         {notif.title}
                       </h3>
@@ -531,7 +531,7 @@ export default function AdminNotificationsPage() {
                         return (
                           <Button
                             size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs rounded-lg"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs rounded-lg"
                             asChild
                           >
                             <Link href={action.href}>{action.label}</Link>
@@ -544,7 +544,7 @@ export default function AdminNotificationsPage() {
                             e.stopPropagation();
                             markAsRead([notif.id]);
                           }}
-                          className="text-xs font-semibold text-green-600 hover:text-green-700 flex items-center gap-1"
+                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
                         >
                           <Check className="w-3 h-3" /> Mark read
                         </button>

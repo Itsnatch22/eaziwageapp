@@ -153,9 +153,9 @@ export function CommandPalette() {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'employer': return <Building2 className="w-4 h-4 text-blue-500" />;
-      case 'employee': return <Users className="w-4 h-4 text-green-500" />;
+      case 'employee': return <Users className="w-4 h-4 text-emerald-500" />;
       case 'advance':  return <CreditCard className="w-4 h-4 text-purple-500" />;
-      case 'navigation': return <ArrowRight className="w-4 h-4 text-orange-500" />;
+      case 'navigation': return <ArrowRight className="w-4 h-4 text-amber-500" />;
       default:         return <ArrowRight className="w-4 h-4 text-slate-400" />;
     }
   };

@@ -1091,7 +1091,7 @@ const docSections = [
 ];
 
 const difficultyColors = {
-  beginner: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300',
+  beginner: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
   intermediate: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
   advanced: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
 };
@@ -1149,7 +1149,7 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
         
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           
-          <div className="p-4 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-700/30 rounded-xl">
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-700/30 rounded-xl">
             <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
               {article.content.overview}
             </p>
@@ -1186,7 +1186,7 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
                       <ol className="space-y-2">
                         {section.steps.map((step, si) => (
                           <li key={si} className="flex gap-3">
-                            <span className="shrink-0 w-5 h-5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 text-xs font-bold flex items-center justify-center mt-0.5">
+                            <span className="shrink-0 w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center justify-center mt-0.5">
                               {si + 1}
                             </span>
                             <span className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{step}</span>
@@ -1260,7 +1260,7 @@ export default function AdminDocs() {
           placeholder="Search documentation..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
         />
       </div>
 
@@ -1268,8 +1268,8 @@ export default function AdminDocs() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 dark:bg-green-500/20 rounded-lg flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg flex items-center justify-center">
+              <BookOpen className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -1327,7 +1327,7 @@ export default function AdminDocs() {
                 className="w-full p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-linear-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <div className="w-12 h-12 bg-linear-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
                     <Icon className="w-6 h-6 text-white" />
                   </div>
                   <div className="text-left">
@@ -1371,7 +1371,7 @@ export default function AdminDocs() {
                         </div>
                         <button
                           onClick={() => setSelectedArticle(article as Article)}
-                          className="shrink-0 p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors"
+                          className="shrink-0 p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -1386,19 +1386,19 @@ export default function AdminDocs() {
       </div>
 
       
-      <div className="bg-linear-to-br from-green-50 to-emerald-50 dark:from-green-500/10 dark:to-emerald-500/10 rounded-xl p-6 border border-green-200 dark:border-green-700/30">
+      <div className="bg-linear-to-br from-emerald-50 to-emerald-100 dark:from-emerald-500/10 dark:to-emerald-500/10 rounded-xl p-6 border border-emerald-200 dark:border-emerald-700/30">
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Quick Links</h3>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Link href="/admin" className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg hover:shadow-md transition-shadow">
-            <Settings className="w-4 h-4 text-green-600" />
+            <Settings className="w-4 h-4 text-emerald-600" />
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Admin Dashboard</span>
           </Link>
           <Link href="/admin/settings" className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg hover:shadow-md transition-shadow">
-            <Settings className="w-4 h-4 text-green-600" />
+            <Settings className="w-4 h-4 text-emerald-600" />
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Platform Settings</span>
           </Link>
           <Link href="/admin/api-health" className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg hover:shadow-md transition-shadow">
-            <Wifi className="w-4 h-4 text-green-600" />
+            <Wifi className="w-4 h-4 text-emerald-600" />
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">System Health</span>
           </Link>
         </div>

@@ -45,12 +45,12 @@ export type RepaymentSchedule = {
 };
 
 const STATUS_BADGE: Record<RepaymentSchedule['status'], string> = {
-  pending:   'bg-yellow-100 text-yellow-800',
-  paid:      'bg-green-100 text-green-800',
+  pending:   'bg-amber-100 text-amber-800',
+  paid:      'bg-emerald-100 text-emerald-800',
   overdue:   'bg-red-100 text-red-800',
   partial:   'bg-blue-100 text-blue-800',
-  waived:    'bg-gray-100 text-gray-600',
-  disputed:  'bg-orange-100 text-orange-800',
+  waived:    'bg-slate-100 text-slate-600',
+  disputed:  'bg-amber-100 text-amber-800',
 };
 
 function fmt(amount: number, currency: string) {
@@ -162,10 +162,10 @@ export default function RepaymentsClient({ schedules }: { schedules: RepaymentSc
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-green-600">Paid This Month</CardTitle>
+            <CardTitle className="text-sm font-medium text-emerald-600">Paid This Month</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{paidThisMonth.length}</div>
+            <div className="text-2xl font-bold text-emerald-600">{paidThisMonth.length}</div>
             <div className="text-xs text-muted-foreground">
               {paidThisMonth[0] ? fmt(sumAmount(paidThisMonth), paidThisMonth[0].currency) : '—'}
             </div>

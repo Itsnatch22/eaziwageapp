@@ -70,10 +70,10 @@ interface MetricCardProps {
 }
 
 const metricVariants: Record<MetricVariant, string> = {
-  purple: 'from-purple-600 to-indigo-600 shadow-purple-500/25',
-  green: 'from-emerald-600 to-green-600 shadow-emerald-500/25',
-  blue: 'from-blue-600 to-cyan-600 shadow-blue-500/25',
-  amber: 'from-amber-500 to-orange-500 shadow-amber-500/25',
+  purple: 'from-purple-600 to-purple-700 shadow-purple-500/25',
+  green: 'from-emerald-600 to-emerald-700 shadow-emerald-500/25',
+  blue: 'from-blue-600 to-blue-700 shadow-blue-500/25',
+  amber: 'from-amber-500 to-amber-600 shadow-amber-500/25',
 };
 
 const MetricCard = ({ icon: Icon, label, value, subtext, variant = 'purple' }: MetricCardProps) => {

@@ -101,11 +101,11 @@ const GradientIconBox = ({ icon: Icon, size = 'md', variant = 'purple' }: Gradie
   const sizes = { sm: 'w-10 h-10', md: 'w-12 h-12', lg: 'w-14 h-14' };
   const iconSizes = { sm: 'w-5 h-5', md: 'w-6 h-6', lg: 'w-7 h-7' };
   const variants = {
-    purple: 'from-purple-600 to-indigo-600',
-    green: 'from-emerald-500 to-green-600',
-    amber: 'from-amber-500 to-orange-500',
-    red: 'from-red-500 to-rose-500',
-    blue: 'from-blue-500 to-cyan-500'
+    purple: 'from-purple-600 to-purple-700',
+    green: 'from-emerald-500 to-emerald-600',
+    amber: 'from-amber-500 to-amber-600',
+    red: 'from-red-500 to-red-600',
+    blue: 'from-blue-500 to-blue-600'
   };
   
   return (
@@ -195,7 +195,7 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
     approved: { label: 'Approved', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' },
     pending: { label: 'Pending', color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' },
     rejected: { label: 'Rejected', color: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' },
-    suspended: { label: 'Suspended', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
+    suspended: { label: 'Suspended', color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' },
     risk_review_in_progress: { label: 'Risk Review', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' },
   };
 
@@ -342,7 +342,7 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="bg-linear-to-r from-purple-600 to-indigo-600 p-6 text-white">
+        <div className="bg-linear-to-r from-purple-600 to-purple-700 p-6 text-white">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-xl font-bold">Risk Assessment</h2>
@@ -398,7 +398,7 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
                 </div>
               </div>
 
-              <div className="p-4 bg-linear-to-br from-purple-600/10 to-indigo-600/10 rounded-xl border border-purple-200 dark:border-purple-800/30">
+              <div className="p-4 bg-linear-to-br from-purple-600/10 to-purple-600/10 rounded-xl border border-purple-200 dark:border-purple-800/30">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fee Impact</span>
                   <span className="text-lg font-bold text-purple-600">{currentFee.toFixed(2)}%</span>
@@ -424,7 +424,7 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
                   />
                 </div>
                 <Button 
-                  className="w-full h-12 bg-linear-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl"
+                  className="w-full h-12 bg-linear-to-r from-purple-600 to-purple-700 text-white font-bold rounded-xl"
                   onClick={handleSubmit}
                   disabled={loading}
                 >
@@ -657,7 +657,7 @@ export default function AdminEmployersPage() {
           </div>
 
           {stats.needs_risk_assessment > 0 && (
-            <div className="mt-6 p-4 bg-linear-to-r from-amber-500/10 to-orange-500/10 rounded-xl border border-amber-500/20 flex items-center justify-between">
+            <div className="mt-6 p-4 bg-linear-to-r from-amber-500/10 to-amber-500/10 rounded-xl border border-amber-500/20 flex items-center justify-between">
               <div className="flex items-center gap-3 text-amber-800 dark:text-amber-200">
                 <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
                   <AlertTriangle className="w-4 h-4 text-white" />
@@ -801,7 +801,7 @@ export default function AdminEmployersPage() {
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-linear-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xs shadow-md shadow-purple-600/20">
+                        <div className="w-9 h-9 bg-linear-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center font-bold text-white text-xs shadow-md shadow-purple-600/20">
                           {employer.company_name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
