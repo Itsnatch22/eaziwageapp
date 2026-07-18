@@ -70,6 +70,19 @@ export default function NotificationsPage() {
                 fetchNotifications();
             })
             .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+            }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+                // Keeps this page in sync with actions taken from the bell
+                // dropdown (components/layout/NotificationDropdown.tsx, which
+                // shares this same API) and vice versa — e.g. "mark as read"
+                // clicked in the dropdown now reflects here without a reload.
+                const updated = payload.new as NotificationRow;
+                setNotifications(prev => prev.map(n => (n.id === updated.id ? { ...n, ...updated } : n)));
+            })
+            .on('postgres_changes', {
                 event: 'DELETE',
                 schema: 'public',
                 table: 'notifications',
@@ -114,6 +127,23 @@ export default function NotificationsPage() {
         }
     };
 
+    const deleteAll = async () => {
+        const previous = notifications;
+        setNotifications([]);
+        try {
+            const res = await fetch('/api/employer-dashboard/notifications?all=true', { method: 'DELETE' });
+            if (res.ok) {
+                toast.success('All notifications cleared');
+            } else {
+                setNotifications(previous);
+                toast.error('Failed to clear notifications');
+            }
+        } catch {
+            setNotifications(previous);
+            toast.error('Failed to clear notifications');
+        }
+    };
+
     if (loading) {
         return (
             <EmployerPortalLayout employer={null}>
@@ -142,15 +172,27 @@ export default function NotificationsPage() {
                             Stay updated with your company&apos;s latest alerts and activity.
                         </p>
                     </div>
-                    {unreadCount > 0 && (
-                        <Button 
-                            variant="outline" 
-                            onClick={() => markAsRead()} 
-                            className="bg-white dark:bg-slate-900"
-                        >
-                            Mark all as read
-                        </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {unreadCount > 0 && (
+                            <Button
+                                variant="outline"
+                                onClick={() => markAsRead()}
+                                className="bg-white dark:bg-slate-900"
+                            >
+                                Mark all as read
+                            </Button>
+                        )}
+                        {notifications.length > 0 && (
+                            <Button
+                                variant="outline"
+                                onClick={() => void deleteAll()}
+                                className="bg-white dark:bg-slate-900 text-red-600 hover:text-red-700 hover:border-red-300"
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete all
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">

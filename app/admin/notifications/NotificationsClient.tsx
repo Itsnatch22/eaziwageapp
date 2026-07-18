@@ -126,6 +126,15 @@ export default function AdminNotificationsPage() {
         prev.filter(n => String(n.id) !== String(id))
       );
     },
+    // Keeps this page in sync with actions taken from the bell dropdown
+    // (components/layout/NotificationDropdown.tsx, which shares this same
+    // API) and vice versa — e.g. "mark as read" clicked in the dropdown now
+    // reflects here without a reload.
+    onUpdate: (data) => {
+      setNotifications(prev =>
+        prev.map(n => (n.id === data.id ? { ...n, ...data } : n))
+      );
+    },
   });
 
   const fetchNotifications = useCallback(async () => {

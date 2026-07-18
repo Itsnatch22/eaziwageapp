@@ -83,6 +83,18 @@ export default function EmployeeNotificationsPage() {
                 });
             })
             .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+            }, (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+                // Keeps this page in sync with actions taken from the bell
+                // dropdown (components/layout/NotificationDropdown.tsx, which
+                // shares this same API) and vice versa.
+                const updated = payload.new as Notification;
+                setNotifications(prev => prev.map(n => (n.id === updated.id ? { ...n, ...updated } : n)));
+            })
+            .on('postgres_changes', {
                 event: 'DELETE',
                 schema: 'public',
                 table: 'notifications',
