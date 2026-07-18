@@ -23,6 +23,8 @@ import {
   ScanFace,
   Loader2,
   MapPin,
+  Plus,
+  X,
   Landmark as BankIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,7 @@ import {
 } from "@/lib/upload-file-types";
 import { DocTooltip } from "@/components/shared/DocTooltip";
 import { SubmitButton } from "@/components/ui/SubmitButton";
+import type { KycAdditionalFile } from "@/lib/constants/kyc-multi-file";
 
 const COUNTRIES_OF_WORK = [
   { code: "KE", name: "Kenya", providers: ["M-PESA", "Airtel Money"] },
@@ -331,6 +334,13 @@ interface FileUploaderProps {
   /** Already on file and not rejected — render as non-interactive so the user
    *  is never prompted to re-upload something that wasn't flagged. */
   locked?: boolean;
+  /** Multi-file (financial) types: allow attaching extra supporting files
+   *  once the primary is uploaded. */
+  multi?: boolean;
+  additionalFiles?: KycAdditionalFile[];
+  appending?: boolean;
+  onAppend?: (file: File) => void;
+  onRemoveAttachment?: (storagePath: string) => void;
 }
 
 interface Step {
@@ -417,8 +427,14 @@ const FileUploader = ({
   testId,
   tooltip,
   locked = false,
+  multi = false,
+  additionalFiles = [],
+  appending = false,
+  onAppend,
+  onRemoveAttachment,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const appendInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
 
@@ -426,6 +442,14 @@ const FileUploader = ({
     const file = e.target.files?.[0];
     if (!file) return;
     validateAndUpload(file);
+  };
+
+  const handleAppendSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !onAppend) return;
+    if (!isDocumentFile(file)) { toast.error("Please upload an image or document file"); return; }
+    onAppend(file);
   };
 
   const validateAndUpload = (file: File) => {
@@ -574,6 +598,39 @@ const FileUploader = ({
           </div>
         )}
       </div>
+
+      {/* Multi-file (financial docs): attach extra supporting files once the
+          primary is uploaded — the primary above stays the reviewable doc. */}
+      {multi && !locked && uploadedFile && (
+        <div className="space-y-2 pl-1">
+          {additionalFiles.map((f) => (
+            <div key={f.storage_path} className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+              <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="truncate flex-1">{f.name}</span>
+              {onRemoveAttachment && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveAttachment(f.storage_path)}
+                  aria-label={`Remove ${f.name}`}
+                  className="text-slate-400 hover:text-red-500 transition-colors shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <input ref={appendInputRef} type="file" accept={accept ?? DOCUMENT_ACCEPT} onChange={handleAppendSelect} className="hidden" />
+          <button
+            type="button"
+            onClick={() => !appending && appendInputRef.current?.click()}
+            disabled={appending}
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary hover:underline disabled:opacity-50"
+          >
+            {appending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            {appending ? "Attaching…" : "Add another file"}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -630,6 +687,9 @@ export default function Onboarding() {
     bank_statement: null,
     employment_contract: null,
   });
+  // Supporting attachments (multi-file financial docs) keyed by document_type.
+  const [additionalFiles, setAdditionalFiles] = useState<Record<string, KycAdditionalFile[]>>({});
+  const [appendingFile, setAppendingFile] = useState<string | null>(null);
   // Per-document KYC review state, keyed by document_type (== OnboardingDocKey
   // for the 8 real documents). Drives which upload slots render locked
   // ("already submitted, no action needed") vs. open for a fresh upload, and
@@ -884,6 +944,41 @@ export default function Onboarding() {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploadingFile(null);
+    }
+  };
+
+  const handleAppendFile = async (file: File, docKey: OnboardingDocKey) => {
+    const docType = DOC_KEY_TO_TYPE[docKey];
+    setAppendingFile(docKey);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("document_type", docType);
+      fd.append("mode", "append");
+      const res = await fetch("/api/employee-dashboard/kyc/documents", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      setAdditionalFiles((prev) => ({ ...prev, [docKey]: data.additional_files ?? [] }));
+      toast.success("File attached");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to attach file");
+    } finally {
+      setAppendingFile(null);
+    }
+  };
+
+  const handleRemoveAttachment = async (docKey: OnboardingDocKey, storagePath: string) => {
+    try {
+      const fd = new FormData();
+      fd.append("document_type", DOC_KEY_TO_TYPE[docKey]);
+      fd.append("storage_path", storagePath);
+      fd.append("mode", "remove_attachment");
+      const res = await fetch("/api/employee-dashboard/kyc/documents", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Remove failed");
+      setAdditionalFiles((prev) => ({ ...prev, [docKey]: data.additional_files ?? [] }));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove file");
     }
   };
 
@@ -1912,6 +2007,11 @@ export default function Onboarding() {
                 uploading={uploadingFile === "payslip_1"}
                 locked={isDocLocked("payslip_1")}
                 required
+                multi
+                additionalFiles={additionalFiles.payslip_1 || []}
+                appending={appendingFile === "payslip_1"}
+                onAppend={(f: File) => handleAppendFile(f, "payslip_1")}
+                onRemoveAttachment={(path) => handleRemoveAttachment("payslip_1", path)}
               />
               {rejectionNote("payslip_2") && (
                 <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
@@ -1926,6 +2026,11 @@ export default function Onboarding() {
                 uploading={uploadingFile === "payslip_2"}
                 locked={isDocLocked("payslip_2")}
                 required
+                multi
+                additionalFiles={additionalFiles.payslip_2 || []}
+                appending={appendingFile === "payslip_2"}
+                onAppend={(f: File) => handleAppendFile(f, "payslip_2")}
+                onRemoveAttachment={(path) => handleRemoveAttachment("payslip_2", path)}
               />
               {rejectionNote("employment_contract") && (
                 <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
@@ -2050,6 +2155,11 @@ export default function Onboarding() {
                 uploading={uploadingFile === "bank_statement"}
                 locked={isDocLocked("bank_statement")}
                 required
+                multi
+                additionalFiles={additionalFiles.bank_statement || []}
+                appending={appendingFile === "bank_statement"}
+                onAppend={(f: File) => handleAppendFile(f, "bank_statement")}
+                onRemoveAttachment={(path) => handleRemoveAttachment("bank_statement", path)}
               />
             </div>
           </div>

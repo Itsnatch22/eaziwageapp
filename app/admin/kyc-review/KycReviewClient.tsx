@@ -34,12 +34,20 @@ import {
   DOCUMENT_TYPE_LABELS,
 } from '@/lib/validations/kyc-validation';
 
+interface KycAttachment {
+  url: string;
+  storage_path: string;
+  name: string;
+  uploaded_at: string;
+}
+
 interface EmployerKycDocRow {
   id: string;
   document_type: string;
   document_url: string | null;
   status: DocumentStatus;
   reviewer_notes: string | null;
+  additional_files?: KycAttachment[] | null;
 }
 
 const EMPLOYER_DOC_LABELS: Record<string, string> = {
@@ -624,6 +632,12 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
                     <InfoRow icon={Calendar} label="Submitted" value={formatDateTime(selectedDoc.created_at)} />
                   </div>
                 </section>
+                {selectedDoc.additional_files && selectedDoc.additional_files.length > 0 && (
+                  <section>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Additional Files</h4>
+                    <DocAttachments files={selectedDoc.additional_files} />
+                  </section>
+                )}
               </div>
             </div>
           )}
@@ -830,6 +844,36 @@ const EmployerDocRow = ({
           Rejected: {doc.reviewer_notes}
         </p>
       )}
+      <DocAttachments files={doc.additional_files} />
+    </div>
+  );
+};
+
+// Supporting attachments (multi-file financial docs) — extra View links under
+// a single reviewable document. The approve/reject decision above still
+// applies to the document type as a whole, not per-attachment.
+const DocAttachments = ({ files }: { files?: KycAttachment[] | null }) => {
+  if (!files || files.length === 0) return null;
+  return (
+    <div className="pt-1 border-t border-slate-200/70 dark:border-slate-700/50 space-y-1">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        +{files.length} additional file{files.length > 1 ? 's' : ''}
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {files.map((f) => (
+          <Button
+            key={f.storage_path}
+            variant="ghost"
+            size="sm"
+            onClick={() => window.open(f.url, '_blank', 'noopener,noreferrer')}
+            className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 max-w-[180px]"
+            title={f.name}
+          >
+            <span className="truncate">{f.name}</span>
+            <ExternalLink className="w-3 h-3 ml-1 shrink-0" />
+          </Button>
+        ))}
+      </div>
     </div>
   );
 };

@@ -11,6 +11,7 @@ import { getSafeFileExtension, isDocumentFile, isImageFile } from '@/lib/upload-
 import { sendKYCNotification, logEmail } from '@/lib/email-service';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { formatStatusLabel } from '@/lib/utils';
+import { isEmployeeMultiFileType, type KycAdditionalFile } from '@/lib/constants/kyc-multi-file';
 
 export const runtime = 'nodejs';
 
@@ -117,6 +118,46 @@ export async function POST(req: NextRequest) {
     const file = form.get('file') as File | null;
     const rawDocType = form.get('document_type') as string | null;
     const documentNumber = (form.get('document_number') as string | null)?.trim() || null;
+    // '' | 'append' | 'remove_attachment' — see lib/constants/kyc-multi-file.ts.
+    const mode = (form.get('mode') as string | null)?.trim() || '';
+
+    // Removing a supporting attachment has no file payload — handle it before
+    // the file-required guard below. Only additional_files entries are
+    // removable this way; the primary document row is replaced by re-uploading.
+    if (mode === 'remove_attachment') {
+      const targetPath = (form.get('storage_path') as string | null)?.trim();
+      const parsedType = DocumentTypeEnum.safeParse(rawDocType);
+      if (!parsedType.success || !targetPath) {
+        return NextResponse.json({ error: 'document_type and storage_path are required', code: 'BAD_REQUEST' }, { status: 400 });
+      }
+      const docType = parsedType.data;
+
+      const { data: row } = await adminSupabase
+        .from('employee_kyc_documents')
+        .select('id, additional_files')
+        .eq('user_id', user.id)
+        .eq('document_type', docType)
+        .maybeSingle();
+
+      const current = (row?.additional_files as KycAdditionalFile[] | null) ?? [];
+      // Only allow deleting a path that actually belongs to this user's own
+      // attachments for this type — never an arbitrary storage path.
+      if (!current.some((f) => f.storage_path === targetPath)) {
+        return NextResponse.json({ error: 'Attachment not found', code: 'NOT_FOUND' }, { status: 404 });
+      }
+
+      await adminSupabase.storage.from(BUCKET).remove([targetPath]);
+      const next = current.filter((f) => f.storage_path !== targetPath);
+      const { error: updErr } = await adminSupabase
+        .from('employee_kyc_documents')
+        .update({ additional_files: next })
+        .eq('id', row!.id);
+
+      if (updErr) {
+        return NextResponse.json({ error: 'Failed to remove attachment', code: 'SAVE_ERROR' }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, additional_files: next }, { status: 200 });
+    }
 
     if (!file) {
       return NextResponse.json(
@@ -193,6 +234,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File size must be under 5 MB.', code: 'FILE_TOO_LARGE' }, { status: 422 });
     }
 
+    // Appending extra files is only permitted for the financial doc types
+    // whitelisted as multi-file — reject it for everything else so a single-
+    // file type can never accumulate untracked attachments.
+    if (mode === 'append' && !isEmployeeMultiFileType(documentType)) {
+      return NextResponse.json(
+        { error: 'This document type accepts a single file only.', code: 'NOT_MULTI_FILE' },
+        { status: 422 }
+      );
+    }
+
     const ext = getSafeFileExtension(file);
     const timestamp = Date.now();
     const storagePath = `${user.id}/${documentType}/${timestamp}.${ext}`;
@@ -213,6 +264,43 @@ export async function POST(req: NextRequest) {
 
     if (!signedData) {
       return NextResponse.json({ error: 'Could not generate URL', code: 'SIGNED_URL_ERROR' }, { status: 500 });
+    }
+
+    // Append mode: attach to the existing primary row's additional_files
+    // rather than replacing it. Crucially, the primary row's status is left
+    // untouched — supporting evidence must never flip an already-approved
+    // document back to pending. Falls back to creating the primary if none
+    // exists yet (forgiving; the UI only offers "add another" post-primary).
+    if (mode === 'append') {
+      const { data: existing } = await adminSupabase
+        .from('employee_kyc_documents')
+        .select('id, additional_files')
+        .eq('user_id', user.id)
+        .eq('document_type', documentType)
+        .maybeSingle();
+
+      if (existing) {
+        const attachment: KycAdditionalFile = {
+          url: signedData.signedUrl,
+          storage_path: storagePath,
+          name: file.name,
+          uploaded_at: new Date().toISOString(),
+        };
+        const next = [...((existing.additional_files as KycAdditionalFile[] | null) ?? []), attachment];
+        const { error: appendErr } = await adminSupabase
+          .from('employee_kyc_documents')
+          .update({ additional_files: next })
+          .eq('id', existing.id);
+
+        if (appendErr) {
+          return NextResponse.json({ error: 'Failed to attach file', code: 'SAVE_ERROR' }, { status: 500 });
+        }
+        return NextResponse.json(
+          { document_type: documentType, ...attachment, additional_files: next },
+          { status: 201 }
+        );
+      }
+      // No primary yet — fall through and create it as the primary below.
     }
 
     const { data: savedDoc, error: saveError } = await adminSupabase

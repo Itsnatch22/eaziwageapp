@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { DocumentStatusEnum } from '@/lib/validations/kyc-validation';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getEnv } from '@/env';
+import type { KycAdditionalFile } from '@/lib/constants/kyc-multi-file';
 
 const EMPLOYEE_KYC_BUCKET = 'employee-kyc-documents';
 
@@ -27,6 +28,7 @@ type EmployeeKycDocumentRow = {
   expiry_date: string | null;
   created_at: string;
   updated_at: string;
+  additional_files: KycAdditionalFile[] | null;
 };
 
 
@@ -36,6 +38,7 @@ type EmployerKycDocumentRow = {
   document_url: string | null;
   status: string;
   reviewer_notes: string | null;
+  additional_files: KycAdditionalFile[] | null;
 };
 
 // Employer documents now live in employer_kyc_documents, not inline columns
@@ -53,7 +56,7 @@ async function hydrateEmployerDocumentUrls(
 
   const { data: docs } = await adminSupabase
     .from('employer_kyc_documents')
-    .select('id, user_id, document_type, document_url, status, reviewer_notes')
+    .select('id, user_id, document_type, document_url, status, reviewer_notes, additional_files')
     .in('user_id', userIds);
 
   const docsByUser = new Map<string, EmployerKycDocumentRow[]>();
@@ -183,7 +186,7 @@ export async function GET(req: NextRequest) {
     let query = adminSupabase
       .from('employee_kyc_documents')
       .select(
-        'id,user_id,document_type,document_url,storage_path,document_number,status,reviewer_notes,reviewed_at,reviewed_by,expiry_date,created_at,updated_at'
+        'id,user_id,document_type,document_url,storage_path,document_number,status,reviewer_notes,reviewed_at,reviewed_by,expiry_date,created_at,updated_at,additional_files'
       )
       .order('created_at', { ascending: false });
 
@@ -218,9 +221,23 @@ export async function GET(req: NextRequest) {
         : null;
       const freshDocumentUrl = await getFreshEmployeeDocumentUrl(adminSupabase, doc);
 
+      // Supporting attachments store their own storage_path — re-sign each so
+      // the admin's View links don't rely on the (24h) signed URL captured at
+      // upload time, mirroring the primary document's re-signing above.
+      const additionalFiles = await Promise.all(
+        (doc.additional_files ?? []).map(async (att) => {
+          if (!att?.storage_path) return att;
+          const { data: signed } = await adminSupabase.storage
+            .from(EMPLOYEE_KYC_BUCKET)
+            .createSignedUrl(att.storage_path, 60 * 60 * 24);
+          return { ...att, url: signed?.signedUrl ?? att.url };
+        })
+      );
+
       return {
         ...doc,
         document_url: freshDocumentUrl,
+        additional_files: additionalFiles,
         // national_id in employee_onboarding is encrypted at rest — never use it as fallback here
         document_number: storedDocumentNumber || null,
         id_type: identity?.id_type ?? null,

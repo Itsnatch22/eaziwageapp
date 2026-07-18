@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/lib/stores/auth";
 import { DOCUMENT_ACCEPT, isDocumentFile } from "@/lib/upload-file-types";
 import { DocTooltip } from "@/components/shared/DocTooltip";
+import type { KycAdditionalFile } from "@/lib/constants/kyc-multi-file";
 
 const COUNTRIES = [
   { code: "KE", name: "Kenya" },
@@ -167,14 +168,33 @@ interface FileUploaderProps {
   /** Already on file and not rejected — render as non-interactive so the user
    *  is never prompted to re-upload something that wasn't flagged. */
   locked?: boolean;
+  /** Multi-file (financial) types: allow attaching extra supporting files
+   *  once the primary is uploaded. */
+  multi?: boolean;
+  documentType?: string;
+  additionalFiles?: KycAdditionalFile[];
+  appending?: boolean;
+  onAppend?: (file: File) => void;
+  onRemoveAttachment?: (storagePath: string) => void;
 }
 
 const FileUploader = ({
   label, description, onUpload, uploadedFile, uploading, testId, required = false, optional = false, tooltip, locked = false,
+  multi = false, additionalFiles = [], appending = false, onAppend, onRemoveAttachment,
 }: FileUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const appendInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
+
+  const handleAppendSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !onAppend) return;
+    if (!isDocumentFile(file)) { toast.error("Please upload an image or document file"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error("File size must be less than 10MB"); return; }
+    onAppend(file);
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -301,6 +321,40 @@ const FileUploader = ({
           </>
         )}
       </div>
+
+      {/* Multi-file (financial docs): attach extra supporting files once the
+          primary is uploaded. The primary above is the reviewable document;
+          these are supporting evidence (e.g. more months of statements). */}
+      {multi && !locked && uploadedFile && (
+        <div className="space-y-2 pl-1">
+          {additionalFiles.map((f) => (
+            <div key={f.storage_path} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="truncate flex-1">{f.name}</span>
+              {onRemoveAttachment && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveAttachment(f.storage_path)}
+                  aria-label={`Remove ${f.name}`}
+                  className="text-slate-400 hover:text-red-500 transition-colors shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <input ref={appendInputRef} type="file" accept={DOCUMENT_ACCEPT} onChange={handleAppendSelect} className="hidden" />
+          <button
+            type="button"
+            onClick={() => !appending && appendInputRef.current?.click()}
+            disabled={appending}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+          >
+            {appending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            {appending ? "Attaching…" : "Add another file"}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -403,6 +457,9 @@ export default function EmployerOnboarding() {
     proof_of_bank_account: null,
     employment_contract_template: null,
   });
+  // Supporting attachments (multi-file financial docs) keyed by document_type.
+  const [additionalFiles, setAdditionalFiles] = useState<Record<string, KycAdditionalFile[]>>({});
+  const [appendingFile, setAppendingFile] = useState<string | null>(null);
 
   // Per-document KYC review state, keyed by document_type. Drives which
   // upload slots render locked ("already submitted, no action needed") vs.
@@ -676,8 +733,8 @@ const handleFileUpload = async (file: File, documentType: string) => {
       ...prev,
       [documentType]: {
         name: file.name,
-        url: response.document_url, 
-        path: response.storage_path, 
+        url: response.document_url,
+        path: response.storage_path,
       },
     }));
 
@@ -686,6 +743,40 @@ const handleFileUpload = async (file: File, documentType: string) => {
     toast.error(err instanceof Error ? err.message : "Failed to upload document");
   } finally {
     setUploadingFile(null);
+  }
+};
+
+const handleAppendFile = async (file: File, documentType: string) => {
+  setAppendingFile(documentType);
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("document_type", documentType);
+    fd.append("mode", "append");
+    const res = await fetch("/api/employer-dashboard/onboarding/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Upload failed");
+    setAdditionalFiles((prev) => ({ ...prev, [documentType]: data.additional_files ?? [] }));
+    toast.success("File attached");
+  } catch (err: unknown) {
+    toast.error(err instanceof Error ? err.message : "Failed to attach file");
+  } finally {
+    setAppendingFile(null);
+  }
+};
+
+const handleRemoveAttachment = async (documentType: string, storagePath: string) => {
+  try {
+    const fd = new FormData();
+    fd.append("document_type", documentType);
+    fd.append("storage_path", storagePath);
+    fd.append("mode", "remove_attachment");
+    const res = await fetch("/api/employer-dashboard/onboarding/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Remove failed");
+    setAdditionalFiles((prev) => ({ ...prev, [documentType]: data.additional_files ?? [] }));
+  } catch (err: unknown) {
+    toast.error(err instanceof Error ? err.message : "Failed to remove file");
   }
 };
 
@@ -1323,6 +1414,11 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   locked={isDocLocked("audited_financials")}
                   testId="upload-financials"
                   required
+                  multi
+                  additionalFiles={additionalFiles.audited_financials || []}
+                  appending={appendingFile === "audited_financials"}
+                  onAppend={(file) => handleAppendFile(file, "audited_financials")}
+                  onRemoveAttachment={(path) => handleRemoveAttachment("audited_financials", path)}
                 />
 
                 {rejectionNote("bank_statement") && (
@@ -1340,6 +1436,11 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   locked={isDocLocked("bank_statement")}
                   testId="upload-bank-stmt"
                   required
+                  multi
+                  additionalFiles={additionalFiles.bank_statement || []}
+                  appending={appendingFile === "bank_statement"}
+                  onAppend={(file) => handleAppendFile(file, "bank_statement")}
+                  onRemoveAttachment={(path) => handleRemoveAttachment("bank_statement", path)}
                 />
 
                 {rejectionNote("proof_of_bank_account") && (
@@ -1357,6 +1458,11 @@ const handleFileUpload = async (file: File, documentType: string) => {
                   locked={isDocLocked("proof_of_bank_account")}
                   testId="upload-bank-proof"
                   required
+                  multi
+                  additionalFiles={additionalFiles.proof_of_bank_account || []}
+                  appending={appendingFile === "proof_of_bank_account"}
+                  onAppend={(file) => handleAppendFile(file, "proof_of_bank_account")}
+                  onRemoveAttachment={(path) => handleRemoveAttachment("proof_of_bank_account", path)}
                 />
               </div>
             </div>

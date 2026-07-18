@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { documentTypeSchema } from '@/lib/validations/employer-onboarding';
 import { isDocumentFile } from '@/lib/upload-file-types';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { isEmployerMultiFileType, type KycAdditionalFile } from '@/lib/constants/kyc-multi-file';
 
 export const runtime = 'nodejs';
 
@@ -28,6 +29,45 @@ export async function POST(req: NextRequest) {
 
   const file = form.get('file') as File | null;
   const rawDocType = form.get('document_type') as string | null;
+  // '' | 'append' | 'remove_attachment' — see lib/constants/kyc-multi-file.ts.
+  const mode = (form.get('mode') as string | null)?.trim() || '';
+
+  const adminSupabase = createAdminClient();
+
+  // Removing a supporting attachment carries no file — handle before the
+  // file-required guard. Only additional_files entries are removable this way.
+  if (mode === 'remove_attachment') {
+    const parsedType = documentTypeSchema.safeParse(rawDocType);
+    const targetPath = (form.get('storage_path') as string | null)?.trim();
+    if (!parsedType.success || !targetPath) {
+      return NextResponse.json({ error: 'document_type and storage_path are required' }, { status: 400 });
+    }
+    const docType = parsedType.data;
+
+    const { data: row } = await adminSupabase
+      .from('employer_kyc_documents')
+      .select('id, additional_files')
+      .eq('user_id', user.id)
+      .eq('document_type', docType)
+      .maybeSingle();
+
+    const current = (row?.additional_files as KycAdditionalFile[] | null) ?? [];
+    if (!current.some((f) => f.storage_path === targetPath)) {
+      return NextResponse.json({ error: 'Attachment not found' }, { status: 404 });
+    }
+
+    await supabase.storage.from(BUCKET).remove([targetPath]);
+    const next = current.filter((f) => f.storage_path !== targetPath);
+    const { error: updErr } = await adminSupabase
+      .from('employer_kyc_documents')
+      .update({ additional_files: next })
+      .eq('id', row!.id);
+
+    if (updErr) {
+      return NextResponse.json({ error: 'Failed to remove attachment.' }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, additional_files: next });
+  }
 
   if (!file) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -41,6 +81,13 @@ export async function POST(req: NextRequest) {
     );
   }
   const documentType = parsed.data;
+
+  if (mode === 'append' && !isEmployerMultiFileType(documentType)) {
+    return NextResponse.json(
+      { error: 'This document type accepts a single file only.' },
+      { status: 422 },
+    );
+  }
 
   if (!isDocumentFile(file)) {
     return NextResponse.json(
@@ -100,8 +147,40 @@ export async function POST(req: NextRequest) {
 
   // employer_kyc_documents has no INSERT/UPDATE RLS policy for regular users
   // (only a read-your-own-rows SELECT policy) — writes must go through the
-  // service-role client.
-  const adminSupabase = createAdminClient();
+  // service-role client (adminSupabase, created above).
+
+  // Append mode: attach to the existing primary row's additional_files without
+  // touching its status (supporting evidence must not reopen an approved doc).
+  // Falls back to creating the primary if none exists yet.
+  if (mode === 'append') {
+    const { data: existing } = await adminSupabase
+      .from('employer_kyc_documents')
+      .select('id, additional_files')
+      .eq('user_id', user.id)
+      .eq('document_type', documentType)
+      .maybeSingle();
+
+    if (existing) {
+      const attachment: KycAdditionalFile = {
+        url: signedData.signedUrl,
+        storage_path: storagePath,
+        name: file.name,
+        uploaded_at: new Date().toISOString(),
+      };
+      const next = [...((existing.additional_files as KycAdditionalFile[] | null) ?? []), attachment];
+      const { error: appendErr } = await adminSupabase
+        .from('employer_kyc_documents')
+        .update({ additional_files: next })
+        .eq('id', existing.id);
+
+      if (appendErr) {
+        return NextResponse.json({ error: 'File uploaded but failed to attach. Contact support.' }, { status: 500 });
+      }
+      return NextResponse.json({ document_type: documentType, ...attachment, additional_files: next });
+    }
+    // No primary yet — fall through and create it as the primary below.
+  }
+
   const { error: docError } = await adminSupabase
     .from('employer_kyc_documents')
     .upsert(

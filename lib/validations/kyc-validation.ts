@@ -87,6 +87,16 @@ export const KYCDocumentSchema = z.object({
   reviewed_by: z.string().uuid().nullable(),
   expiry_date: z.string().nullable(),
   metadata: z.record(z.string(), z.unknown()).default({}),
+  // Supporting attachments for multi-file (financial) document types — extra
+  // files that hang off this one reviewable row. See lib/constants/kyc-multi-file.ts.
+  additional_files: z
+    .array(z.object({
+      url: z.string(),
+      storage_path: z.string(),
+      name: z.string(),
+      uploaded_at: z.string(),
+    }))
+    .default([]),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 });
