@@ -130,20 +130,35 @@ const LinkEmployerCard = ({
   const [companies, setCompanies] = useState<EmployerOption[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [selected, setSelected] = useState<EmployerOption | null>(null);
 
-  useEffect(() => {
-    if (fetched) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+  const loadCompanies = () => {
     setSearchLoading(true);
+    setFetchError(false);
     fetch('/api/employee-dashboard/employers')
-      .then((res) => (res.ok ? res.json() : { employers: [] }))
+      .then(async (res) => {
+        // A failed request (expired session, transient 5xx, etc.) must be
+        // visibly distinct from "zero companies matched" — silently treating
+        // it as an empty list made a real fetch failure indistinguishable
+        // from a genuine no-results search.
+        if (!res.ok) throw new Error(`Failed to load companies (${res.status})`);
+        return res.json();
+      })
       .then((data) => setCompanies(data.employers ?? []))
-      .catch(() => setCompanies([]))
+      .catch(() => {
+        setCompanies([]);
+        setFetchError(true);
+      })
       .finally(() => {
         setSearchLoading(false);
         setFetched(true);
       });
+  };
+
+  useEffect(() => {
+    if (fetched) return;
+    Promise.resolve().then(() => loadCompanies());
   }, [fetched]);
 
   const results = query.trim()
@@ -192,6 +207,13 @@ const LinkEmployerCard = ({
           </div>
           {searchLoading ? (
             <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : fetchError ? (
+            <div className="text-center py-6 space-y-2">
+              <p className="text-sm text-red-500 flex items-center justify-center gap-1.5">
+                <AlertTriangle className="w-4 h-4" /> Couldn&apos;t load companies — this isn&apos;t a &quot;no results&quot; state.
+              </p>
+              <Button variant="outline" size="sm" onClick={loadCompanies}>Try again</Button>
+            </div>
           ) : results.length > 0 ? (
             <div className="max-h-64 overflow-y-auto space-y-1.5">
               {results.map((c) => (
