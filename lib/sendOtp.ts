@@ -118,7 +118,8 @@ export async function sendSms(phoneNumber: string, message: string, countryCode 
       );
     }
 
-    const recipients = (response as any)?.SMSMessageData?.Recipients ?? [];
+    const smsMessageData = response?.SMSMessageData as { Recipients?: { status: string }[] } | undefined;
+    const recipients = smsMessageData?.Recipients ?? [];
     const failed = recipients.find((r: { status: string }) => r.status !== 'Success');
 
     if (!failed) return;
