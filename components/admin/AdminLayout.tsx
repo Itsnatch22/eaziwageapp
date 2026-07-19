@@ -59,12 +59,36 @@ interface UserProfile {
 // already happened. Reuses the audit trail these routes already write
 // (admin_name + action) rather than adding a second write path.
 const ACTOR_VISIBILITY_ACTIONS: Record<string, { verb: string; targetLabel: string }> = {
+  // Account approval (employees/employers)
   employee_status_approved:  { verb: 'approved',  targetLabel: 'an employee' },
   employee_status_active:    { verb: 'approved',  targetLabel: 'an employee' },
   employee_status_rejected:  { verb: 'rejected',  targetLabel: 'an employee' },
   employee_status_suspended: { verb: 'suspended', targetLabel: 'an employee' },
   employee_status_pending:   { verb: 'set',       targetLabel: "an employee's status to pending" },
   account_status:            { verb: 'updated',   targetLabel: "an employer's account status" },
+
+  // app/admin/kyc-review — per-document and employer-KYC review
+  kyc_document_approved: { verb: 'approved', targetLabel: 'a KYC document' },
+  kyc_document_rejected: { verb: 'rejected', targetLabel: 'a KYC document' },
+  kyc_approved:          { verb: 'approved', targetLabel: "an employer's KYC" },
+  kyc_rejected:          { verb: 'rejected', targetLabel: "an employer's KYC" },
+
+  // app/admin/wallet/topup-requests
+  topup_collection_initiated: { verb: 'approved', targetLabel: 'a wallet top-up request' },
+  topup_payout_initiated:     { verb: 'approved', targetLabel: 'a wallet top-up request' },
+  topup_rejected:             { verb: 'rejected', targetLabel: 'a wallet top-up request' },
+
+  // app/admin/risk-scoring
+  employer_risk_updated: { verb: 'updated', targetLabel: "an employer's risk assessment" },
+
+  // app/admin/review-requests — risk_review_resolved's verb is refined at
+  // runtime from new_value.status (the action name alone doesn't say
+  // approved vs. rejected, unlike the others below).
+  risk_review_resolved: { verb: 'resolved', targetLabel: 'a risk review request' },
+  kyc_review_approved:  { verb: 'approved', targetLabel: 'a KYC review request' },
+  kyc_review_rejected:  { verb: 'rejected', targetLabel: 'a KYC review request' },
+  bank_change_approved: { verb: 'approved', targetLabel: 'a bank change request' },
+  bank_change_rejected: { verb: 'rejected', targetLabel: 'a bank change request' },
 };
 
 
@@ -469,7 +493,14 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       if (!action || adminId === userProfile?.id) return;
       const known = ACTOR_VISIBILITY_ACTIONS[action];
       if (!known) return;
-      toast.info(`${adminName} ${known.verb} ${known.targetLabel}`, {
+      let verb = known.verb;
+      if (action === 'risk_review_resolved') {
+        const newValue = row.new_value as { status?: string } | undefined;
+        verb = newValue?.status === 'approved' ? 'approved'
+          : newValue?.status === 'rejected' ? 'rejected'
+          : 'resolved';
+      }
+      toast.info(`${adminName} ${verb} ${known.targetLabel}`, {
         icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />,
       });
       return;
