@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, Shield, Smartphone, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -239,7 +240,7 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
         </div>
       </div>
 
-      {showManage && (
+      {showManage && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30 shadow-2xl">
             <div className="flex items-start justify-between">
@@ -309,7 +310,8 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
