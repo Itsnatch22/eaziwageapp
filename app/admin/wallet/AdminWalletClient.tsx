@@ -60,6 +60,15 @@ interface ApiError {
   error: string;
 }
 
+interface ReconciliationFlag {
+  id: string;
+  wallet_transaction_id: string;
+  recorded_amount: number;
+  balance_before_sync: number;
+  stanbic_reported_balance: number;
+  created_at: string;
+}
+
 interface ExchangeRate {
   currency_code: string;
   rate_to_usd: number;
@@ -78,6 +87,7 @@ interface AdminWalletClientProps {
   initialTransactions: AdminWalletTransaction[];
   exchangeRates: ExchangeRate[];
   lowBalanceThresholdUsd: number | null;
+  initialReconciliationFlags: ReconciliationFlag[];
 }
 
 function getSyncStatusIndicator(lastReconciledAt: string | null): {
@@ -470,9 +480,12 @@ export default function AdminWalletClient({
   initialTransactions,
   exchangeRates,
   lowBalanceThresholdUsd,
+  initialReconciliationFlags,
 }: AdminWalletClientProps) {
   const [wallet, setWallet] = useState<AdminWallet | null>(initialWallet);
   const [transactions, setTransactions] = useState<AdminWalletTransaction[]>(initialTransactions);
+  const [reconciliationFlags, setReconciliationFlags] = useState<ReconciliationFlag[]>(initialReconciliationFlags);
+  const [resolvingFlagId, setResolvingFlagId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDepositing, setIsDepositing] = useState(false);
   const [depositModalOpen, setDepositModalOpen] = useState(false);
@@ -589,6 +602,32 @@ export default function AdminWalletClient({
     [wallet, transactions]
   );
 
+  const handleResolveFlag = useCallback(
+    async (flagId: string, status: 'resolved' | 'dismissed') => {
+      setResolvingFlagId(flagId);
+      try {
+        const response = await fetch(`/api/admin/finances/stanbic-reconciliation/${flagId}/resolve`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+
+        if (!response.ok) {
+          const errorData = (await response.json()) as ApiError;
+          throw new Error(errorData.error || 'Failed to resolve flag');
+        }
+
+        setReconciliationFlags((prev) => prev.filter((f) => f.id !== flagId));
+        toast.success(status === 'resolved' ? 'Deposit confirmed as genuine' : 'Flag dismissed');
+      } catch (error) {
+        toast.error((error as Error).message || 'Failed to resolve flag');
+      } finally {
+        setResolvingFlagId(null);
+      }
+    },
+    [],
+  );
+
   const syncStatus = useMemo(
     () => getSyncStatusIndicator(wallet?.last_reconciled_at || null),
     [wallet?.last_reconciled_at]
@@ -676,6 +715,53 @@ export default function AdminWalletClient({
           </p>
         </div>
       </div>
+
+      {reconciliationFlags.length > 0 && (
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg space-y-3">
+          <div className="flex gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
+                Unconfirmed Stanbic Deposit{reconciliationFlags.length > 1 ? 's' : ''}
+              </h3>
+              <p className="text-sm text-red-800 dark:text-red-200">
+                {reconciliationFlags.length} manually-recorded deposit{reconciliationFlags.length > 1 ? 's are' : ' is'} still not reflected in Stanbic&apos;s real balance more than 24 hours after being recorded. Verify against the bank statement before trusting this balance.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {reconciliationFlags.map((flag) => (
+              <div
+                key={flag.id}
+                className="flex items-center justify-between gap-3 p-3 bg-white/60 dark:bg-slate-900/40 rounded-lg border border-red-200/50 dark:border-red-800/30"
+              >
+                <div className="text-sm">
+                  <span className="font-semibold text-slate-900 dark:text-white">
+                    {formatCurrency(flag.recorded_amount, 'USD')}
+                  </span>
+                  <span className="text-slate-500 dark:text-slate-400"> recorded {formatDateTime(flag.created_at)} — Stanbic reported {formatCurrency(flag.stanbic_reported_balance, 'USD')} vs. expected {formatCurrency(flag.balance_before_sync, 'USD')}</span>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleResolveFlag(flag.id, 'dismissed')}
+                    disabled={resolvingFlagId === flag.id}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    onClick={() => handleResolveFlag(flag.id, 'resolved')}
+                    disabled={resolvingFlagId === flag.id}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50"
+                  >
+                    {resolvingFlagId === flag.id ? 'Confirming…' : 'Confirm Genuine'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {syncConflict && (
         <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex gap-3">

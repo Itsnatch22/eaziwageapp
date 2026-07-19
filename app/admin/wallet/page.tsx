@@ -58,6 +58,35 @@ async function fetchExchangeRates(): Promise<ExchangeRate[]> {
   }
 }
 
+interface ReconciliationFlag {
+  id: string;
+  wallet_transaction_id: string;
+  recorded_amount: number;
+  balance_before_sync: number;
+  stanbic_reported_balance: number;
+  created_at: string;
+}
+
+async function fetchReconciliationFlags(): Promise<ReconciliationFlag[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('stanbic_deposit_reconciliation_flags')
+      .select('id, wallet_transaction_id, recorded_amount, balance_before_sync, stanbic_reported_balance, created_at')
+      .eq('status', 'pending_review')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching reconciliation flags:', error);
+      return [];
+    }
+
+    return data ?? [];
+  } catch (error) {
+    console.error('Error fetching reconciliation flags:', error);
+    return [];
+  }
+}
+
 async function fetchLowBalanceThreshold(): Promise<number | null> {
   try {
     const { data, error } = await supabaseAdmin
@@ -97,10 +126,11 @@ function WalletSkeleton() {
 }
 
 export default async function AdminWalletPage() {
-  const [walletData, exchangeRates, lowBalanceThresholdUsd] = await Promise.all([
+  const [walletData, exchangeRates, lowBalanceThresholdUsd, reconciliationFlags] = await Promise.all([
     fetchInitialData(),
     fetchExchangeRates(),
     fetchLowBalanceThreshold(),
+    fetchReconciliationFlags(),
   ]);
 
   return (
@@ -111,6 +141,7 @@ export default async function AdminWalletPage() {
           initialTransactions={walletData.transactions as never}
           exchangeRates={exchangeRates}
           lowBalanceThresholdUsd={lowBalanceThresholdUsd}
+          initialReconciliationFlags={reconciliationFlags}
         />
       </Suspense>
     </div>

@@ -69,6 +69,12 @@ function isSuspiciousDrop(previous: number, incoming: number): boolean {
   return drop > 50;
 }
 
+// Manual admin_deposit() entries aren't flagged the moment a sync doesn't yet
+// reflect them — a real bank deposit can take a business day or more to clear
+// and show up in Stanbic's own balance. Only flag ones that are still
+// unaccounted for after this long.
+const RECONCILIATION_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
+
 // ─── Shared sync — called by both the admin-session route and the cron route ──
 // Nothing about the actual Stanbic fetch/parse/normalize/suspicious-drop logic
 // below has changed from its original form in app/api/admin/wallet/sync/route.ts
@@ -222,6 +228,76 @@ export async function syncStanbicBalance(
   }
 
   const nowIso = new Date().toISOString();
+
+  // ─── Manual-deposit reconciliation ───────────────────────────
+  // Compare Stanbic's real, just-fetched balance against manually-recorded
+  // admin_deposit() entries that haven't been confirmed by a sync yet. This
+  // never blocks or alters the sync itself — it only marks deposits as
+  // confirmed, or (after a grace period) raises a flag for admin review.
+  const { data: unreconciledDeposits, error: unreconciledError } = await adminSupabase
+    .from('admin_wallet_transactions')
+    .select('id, amount, created_at')
+    .eq('admin_wallet_id', existingWallet.id)
+    .eq('type', 'stanbic_deposit')
+    .eq('reconciled', false)
+    .order('created_at', { ascending: true });
+
+  if (unreconciledError) {
+    log.error('Failed to fetch unreconciled Stanbic deposits — skipping reconciliation check', {
+      err: unreconciledError.message,
+    });
+  } else if (unreconciledDeposits && unreconciledDeposits.length > 0) {
+    if (normalizedBalance >= existingWallet.balance) {
+      // Stanbic's real balance has caught up to (or exceeds) what we had
+      // recorded, including the manual deposits — treat them as confirmed.
+      const { error: reconcileError } = await adminSupabase
+        .from('admin_wallet_transactions')
+        .update({ reconciled: true })
+        .in('id', unreconciledDeposits.map((d) => d.id))
+        .eq('reconciled', false);
+      if (reconcileError) {
+        log.error('Failed to mark manual deposits as reconciled', { err: reconcileError.message });
+      } else {
+        log.info('Manual Stanbic deposits reconciled', { count: unreconciledDeposits.length });
+      }
+    } else {
+      // Stanbic's real balance is lower than what we're carrying — one or
+      // more manual deposits may not actually be reflected. Flag only the
+      // ones old enough that a normal clearing delay no longer explains it;
+      // the unique(wallet_transaction_id, status) constraint makes this
+      // idempotent across repeated sync runs.
+      const now = Date.now();
+      const staleDeposits = unreconciledDeposits.filter(
+        (d) => now - new Date(d.created_at).getTime() > RECONCILIATION_GRACE_PERIOD_MS,
+      );
+      for (const deposit of staleDeposits) {
+        const { error: flagError } = await adminSupabase
+          .from('stanbic_deposit_reconciliation_flags')
+          .upsert(
+            {
+              admin_wallet_id: existingWallet.id,
+              wallet_transaction_id: deposit.id,
+              recorded_amount: deposit.amount,
+              balance_before_sync: existingWallet.balance,
+              stanbic_reported_balance: normalizedBalance,
+              status: 'pending_review',
+            },
+            { onConflict: 'wallet_transaction_id,status', ignoreDuplicates: true },
+          );
+        if (flagError) {
+          log.error('Failed to raise Stanbic deposit reconciliation flag', {
+            err: flagError.message,
+            wallet_transaction_id: deposit.id,
+          });
+        } else {
+          log.warn('Manual Stanbic deposit unaccounted for after grace period — flagged for review', {
+            wallet_transaction_id: deposit.id,
+            recorded_amount: deposit.amount,
+          });
+        }
+      }
+    }
+  }
 
   // Update wallet balance
   const { error: updateError } = await adminSupabase
