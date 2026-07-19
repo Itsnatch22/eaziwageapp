@@ -77,8 +77,13 @@ export const employeeOnboardingSchema = z.object({
   monthly_salary: z.number().nonnegative('Monthly salary must be 0 or more'),
   bank_name: z.string().min(1, 'Bank name is required'),
   bank_account: z.string().min(1, 'Bank account is required'),
-  mobile_money_provider: z.string().min(1, 'Mobile money provider is required'),
-  mobile_money_number: z.string().min(1, 'Mobile money number is required'),
+  // Mobile money is an optional, additional payout channel — bank_name/
+  // bank_account above are the one guaranteed disbursement method and stay
+  // required. app/api/employee-dashboard/onboarding/route.ts already only
+  // creates a mobile_money payment_methods row when both are present, so
+  // leaving these blank has always been handled safely downstream.
+  mobile_money_provider: z.string().optional(),
+  mobile_money_number: z.string().optional(),
   face_id: z.string().url().optional(),
   id_front: z.string().url().optional(),
   id_back: z.string().url().optional(),

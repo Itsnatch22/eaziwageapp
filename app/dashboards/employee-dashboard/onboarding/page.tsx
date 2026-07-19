@@ -1228,11 +1228,12 @@ export default function Onboarding() {
         );
 
       case 7:
+        // Mobile money is an optional, additional payout channel — bank
+        // details are the one guaranteed disbursement method and stay
+        // required. Matches lib/validations/employee-validation.ts.
         return !!(
           formData.country &&
           formData.bank_name &&
-          formData.mobile_money_provider &&
-          formData.mobile_money_number &&
           formData.bank_account &&
           (uploadedFiles.bank_statement || isDocLocked("bank_statement"))
         );
@@ -2110,7 +2111,7 @@ export default function Onboarding() {
 
               <div className="p-5 bg-emerald-500/5 rounded-3xl border border-emerald-500/10">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-4 flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5" /> Mobile Money
+                  <Phone className="w-3.5 h-3.5" /> Mobile Money <span className="text-slate-400 normal-case tracking-normal font-medium">(Optional)</span>
                 </h4>
                 <div className="space-y-4">
                   <Select
