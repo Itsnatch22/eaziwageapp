@@ -8,7 +8,6 @@ import { requireAdmin } from '@/lib/server/admin-auth';
 interface EmployeeUpsertPayload {
   user_id: string;
   status: string;
-  kyc_status: string;
   updated_at: string;
   employer_id?: string;
   employee_code?: string;
@@ -27,13 +26,6 @@ type EmployeeActionStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'su
 
 function toLiveEmployeeStatus(status: EmployeeActionStatus): 'Active' | 'Inactive' {
   return status === 'active' || status === 'approved' ? 'Active' : 'Inactive';
-}
-
-function toKycStatus(status: EmployeeActionStatus): 'approved' | 'pending' | 'rejected' | undefined {
-  if (status === 'active' || status === 'approved') return 'approved';
-  if (status === 'pending') return 'pending';
-  if (status === 'rejected') return 'rejected';
-  return undefined;
 }
 
 export async function PATCH(
@@ -109,7 +101,6 @@ export async function PATCH(
     }
 
     const liveStatus = toLiveEmployeeStatus(status);
-    const kycStatus = toKycStatus(status);
     const normalizedEmploymentType =
       typeof onboardingRecord?.employment_type === 'string'
         ? onboardingRecord.employment_type.replace(/_/g, '-').toLowerCase()
@@ -131,23 +122,15 @@ export async function PATCH(
       }
     }
 
-    // No direct employee_onboarding.status write for approved/pending/rejected —
-    // bulk-updating employee_kyc_documents below fires
-    // trg_recompute_onboarding_status, which derives the rollup status itself.
-    // 'suspended' is the one exception the trigger explicitly carves out (it
-    // skips recompute while status is already 'suspended'), so that one is
-    // still written directly.
-    if (status === 'approved' || status === 'active') {
-      const { error: docsError } = await adminSupabase
-        .from('employee_kyc_documents')
-        .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: user.id })
-        .eq('user_id', userId);
-
-      if (docsError) {
-        console.error('[PATCH status] documents approve error:', docsError);
-        return NextResponse.json({ error: 'Failed to approve KYC documents' }, { status: 500 });
-      }
-    } else if (status === 'rejected') {
+    // Account approval (this route) and KYC document approval are separate
+    // gates — approving the account must never bulk-approve every document as
+    // a side effect (that used to happen here). Dashboard access is granted
+    // below via this route's own upsert into `employees`, independent of the
+    // employee_onboarding KYC rollup; money-movement eligibility is still
+    // independently gated elsewhere by employees.kyc_status, which only
+    // fn_sync_employee_kyc_to_live() (reacting to real per-document review
+    // outcomes) is allowed to set. See feedback_separate_account_kyc_review_approval.
+    if (status === 'rejected') {
       const { error: docsError } = await adminSupabase
         .from('employee_kyc_documents')
         .update({ status: 'rejected', reviewer_notes: reason, reviewed_at: new Date().toISOString(), reviewed_by: user.id })
@@ -207,10 +190,15 @@ export async function PATCH(
       
       const displayName = profileData?.full_name || onboardingRecord?.full_name || 'Anonymous';
 
+      // kyc_status deliberately omitted here — account approval only grants
+      // dashboard access. On first insert it defaults to 'pending' (correct:
+      // KYC review may not be done yet); on conflict/update, omitting it from
+      // the payload leaves the existing value untouched, so only
+      // fn_sync_employee_kyc_to_live() (reacting to real document review
+      // outcomes on employee_onboarding) is ever allowed to set it.
       const upsertPayload: Partial<EmployeeUpsertPayload> = {
         user_id: userId,
         status: liveStatus,
-        kyc_status: 'approved',
         updated_at: new Date().toISOString(),
       };
 
@@ -253,7 +241,7 @@ export async function PATCH(
         if (existingEmployee) {
           const { error: updateErr } = await adminSupabase
             .from('employees')
-            .update({ status: liveStatus, kyc_status: 'approved', updated_at: new Date().toISOString() })
+            .update({ status: liveStatus, updated_at: new Date().toISOString() })
             .eq('user_id', userId);
 
           if (updateErr) {
@@ -274,15 +262,12 @@ export async function PATCH(
         .maybeSingle();
 
       if (existingEmployee) {
-        const employeeUpdate: Record<string, unknown> = {
-          status: liveStatus,
-          updated_at: new Date().toISOString(),
-        };
-        if (kycStatus) employeeUpdate.kyc_status = kycStatus;
-
+        // kyc_status intentionally not touched here either — setting the
+        // account to pending/rejected/suspended must not silently overwrite
+        // an independently-tracked KYC review outcome as a side effect.
         const { error: employeeUpdateError } = await adminSupabase
           .from('employees')
-          .update(employeeUpdate)
+          .update({ status: liveStatus, updated_at: new Date().toISOString() })
           .eq('user_id', userId);
 
         if (employeeUpdateError) {
