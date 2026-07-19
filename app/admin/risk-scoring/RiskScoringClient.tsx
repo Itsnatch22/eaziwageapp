@@ -285,7 +285,13 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
     let total = 0;
     categories.forEach(cat => {
       cat.factors.forEach(f => {
-        total += (factors[f.id as keyof typeof factors] || 3) * f.weight;
+        // ?? not || — a factor explicitly set to its worst value (0) must
+        // count as 0, not silently fall back to the neutral default. The
+        // slider itself is currently clamped to min="1" so this can't fire
+        // through today's UI, but `factors` state has no other guard against
+        // a future 0 (a lowered slider min, or hydrating from a saved
+        // assessment) being swallowed here.
+        total += (factors[f.id as keyof typeof factors] ?? 3) * f.weight;
       });
     });
     return Math.max(0, Math.min(5, total));
