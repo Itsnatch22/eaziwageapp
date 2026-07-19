@@ -1,22 +1,4 @@
-import AfricasTalking from 'africastalking';
-
-// Constructed lazily (not at module scope) because the SDK's constructor
-// synchronously validates credentials and throws if they're missing —
-// eager construction would crash every route that imports this module
-// (transitively, via lib/notifications.ts) on load, including the DusuPay
-// webhook handler, whenever AT_API_KEY/AT_USERNAME is unset or misconfigured.
-let smsClient: ReturnType<typeof AfricasTalking>['SMS'] | null = null;
-
-function getSmsClient() {
-  if (!smsClient) {
-    const at = AfricasTalking({
-      apiKey: process.env.AT_API_KEY!,
-      username: process.env.AT_USERNAME!,
-    });
-    smsClient = at.SMS;
-  }
-  return smsClient;
-}
+import { atsClient } from '@/lib/africastalking/client';
 
 /**
  * Country dial code map for EaziWage's supported markets.
@@ -124,7 +106,7 @@ export async function sendSms(phoneNumber: string, message: string, countryCode 
   for (let attempt = 0; attempt < SMS_MAX_ATTEMPTS; attempt++) {
     let response;
     try {
-      response = await withTimeout(getSmsClient().send(options), SMS_TIMEOUT_MS);
+      response = await withTimeout(atsClient.send(options), SMS_TIMEOUT_MS);
     } catch (err) {
       lastNetworkError = err;
       if (attempt < SMS_MAX_ATTEMPTS - 1) {
@@ -136,7 +118,7 @@ export async function sendSms(phoneNumber: string, message: string, countryCode 
       );
     }
 
-    const recipients = response?.SMSMessageData?.Recipients ?? [];
+    const recipients = (response as any)?.SMSMessageData?.Recipients ?? [];
     const failed = recipients.find((r: { status: string }) => r.status !== 'Success');
 
     if (!failed) return;

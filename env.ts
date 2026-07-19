@@ -23,14 +23,30 @@ interface EnvConfig {
   VAPID_PRIVATE_KEY?: string;
   SUPABASE_PRIVATE_VAPID_KEY?: string;
 
+  STANBIC_ENVIRONMENT?: string;
   STANBIC_API_KEY?: string;
   STANBIC_CLIENT_SECRET?: string;
   STANBIC_SANDBOX_API_KEY?: string;
+  STANBIC_SANDBOX_CLIENT_SECRET?: string;
   STANBIC_SANDBOX_BASE_URL?: string;
-  STANBIC_BASE_URL?: string;
-
   STANBIC_SANDBOX_URL_ENDPOINT?: string;
+  STANBIC_SANDBOX_TOKEN_URL?: string;
+  STANBIC_PRODUCTION_API_KEY?: string;
+  STANBIC_PRODUCTION_CLIENT_SECRET?: string;
+  STANBIC_PRODUCTION_BASE_URL?: string;
+  STANBIC_PRODUCTION_URL_ENDPOINT?: string;
+  STANBIC_PRODUCTION_TOKEN_URL?: string;
+  STANBIC_BASE_URL?: string;
   STANBIC_TOKEN_URL?: string;
+
+  AT_ENVIRONMENT?: string;
+  AT_API_KEY?: string;
+  AT_USERNAME?: string;
+  AT_SANDBOX_API_KEY?: string;
+  AT_SANDBOX_USERNAME?: string;
+  AT_PRODUCTION_API_KEY?: string;
+  AT_PRODUCTION_USERNAME?: string;
+  AT_SENDER_ID?: string;
 }
 
 class EnvironmentError extends Error {
@@ -123,6 +139,34 @@ export function validateEnv(): EnvConfig {
     if (process.env.STANBIC_TOKEN_URL && !isValidUrl(process.env.STANBIC_TOKEN_URL)) {
       errors.push('STANBIC_TOKEN_URL is not a valid URL');
     }
+
+    if (process.env.STANBIC_PRODUCTION_TOKEN_URL && !isValidUrl(process.env.STANBIC_PRODUCTION_TOKEN_URL)) {
+      errors.push('STANBIC_PRODUCTION_TOKEN_URL is not a valid URL');
+    }
+
+    if (process.env.STANBIC_PRODUCTION_BASE_URL && !isValidUrl(process.env.STANBIC_PRODUCTION_BASE_URL)) {
+      errors.push('STANBIC_PRODUCTION_BASE_URL is not a valid URL');
+    }
+
+    if (process.env.STANBIC_PRODUCTION_URL_ENDPOINT && !isValidUrl(process.env.STANBIC_PRODUCTION_URL_ENDPOINT)) {
+      errors.push('STANBIC_PRODUCTION_URL_ENDPOINT is not a valid URL');
+    }
+
+    if (process.env.AT_ENVIRONMENT === 'production') {
+      if (!process.env.AT_PRODUCTION_API_KEY && !process.env.AT_API_KEY) {
+        errors.push('AT_PRODUCTION_API_KEY or AT_API_KEY is not defined (required when AT_ENVIRONMENT=production)');
+      }
+      if (!process.env.AT_PRODUCTION_USERNAME && !process.env.AT_USERNAME) {
+        errors.push('AT_PRODUCTION_USERNAME or AT_USERNAME is not defined (required when AT_ENVIRONMENT=production)');
+      }
+    } else {
+      if (!process.env.AT_SANDBOX_API_KEY && !process.env.AT_API_KEY) {
+        errors.push('AT_SANDBOX_API_KEY or AT_API_KEY is not defined (required for Africa\'s Talking sandbox)');
+      }
+      if (!process.env.AT_SANDBOX_USERNAME && !process.env.AT_USERNAME) {
+        errors.push('AT_SANDBOX_USERNAME or AT_USERNAME is not defined (required for Africa\'s Talking sandbox)');
+      }
+    }
   }
 
   if (errors.length > 0) {
@@ -150,14 +194,30 @@ export function validateEnv(): EnvConfig {
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     SUPABASE_PRIVATE_VAPID_KEY: process.env.SUPABASE_PRIVATE_VAPID_KEY,
 
+    STANBIC_ENVIRONMENT: process.env.STANBIC_ENVIRONMENT,
     STANBIC_API_KEY: process.env.STANBIC_API_KEY,
     STANBIC_CLIENT_SECRET: process.env.STANBIC_CLIENT_SECRET,
     STANBIC_SANDBOX_API_KEY: process.env.STANBIC_SANDBOX_API_KEY,
+    STANBIC_SANDBOX_CLIENT_SECRET: process.env.STANBIC_SANDBOX_CLIENT_SECRET,
     STANBIC_SANDBOX_BASE_URL: process.env.STANBIC_SANDBOX_BASE_URL,
-    STANBIC_BASE_URL: process.env.STANBIC_BASE_URL,
-
     STANBIC_SANDBOX_URL_ENDPOINT: process.env.STANBIC_SANDBOX_URL_ENDPOINT,
+    STANBIC_SANDBOX_TOKEN_URL: process.env.STANBIC_SANDBOX_TOKEN_URL,
+    STANBIC_PRODUCTION_API_KEY: process.env.STANBIC_PRODUCTION_API_KEY,
+    STANBIC_PRODUCTION_CLIENT_SECRET: process.env.STANBIC_PRODUCTION_CLIENT_SECRET,
+    STANBIC_PRODUCTION_BASE_URL: process.env.STANBIC_PRODUCTION_BASE_URL,
+    STANBIC_PRODUCTION_URL_ENDPOINT: process.env.STANBIC_PRODUCTION_URL_ENDPOINT,
+    STANBIC_PRODUCTION_TOKEN_URL: process.env.STANBIC_PRODUCTION_TOKEN_URL,
+    STANBIC_BASE_URL: process.env.STANBIC_BASE_URL,
     STANBIC_TOKEN_URL: process.env.STANBIC_TOKEN_URL,
+
+    AT_ENVIRONMENT: process.env.AT_ENVIRONMENT,
+    AT_API_KEY: process.env.AT_API_KEY,
+    AT_USERNAME: process.env.AT_USERNAME,
+    AT_SANDBOX_API_KEY: process.env.AT_SANDBOX_API_KEY,
+    AT_SANDBOX_USERNAME: process.env.AT_SANDBOX_USERNAME,
+    AT_PRODUCTION_API_KEY: process.env.AT_PRODUCTION_API_KEY,
+    AT_PRODUCTION_USERNAME: process.env.AT_PRODUCTION_USERNAME,
+    AT_SENDER_ID: process.env.AT_SENDER_ID,
   };
 }
 

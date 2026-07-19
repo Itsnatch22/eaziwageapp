@@ -2,9 +2,11 @@ import { Redis } from '@upstash/redis';
 import { getEnv } from '@/env';
 
 /**
- * Stanbic Bank Integration Helper (Updated for Account Balance API)
- * - Uses correct sandbox token and balance endpoints
- * - Robust token caching in Upstash Redis
+ * Stanbic Bank Integration Client
+ * - Environment-aware (sandbox | production) — mirrors lib/dusupay/client.ts pattern
+ * - Per-env URLs and credentials with fallbacks to generic vars
+ * - Robust token caching in Upstash Redis (scoped per environment)
+ * - Production migration = env vars only, no code changes
  */
 
 const env = getEnv();
@@ -14,130 +16,223 @@ const redis = new Redis({
   token: env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-const TOKEN_CACHE_KEY = 'stanbic:access_token';
+// ─── Type & Exports ───────────────────────────────────────────────────────────
 
-export function getStanbicBalanceUrl(): string {
-  // The balance API has no path or query parameters — the account is resolved
-  // server-side from the OAuth client credentials (client_id = subscription key).
-  // Spec: GET / relative to basePath /api/sandbox/balance
-  return (
-    env.STANBIC_SANDBOX_URL_ENDPOINT ??
-    env.STANBIC_SANDBOX_BASE_URL ??
-    env.STANBIC_BASE_URL ??
-    'https://sandbox.connect.stanbicbank.co.ke/api/sandbox/balance'
-  ).replace(/([^/])$/, '$1/'); // ensure trailing slash to match the spec's GET /
-}
+export type StanbicEnvironment = 'sandbox' | 'production';
 
-export async function getCachedStanbicToken(): Promise<string | null> {
-  try {
-    const cached = await redis.get<string>(TOKEN_CACHE_KEY);
-    if (cached) return cached;
-  } catch (err) {
-    console.error('[Stanbic Client] Redis GET error:', err instanceof Error ? err.message : String(err));
-  }
-  return null;
-}
+export class StanbicClient {
+  private environment: StanbicEnvironment;
+  private tokenCacheKey: string;
 
-async function cacheStanbicToken(token: string, ttlSeconds: number) {
-  try {
-    await redis.set(TOKEN_CACHE_KEY, token, { ex: Math.max(60, Math.floor(ttlSeconds)) });
-  } catch (err) {
-    console.error('[Stanbic Client] Redis SET error:', err instanceof Error ? err.message : String(err));
-  }
-}
-
-export async function fetchStanbicToken(): Promise<{ token: string; expiresIn: number }> {
-  const tokenUrl = env.STANBIC_TOKEN_URL;
-  if (!tokenUrl) throw new Error('STANBIC_TOKEN_URL not configured');
-
-  const clientId = env.STANBIC_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? '';
-  const clientSecret = env.STANBIC_CLIENT_SECRET ?? '';
-
-  if (!clientId || !clientSecret) {
-    throw new Error('STANBIC_API_KEY / STANBIC_CLIENT_SECRET not configured');
+  constructor() {
+    this.environment = (process.env.STANBIC_ENVIRONMENT as StanbicEnvironment) === 'production'
+      ? 'production'
+      : 'sandbox';
+    // Environment-scoped so a cached sandbox token can never be served after
+    // flipping STANBIC_ENVIRONMENT to production (or vice versa).
+    this.tokenCacheKey = `stanbic:access_token:${this.environment}`;
   }
 
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'Content-Type': 'application/x-www-form-urlencoded',
-  };
-  
-const body = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: 'payments',   // ← From your screenshot
-  });
-
-  const resp = await fetch(tokenUrl, {
-    method: 'POST',
-    headers,
-    body: body.toString(),
-  });
-
-  if (!resp.ok) {
-    const bodyText = await resp.text().catch(() => '(unreadable)');
-    throw new Error(`Stanbic token endpoint returned ${resp.status}: ${bodyText}`);
+  getEnvironment(): StanbicEnvironment {
+    return this.environment;
   }
 
-  const data = (await resp.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!data) throw new Error('Stanbic token endpoint returned invalid JSON');
+  private getTokenUrl(): string {
+    const url = this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_TOKEN_URL ?? env.STANBIC_TOKEN_URL
+      : env.STANBIC_SANDBOX_TOKEN_URL ?? env.STANBIC_TOKEN_URL;
 
-  const token =
-    typeof data.access_token === 'string' ? data.access_token
-    : typeof data.token === 'string' ? data.token
-    : typeof data.accessToken === 'string' ? data.accessToken
-    : null;
+    if (!url) {
+      throw new Error(
+        `STANBIC_TOKEN_URL not configured for environment: ${this.environment}`,
+      );
+    }
+    return url;
+  }
 
-  const expiresIn = Number(data.expires_in ?? data.expiresIn ?? 3600);
+  private getSubscriptionKey(): string {
+    return this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_API_KEY ?? env.STANBIC_API_KEY ?? ''
+      : env.STANBIC_SANDBOX_API_KEY ?? env.STANBIC_API_KEY ?? '';
+  }
 
-  if (!token) throw new Error('Stanbic token response did not include access_token');
+  private getClientSecret(): string {
+    return this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_CLIENT_SECRET ?? env.STANBIC_CLIENT_SECRET ?? ''
+      : env.STANBIC_SANDBOX_CLIENT_SECRET ?? env.STANBIC_CLIENT_SECRET ?? '';
+  }
 
-  return { token, expiresIn: Number.isFinite(expiresIn) ? expiresIn : 3600 };
-}
+  getBalanceUrl(): string {
+    // The balance API has no path or query parameters — the account is resolved
+    // server-side from the OAuth client credentials (client_id = subscription key).
+    // Spec: GET / relative to basePath /api/sandbox/balance
+    const url = this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_URL_ENDPOINT ??
+        env.STANBIC_PRODUCTION_BASE_URL ??
+        env.STANBIC_BASE_URL
+      : env.STANBIC_SANDBOX_URL_ENDPOINT ??
+        env.STANBIC_SANDBOX_BASE_URL ??
+        env.STANBIC_BASE_URL ??
+        'https://sandbox.connect.stanbicbank.co.ke/api/sandbox/balance';
 
-export async function getStanbicToken(): Promise<string> {
-  const cached = await getCachedStanbicToken();
-  if (cached) return cached;
+    if (!url) {
+      throw new Error(
+        'STANBIC_ENVIRONMENT=production but no production balance URL is configured (set STANBIC_PRODUCTION_BASE_URL)',
+      );
+    }
 
-  const { token, expiresIn } = await fetchStanbicToken();
+    return url.replace(/([^/])$/, '$1/'); // ensure trailing slash to match the spec's GET /
+  }
 
-  const ttl = Math.max(60, expiresIn - 60);
-  await cacheStanbicToken(token, ttl);
-
-  return token;
-}
-
-export async function getStanbicAuthHeader(): Promise<Record<string, string>> {
-  const tokenUrl = env.STANBIC_TOKEN_URL;
-  // Azure API Management requires the subscription key on every request alongside
-  // the OAuth Bearer token. Without it the gateway returns HTTP 200 with an empty body.
-  const subscriptionKey = env.STANBIC_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? '';
-
-  if (tokenUrl) {
+  private async getCachedToken(): Promise<string | null> {
     try {
-      const token = await getStanbicToken();
-      console.log('[Stanbic Client] ✅ Using OAuth2 Bearer token');
-      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-      if (subscriptionKey) {
-        headers['Ocp-Apim-Subscription-Key'] = subscriptionKey;
-      }
-      return headers;
+      const cached = await redis.get<string>(this.tokenCacheKey);
+      if (cached) return cached;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('[Stanbic Client] ❌ Token retrieval failed:', msg);
-      throw new Error(`Stanbic OAuth failed: ${msg}`);
+      console.error('[Stanbic Client] Redis GET error:', err instanceof Error ? err.message : String(err));
+    }
+    return null;
+  }
+
+  private async cacheToken(token: string, ttlSeconds: number): Promise<void> {
+    try {
+      await redis.set(this.tokenCacheKey, token, { ex: Math.max(60, Math.floor(ttlSeconds)) });
+    } catch (err) {
+      console.error('[Stanbic Client] Redis SET error:', err instanceof Error ? err.message : String(err));
     }
   }
 
-  // Fallback to raw API key (rarely used)
-  if (subscriptionKey) {
-    console.warn('[Stanbic Client] Using raw API key as Bearer');
-    return {
-      Authorization: `Bearer ${subscriptionKey}`,
-      'Ocp-Apim-Subscription-Key': subscriptionKey,
+  private async fetchToken(): Promise<{ token: string; expiresIn: number }> {
+    const tokenUrl = this.getTokenUrl();
+    const clientId = this.getSubscriptionKey();
+    const clientSecret = this.getClientSecret();
+
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        `STANBIC credentials not configured for environment: ${this.environment}`,
+      );
+    }
+
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     };
+
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: 'payments',
+    });
+
+    const resp = await fetch(tokenUrl, {
+      method: 'POST',
+      headers,
+      body: body.toString(),
+    });
+
+    if (!resp.ok) {
+      const bodyText = await resp.text().catch(() => '(unreadable)');
+      throw new Error(`Stanbic token endpoint returned ${resp.status}: ${bodyText}`);
+    }
+
+    const data = (await resp.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!data) throw new Error('Stanbic token endpoint returned invalid JSON');
+
+    const token =
+      typeof data.access_token === 'string' ? data.access_token
+        : typeof data.token === 'string' ? data.token
+        : typeof data.accessToken === 'string' ? data.accessToken
+        : null;
+
+    const expiresIn = Number(data.expires_in ?? data.expiresIn ?? 3600);
+
+    if (!token) throw new Error('Stanbic token response did not include access_token');
+
+    return { token, expiresIn: Number.isFinite(expiresIn) ? expiresIn : 3600 };
   }
 
-  throw new Error('No Stanbic authentication method configured');
+  async getToken(): Promise<string> {
+    const cached = await this.getCachedToken();
+    if (cached) return cached;
+
+    const { token, expiresIn } = await this.fetchToken();
+    const ttl = Math.max(60, expiresIn - 60);
+    await this.cacheToken(token, ttl);
+
+    return token;
+  }
+
+  async fetchTokenForBackwardCompat(): Promise<{ token: string; expiresIn: number }> {
+    return this.fetchToken();
+  }
+
+  async getAuthHeader(): Promise<Record<string, string>> {
+    const subscriptionKey = this.getSubscriptionKey();
+    const tokenUrl = this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_TOKEN_URL ?? env.STANBIC_TOKEN_URL
+      : env.STANBIC_SANDBOX_TOKEN_URL ?? env.STANBIC_TOKEN_URL;
+
+    // Azure API Management requires the subscription key on every request alongside OAuth token
+    if (tokenUrl) {
+      try {
+        const token = await this.getToken();
+        console.log(`[Stanbic Client] ✅ Using OAuth2 (${this.environment})`);
+        const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+        if (subscriptionKey) {
+          headers['Ocp-Apim-Subscription-Key'] = subscriptionKey;
+        }
+        return headers;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[Stanbic Client] ❌ Token retrieval failed:', msg);
+        throw new Error(`Stanbic OAuth failed: ${msg}`);
+      }
+    }
+
+    // Fallback to raw API key (rarely used)
+    if (subscriptionKey) {
+      console.warn(`[Stanbic Client] Using raw API key as Bearer (${this.environment})`);
+      return {
+        Authorization: `Bearer ${subscriptionKey}`,
+        'Ocp-Apim-Subscription-Key': subscriptionKey,
+      };
+    }
+
+    throw new Error('No Stanbic authentication method configured');
+  }
+}
+
+// Single instance — all consumers use this
+export const stanbicClient = new StanbicClient();
+
+// ─── Legacy backward-compatible helpers ────────────────────────────────────
+// These delegate to stanbicClient for a smooth migration path
+
+export function getStanbicEnvironment(): StanbicEnvironment {
+  return stanbicClient.getEnvironment();
+}
+
+export async function getCachedStanbicToken(): Promise<string | null> {
+  // Note: This is a public helper that doesn't exist on the class;
+  // users should call stanbicClient.getToken() directly (which handles caching).
+  // This function is kept for backward compatibility if it was exported before.
+  return await stanbicClient.getToken();
+}
+
+export async function fetchStanbicToken(): Promise<{ token: string; expiresIn: number }> {
+  // Kept for backward compatibility; calls the class method
+  return stanbicClient.fetchTokenForBackwardCompat();
+}
+
+export async function getStanbicToken(): Promise<string> {
+  return stanbicClient.getToken();
+}
+
+export function getStanbicBalanceUrl(): string {
+  return stanbicClient.getBalanceUrl();
+}
+
+export async function getStanbicAuthHeader(): Promise<Record<string, string>> {
+  return stanbicClient.getAuthHeader();
 }
