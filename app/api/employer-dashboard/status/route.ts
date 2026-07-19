@@ -27,22 +27,27 @@ export async function GET() {
       // stuck as 'not_onboarded' while the sync completes.
       const { data: onboardingRow } = await supabase
         .from('employer_onboarding')
-        .select('status')
+        .select('status, account_status')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle<{ status: string }>();
+        .maybeSingle<{ status: string; account_status: string }>();
 
       if (!onboardingRow) {
         return NextResponse.json({ status: 'not_onboarded', message: 'No employer profile found' });
       }
 
+      // account_status is the admin's account-approval decision — the gate
+      // this widget has always shown (pending/rejected/suspended/
+      // risk_review_in_progress). `status` (the KYC-document rollup) still
+      // decides the pre-review 'not_onboarded' case, since account_status
+      // stays 'pending' by default all the way through document review too.
       const mapped =
-        onboardingRow.status === 'approved' ? 'active' :
-        onboardingRow.status === 'draft'    ? 'not_onboarded' :
-        onboardingRow.status; // pending, rejected, risk_review_in_progress, etc.
+        onboardingRow.account_status === 'approved' ? 'active' :
+        onboardingRow.status === 'draft'             ? 'not_onboarded' :
+        onboardingRow.account_status; // pending, rejected, suspended, risk_review_in_progress
 
-      return NextResponse.json({ status: mapped, message: `Employer onboarding status: ${onboardingRow.status}` });
+      return NextResponse.json({ status: mapped, message: `Employer onboarding status: ${onboardingRow.account_status}` });
     }
 
     const onboarding = Array.isArray(employer.employer_onboarding)

@@ -87,6 +87,21 @@ export async function promoteEmployerToLive(
       .eq('id', employer.id);
   }
 
+  // is_verified must reflect the REAL current KYC-document rollup, not just
+  // "this employer got promoted" — promotion can now happen purely on an
+  // admin's account-approval click, independent of whether KYC review is
+  // actually done (see app/api/admin/employers/[id]/status/route.ts).
+  // fn_sync_employer_kyc_to_live() keeps this correct going forward by
+  // reacting to real employer_onboarding.status changes, but it never fires
+  // retroactively for the CURRENT status at the moment of promotion — so the
+  // initial seed here must compute it explicitly rather than hardcoding true.
+  const { data: freshOnboarding } = await adminSupabase
+    .from('employer_onboarding')
+    .select('status')
+    .eq('id', employer.id)
+    .maybeSingle();
+  const kycApproved = freshOnboarding?.status === 'approved';
+
   // mobile_money_number is encrypted at rest — decrypt it here rather than
   // ever selecting/passing along the raw ciphertext. employers.mobile_money_number
   // is read by the payday-recoupment flow to actually initiate a DusuPay
@@ -140,7 +155,7 @@ export async function promoteEmployerToLive(
     payroll_cycle:       employer.payroll_cycle || null,
     risk_score:          employer.risk_score ?? 3.0,
     risk_rating:         employer.risk_rating || 'B',
-    is_verified:         true,
+    is_verified:         kycApproved,
     // PROMOTION PATH — intentionally reads employer_onboarding to populate employers
     // max_advance_percentage → advance_limit_percent
     // cooldown_period → cooldown_days

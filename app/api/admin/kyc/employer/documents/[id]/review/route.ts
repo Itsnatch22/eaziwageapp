@@ -3,8 +3,6 @@ import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { KycDocQuerySchema } from '@/lib/validations/route-schemas';
 import { notifyEmployer } from '@/lib/notifications';
-import { activateUser, deactivateUser } from '@/lib/activation';
-import { promoteEmployerToLive, type EmployerOnboardingRow } from '@/lib/services/employer-promotion';
 
 type LogLevel = 'info' | 'warn' | 'error';
 
@@ -94,9 +92,7 @@ export async function PATCH(
   // pattern already established for the employee-side per-document route.
   const { data: onboarding, error: onboardingError } = await adminSupabase
     .from('employer_onboarding')
-    .select(
-      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_amount, max_advance_percentage, cooldown_period, payday_day_of_month, mobile_money_provider, status'
-    )
+    .select('id, user_id, company_name, status')
     .eq('user_id', doc.user_id)
     .maybeSingle();
 
@@ -115,9 +111,12 @@ export async function PATCH(
     });
   }
 
+  // employer_onboarding.status is purely the KYC-document rollup —
+  // 'suspended'/'risk_review_in_progress' live in account_status instead and
+  // never appear here.
   const onboardingStatus = onboarding?.status as
-    | 'draft' | 'pending' | 'submitted' | 'under_review' | 'risk_review_in_progress'
-    | 'approved' | 'rejected' | 'suspended' | undefined;
+    | 'draft' | 'pending' | 'submitted' | 'under_review'
+    | 'approved' | 'rejected' | undefined;
 
   log('info', 'onboarding_recompute', 'Read trigger-derived onboarding status', {
     docId: doc.id,
@@ -125,30 +124,19 @@ export async function PATCH(
     onboardingStatus,
   });
 
-  // profiles.is_active is what proxy.ts checks to let a user into their
-  // dashboard, mirroring the employee-side route's activation fix.
-  if (onboardingStatus === 'approved' && onboarding) {
-    const promotion = await promoteEmployerToLive(adminSupabase, onboarding as EmployerOnboardingRow);
-    log('info', 'promotion', 'Employer promoted to live employers table', {
-      docId: doc.id,
-      userId: doc.user_id,
-      liveEmployersId: promotion.liveEmployersId,
-    });
-
-    const activationResult = await activateUser(doc.user_id);
-    if (!activationResult.success) {
-      log('error', 'activation', 'Failed to activate user profile after KYC approval', { docId: doc.id, userId: doc.user_id }, activationResult.error);
-    }
-  } else if (onboardingStatus === 'rejected') {
-    const deactivationResult = await deactivateUser(doc.user_id);
-    if (!deactivationResult.success) {
-      log('error', 'activation', 'Failed to deactivate user profile after KYC rejection', { docId: doc.id, userId: doc.user_id }, deactivationResult.error);
-    }
-  }
+  // KYC document review is its own gate, independent of account approval —
+  // this route must never grant or revoke dashboard access (profiles.is_active)
+  // as a side effect of a document outcome. Promotion to the live `employers`
+  // table and dashboard-access activation happen exclusively via an admin's
+  // explicit account-approval action in
+  // app/api/admin/employers/[id]/status/route.ts. employer_onboarding.status
+  // (the KYC rollup) and employers.is_verified (money-movement eligibility,
+  // kept live-synced by fn_sync_employer_kyc_to_live()) already reflect this
+  // review outcome — nothing further is needed here.
 
   const employerMessage =
     onboardingStatus === 'approved'
-      ? `${onboarding?.company_name ?? 'Your company'} has been fully approved and activated.`
+      ? `All of ${onboarding?.company_name ?? 'your company'}'s KYC documents have been reviewed and approved.`
       : onboardingStatus === 'rejected'
       ? `One or more KYC documents were rejected. ${notes ? `Reason: ${notes}` : ''}`.trim()
       : `Your ${doc.document_type.replace(/_/g, ' ')} document was ${status}.`;
@@ -158,7 +146,7 @@ export async function PATCH(
     type: 'kyc_update',
     title:
       onboardingStatus === 'approved'
-        ? 'KYC Approved'
+        ? 'KYC Review Complete'
         : onboardingStatus === 'rejected'
         ? 'KYC Requires Action'
         : 'KYC Document Reviewed',

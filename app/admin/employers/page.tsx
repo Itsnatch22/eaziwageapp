@@ -20,17 +20,20 @@ export default async function AdminEmployersPage() {
   const { data: rows } = await supabaseAdmin
     .from('employer_onboarding')
     .select(
-      'id, company_name, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, status, risk_score, created_at, updated_at',
+      'id, company_name, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, status, account_status, risk_score, created_at, updated_at',
     )
     .order('created_at', { ascending: false })
     .limit(25);
 
   const all = rows ?? [];
 
+  // account_status is the admin's account-approval decision (dashboard
+  // access) — the badge/stat this page has always shown. `status` is the
+  // separate, pure KYC-document rollup.
   const stats: EmployerStats = {
     total:           all.length,
-    active:          all.filter((e) => toAdminStatus(e.status) === 'approved').length,
-    pending:         all.filter((e) => toAdminStatus(e.status) === 'pending').length,
+    active:          all.filter((e) => toAdminStatus(e.account_status) === 'approved').length,
+    pending:         all.filter((e) => toAdminStatus(e.account_status) === 'pending').length,
     total_employees: 0,
   };
 
@@ -49,7 +52,7 @@ export default async function AdminEmployersPage() {
     contact_email:       row.contact_email ?? '',
     contact_phone:       row.contact_phone ?? null,
     payroll_cycle:       (row.payroll_cycle as Employer['payroll_cycle']) ?? null,
-    status:              toAdminStatus(row.status),
+    status:              toAdminStatus(row.account_status),
     employee_count:      0,
     total_advances:      0,
     monthly_payroll:     0,

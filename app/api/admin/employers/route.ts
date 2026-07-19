@@ -139,7 +139,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const [statsResult, exchangeRatesResult, riskSettingsResult] = await Promise.all([
     adminSupabase
       .from('employer_onboarding')
-      .select('id, status, country, industry, risk_rating'),
+      .select('id, status, account_status, country, industry, risk_rating'),
     // Cap exchange_rates — there are ~200 currencies; never fetch unbounded
     adminSupabase
       .from('exchange_rates')
@@ -168,20 +168,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const countries  = [...new Set(statsRows.map((e) => e.country).filter(Boolean))].sort() as string[];
   const industries = [...new Set(statsRows.map((e) => e.industry).filter(Boolean))].sort() as string[];
 
+  // account_status is the admin's account-approval decision — the badge/stat
+  // this route has always shown. `status` (unused below) is the separate,
+  // pure KYC-document rollup.
   const stats = {
     total:        statsRows.length,
-    active:       statsRows.filter((e) => toAdminStatus(e.status) === 'approved').length,
-    pending:      statsRows.filter((e) => { const s = toAdminStatus(e.status); return s === 'pending'; }).length,
-    risk_review:  statsRows.filter((e) => e.status === 'risk_review_in_progress').length,
-    suspended:    statsRows.filter((e) => e.status === 'suspended').length,
-    rejected:     statsRows.filter((e) => e.status === 'rejected').length,
+    active:       statsRows.filter((e) => toAdminStatus(e.account_status) === 'approved').length,
+    pending:      statsRows.filter((e) => { const s = toAdminStatus(e.account_status); return s === 'pending'; }).length,
+    risk_review:  statsRows.filter((e) => e.account_status === 'risk_review_in_progress').length,
+    suspended:    statsRows.filter((e) => e.account_status === 'suspended').length,
+    rejected:     statsRows.filter((e) => e.account_status === 'rejected').length,
     risk_distribution: {
       low_risk:       statsRows.filter((e) => e.risk_rating === 'A').length,
       medium_risk:    statsRows.filter((e) => e.risk_rating === 'B').length,
       high_risk:      statsRows.filter((e) => e.risk_rating === 'C').length,
       very_high_risk: statsRows.filter((e) => e.risk_rating === 'D').length,
     },
-    needs_risk_assessment: statsRows.filter((e) => !e.risk_rating || e.status === 'risk_review_in_progress').length,
+    needs_risk_assessment: statsRows.filter((e) => !e.risk_rating || e.account_status === 'risk_review_in_progress').length,
     base_currency: countryFilter ? 'KES' : 'KES',
   };
 
@@ -194,13 +197,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let dataQuery = adminSupabase
     .from('employer_onboarding')
     .select(
-      'id, user_id, company_name, industry, sector, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, status, risk_score, risk_rating, created_at, updated_at',
+      'id, user_id, company_name, industry, sector, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, status, account_status, risk_score, risk_rating, created_at, updated_at',
       { count: 'exact' },
     )
     .order('created_at', { ascending: false })
     .range(from, to);
 
-  if (statusFilter)     dataQuery = dataQuery.eq('status', statusFilter);
+  // statusFilter values (approved/pending/rejected/suspended/risk_review_in_progress,
+  // see filters.statuses below) are account_status values, not the KYC rollup.
+  if (statusFilter)     dataQuery = dataQuery.eq('account_status', statusFilter);
   if (countryFilter)    dataQuery = dataQuery.eq('country', countryFilter);
   if (riskRatingFilter) dataQuery = dataQuery.eq('risk_rating', riskRatingFilter);
   if (searchFilter) {
@@ -331,7 +336,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       contact_email:       row.contact_email ?? '',
       contact_phone:       row.contact_phone ?? null,
       payroll_cycle:       row.payroll_cycle ?? null,
-      status:              toAdminStatus(row.status),
+      status:              toAdminStatus(row.account_status),
+      kyc_status:          row.status ?? null,
       risk_score:          riskScore,
       risk_rating:         riskRating ?? 'B',
       application_fee:     calculateApplicationFee(riskScore),

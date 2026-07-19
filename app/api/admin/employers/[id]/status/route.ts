@@ -19,6 +19,12 @@ function toPrimaryEmployerStatus(status: string): 'approved' | 'pending' | 'susp
   return 'pending';
 }
 
+const REQUIRED_DOCUMENT_TYPES = [
+  'certificate_of_incorporation', 'business_registration', 'tax_compliance_certificate',
+  'cr12_document', 'kra_pin_certificate', 'business_permit', 'audited_financials',
+  'bank_statement', 'proof_of_address', 'proof_of_bank_account', 'employment_contract_template',
+];
+
 export async function PATCH(
   req: NextRequest,
   { params }: IdRouteContext
@@ -62,7 +68,7 @@ export async function PATCH(
 
   const { data: initialEmployer, error: employerFetchError } = await adminSupabase
     .from('employer_onboarding')
-    .select('id,user_id,company_name,status,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
+    .select('id,user_id,company_name,status,account_status,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
     .eq('id', id)
     .maybeSingle();
   let employer = initialEmployer;
@@ -74,14 +80,14 @@ export async function PATCH(
       .select('id,user_id,company_name')
       .eq('id', id)
       .maybeSingle();
-    
+
     if (primaryEmp) {
       const { data: fallbackOnboarding } = await adminSupabase
         .from('employer_onboarding')
-        .select('id,user_id,company_name,status,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
+        .select('id,user_id,company_name,status,account_status,industry,country,registration_number,tax_id,physical_address,contact_person,contact_email,contact_phone,payroll_cycle,risk_score,risk_rating,min_advance_amount,max_advance_amount,currency,max_advance_percentage,cooldown_period')
         .eq('user_id', primaryEmp.user_id)
         .maybeSingle();
-      
+
       if (fallbackOnboarding) {
         console.log(`[PATCH employer status] Found onboarding record ${fallbackOnboarding.id} via user_id ${primaryEmp.user_id}`);
         employer = fallbackOnboarding;
@@ -91,31 +97,23 @@ export async function PATCH(
 
   if (employerFetchError || !employer) {
     console.error(`[PATCH employer status] Employer not found for ID: ${id}`, employerFetchError);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Employer record not found. The ID might be incorrect or the record was deleted.',
-      debug_id: id 
+      debug_id: id
     }, { status: 404 });
   }
 
   const activeId = employer.id;
 
-  // No direct employer_onboarding.status write for approved/pending/rejected —
-  // bulk-updating employer_kyc_documents below fires
-  // trg_recompute_employer_onboarding_status, which derives the rollup status
-  // itself. 'suspended' and 'risk_review_in_progress' are the trigger's own
-  // explicit carve-outs (it skips recompute while status is one of those), so
-  // those two remain direct writes below.
-  if (status === 'approved') {
-    const { error: docsError } = await adminSupabase
-      .from('employer_kyc_documents')
-      .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: user.id })
-      .eq('user_id', employer.user_id);
-
-    if (docsError) {
-      console.error('[PATCH employer status] documents approve error:', docsError);
-      return NextResponse.json({ error: 'Failed to approve employer documents' }, { status: 500 });
-    }
-  } else if (status === 'rejected') {
+  // Account approval (this route) and KYC document approval are separate
+  // gates — approving the account must never bulk-approve every document as
+  // a side effect (that used to happen here). Dashboard access is granted
+  // below independent of the employer_onboarding KYC rollup (`status`);
+  // money-movement eligibility (employers.is_verified) is still
+  // independently gated elsewhere and only ever set by
+  // fn_sync_employer_kyc_to_live() reacting to real per-document review
+  // outcomes. See feedback_separate_account_kyc_review_approval.
+  if (status === 'rejected') {
     const { error: docsError } = await adminSupabase
       .from('employer_kyc_documents')
       .update({ status: 'rejected', reviewer_notes: reason, reviewed_at: new Date().toISOString(), reviewed_by: user.id })
@@ -141,30 +139,18 @@ export async function PATCH(
     }
   }
 
+  // account_status is the sole, unconditional carrier of the admin's account
+  // decision — no trigger ever touches it, so there's no "un-suspend" special
+  // case needed the way employer_onboarding.status used to require.
   const updatePayload: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
+    account_status: status,
     // Always stamp company_code on the onboarding record so it becomes the
     // canonical lookup source for employee registration.
     ...(!(employer as Record<string, unknown>).company_code && status !== 'rejected'
       ? { company_code: (typeof employer_code === 'string' && employer_code.trim()
           ? employer_code.trim().replace(/[^A-Z0-9]/gi, '').slice(0, 20).toUpperCase()
           : generatePrimaryCompanyCode(employer.id)) }
-      : {}),
-    // suspended/risk_review_in_progress are the trigger's own explicit
-    // carve-outs — write them directly since no document bulk-update above
-    // would ever produce them.
-    ...(status === 'suspended' || status === 'risk_review_in_progress' ? { status } : {}),
-    // The recompute trigger deliberately skips recomputing status while the
-    // *current* status is 'suspended'/'risk_review_in_progress' (so document
-    // activity can't silently override a manual hold) — but that means the
-    // document bulk-update above can never move status OUT of a hold either,
-    // even when the admin is explicitly requesting approved/pending/rejected.
-    // Without this, un-suspending an employer was structurally impossible:
-    // every attempt 422'd with a "status still 'suspended'" mismatch,
-    // confirmed live against a real employer stuck exactly this way.
-    ...((employer.status === 'suspended' || employer.status === 'risk_review_in_progress') &&
-      (status === 'approved' || status === 'pending' || status === 'rejected')
-      ? { status }
       : {}),
   };
 
@@ -214,45 +200,12 @@ export async function PATCH(
 
   console.log(`[PATCH employer status] Successfully updated record ${activeId}`);
 
-  // approved/pending/rejected no longer write employer_onboarding.status
-  // directly — read back what the trigger actually derived from the document
-  // bulk-update above (may differ from the requested `status`, e.g. requesting
-  // 'approved' when not all 11 documents exist yet leaves the real status at
-  // 'submitted'/'under_review'). suspended/risk_review_in_progress were
-  // written directly, so the request and result are always the same there.
-  let resultStatus = status;
-  if (status === 'approved' || status === 'pending' || status === 'rejected') {
-    const { data: refetched, error: refetchError } = await adminSupabase
-      .from('employer_onboarding')
-      .select('status')
-      .eq('id', activeId)
-      .maybeSingle();
-
-    if (refetchError) {
-      console.error('[PATCH employer status] Failed to re-fetch trigger-derived status:', refetchError);
-      return NextResponse.json({ error: 'Failed to finalize status update' }, { status: 500 });
-    }
-    resultStatus = (refetched?.status as typeof status) ?? status;
-  }
-
-  // The document bulk-update + trigger above can land on a status other than
-  // what the admin requested (e.g. clicking Approve on an employer with zero
-  // KYC documents leaves them at 'submitted', not 'approved') with no error
-  // surfaced anywhere — the request just silently "succeeds" at nothing.
-  // Compute the same counts the trigger itself uses so the admin gets a
-  // precise, actionable reason instead.
-  let statusMismatchReason: string | null = null;
-  if (
-    (status === 'approved' || status === 'pending' || status === 'rejected') &&
-    resultStatus !== status
-  ) {
-    const REQUIRED_DOCUMENT_TYPES = [
-      'certificate_of_incorporation', 'business_registration', 'tax_compliance_certificate',
-      'cr12_document', 'kra_pin_certificate', 'business_permit', 'audited_financials',
-      'bank_statement', 'proof_of_address', 'proof_of_bank_account', 'employment_contract_template',
-    ];
-    const REQUIRED_COUNT = REQUIRED_DOCUMENT_TYPES.length;
-
+  // Account approval no longer depends on KYC completeness, so it always
+  // succeeds — but it's still useful for the admin to know if they just
+  // granted dashboard access to an employer whose KYC review isn't actually
+  // done yet. Non-blocking: informational only, never fails the request.
+  let kycWarning: string | null = null;
+  if (status === 'approved') {
     const { data: kycDocs } = await adminSupabase
       .from('employer_kyc_documents')
       .select('document_type, status')
@@ -264,13 +217,11 @@ export async function PATCH(
     const approvedCount = docs.filter((d) => d.status === 'approved').length;
 
     if (rejectedCount > 0) {
-      statusMismatchReason = `${rejectedCount} document(s) are marked rejected — resolve those before this employer can be approved.`;
-    } else if (submittedCount < REQUIRED_COUNT) {
-      statusMismatchReason = `Only ${submittedCount} of ${REQUIRED_COUNT} required KYC documents have been submitted.`;
-    } else if (approvedCount < REQUIRED_COUNT) {
-      statusMismatchReason = `${approvedCount} of ${REQUIRED_COUNT} required documents are approved — the rest still need review.`;
-    } else {
-      statusMismatchReason = `Employer status is now '${resultStatus}', not '${status}'.`;
+      kycWarning = `Dashboard access granted, but ${rejectedCount} KYC document(s) are still marked rejected.`;
+    } else if (submittedCount < REQUIRED_DOCUMENT_TYPES.length) {
+      kycWarning = `Dashboard access granted, but only ${submittedCount} of ${REQUIRED_DOCUMENT_TYPES.length} required KYC documents have been submitted.`;
+    } else if (approvedCount < REQUIRED_DOCUMENT_TYPES.length) {
+      kycWarning = `Dashboard access granted, but only ${approvedCount} of ${REQUIRED_DOCUMENT_TYPES.length} required KYC documents are approved. Money-movement features (advances) will stay blocked until KYC review is complete.`;
     }
   }
 
@@ -281,7 +232,7 @@ export async function PATCH(
     .eq('user_id', employer.user_id)
     .maybeSingle();
 
-  if (resultStatus === 'approved') {
+  if (status === 'approved') {
     // Route through the canonical promotion path (also used by the KYC review
     // routes) instead of duplicating the employers-table sync inline — the
     // duplicate here never set organization_id (required by
@@ -324,11 +275,14 @@ export async function PATCH(
   } else if (existingEmployer) {
     // Employer was already promoted to `employers` on a prior approval — a
     // non-approval status change (suspend/reject/pending) doesn't need a full
-    // re-promotion, just the status flag kept in sync.
-    const primaryStatus = toPrimaryEmployerStatus(resultStatus);
+    // re-promotion, just the status flag kept in sync. is_verified is
+    // deliberately NOT touched here — it's owned exclusively by
+    // fn_sync_employer_kyc_to_live(), reacting to the real KYC rollup, never
+    // by this account-status action.
+    const primaryStatus = toPrimaryEmployerStatus(status);
     const { error: syncError } = await adminSupabase
       .from('employers')
-      .update({ status: primaryStatus, is_verified: primaryStatus === 'approved', updated_at: new Date().toISOString() })
+      .update({ status: primaryStatus, updated_at: new Date().toISOString() })
       .eq('id', existingEmployer.id);
 
     if (syncError) {
@@ -350,16 +304,16 @@ export async function PATCH(
   await notifyEmployer({
     userId: employer.user_id,
     type: 'status_change',
-    title: `Account ${statusLabel[resultStatus] ?? resultStatus.replace(/_/g, ' ')}`,
+    title: `Account ${statusLabel[status] ?? status.replace(/_/g, ' ')}`,
     message:
-      resultStatus === 'approved'
+      status === 'approved'
         ? `Your employer profile is now fully active.${resolvedCompanyCode ? ` Your company code is ${resolvedCompanyCode}.` : ''}`
-        : `Your employer account status has been updated to ${statusLabel[resultStatus] ?? resultStatus.replace(/_/g, ' ')}.${reason ? ` Reason: ${reason}` : ''}`,
+        : `Your employer account status has been updated to ${statusLabel[status] ?? status.replace(/_/g, ' ')}.${reason ? ` Reason: ${reason}` : ''}`,
     metadata: {
       companyName: employer.company_name,
       contactPerson: employer.contact_person ?? undefined,
       previousStatus: undefined,
-      newStatus: resultStatus,
+      newStatus: status,
       reason: reason ?? undefined,
       effectiveAt: new Date().toLocaleString(),
     },
@@ -371,27 +325,18 @@ export async function PATCH(
     target_id: activeId,
     target_type: 'employer',
     action: 'account_status',
-    new_status: resultStatus,
+    new_status: status,
     reason: reason || null,
     created_at: new Date().toISOString(),
   });
 
-  if (statusMismatchReason) {
-    return NextResponse.json({
-      error: `Could not set status to '${status}': ${statusMismatchReason}`,
-      data: {
-        status: resultStatus,
-        company_code: resolvedCompanyCode,
-      },
-    }, { status: 422 });
-  }
-
   return NextResponse.json({
-    message: `Employer status updated to ${resultStatus}`,
+    message: `Employer status updated to ${status}`,
     data: {
-      status: resultStatus,
+      status,
       company_code: resolvedCompanyCode,
       min_advance_amount: updatePayload.min_advance_amount ?? employer.min_advance_amount ?? null,
+      kyc_warning: kycWarning,
     },
   });
 }

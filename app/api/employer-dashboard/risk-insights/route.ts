@@ -176,7 +176,7 @@ export async function GET() {
     // Fall back to employer_onboarding so the page can render a pending state.
     const { data: onboardingFallback } = await supabase
       .from('employer_onboarding')
-      .select('id, company_name, industry, country, status, risk_score, risk_rating, contact_person, contact_email, payroll_cycle, created_at, sector, city, employee_count, annual_revenue_range, submitted_at')
+      .select('id, company_name, industry, country, status, account_status, risk_score, risk_rating, contact_person, contact_email, payroll_cycle, created_at, sector, city, employee_count, annual_revenue_range, submitted_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -207,7 +207,7 @@ export async function GET() {
       country:              onboardingFallback.country,
       currency:             'KES',
       employee_count:       onboardingFallback.employee_count,
-      status:               onboardingFallback.status,
+      status:               onboardingFallback.account_status,
       contact_person:       onboardingFallback.contact_person,
       contact_email:        onboardingFallback.contact_email,
       payroll_cycle:        onboardingFallback.payroll_cycle,

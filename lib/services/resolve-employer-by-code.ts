@@ -17,6 +17,7 @@ interface OnboardingRow {
   id: string;
   user_id: string;
   status: string;
+  account_status: string;
   company_name: string | null;
 }
 
@@ -48,7 +49,7 @@ export async function resolveEmployerByCode(
 
   const { data: onboardingByCode } = await adminSupabase
     .from('employer_onboarding')
-    .select('id, user_id, status, company_name')
+    .select('id, user_id, status, account_status, company_name')
     .ilike('company_code', trimmed)
     .maybeSingle<OnboardingRow>();
 
@@ -64,7 +65,7 @@ export async function resolveEmployerByCode(
     if (employerByCode?.onboarding_id) {
       const { data: linked } = await adminSupabase
         .from('employer_onboarding')
-        .select('id, user_id, status, company_name')
+        .select('id, user_id, status, account_status, company_name')
         .eq('id', employerByCode.onboarding_id)
         .maybeSingle<OnboardingRow>();
       onboarding = linked ?? null;
@@ -72,9 +73,12 @@ export async function resolveEmployerByCode(
   }
 
   if (!onboarding) return { status: 'not_found' };
-  if (onboarding.status === 'rejected') return { status: 'rejected' };
-  if (onboarding.status === 'suspended') return { status: 'suspended' };
-  if (onboarding.status !== 'approved') return { status: 'not_approved' };
+  // Whether an employee can register against this employer's code is an
+  // account-level decision — account_status (the admin's explicit approval),
+  // not status (the separate, pure KYC-document rollup).
+  if (onboarding.account_status === 'rejected') return { status: 'rejected' };
+  if (onboarding.account_status === 'suspended') return { status: 'suspended' };
+  if (onboarding.account_status !== 'approved') return { status: 'not_approved' };
 
   const { data: liveEmployer } = await adminSupabase
     .from('employers')

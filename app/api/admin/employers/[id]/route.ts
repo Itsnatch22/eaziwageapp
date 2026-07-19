@@ -63,6 +63,7 @@ export async function GET(
       contact_phone,
       payroll_cycle,
       status,
+      account_status,
       risk_score,
       bank_name,
       bank_account_number,
@@ -147,7 +148,12 @@ export async function GET(
       contact_email: employer.contact_email ?? '',
       contact_phone: employer.contact_phone ?? null,
       payroll_cycle: employer.payroll_cycle ?? null,
-      status: toAdminStatus(employer.status),
+      // account_status is the admin's account-approval decision (dashboard
+      // access) — the badge this route has always shown. `status` is the
+      // separate, pure KYC-document rollup, surfaced alongside it now that
+      // the two are independently tracked.
+      status: toAdminStatus(employer.account_status),
+      kyc_status: employer.status ?? null,
       risk_score: employer.risk_score ?? null,
       bank_name: employer.bank_name || null,
       bank_account_number: decryptedBankAccount,

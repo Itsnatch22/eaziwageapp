@@ -22,7 +22,7 @@ export async function GET() {
   const { data: onboarding, error: onboardingError } = await supabase
     .from('employer_onboarding')
     .select(
-      'id, user_id, company_name, registration_number, industry, sector, physical_address, city, postal_code, county_region, country, status, current_step, contact_person, contact_email, contact_phone, contact_position, payroll_cycle, payday_day_of_month, mobile_money_provider, risk_rating, risk_score, bank_name, tax_id, vat_number, employee_count, deleted_at',
+      'id, user_id, company_name, registration_number, industry, sector, physical_address, city, postal_code, county_region, country, status, account_status, current_step, contact_person, contact_email, contact_phone, contact_position, payroll_cycle, payday_day_of_month, mobile_money_provider, risk_rating, risk_score, bank_name, tax_id, vat_number, employee_count, deleted_at',
     )
     .eq('user_id', user.id)
     .is('deleted_at', null)

@@ -576,8 +576,13 @@ export default function EmployerOnboarding() {
           const data = await res.json();
           const profile = data?.profile;
 
-          const ALREADY_SUBMITTED = ['pending', 'submitted', 'approved', 'risk_review_in_progress'];
-          if (profile && ALREADY_SUBMITTED.includes(profile.status)) {
+          // 'pending'/'submitted'/'approved' are the KYC-document rollup
+          // (employer_onboarding.status); risk_review_in_progress/suspended
+          // are the separate admin account_status — both mean "don't show
+          // the wizard again."
+          const ALREADY_SUBMITTED = ['pending', 'submitted', 'approved'];
+          const accountOnHold = profile?.account_status === 'risk_review_in_progress' || profile?.account_status === 'suspended';
+          if (profile && (ALREADY_SUBMITTED.includes(profile.status) || accountOnHold)) {
             router.replace('/dashboards/employer-dashboard');
             return;
           }

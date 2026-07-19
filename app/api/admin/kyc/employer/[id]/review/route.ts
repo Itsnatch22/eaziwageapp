@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { notifyEmployer } from '@/lib/notifications';
-import { activateUser, deactivateUser } from '@/lib/activation';
-import { promoteEmployerToLive, type EmployerOnboardingRow } from '@/lib/services/employer-promotion';
 
-const ONBOARDING_FIELDS =
-  'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_amount, max_advance_percentage, cooldown_period, payday_day_of_month, mobile_money_provider, status';
+const ONBOARDING_FIELDS = 'id, user_id, company_name, status';
 
 export async function PATCH(
   req: NextRequest,
@@ -89,21 +86,20 @@ export async function PATCH(
   // nothing to bulk-approve for the missing ones).
   const resultStatus = employer.status;
 
-  if (resultStatus === 'approved') {
-    const promotion = await promoteEmployerToLive(adminSupabase, employer as EmployerOnboardingRow);
-    console.log(`[Employer KYC Review] Promoted employer, liveEmployersId=${promotion.liveEmployersId}`);
-    await activateUser(employer.user_id);
-  } else if (resultStatus === 'rejected') {
-    await deactivateUser(employer.user_id);
-  }
+  // KYC document review is its own gate, independent of account approval —
+  // this route must never grant or revoke dashboard access (profiles.is_active)
+  // as a side effect of a review outcome. Promotion to the live `employers`
+  // table and dashboard-access activation happen exclusively via an admin's
+  // explicit account-approval action in
+  // app/api/admin/employers/[id]/status/route.ts.
 
   await notifyEmployer({
     userId: employer.user_id,
     type: 'kyc_update',
-    title: resultStatus === 'approved' ? 'Employer Onboarding Approved' : resultStatus === 'rejected' ? 'Employer Onboarding Rejected' : 'Employer Onboarding Reviewed',
+    title: resultStatus === 'approved' ? 'KYC Review Complete' : resultStatus === 'rejected' ? 'Employer Onboarding Rejected' : 'Employer Onboarding Reviewed',
     message:
       resultStatus === 'approved'
-        ? `${employer.company_name} has been activated. You can now proceed with full platform setup.`
+        ? `${employer.company_name}'s KYC documents have all been reviewed and approved. An admin will review your account for final approval.`
         : resultStatus === 'rejected'
         ? `Your onboarding submission was rejected.${notes ? ` Reason: ${notes}` : ''}`
         : `Your onboarding documents were reviewed. Current status: ${resultStatus}.`,
@@ -117,7 +113,7 @@ export async function PATCH(
     target_type: 'employer_onboarding',
     action: `kyc_${status}`,
     new_value: { requested_status: status, result_status: resultStatus, notes: notes || null },
-    metadata: { company_name: employer.company_name, country: employer.country },
+    metadata: { company_name: employer.company_name },
   });
 
   return NextResponse.json({
