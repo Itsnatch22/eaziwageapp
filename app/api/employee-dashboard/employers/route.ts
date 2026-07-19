@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   // 'employers: public read approved' RLS policy allows this without service-role
   let query = supabase
     .from('employers')
-    .select('id, company_name, company_code, industry, city, country, status')
+    .select('id, company_name, company_code, industry, country, status')
     .eq('status', 'approved')
     .order('company_name');
 
