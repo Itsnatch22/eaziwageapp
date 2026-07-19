@@ -53,6 +53,20 @@ interface UserProfile {
   avatar_url?: string | null;
 }
 
+// Account-approval actions each admin's own click already gets a page-level
+// success toast — this map drives a toast purely for OTHER admins to see who
+// acted, so a second admin never duplicates or second-guesses an action that
+// already happened. Reuses the audit trail these routes already write
+// (admin_name + action) rather than adding a second write path.
+const ACTOR_VISIBILITY_ACTIONS: Record<string, { verb: string; targetLabel: string }> = {
+  employee_status_approved:  { verb: 'approved',  targetLabel: 'an employee' },
+  employee_status_active:    { verb: 'approved',  targetLabel: 'an employee' },
+  employee_status_rejected:  { verb: 'rejected',  targetLabel: 'an employee' },
+  employee_status_suspended: { verb: 'suspended', targetLabel: 'an employee' },
+  employee_status_pending:   { verb: 'set',       targetLabel: "an employee's status to pending" },
+  account_status:            { verb: 'updated',   targetLabel: "an employer's account status" },
+};
+
 
 
 export const AdminBackground = () => (
@@ -440,7 +454,27 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [router]);
 
-  const handleAdminRealtimeEvent = useCallback((table: string) => {
+  const handleAdminRealtimeEvent = useCallback((
+    table: string,
+    payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> },
+  ) => {
+    if (table === 'system_audit_logs') {
+      const row = payload?.new;
+      if (!row) return;
+      const action = row.action as string | undefined;
+      const adminId = row.admin_id as string | undefined;
+      const adminName = (row.admin_name as string | undefined) || 'An admin';
+      // Skip the acting admin's own action — they already got a direct
+      // success toast from the click itself.
+      if (!action || adminId === userProfile?.id) return;
+      const known = ACTOR_VISIBILITY_ACTIONS[action];
+      if (!known) return;
+      toast.info(`${adminName} ${known.verb} ${known.targetLabel}`, {
+        icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />,
+      });
+      return;
+    }
+
     const messages: Record<string, { title: string; description: string }> = {
       advances:              { title: 'New advance activity',       description: 'An advance request was submitted or updated.' },
       employer_onboarding:   { title: 'Employer application update', description: 'An employer profile was submitted or changed.' },
@@ -455,10 +489,11 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
         icon: <Settings className="w-5 h-5 text-purple-600" />,
       });
     }
-  }, []);
+  }, [userProfile?.id]);
 
   // Watch tables that drive the admin's key workflows — new advances, employer
-  // applications, KYC docs, fraud flags, and wallet changes.
+  // applications, KYC docs, fraud flags, wallet changes, and (for actor
+  // visibility) admin approval actions logged to system_audit_logs.
   useRealtimeRefresh(
     userProfile?.id ? [
       { table: 'advances',               event: 'INSERT' },
@@ -466,6 +501,7 @@ export function AdminPortalLayout({ children }: AdminPortalLayoutProps) {
       { table: 'employee_kyc_documents', event: 'INSERT' },
       { table: 'fraud_flags',            event: 'INSERT' },
       { table: 'admin_wallets',          event: 'UPDATE' },
+      { table: 'system_audit_logs',      event: 'INSERT' },
     ] : [],
     handleAdminRealtimeEvent,
   );

@@ -16,7 +16,11 @@ export interface RealtimeTable {
  * (admin actions, employee requests, etc.) appear without a manual refresh.
  *
  * The callback receives the table name so callers can show table-specific
- * toasts or selectively reload only the affected data.
+ * toasts or selectively reload only the affected data. A second, optional
+ * argument carries the raw Postgres changes payload (new/old row + event
+ * type) for callers that need row-level detail — e.g. showing who performed
+ * an action, not just that the table changed. Existing callers that only
+ * declare one parameter are unaffected.
  *
  * Usage:
  *   useRealtimeRefresh(
@@ -26,7 +30,7 @@ export interface RealtimeTable {
  */
 export function useRealtimeRefresh(
   tables: RealtimeTable[],
-  onRefresh: (table: string) => void,
+  onRefresh: (table: string, payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void,
 ) {
   // Keep a stable ref so the subscription doesn't re-fire when the caller
   // passes an inline arrow function (common pattern with useCallback).
@@ -48,7 +52,11 @@ export function useRealtimeRefresh(
       channel = channel.on(
         'postgres_changes' as const,
         { event, schema: 'public', table, ...(filter ? { filter } : {}) },
-        () => onRefreshRef.current(table),
+        (payload) => onRefreshRef.current(table, {
+          eventType: payload.eventType,
+          new: payload.new as Record<string, unknown>,
+          old: payload.old as Record<string, unknown>,
+        }),
       );
     }
 
