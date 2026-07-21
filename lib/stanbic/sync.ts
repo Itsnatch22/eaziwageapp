@@ -224,7 +224,7 @@ export async function syncStanbicBalance(
 
   if (!stanbicRes.ok) {
     const body = await stanbicRes.text().catch(() => '');
-    log.error('Stanbic API returned non-2xx', { status: stanbicRes.status });
+    log.error('Stanbic API returned non-2xx', { status: stanbicRes.status, responseBody: body.slice(0, 1000) });
     return { ok: false, status: 502, error: `Stanbic API returned ${stanbicRes.status}`, details: body };
   }
 

@@ -21,16 +21,22 @@ export async function POST(req: NextRequest) {
         { status: 422 },
       );
     }
-    const { amount, reference, description } = parsed.data;
+    const { wallet_id, amount, reference, description } = parsed.data;
 
-    const { data: wallet, error: walletError } = await adminSupabase
+    let walletQuery = adminSupabase
       .from('admin_wallets')
-      .select('id')
-      .eq('name', 'Main Stanbic Source')
-      .single();
+      .select('id, name, currency');
+
+    if (wallet_id) {
+      walletQuery = walletQuery.eq('id', wallet_id);
+    } else {
+      walletQuery = walletQuery.eq('name', 'Main Stanbic Source');
+    }
+
+    const { data: wallet, error: walletError } = await walletQuery.maybeSingle();
 
     if (walletError || !wallet) {
-      throw new Error('Main Stanbic Source wallet not found');
+      throw new Error('Target admin wallet not found');
     }
 
     const { error: txError } = await adminSupabase.rpc('admin_deposit', {

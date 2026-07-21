@@ -65,6 +65,7 @@ export const FundEmployerSchema = z.object({
 });
 
 export const StanbicDepositSchema = z.object({
+  wallet_id: z.string().min(1).optional(),
   amount: z.number().positive(),
   reference: z.string().max(100).optional(),
   description: z.string().max(500).optional(),

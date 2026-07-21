@@ -62,6 +62,7 @@ interface SyncConflictResponse {
 }
 
 interface DepositRequest {
+  wallet_id?: string;
   amount: number;
   reference?: string;
   description?: string;
@@ -180,11 +181,15 @@ function DepositModal({
   onClose,
   onSubmit,
   isLoading,
+  walletCurrency = 'USD',
+  walletId,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: DepositRequest) => Promise<void>;
   isLoading: boolean;
+  walletCurrency?: string;
+  walletId?: string;
 }) {
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
@@ -214,6 +219,7 @@ function DepositModal({
     setError('');
     try {
       await onSubmit({
+        wallet_id: walletId,
         amount: parseFloat(amount),
         reference: reference.trim() || undefined,
         description: description.trim() || undefined,
@@ -260,12 +266,12 @@ function DepositModal({
             )}
 
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              This credits the Main Stanbic Source wallet, which backs every employer funding operation. Please confirm the amount is correct before proceeding.
+              This credits the selected Stanbic wallet ({walletCurrency}), which backs platform operations. Please confirm the amount is correct before proceeding.
             </p>
 
             <div className="text-center py-4">
               <div className="text-3xl font-bold text-slate-900 dark:text-white">
-                {formatCurrency(numAmount, 'USD')}
+                {formatCurrency(numAmount, walletCurrency)}
               </div>
               {reference && (
                 <div className="text-sm text-slate-500 dark:text-slate-400 mt-2">Ref: {reference}</div>
@@ -287,7 +293,7 @@ function DepositModal({
                 disabled={isLoading}
                 className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
               >
-                {isLoading ? 'Recording...' : `Confirm ${formatCurrency(numAmount, 'USD')}`}
+                {isLoading ? 'Recording...' : `Confirm ${formatCurrency(numAmount, walletCurrency)}`}
               </button>
             </div>
           </div>
@@ -318,7 +324,7 @@ function DepositModal({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Amount (USD) <span className="text-red-500">*</span>
+              Amount ({walletCurrency}) <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
@@ -326,7 +332,7 @@ function DepositModal({
               min="0"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 5000.00"
+              placeholder={`e.g. ${walletCurrency === 'KES' ? '500.00' : '5000.00'}`}
               className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               disabled={isLoading}
             />
@@ -355,7 +361,7 @@ function DepositModal({
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Monthly capital injection"
+              placeholder="e.g. Direct M-Pesa / Bank deposit"
               className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               disabled={isLoading}
             />
@@ -603,13 +609,19 @@ export default function AdminWalletClient({
     async (data: DepositRequest) => {
       setIsDepositing(true);
 
+      const targetWalletId = data.wallet_id || wallet?.id;
+      const targetWallet = wallets.find((w) => w.id === targetWalletId) ?? wallet;
+
       try {
         const response = await fetch('/api/admin/finances/stanbic-deposit', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(data),
+          body: JSON.stringify({
+            ...data,
+            wallet_id: targetWalletId,
+          }),
         });
 
         if (!response.ok) {
@@ -617,17 +629,26 @@ export default function AdminWalletClient({
           throw new Error(errorData.error || 'Failed to record deposit');
         }
 
+        const addedAmount = data.amount;
+
         setWallet((prev) => {
           if (!prev) return prev;
+          if (targetWalletId && prev.id !== targetWalletId) return prev;
           return {
             ...prev,
-            balance: prev.balance + data.amount,
+            balance: prev.balance + addedAmount,
           };
         });
 
+        setWallets((prev) =>
+          prev.map((w) =>
+            w.id === targetWalletId ? { ...w, balance: w.balance + addedAmount } : w
+          )
+        );
+
         const newTransaction: AdminWalletTransaction = {
           id: `deposit-${Date.now()}`,
-          admin_wallet_id: wallet?.id || '',
+          admin_wallet_id: targetWalletId || wallet?.id || '',
           amount: data.amount,
           type: 'stanbic_deposit',
           status: 'completed',
@@ -635,7 +656,7 @@ export default function AdminWalletClient({
           description: data.description || null,
           metadata: null,
           created_at: new Date().toISOString(),
-          local_currency: null,  // Stanbic deposits are in USD — no local currency conversion
+          local_currency: targetWallet?.currency ?? null,
           usd_amount: null,
         };
 
@@ -648,7 +669,7 @@ export default function AdminWalletClient({
         setIsDepositing(false);
       }
     },
-    [wallet, transactions]
+    [wallet, wallets, transactions]
   );
 
   const handleResolveFlag = useCallback(
@@ -1129,6 +1150,8 @@ export default function AdminWalletClient({
         onClose={() => setDepositModalOpen(false)}
         onSubmit={handleRecordDeposit}
         isLoading={isDepositing}
+        walletCurrency={wallet?.currency ?? 'USD'}
+        walletId={wallet?.id}
       />
     </div>
   );
