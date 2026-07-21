@@ -1,1 +1,0 @@
-ALTER TABLE employers ADD COLUMN IF NOT EXISTS notification_preferences jsonb NOT NULL DEFAULT '{"emailNotifications": true, "advanceAlerts": true, "payrollReminders": true, "weeklyReports": false, "pushNotifications": false}'::jsonb;

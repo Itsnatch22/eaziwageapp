@@ -1,1 +1,0 @@
-ALTER TABLE api_health ADD COLUMN IF NOT EXISTS syncs_today integer NOT NULL DEFAULT 0;
