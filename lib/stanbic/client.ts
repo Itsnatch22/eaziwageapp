@@ -93,7 +93,12 @@ export class StanbicClient {
       );
     }
 
-    return url.replace(/([^/])$/, '$1/'); // ensure trailing slash to match the spec's GET /
+    // Only append trailing slash if the mode is 'path' to allow clean path parameter appending,
+    // otherwise preserve the exact configured URL format.
+    if (this.getBalanceAccountMode() === 'path') {
+      return url.replace(/([^/])$/, '$1/');
+    }
+    return url;
   }
 
   getBalanceAccountMode(): StanbicBalanceAccountMode {
