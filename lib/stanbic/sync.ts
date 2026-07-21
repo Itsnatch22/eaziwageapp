@@ -8,6 +8,7 @@ interface AdminWallet {
   name: string;
   balance: number;
   currency: string;
+  country_code?: string | null;
   last_reconciled_at: string | null;
   updated_at: string;
 }
@@ -86,6 +87,7 @@ const RECONCILIATION_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
 export async function syncStanbicBalance(
   adminSupabase: SupabaseClient,
   log: Logger,
+  walletSelector: { id?: string; countryCode?: string; currency?: string } = {},
 ): Promise<StanbicSyncResult> {
   // ─── Authentication ─────────────────────────────────────
   let authHeader: Record<string, string>;
@@ -190,28 +192,39 @@ export async function syncStanbicBalance(
   }
 
   // ─── Update Database ───────────────────────────────────────
-  const { data: existingWallet, error: existingError } = await adminSupabase
+  let walletQuery = adminSupabase
     .from('admin_wallets')
-    .select('id, name, balance, currency')
-    .eq('name', 'Main Stanbic Source')
-    .maybeSingle<Pick<AdminWallet, 'id' | 'name' | 'balance' | 'currency'>>();
+    .select('id, name, balance, currency, country_code');
+
+  if (walletSelector.id) {
+    walletQuery = walletQuery.eq('id', walletSelector.id);
+  } else if (walletSelector.countryCode && walletSelector.currency) {
+    walletQuery = walletQuery
+      .eq('country_code', walletSelector.countryCode.toUpperCase())
+      .eq('currency', walletSelector.currency.toUpperCase());
+  } else {
+    walletQuery = walletQuery.eq('name', 'Main Stanbic Source');
+  }
+
+  const { data: existingWallet, error: existingError } = await walletQuery
+    .maybeSingle<Pick<AdminWallet, 'id' | 'name' | 'balance' | 'currency' | 'country_code'>>();
 
   if (existingError) throw existingError;
   if (!existingWallet) {
     return { ok: false, status: 500, error: 'Admin wallet record not found' };
   }
 
-  // Currency-drift guard: admin_wallets is always USD by platform convention.
-  // A Stanbic response carrying anything else is a sync anomaly, not a real
-  // currency change — never write it over the existing value.
-  const currencyAnomaly = typeof parsed.currency === 'string' && parsed.currency !== 'USD';
+  // Currency-drift guard: each admin_wallet row has its own home currency.
+  // A Stanbic response carrying any other currency is a sync anomaly, not a
+  // signal to overwrite the ledger account's configured currency.
+  const currencyAnomaly = typeof parsed.currency === 'string' && parsed.currency.toUpperCase() !== existingWallet.currency.toUpperCase();
   if (currencyAnomaly) {
-    log.error('Stanbic sync returned a non-USD currency — refusing to update admin_wallets.currency', {
+    log.error('Stanbic sync returned a currency different from the selected admin wallet — refusing to update admin_wallets.currency', {
       returned: parsed.currency,
       existing: existingWallet.currency,
     });
   }
-  const finalCurrency = existingWallet.currency || 'USD';
+  const finalCurrency = existingWallet.currency || walletSelector.currency || 'USD';
 
   // Suspicious drop protection
   if (isSuspiciousDrop(existingWallet.balance, normalizedBalance)) {

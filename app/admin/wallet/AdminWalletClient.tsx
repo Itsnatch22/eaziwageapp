@@ -11,6 +11,8 @@ type AdminTxType =
   | 'stanbic_deposit'
   | 'dusupay_funding'
   | 'payout_settlement'
+  | 'employee_disbursement'
+  | 'internal_treasury_transfer'
   | 'adjustment';
 
 type TxStatus = 'completed' | 'pending' | 'failed';
@@ -19,7 +21,8 @@ interface AdminWallet {
   id: string;
   name: string;
   balance: number;
-  currency: 'USD';
+  currency: string;
+  country_code: string | null;
   last_reconciled_at: string | null;
   updated_at: string;
 }
@@ -79,15 +82,29 @@ const TX_TYPE_LABELS: Record<AdminTxType, string> = {
   stanbic_deposit: 'Stanbic Deposit',
   dusupay_funding: 'Employer Funded',
   payout_settlement: 'Advance Repayment',
+  employee_disbursement: 'Employee Disbursement',
+  internal_treasury_transfer: 'Internal Transfer',
   adjustment: 'Balance Sync',
 };
 
 interface AdminWalletClientProps {
   initialWallet: AdminWallet | null;
+  initialWallets: AdminWallet[];
   initialTransactions: AdminWalletTransaction[];
   exchangeRates: ExchangeRate[];
   lowBalanceThresholdUsd: number | null;
   initialReconciliationFlags: ReconciliationFlag[];
+  initialForecasts: CashRequirementForecast[];
+}
+
+interface CashRequirementForecast {
+  id: string;
+  forecast_date: string;
+  country_code: string;
+  currency: string;
+  total_required_amount: number;
+  employee_count: number;
+  updated_at: string;
 }
 
 function getSyncStatusIndicator(lastReconciledAt: string | null): {
@@ -477,12 +494,16 @@ function TransactionTable({
 
 export default function AdminWalletClient({
   initialWallet,
+  initialWallets,
   initialTransactions,
   exchangeRates,
   lowBalanceThresholdUsd,
   initialReconciliationFlags,
+  initialForecasts,
 }: AdminWalletClientProps) {
   const [wallet, setWallet] = useState<AdminWallet | null>(initialWallet);
+  const [wallets, setWallets] = useState<AdminWallet[]>(initialWallets);
+  const [selectedWalletId, setSelectedWalletId] = useState<string | null>(initialWallet?.id ?? initialWallets[0]?.id ?? null);
   const [transactions, setTransactions] = useState<AdminWalletTransaction[]>(initialTransactions);
   const [reconciliationFlags, setReconciliationFlags] = useState<ReconciliationFlag[]>(initialReconciliationFlags);
   const [resolvingFlagId, setResolvingFlagId] = useState<string | null>(null);
@@ -502,6 +523,8 @@ export default function AdminWalletClient({
     try {
       const response = await fetch('/api/admin/wallet/sync', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet_id: selectedWalletId }),
       });
 
       if (response.status === 409) {
@@ -519,14 +542,17 @@ export default function AdminWalletClient({
       }
 
       const data = (await response.json()) as SyncSuccessResponse;
-      setWallet({
+      const updatedWallet: AdminWallet = {
         id: data.wallet.id,
-        name: wallet?.name || 'Main Stanbic Source',
+        name: wallet?.name || wallets.find((w) => w.id === data.wallet.id)?.name || 'Stanbic Account',
         balance: data.wallet.balance,
-        currency: data.wallet.currency as 'USD',
+        currency: data.wallet.currency,
+        country_code: wallet?.country_code ?? wallets.find((w) => w.id === data.wallet.id)?.country_code ?? null,
         last_reconciled_at: data.wallet.last_reconciled_at,
         updated_at: new Date().toISOString(),
-      });
+      };
+      setWallet(updatedWallet);
+      setWallets((prev) => prev.map((item) => item.id === updatedWallet.id ? { ...item, ...updatedWallet } : item));
 
       // The sync route doesn't return the inserted admin_wallet_transactions
       // row directly — only prepend if a future response ever includes one;
@@ -548,7 +574,7 @@ export default function AdminWalletClient({
     } finally {
       setIsSyncing(false);
     }
-  }, [wallet, transactions]);
+  }, [wallet, wallets, transactions, selectedWalletId]);
 
   const handleRecordDeposit = useCallback(
     async (data: DepositRequest) => {
@@ -638,6 +664,24 @@ export default function AdminWalletClient({
     [wallet, lowBalanceThresholdUsd]
   );
 
+  const selectedTransactions = useMemo(
+    () => transactions.filter((tx) => !selectedWalletId || tx.admin_wallet_id === selectedWalletId),
+    [transactions, selectedWalletId],
+  );
+
+  const latestForecast = initialForecasts[0] ?? null;
+
+  const kenyaConsolidatedKes = useMemo(() => {
+    const kesRate = exchangeRates.find((rate) => rate.currency_code.toUpperCase() === 'KES')?.rate_to_usd;
+    return wallets
+      .filter((item) => (item.country_code ?? 'KE').toUpperCase() === 'KE')
+      .reduce((sum, item) => {
+        if (item.currency.toUpperCase() === 'KES') return sum + Number(item.balance ?? 0);
+        if (item.currency.toUpperCase() === 'USD' && kesRate) return sum + Number(item.balance ?? 0) * kesRate;
+        return sum;
+      }, 0);
+  }, [wallets, exchangeRates]);
+
   // Silent data refresh — called both on interval and on Realtime events
   const fetchLatest = useCallback(async () => {
     try {
@@ -645,6 +689,7 @@ export default function AdminWalletClient({
       if (!res.ok) return;
       const data = await res.json();
       if (data.wallet) setWallet(data.wallet);
+      if (data.wallets) setWallets(data.wallets);
       if (data.transactions) setTransactions(data.transactions);
     } catch {
       // silent fail — background refresh must never surface errors
@@ -659,9 +704,9 @@ export default function AdminWalletClient({
 
   // Realtime subscriptions — balance and transaction list update live after sync or funding approval
   useRealtimeRefresh(
-    wallet?.id ? [
-      { table: 'admin_wallets',             filter: `id=eq.${wallet.id}` },
-      { table: 'admin_wallet_transactions',  filter: `admin_wallet_id=eq.${wallet.id}` },
+    wallets.length > 0 ? [
+      { table: 'admin_wallets' },
+      ...(selectedWalletId ? [{ table: 'admin_wallet_transactions', filter: `admin_wallet_id=eq.${selectedWalletId}` }] : []),
     ] : [],
     () => void fetchLatest(),
   );
@@ -713,6 +758,71 @@ export default function AdminWalletClient({
           <p className="text-slate-600 dark:text-slate-400 mt-2">
             Manage EaziWage platform wallet balance and Stanbic account reconciliation
           </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {wallets.map((item) => {
+          const selected = item.id === selectedWalletId;
+          const status = getSyncStatusIndicator(item.last_reconciled_at);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setSelectedWalletId(item.id);
+                setWallet(item);
+                setCurrentPage(1);
+              }}
+              className={cn(
+                'text-left rounded-lg border p-4 bg-white/70 dark:bg-slate-900/70 transition-colors',
+                selected
+                  ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+                  : 'border-slate-200/70 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600',
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {(item.country_code ?? 'KE').toUpperCase()} · real {item.currency} balance
+                  </p>
+                </div>
+                <span className={cn('mt-1 h-2.5 w-2.5 rounded-full', status.color)} />
+              </div>
+              <p className="mt-4 text-2xl font-bold text-slate-900 dark:text-white">
+                {formatCurrency(item.balance, item.currency)}
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Last synced {formatStaleness(status.minutesAgo)}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="rounded-lg border border-slate-200/70 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/70 p-4">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">Kenya Consolidated Display</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(kenyaConsolidatedKes, 'KES')}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            FX-converted display only. Real balances remain shown per account above.
+          </p>
+        </div>
+        <div className="rounded-lg border border-slate-200/70 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/70 p-4">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">Latest Cash Requirement</p>
+          {latestForecast ? (
+            <>
+              <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                {formatCurrency(latestForecast.total_required_amount, latestForecast.currency)}
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {latestForecast.country_code} · {latestForecast.employee_count} employees · {formatDate(latestForecast.forecast_date)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No forecast has been generated yet.</p>
+          )}
         </div>
       </div>
 
@@ -939,7 +1049,7 @@ export default function AdminWalletClient({
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-8 border border-slate-200/50 dark:border-slate-700/30">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Transaction Audit Trail</h2>
         <TransactionTable
-          transactions={transactions}
+          transactions={selectedTransactions}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
           walletCurrency={wallet?.currency ?? 'USD'}

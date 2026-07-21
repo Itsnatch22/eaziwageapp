@@ -13,29 +13,30 @@ interface ExchangeRate {
 
 async function fetchInitialData() {
   try {
-    const { data: wallet, error: walletError } = await supabaseAdmin
+    const { data: wallets, error: walletError } = await supabaseAdmin
       .from('admin_wallets')
-      .select('id, name, balance, currency, last_reconciled_at, updated_at')
-      .eq('name', 'Main Stanbic Source')
-      .maybeSingle();
+      .select('id, name, balance, currency, country_code, last_reconciled_at, updated_at')
+      .order('country_code', { ascending: true })
+      .order('currency', { ascending: true });
 
     if (walletError) throw walletError;
 
     let transactions: Array<Record<string, unknown>> = [];
-    if (wallet?.id) {
+    const walletIds = (wallets ?? []).map((wallet) => wallet.id);
+    if (walletIds.length > 0) {
       const { data: txs } = await supabaseAdmin
         .from('admin_wallet_transactions')
         .select('id, admin_wallet_id, amount, type, status, reference, description, metadata, created_at')
-        .eq('admin_wallet_id', wallet.id)
+        .in('admin_wallet_id', walletIds)
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(25);
       transactions = (txs ?? []) as Array<Record<string, unknown>>;
     }
 
-    return { wallet: wallet ?? null, transactions };
+    return { wallet: wallets?.[0] ?? null, wallets: wallets ?? [], transactions };
   } catch (error) {
     console.error('Error fetching wallet data:', error);
-    return { wallet: null, transactions: [] };
+    return { wallet: null, wallets: [], transactions: [] };
   }
 }
 
@@ -87,6 +88,36 @@ async function fetchReconciliationFlags(): Promise<ReconciliationFlag[]> {
   }
 }
 
+interface CashRequirementForecast {
+  id: string;
+  forecast_date: string;
+  country_code: string;
+  currency: string;
+  total_required_amount: number;
+  employee_count: number;
+  updated_at: string;
+}
+
+async function fetchLatestForecasts(): Promise<CashRequirementForecast[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('cash_requirement_forecasts')
+      .select('id, forecast_date, country_code, currency, total_required_amount, employee_count, updated_at')
+      .order('forecast_date', { ascending: false })
+      .limit(8);
+
+    if (error) {
+      console.error('Error fetching cash requirement forecasts:', error);
+      return [];
+    }
+
+    return data ?? [];
+  } catch (error) {
+    console.error('Error fetching cash requirement forecasts:', error);
+    return [];
+  }
+}
+
 async function fetchLowBalanceThreshold(): Promise<number | null> {
   try {
     const { data, error } = await supabaseAdmin
@@ -126,11 +157,12 @@ function WalletSkeleton() {
 }
 
 export default async function AdminWalletPage() {
-  const [walletData, exchangeRates, lowBalanceThresholdUsd, reconciliationFlags] = await Promise.all([
+  const [walletData, exchangeRates, lowBalanceThresholdUsd, reconciliationFlags, forecasts] = await Promise.all([
     fetchInitialData(),
     fetchExchangeRates(),
     fetchLowBalanceThreshold(),
     fetchReconciliationFlags(),
+    fetchLatestForecasts(),
   ]);
 
   return (
@@ -138,10 +170,12 @@ export default async function AdminWalletPage() {
       <Suspense fallback={<WalletSkeleton />}>
         <AdminWalletClient
           initialWallet={walletData.wallet}
+          initialWallets={walletData.wallets as never}
           initialTransactions={walletData.transactions as never}
           exchangeRates={exchangeRates}
           lowBalanceThresholdUsd={lowBalanceThresholdUsd}
           initialReconciliationFlags={reconciliationFlags}
+          initialForecasts={forecasts as never}
         />
       </Suspense>
     </div>

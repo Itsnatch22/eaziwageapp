@@ -6,7 +6,7 @@ import { runFraudChecks } from '../fraud-engine';
 import { generateRepaymentReference, resolveEffectivePaydayDayOfMonth } from '../repayment/utils';
 import { notifyAdmin } from '../notifications';
 import { getEnv } from '@/env';
-import { convertFromUSD, convertToUSD, getCurrencyFromCountry } from '../utils';
+import { convertFromUSD, convertToUSD, getCurrencyFromCountry, normalizeCountryCode } from '../utils';
 
 // Platform-wide defaults an admin configures via the Global Settings tab
 // (app/admin/settings — Global Settings). Stored in USD; converted to the
@@ -437,6 +437,7 @@ export class PayoutService {
     // Global Settings defaults are stored in USD — convert to whatever currency
     // this employee's advance is actually denominated in before comparing.
     const localCurrency = getCurrencyFromCountry(employee?.country, advance.currency ?? 'KES');
+    const treasuryCountry = normalizeCountryCode(employee?.country) ?? 'KE';
     const globalMinLocal = globalSettings.min_advance_amount != null
       ? convertFromUSD(globalSettings.min_advance_amount, localCurrency, exchangeRates)
       : undefined;
@@ -724,6 +725,25 @@ export class PayoutService {
       throw new Error(reason);
     }
 
+    const { data: treasuryWallet, error: treasuryWalletError } = await supabaseAdmin
+      .from('admin_wallets')
+      .select('id, balance')
+      .eq('country_code', treasuryCountry)
+      .eq('currency', localCurrency)
+      .maybeSingle();
+
+    if (treasuryWalletError || !treasuryWallet) {
+      const reason = `No ${localCurrency}-${treasuryCountry} treasury account is configured for this payout`;
+      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
+      throw new Error(reason);
+    }
+
+    if (Number(treasuryWallet.balance ?? 0) < netAmount) {
+      const reason = `Insufficient ${localCurrency}-${treasuryCountry} treasury balance for this payout`;
+      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
+      throw new Error(reason);
+    }
+
     let payoutResponse;
     try {
       payoutResponse = await dusupayClient.sendFunds({
@@ -774,6 +794,29 @@ export class PayoutService {
       currency: advance.currency,
       raw_payload: payoutResponse
     }, { onConflict: 'merchant_reference,event_type' });
+
+    const { error: treasuryDebitError } = await supabaseAdmin.rpc('record_employee_disbursement_from_treasury', {
+      p_advance_id: advanceId,
+      p_amount: netAmount,
+      p_country_code: treasuryCountry,
+      p_currency: localCurrency,
+      p_reference: `DISB-${merchantReference}`,
+      p_internal_reference: payoutResponse.data?.internal_reference ?? null,
+    });
+
+    if (treasuryDebitError) {
+      await supabaseAdmin.from('advances').update({
+        status: 'failed',
+        reason: `DusuPay payout succeeded, but treasury ledger debit failed: ${treasuryDebitError.message}`,
+      }).eq('id', advanceId);
+      void notifyAdmin({
+        type: 'system_alert',
+        title: 'Treasury Ledger Debit Failed',
+        message: `Advance ${advanceId} was accepted by DusuPay, but the ${localCurrency}-${treasuryCountry} treasury ledger could not be debited. Manual reconciliation required.`,
+        metadata: { advance_id: advanceId, country: treasuryCountry, currency: localCurrency, error: treasuryDebitError.message },
+      }).catch(() => {});
+      throw new Error('Treasury ledger debit failed after DusuPay payout');
+    }
 
     // NOTE: employer liability is already fully recorded at funding time —
     // fund_employer_from_admin() increments employer_wallets.outstanding_liability
@@ -837,7 +880,7 @@ export class PayoutService {
       action: 'advance_disbursed',
       old_value: { status: 'pending' },
       new_value: { status: 'completed', merchant_reference: merchantReference, amount: advanceAmount, net_amount: netAmount },
-      metadata: { employee_id: advance.employee_id, employer_id: advance.employer_id, currency: advance.currency },
+      metadata: { employee_id: advance.employee_id, employer_id: advance.employer_id, currency: advance.currency, treasury_country: treasuryCountry, treasury_currency: localCurrency },
     });
 
     void checkVolumeAlerts(advanceId, advanceAmount, localCurrency, notificationSettings, exchangeRates)
