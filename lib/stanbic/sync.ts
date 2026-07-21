@@ -175,14 +175,6 @@ export async function syncStanbicBalance(
   }
 
   const accountMode = getStanbicBalanceAccountMode();
-  if (existingWallet.account_number && accountMode === 'none') {
-    return {
-      ok: false,
-      status: 500,
-      error: 'Selected wallet has a Stanbic account number, but STANBIC_BALANCE_ACCOUNT_MODE is not configured',
-    };
-  }
-
   if (accountMode !== 'none' && !existingWallet.account_number) {
     return {
       ok: false,
