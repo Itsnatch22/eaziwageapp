@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getStanbicAuthHeader, getStanbicBalanceUrl } from './client';
+import { buildStanbicBalanceRequest, getStanbicBalanceAccountMode } from './client';
 import type { Logger } from '../logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -9,6 +9,14 @@ interface AdminWallet {
   balance: number;
   currency: string;
   country_code?: string | null;
+  account_number?: string | null;
+  bank_name?: string | null;
+  branch_name?: string | null;
+  branch_code?: string | null;
+  bank_code?: string | null;
+  swift_code?: string | null;
+  paybill_number?: string | null;
+  supports_mpesa_deposit?: boolean | null;
   last_reconciled_at: string | null;
   updated_at: string;
 }
@@ -70,6 +78,60 @@ function isSuspiciousDrop(previous: number, incoming: number): boolean {
   return drop > 50;
 }
 
+function normalizeAccountId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+}
+
+function extractStanbicCurrency(parsed: Record<string, unknown>): string | null {
+  const candidates = [
+    parsed.currency,
+    parsed.currencyCode,
+    parsed.accountCurrency,
+    parsed.account_currency,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim().toUpperCase();
+  }
+
+  const accounts = parsed.accounts ?? parsed.data ?? parsed.result;
+  if (Array.isArray(accounts) && accounts.length > 0 && isRecord(accounts[0])) {
+    return extractStanbicCurrency(accounts[0]);
+  }
+  if (isRecord(accounts)) return extractStanbicCurrency(accounts);
+
+  return null;
+}
+
+function extractStanbicAccountNumber(parsed: Record<string, unknown>): string | null {
+  const candidates = [
+    parsed.accountNumber,
+    parsed.account_number,
+    parsed.accountId,
+    parsed.account_id,
+    parsed.account,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    if (typeof candidate === 'number') return String(candidate);
+  }
+
+  const accounts = parsed.accounts ?? parsed.data ?? parsed.result;
+  if (Array.isArray(accounts) && accounts.length > 0 && isRecord(accounts[0])) {
+    return extractStanbicAccountNumber(accounts[0]);
+  }
+  if (isRecord(accounts)) return extractStanbicAccountNumber(accounts);
+
+  return null;
+}
+
+function accountMatches(returnedAccount: string, expectedAccount: string): boolean {
+  const returned = normalizeAccountId(returnedAccount);
+  const expected = normalizeAccountId(expectedAccount);
+  return returned === expected || (expected.length >= 6 && returned.includes(expected));
+}
+
 // Manual admin_deposit() entries aren't flagged the moment a sync doesn't yet
 // reflect them — a real bank deposit can take a business day or more to clear
 // and show up in Stanbic's own balance. Only flag ones that are still
@@ -89,24 +151,64 @@ export async function syncStanbicBalance(
   log: Logger,
   walletSelector: { id?: string; countryCode?: string; currency?: string } = {},
 ): Promise<StanbicSyncResult> {
-  // ─── Authentication ─────────────────────────────────────
-  let authHeader: Record<string, string>;
-  try {
-    authHeader = await getStanbicAuthHeader();
-  } catch (tokenErr) {
-    const m = tokenErr instanceof Error ? tokenErr.message : 'Token error';
-    log.error('Stanbic token retrieval failed', { err: m });
-    return { ok: false, status: 502, error: `Stanbic authentication failed: ${m}` };
+  // ─── Load selected wallet first so Stanbic account selection is explicit ──
+  let walletQuery = adminSupabase
+    .from('admin_wallets')
+    .select('id, name, balance, currency, country_code, account_number, bank_name, branch_name, branch_code, bank_code, swift_code, paybill_number, supports_mpesa_deposit');
+
+  if (walletSelector.id) {
+    walletQuery = walletQuery.eq('id', walletSelector.id);
+  } else if (walletSelector.countryCode && walletSelector.currency) {
+    walletQuery = walletQuery
+      .eq('country_code', walletSelector.countryCode.toUpperCase())
+      .eq('currency', walletSelector.currency.toUpperCase());
+  } else {
+    walletQuery = walletQuery.eq('name', 'Main Stanbic Source');
   }
 
-  let url: string;
+  const { data: existingWallet, error: existingError } = await walletQuery
+    .maybeSingle<AdminWallet>();
+
+  if (existingError) throw existingError;
+  if (!existingWallet) {
+    return { ok: false, status: 500, error: 'Admin wallet record not found' };
+  }
+
+  const accountMode = getStanbicBalanceAccountMode();
+  if (existingWallet.account_number && accountMode === 'none') {
+    return {
+      ok: false,
+      status: 500,
+      error: 'Selected wallet has a Stanbic account number, but STANBIC_BALANCE_ACCOUNT_MODE is not configured',
+    };
+  }
+
+  if (accountMode !== 'none' && !existingWallet.account_number) {
+    return {
+      ok: false,
+      status: 500,
+      error: `Selected wallet ${existingWallet.name} has no Stanbic account number configured`,
+    };
+  }
+
+  // ─── Build authenticated, account-aware Stanbic request ───────────────────
+  let balanceRequest: Awaited<ReturnType<typeof buildStanbicBalanceRequest>>;
   try {
-    url = getStanbicBalanceUrl();
-  } catch (urlErr) {
-    const m = urlErr instanceof Error ? urlErr.message : String(urlErr);
+    balanceRequest = await buildStanbicBalanceRequest({
+      accountNumber: existingWallet.account_number,
+      currency: existingWallet.currency,
+      countryCode: existingWallet.country_code,
+    });
+  } catch (requestErr) {
+    const m = requestErr instanceof Error ? requestErr.message : String(requestErr);
+    log.error('Stanbic request preparation failed', { err: m, walletId: existingWallet.id });
     return { ok: false, status: 500, error: m };
   }
-  log.info('Calling Stanbic balance endpoint');
+  log.info('Calling Stanbic balance endpoint', {
+    walletId: existingWallet.id,
+    currency: existingWallet.currency,
+    accountMode,
+  });
 
   // ─── Fetch from Stanbic ─────────────────────────────────────
   const controller = new AbortController();
@@ -114,12 +216,10 @@ export async function syncStanbicBalance(
 
   let stanbicRes: Response;
   try {
-    stanbicRes = await fetch(url, {
-      method: 'GET', // Confirmed by the schema
-      headers: {
-        ...authHeader,
-        Accept: 'application/json',
-      },
+    stanbicRes = await fetch(balanceRequest.url, {
+      method: balanceRequest.method,
+      headers: balanceRequest.headers,
+      body: balanceRequest.body,
       signal: controller.signal,
     });
   } catch (fetchErr) {
@@ -142,15 +242,10 @@ export async function syncStanbicBalance(
     const rawText = await stanbicRes.text();
 
     if (rawText.trim()) {
-      parsed = JSON.parse(rawText);
+      const json = JSON.parse(rawText) as unknown;
+      parsed = isRecord(json) ? json : { data: json };
       log.info('Stanbic response parsed', { keys: Object.keys(parsed) });
-      // A 200 that parses to an empty {} / [] is the confusing case: auth and
-      // transport succeeded but Stanbic returned no balance. Dump the response
-      // headers + raw body so the next occurrence shows whether it's an Azure
-      // APIM subscription problem (diagnostic header) or an unconfigured
-      // sandbox balance — the empty-*body* branch below already does this, but
-      // an empty-*object* never reached it.
-      if (isRecord(parsed) && Object.keys(parsed).length === 0) {
+      if (Object.keys(parsed).length === 0) {
         const headerDump: Record<string, string> = {};
         stanbicRes.headers.forEach((v, k) => { headerDump[k] = v; });
         log.warn('Stanbic returned an empty object — no balance data', {
@@ -159,8 +254,6 @@ export async function syncStanbicBalance(
         });
       }
     } else {
-      // Empty body with 200 usually means the subscription key header was missing
-      // or the account number is not in the URL. Log response headers to diagnose.
       const headerDump: Record<string, string> = {};
       stanbicRes.headers.forEach((v, k) => { headerDump[k] = v; });
       log.warn('Stanbic returned empty body', { responseHeaders: headerDump });
@@ -174,7 +267,7 @@ export async function syncStanbicBalance(
   }
 
   // Extract balance (handles array ["123.45"], string, number, etc.)
-  const rawBalance: unknown = parsed.availableBalance ?? parsed.balance;
+  const rawBalance: unknown = parsed.availableBalance ?? parsed.balance ?? parsed.data;
   const normalizedBalance = normalizeBalance(rawBalance);
 
   if (normalizedBalance === null) {
@@ -191,38 +284,41 @@ export async function syncStanbicBalance(
     };
   }
 
-  // ─── Update Database ───────────────────────────────────────
-  let walletQuery = adminSupabase
-    .from('admin_wallets')
-    .select('id, name, balance, currency, country_code');
-
-  if (walletSelector.id) {
-    walletQuery = walletQuery.eq('id', walletSelector.id);
-  } else if (walletSelector.countryCode && walletSelector.currency) {
-    walletQuery = walletQuery
-      .eq('country_code', walletSelector.countryCode.toUpperCase())
-      .eq('currency', walletSelector.currency.toUpperCase());
-  } else {
-    walletQuery = walletQuery.eq('name', 'Main Stanbic Source');
-  }
-
-  const { data: existingWallet, error: existingError } = await walletQuery
-    .maybeSingle<Pick<AdminWallet, 'id' | 'name' | 'balance' | 'currency' | 'country_code'>>();
-
-  if (existingError) throw existingError;
-  if (!existingWallet) {
-    return { ok: false, status: 500, error: 'Admin wallet record not found' };
-  }
-
   // Currency-drift guard: each admin_wallet row has its own home currency.
   // A Stanbic response carrying any other currency is a sync anomaly, not a
   // signal to overwrite the ledger account's configured currency.
-  const currencyAnomaly = typeof parsed.currency === 'string' && parsed.currency.toUpperCase() !== existingWallet.currency.toUpperCase();
+  const returnedCurrency = extractStanbicCurrency(parsed);
+  const currencyAnomaly = returnedCurrency !== null && returnedCurrency !== existingWallet.currency.toUpperCase();
   if (currencyAnomaly) {
-    log.error('Stanbic sync returned a currency different from the selected admin wallet — refusing to update admin_wallets.currency', {
-      returned: parsed.currency,
+    log.error('Stanbic sync returned a currency different from the selected admin wallet — refusing to update wallet balance', {
+      returned: returnedCurrency,
       existing: existingWallet.currency,
     });
+    return {
+      ok: false,
+      status: 409,
+      error: `Stanbic returned ${returnedCurrency}, but selected wallet is ${existingWallet.currency}`,
+      details: { returnedCurrency, walletCurrency: existingWallet.currency },
+    };
+  }
+
+  const returnedAccount = extractStanbicAccountNumber(parsed);
+  if (
+    existingWallet.account_number
+    && returnedAccount
+    && !accountMatches(returnedAccount, existingWallet.account_number)
+  ) {
+    log.error('Stanbic sync returned an account different from the selected admin wallet — refusing to update wallet balance', {
+      returned: returnedAccount,
+      expected: existingWallet.account_number,
+      walletId: existingWallet.id,
+    });
+    return {
+      ok: false,
+      status: 409,
+      error: 'Stanbic returned a different account than the selected wallet',
+      details: { returnedAccount, expectedAccount: existingWallet.account_number },
+    };
   }
   const finalCurrency = existingWallet.currency || walletSelector.currency || 'USD';
 
@@ -338,8 +434,8 @@ export async function syncStanbicBalance(
     metadata: {
       raw_response: parsed,
       currency: finalCurrency,
+      account_number: existingWallet.account_number,
       source: 'stanbic_balance_api',
-      ...(currencyAnomaly ? { currency_anomaly: true, currency_returned_by_stanbic: parsed.currency } : {}),
     },
   };
 

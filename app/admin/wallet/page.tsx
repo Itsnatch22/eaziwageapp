@@ -15,7 +15,7 @@ async function fetchInitialData() {
   try {
     const { data: wallets, error: walletError } = await supabaseAdmin
       .from('admin_wallets')
-      .select('id, name, balance, currency, country_code, last_reconciled_at, updated_at')
+      .select('id, name, balance, currency, country_code, account_number, bank_name, branch_name, branch_code, bank_code, swift_code, paybill_number, supports_mpesa_deposit, last_reconciled_at, updated_at')
       .order('country_code', { ascending: true })
       .order('currency', { ascending: true });
 

@@ -23,6 +23,14 @@ interface AdminWallet {
   balance: number;
   currency: string;
   country_code: string | null;
+  account_number: string | null;
+  bank_name: string | null;
+  branch_name: string | null;
+  branch_code: string | null;
+  bank_code: string | null;
+  swift_code: string | null;
+  paybill_number: string | null;
+  supports_mpesa_deposit: boolean | null;
   last_reconciled_at: string | null;
   updated_at: string;
 }
@@ -528,9 +536,15 @@ export default function AdminWalletClient({
       });
 
       if (response.status === 409) {
-        const conflictData = (await response.json()) as SyncConflictResponse;
-        setSyncConflict(conflictData);
-        toast.error('Suspicious balance drop detected. Please reconcile manually.');
+        const conflictData = (await response.json()) as Partial<SyncConflictResponse> & ApiError;
+        if (typeof conflictData.previous === 'number' && typeof conflictData.incoming === 'number') {
+          setSyncConflict(conflictData as SyncConflictResponse);
+          toast.error('Suspicious balance drop detected. Please reconcile manually.');
+        } else {
+          const message = conflictData.error || 'Stanbic response did not match the selected wallet';
+          setSyncError(message);
+          toast.error(message);
+        }
         return;
       }
 
@@ -542,14 +556,23 @@ export default function AdminWalletClient({
       }
 
       const data = (await response.json()) as SyncSuccessResponse;
+      const currentWallet = wallets.find((w) => w.id === data.wallet.id) ?? wallet;
       const updatedWallet: AdminWallet = {
         id: data.wallet.id,
-        name: wallet?.name || wallets.find((w) => w.id === data.wallet.id)?.name || 'Stanbic Account',
+        name: currentWallet?.name || 'Stanbic Account',
         balance: data.wallet.balance,
         currency: data.wallet.currency,
-        country_code: wallet?.country_code ?? wallets.find((w) => w.id === data.wallet.id)?.country_code ?? null,
+        country_code: currentWallet?.country_code ?? null,
         last_reconciled_at: data.wallet.last_reconciled_at,
         updated_at: new Date().toISOString(),
+        account_number: currentWallet?.account_number ?? null,
+        bank_name: currentWallet?.bank_name ?? null,
+        branch_name: currentWallet?.branch_name ?? null,
+        branch_code: currentWallet?.branch_code ?? null,
+        bank_code: currentWallet?.bank_code ?? null,
+        swift_code: currentWallet?.swift_code ?? null,
+        paybill_number: currentWallet?.paybill_number ?? null,
+        supports_mpesa_deposit: currentWallet?.supports_mpesa_deposit ?? false,
       };
       setWallet(updatedWallet);
       setWallets((prev) => prev.map((item) => item.id === updatedWallet.id ? { ...item, ...updatedWallet } : item));
@@ -796,6 +819,16 @@ export default function AdminWalletClient({
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Last synced {formatStaleness(status.minutesAgo)}
               </p>
+              {item.account_number && (
+                <p className="mt-2 text-xs font-mono text-slate-600 dark:text-slate-300">
+                  Acct {item.account_number}
+                </p>
+              )}
+              {item.supports_mpesa_deposit && item.paybill_number && (
+                <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+                  Paybill {item.paybill_number}
+                </p>
+              )}
             </button>
           );
         })}
@@ -829,7 +862,7 @@ export default function AdminWalletClient({
       {reconciliationFlags.length > 0 && (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg space-y-3">
           <div className="flex gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
             <div>
               <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
                 Unconfirmed Stanbic Deposit{reconciliationFlags.length > 1 ? 's' : ''}
@@ -851,7 +884,7 @@ export default function AdminWalletClient({
                   </span>
                   <span className="text-slate-500 dark:text-slate-400"> recorded {formatDateTime(flag.created_at)} — Stanbic reported {formatCurrency(flag.stanbic_reported_balance, 'USD')} vs. expected {formatCurrency(flag.balance_before_sync, 'USD')}</span>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-2 shrink-0">
                   <button
                     onClick={() => handleResolveFlag(flag.id, 'dismissed')}
                     disabled={resolvingFlagId === flag.id}
@@ -875,7 +908,7 @@ export default function AdminWalletClient({
 
       {syncConflict && (
         <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">Sync Warning</h3>
             <p className="text-sm text-amber-800 dark:text-amber-200">
@@ -884,7 +917,7 @@ export default function AdminWalletClient({
           </div>
           <button
             onClick={() => setSyncConflict(null)}
-            className="text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/50 p-1 rounded transition-colors flex-shrink-0"
+            className="text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/50 p-1 rounded transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -893,7 +926,7 @@ export default function AdminWalletClient({
 
       {isLowBalance && wallet && (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">Low Balance Warning</h3>
             <p className="text-sm text-red-800 dark:text-red-200">
@@ -909,7 +942,7 @@ export default function AdminWalletClient({
             ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
             : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
         }`}>
-          <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${
+          <AlertTriangle className={`w-4 h-4 shrink-0 ${
             syncStatus.color === 'bg-red-500'
               ? 'text-red-500 dark:text-red-400'
               : 'text-amber-500 dark:text-amber-400'
@@ -924,7 +957,7 @@ export default function AdminWalletClient({
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0 disabled:opacity-50 ${
               syncStatus.color === 'bg-red-500'
                 ? 'bg-red-100 dark:bg-red-800/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-700/50'
                 : 'bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-700/50'
@@ -977,6 +1010,41 @@ export default function AdminWalletClient({
                     </span>
                   )}
                 </div>
+              </div>
+
+              <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30 p-4">
+                <div>
+                  <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Account</p>
+                  <p className="mt-1 font-mono text-sm text-slate-900 dark:text-white">
+                    {wallet.account_number ?? 'Not configured'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Bank</p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    {[wallet.bank_name, wallet.branch_name].filter(Boolean).join(' - ') || 'Not configured'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Codes</p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    Branch {wallet.branch_code ?? '-'} / Bank {wallet.bank_code ?? '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">SWIFT</p>
+                  <p className="mt-1 font-mono text-sm text-slate-900 dark:text-white">
+                    {wallet.swift_code ?? '-'}
+                  </p>
+                </div>
+                {wallet.supports_mpesa_deposit && wallet.paybill_number && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">M-Pesa Deposit</p>
+                    <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                      Paybill {wallet.paybill_number} for KES deposits only
+                    </p>
+                  </div>
+                )}
               </div>
 
               {syncError && (

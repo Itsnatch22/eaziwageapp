@@ -19,6 +19,21 @@ const redis = new Redis({
 // ─── Type & Exports ───────────────────────────────────────────────────────────
 
 export type StanbicEnvironment = 'sandbox' | 'production';
+export type StanbicBalanceAccountMode = 'none' | 'path' | 'query' | 'body' | 'header';
+export type StanbicBalanceHttpMethod = 'GET' | 'POST';
+
+export interface StanbicBalanceAccountContext {
+  accountNumber?: string | null;
+  currency?: string | null;
+  countryCode?: string | null;
+}
+
+export interface StanbicBalanceRequest {
+  url: string;
+  method: StanbicBalanceHttpMethod;
+  headers: Record<string, string>;
+  body?: string;
+}
 
 export class StanbicClient {
   private environment: StanbicEnvironment;
@@ -63,9 +78,6 @@ export class StanbicClient {
   }
 
   getBalanceUrl(): string {
-    // The balance API has no path or query parameters — the account is resolved
-    // server-side from the OAuth client credentials (client_id = subscription key).
-    // Spec: GET / relative to basePath /api/sandbox/balance
     const url = this.environment === 'production'
       ? env.STANBIC_PRODUCTION_URL_ENDPOINT ??
         env.STANBIC_PRODUCTION_BASE_URL ??
@@ -82,6 +94,70 @@ export class StanbicClient {
     }
 
     return url.replace(/([^/])$/, '$1/'); // ensure trailing slash to match the spec's GET /
+  }
+
+  getBalanceAccountMode(): StanbicBalanceAccountMode {
+    const mode = env.STANBIC_BALANCE_ACCOUNT_MODE?.toLowerCase();
+    if (mode === 'path' || mode === 'query' || mode === 'body' || mode === 'header') {
+      return mode;
+    }
+    return 'none';
+  }
+
+  private getBalanceAccountParam(): string {
+    return env.STANBIC_BALANCE_ACCOUNT_PARAM || 'accountNumber';
+  }
+
+  private getBalanceHttpMethod(): StanbicBalanceHttpMethod {
+    return env.STANBIC_BALANCE_HTTP_METHOD?.toUpperCase() === 'POST' ? 'POST' : 'GET';
+  }
+
+  private buildAccountPathUrl(url: string, param: string, accountNumber: string): string {
+    const encoded = encodeURIComponent(accountNumber);
+    if (url.includes('{accountNumber}')) return url.replaceAll('{accountNumber}', encoded);
+    if (url.includes('{accountId}')) return url.replaceAll('{accountId}', encoded);
+    if (url.includes(`{${param}}`)) return url.replaceAll(`{${param}}`, encoded);
+
+    throw new Error(
+      'STANBIC_BALANCE_ACCOUNT_MODE=path requires STANBIC_*_URL_ENDPOINT to include {accountNumber}, {accountId}, or the configured parameter placeholder',
+    );
+  }
+
+  async buildBalanceRequest(context: StanbicBalanceAccountContext = {}): Promise<StanbicBalanceRequest> {
+    const mode = this.getBalanceAccountMode();
+    const param = this.getBalanceAccountParam();
+    const accountNumber = context.accountNumber?.trim();
+    let method = this.getBalanceHttpMethod();
+    let url = this.getBalanceUrl();
+    const headers: Record<string, string> = {
+      ...(await this.getAuthHeader()),
+      Accept: 'application/json',
+    };
+    let body: string | undefined;
+
+    if (mode !== 'none' && !accountNumber) {
+      throw new Error(`Stanbic balance account selector is ${mode}, but the selected wallet has no account number`);
+    }
+
+    if (mode === 'path') {
+      url = this.buildAccountPathUrl(url, param, accountNumber!);
+    } else if (mode === 'query') {
+      const parsedUrl = new URL(url);
+      parsedUrl.searchParams.set(param, accountNumber!);
+      url = parsedUrl.toString();
+    } else if (mode === 'header') {
+      headers[param] = accountNumber!;
+    } else if (mode === 'body') {
+      method = 'POST';
+      headers['Content-Type'] = 'application/json';
+      body = JSON.stringify({
+        [param]: accountNumber,
+        ...(context.currency ? { currency: context.currency.toUpperCase() } : {}),
+        ...(context.countryCode ? { countryCode: context.countryCode.toUpperCase() } : {}),
+      });
+    }
+
+    return { url, method, headers, body };
   }
 
   private async getCachedToken(): Promise<string | null> {
@@ -235,4 +311,14 @@ export function getStanbicBalanceUrl(): string {
 
 export async function getStanbicAuthHeader(): Promise<Record<string, string>> {
   return stanbicClient.getAuthHeader();
+}
+
+export function getStanbicBalanceAccountMode(): StanbicBalanceAccountMode {
+  return stanbicClient.getBalanceAccountMode();
+}
+
+export async function buildStanbicBalanceRequest(
+  context: StanbicBalanceAccountContext = {},
+): Promise<StanbicBalanceRequest> {
+  return stanbicClient.buildBalanceRequest(context);
 }

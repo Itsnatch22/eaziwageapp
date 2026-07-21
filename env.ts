@@ -38,6 +38,9 @@ interface EnvConfig {
   STANBIC_PRODUCTION_TOKEN_URL?: string;
   STANBIC_BASE_URL?: string;
   STANBIC_TOKEN_URL?: string;
+  STANBIC_BALANCE_ACCOUNT_MODE?: string;
+  STANBIC_BALANCE_ACCOUNT_PARAM?: string;
+  STANBIC_BALANCE_HTTP_METHOD?: string;
 
   AT_ENVIRONMENT?: string;
   AT_API_KEY?: string;
@@ -152,6 +155,20 @@ export function validateEnv(): EnvConfig {
       errors.push('STANBIC_PRODUCTION_URL_ENDPOINT is not a valid URL');
     }
 
+    if (
+      process.env.STANBIC_BALANCE_ACCOUNT_MODE
+      && !['none', 'path', 'query', 'body', 'header'].includes(process.env.STANBIC_BALANCE_ACCOUNT_MODE.toLowerCase())
+    ) {
+      errors.push('STANBIC_BALANCE_ACCOUNT_MODE must be one of: none, path, query, body, header');
+    }
+
+    if (
+      process.env.STANBIC_BALANCE_HTTP_METHOD
+      && !['GET', 'POST'].includes(process.env.STANBIC_BALANCE_HTTP_METHOD.toUpperCase())
+    ) {
+      errors.push('STANBIC_BALANCE_HTTP_METHOD must be GET or POST');
+    }
+
     if (process.env.AT_ENVIRONMENT === 'production') {
       if (!process.env.AT_PRODUCTION_API_KEY && !process.env.AT_API_KEY) {
         errors.push('AT_PRODUCTION_API_KEY or AT_API_KEY is not defined (required when AT_ENVIRONMENT=production)');
@@ -209,6 +226,9 @@ export function validateEnv(): EnvConfig {
     STANBIC_PRODUCTION_TOKEN_URL: process.env.STANBIC_PRODUCTION_TOKEN_URL,
     STANBIC_BASE_URL: process.env.STANBIC_BASE_URL,
     STANBIC_TOKEN_URL: process.env.STANBIC_TOKEN_URL,
+    STANBIC_BALANCE_ACCOUNT_MODE: process.env.STANBIC_BALANCE_ACCOUNT_MODE,
+    STANBIC_BALANCE_ACCOUNT_PARAM: process.env.STANBIC_BALANCE_ACCOUNT_PARAM,
+    STANBIC_BALANCE_HTTP_METHOD: process.env.STANBIC_BALANCE_HTTP_METHOD,
 
     AT_ENVIRONMENT: process.env.AT_ENVIRONMENT,
     AT_API_KEY: process.env.AT_API_KEY,

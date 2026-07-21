@@ -12,6 +12,14 @@ interface AdminWallet {
   balance: number;
   currency: string;
   country_code: string | null;
+  account_number: string | null;
+  bank_name: string | null;
+  branch_name: string | null;
+  branch_code: string | null;
+  bank_code: string | null;
+  swift_code: string | null;
+  paybill_number: string | null;
+  supports_mpesa_deposit: boolean | null;
   last_reconciled_at: string | null;
   updated_at: string;
 }
@@ -33,7 +41,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     let walletQuery = adminSupabase
       .from('admin_wallets')
-      .select('id, name, balance, currency, country_code, last_reconciled_at, updated_at')
+      .select('id, name, balance, currency, country_code, account_number, bank_name, branch_name, branch_code, bank_code, swift_code, paybill_number, supports_mpesa_deposit, last_reconciled_at, updated_at')
       .order('country_code', { ascending: true })
       .order('currency', { ascending: true });
 
