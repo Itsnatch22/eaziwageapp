@@ -38,14 +38,15 @@ export interface StanbicBalanceRequest {
 export class StanbicClient {
   private environment: StanbicEnvironment;
   private tokenCacheKey: string;
+  private accountType: 'USD' | 'KES';
 
-  constructor() {
+  constructor(accountType: 'USD' | 'KES' = 'USD') {
     this.environment = (process.env.STANBIC_ENVIRONMENT as StanbicEnvironment) === 'production'
       ? 'production'
       : 'sandbox';
-    // Environment-scoped so a cached sandbox token can never be served after
-    // flipping STANBIC_ENVIRONMENT to production (or vice versa).
-    this.tokenCacheKey = `stanbic:access_token:${this.environment}`;
+    this.accountType = accountType;
+    // Environment-scoped and account-scoped token cache key
+    this.tokenCacheKey = `stanbic:access_token:${this.environment}:${this.accountType.toLowerCase()}`;
   }
 
   getEnvironment(): StanbicEnvironment {
@@ -66,12 +67,22 @@ export class StanbicClient {
   }
 
   private getSubscriptionKey(): string {
+    if (this.accountType === 'KES') {
+      return this.environment === 'production'
+        ? env.STANBIC_PRODUCTION_KES_API_KEY ?? env.STANBIC_PRODUCTION_API_KEY ?? env.STANBIC_API_KEY ?? ''
+        : env.STANBIC_SANDBOX_KES_API_KEY ?? env.STANBIC_SANDBOX_API_KEY ?? env.STANBIC_API_KEY ?? '';
+    }
     return this.environment === 'production'
       ? env.STANBIC_PRODUCTION_API_KEY ?? env.STANBIC_API_KEY ?? ''
       : env.STANBIC_SANDBOX_API_KEY ?? env.STANBIC_API_KEY ?? '';
   }
 
   private getClientSecret(): string {
+    if (this.accountType === 'KES') {
+      return this.environment === 'production'
+        ? env.STANBIC_PRODUCTION_KES_CLIENT_SECRET ?? env.STANBIC_PRODUCTION_CLIENT_SECRET ?? env.STANBIC_CLIENT_SECRET ?? ''
+        : env.STANBIC_SANDBOX_KES_CLIENT_SECRET ?? env.STANBIC_SANDBOX_KES_CLIENT_SECRET ?? env.STANBIC_CLIENT_SECRET ?? '';
+    }
     return this.environment === 'production'
       ? env.STANBIC_PRODUCTION_CLIENT_SECRET ?? env.STANBIC_CLIENT_SECRET ?? ''
       : env.STANBIC_SANDBOX_CLIENT_SECRET ?? env.STANBIC_CLIENT_SECRET ?? '';
@@ -284,8 +295,16 @@ export class StanbicClient {
   }
 }
 
-// Single instance — all consumers use this
-export const stanbicClient = new StanbicClient();
+// Single instances
+export const stanbicClient = new StanbicClient('USD');
+export const stanbicKesClient = new StanbicClient('KES');
+
+export function getStanbicClientForCurrency(currency?: string | null): StanbicClient {
+  if (currency?.toUpperCase() === 'KES') {
+    return stanbicKesClient;
+  }
+  return stanbicClient;
+}
 
 // ─── Legacy backward-compatible helpers ────────────────────────────────────
 // These delegate to stanbicClient for a smooth migration path

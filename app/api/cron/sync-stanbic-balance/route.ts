@@ -17,10 +17,28 @@ function authorize(req: NextRequest): boolean {
 async function run(req: NextRequest): Promise<NextResponse> {
   const log = requestLogger('cron-sync-stanbic-balance', req);
 
-  const result = await syncStanbicBalance(supabaseAdmin, log);
+  let currency = req.nextUrl.searchParams.get('currency');
+  if (!currency && req.method === 'POST') {
+    try {
+      const body = await req.json().catch(() => null) as { currency?: string } | null;
+      currency = body?.currency ?? null;
+    } catch {
+      // Ignore body parsing errors and fallback
+    }
+  }
+
+  const normalizedCurrency = currency?.toUpperCase();
+  let selector = {};
+  if (normalizedCurrency === 'KES') {
+    selector = { countryCode: 'KE', currency: 'KES' };
+  } else if (normalizedCurrency === 'USD') {
+    selector = { countryCode: 'KE', currency: 'USD' };
+  }
+
+  const result = await syncStanbicBalance(supabaseAdmin, log, selector);
 
   if (!result.ok) {
-    log.error('Stanbic sync failed', { status: result.status, error: result.error });
+    log.error(`Stanbic ${normalizedCurrency ?? 'default'} sync failed`, { status: result.status, error: result.error });
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 

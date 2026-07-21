@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { buildStanbicBalanceRequest, getStanbicBalanceAccountMode } from './client';
+import { getStanbicClientForCurrency } from './client';
 import type { Logger } from '../logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -174,7 +174,8 @@ export async function syncStanbicBalance(
     return { ok: false, status: 500, error: 'Admin wallet record not found' };
   }
 
-  const accountMode = getStanbicBalanceAccountMode();
+  const client = getStanbicClientForCurrency(existingWallet.currency);
+  const accountMode = client.getBalanceAccountMode();
   if (accountMode !== 'none' && !existingWallet.account_number) {
     return {
       ok: false,
@@ -184,9 +185,9 @@ export async function syncStanbicBalance(
   }
 
   // ─── Build authenticated, account-aware Stanbic request ───────────────────
-  let balanceRequest: Awaited<ReturnType<typeof buildStanbicBalanceRequest>>;
+  let balanceRequest: Awaited<ReturnType<typeof client.buildBalanceRequest>>;
   try {
-    balanceRequest = await buildStanbicBalanceRequest({
+    balanceRequest = await client.buildBalanceRequest({
       accountNumber: existingWallet.account_number,
       currency: existingWallet.currency,
       countryCode: existingWallet.country_code,

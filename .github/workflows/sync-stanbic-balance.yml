@@ -9,20 +9,42 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull latest balance from Stanbic
+      - name: Pull latest USD balance from Stanbic
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"currency": "USD"}' \
             -X POST \
             https://app.eaziwage.com/api/cron/sync-stanbic-balance)
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | head -n-1)
 
-          echo "Response: $BODY"
-          echo "Status: $HTTP_CODE"
+          echo "USD Response: $BODY"
+          echo "USD Status: $HTTP_CODE"
 
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "Stanbic sync failed with status $HTTP_CODE"
+            echo "Stanbic USD sync failed with status $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Pull latest KES balance from Stanbic
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"currency": "KES"}' \
+            -X POST \
+            https://app.eaziwage.com/api/cron/sync-stanbic-balance)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "KES Response: $BODY"
+          echo "KES Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Stanbic KES sync failed with status $HTTP_CODE"
             exit 1
           fi
