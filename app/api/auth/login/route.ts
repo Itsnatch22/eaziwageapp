@@ -7,6 +7,7 @@ import { getEnv }                          from '@/env';
 import { loginLimiter, checkRateLimit }     from '@/lib/rate-limit';
 import { sendAccountLockedEmail }          from '@/lib/security-alerts';
 import type { LoginContext }               from '@/lib/security-alerts';
+import { createUnlockToken }               from '@/lib/unlock-token';
 import { handleLoginSecurity }             from '@/lib/security-service';
 import { normalizeAppRole, resolveRoleFromTables } from '@/lib/server/resolve-user-role';
 
@@ -157,7 +158,8 @@ async function recordFailedAttempt(
   }
 
   if (shouldLock) {
-    await sendAccountLockedEmail(email, fullName, LOCKOUT_MINUTES, ctx);
+    const unlockToken = await createUnlockToken(email, profileId, isAdmin, LOCKOUT_MINUTES);
+    await sendAccountLockedEmail(email, fullName, LOCKOUT_MINUTES, ctx, unlockToken);
   }
 }
 

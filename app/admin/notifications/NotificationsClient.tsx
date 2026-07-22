@@ -291,32 +291,32 @@ export default function AdminNotificationsPage() {
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
-              className="bg-white/60 dark:bg-slate-800/60"
+              className="flex-1 sm:flex-none bg-white/60 dark:bg-slate-800/60 text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4"
               onClick={fetchNotifications}
               disabled={loading}
             >
-              <RefreshCw className={cn('w-4 h-4 mr-2', loading && 'animate-spin')} />
+              <RefreshCw className={cn('w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2', loading && 'animate-spin')} />
               Refresh
             </Button>
             <Button
               variant="outline"
-              className="bg-white/60 dark:bg-slate-800/60"
+              className="flex-1 sm:flex-none bg-white/60 dark:bg-slate-800/60 text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4"
               onClick={markAllAsRead}
               disabled={notifications.every(n => n.read)}
             >
-              <CheckCircle2 className="w-4 h-4 mr-2" />
-              Mark all as read
+              <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+              Mark all read
             </Button>
             <Button
               variant="outline"
-              className="bg-white/60 dark:bg-slate-800/60 text-red-600 hover:text-red-700 hover:border-red-300"
+              className="flex-1 sm:flex-none bg-white/60 dark:bg-slate-800/60 text-red-600 hover:text-red-700 hover:border-red-300 text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4"
               onClick={handleDeleteAll}
               disabled={notifications.length === 0}
             >
-              <Trash2 className="w-4 h-4 mr-2" />
+              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
               Delete all
             </Button>
           </div>
@@ -413,30 +413,34 @@ export default function AdminNotificationsPage() {
                   )}
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {health.failed.map(notif => (
-                      <div key={notif.id} className="flex items-start gap-4 p-5">
-                        <div className="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-                          <AlertTriangle className="w-4 h-4 text-red-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{notif.title}</p>
-                            <DeliveryStatusBadge status={notif.delivery_status} />
+                      <div key={notif.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-4 sm:p-5">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                            <AlertTriangle className="w-4 h-4 text-red-600" />
                           </div>
-                          {notif.failure_reason && (
-                            <p className="text-xs text-red-600 dark:text-red-400 mb-1">{notif.failure_reason}</p>
-                          )}
-                          <p className="text-xs text-slate-400">{formatDateTime(notif.created_at)}</p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-white break-words">{notif.title}</p>
+                              <DeliveryStatusBadge status={notif.delivery_status} />
+                            </div>
+                            {notif.failure_reason && (
+                              <p className="text-xs text-red-600 dark:text-red-400 mb-1">{notif.failure_reason}</p>
+                            )}
+                            <p className="text-xs text-slate-400">{formatDateTime(notif.created_at)}</p>
+                          </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="shrink-0 h-8 text-xs gap-1.5"
-                          onClick={() => handleResend(notif.id)}
-                          disabled={resendingId === notif.id}
-                        >
-                          <RotateCcw className={cn('w-3 h-3', resendingId === notif.id && 'animate-spin')} />
-                          {resendingId === notif.id ? 'Sending…' : 'Resend'}
-                        </Button>
+                        <div className="flex justify-end pl-11 sm:pl-0 sm:self-center shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs gap-1.5 w-full sm:w-auto"
+                            onClick={() => handleResend(notif.id)}
+                            disabled={resendingId === notif.id}
+                          >
+                            <RotateCcw className={cn('w-3 h-3', resendingId === notif.id && 'animate-spin')} />
+                            {resendingId === notif.id ? 'Sending…' : 'Resend'}
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -503,35 +507,35 @@ export default function AdminNotificationsPage() {
                 <div
                   key={notif.id}
                   className={cn(
-                    'p-6 flex items-start gap-4 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30 relative group',
+                    'p-4 sm:p-6 flex items-start gap-3 sm:gap-4 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/30 relative group',
                     !notif.read && 'bg-emerald-50/30 dark:bg-emerald-900/10'
                   )}
                   onClick={() => !notif.read && markAsRead([notif.id])}
                 >
                   <NotificationIcon type={notif.type} />
-                  <div className="flex-1 min-w-0 pr-10">
-                    <div className="flex items-center justify-between mb-1">
+                  <div className="flex-1 min-w-0 pr-6 sm:pr-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-1">
                       <h3 className={cn(
-                        'text-base font-bold text-slate-900 dark:text-white',
+                        'text-base font-bold text-slate-900 dark:text-white pr-4 md:pr-0',
                         !notif.read && 'text-emerald-700 dark:text-emerald-400'
                       )}>
                         {notif.title}
                       </h3>
-                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <div className="flex items-center gap-2 text-xs text-slate-400 shrink-0">
                         <Clock className="w-3 h-3" />
                         {formatDateTime(notif.created_at)}
                       </div>
                     </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-3 sm:mb-4">
                       {notif.message}
                     </p>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       {getNotificationAction(notif) && (() => {
                         const action = getNotificationAction(notif)!;
                         return (
                           <Button
                             size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs rounded-lg"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs rounded-lg w-full sm:w-auto"
                             asChild
                           >
                             <Link href={action.href}>{action.label}</Link>
@@ -544,7 +548,7 @@ export default function AdminNotificationsPage() {
                             e.stopPropagation();
                             markAsRead([notif.id]);
                           }}
-                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 py-1"
                         >
                           <Check className="w-3 h-3" /> Mark read
                         </button>
@@ -554,10 +558,10 @@ export default function AdminNotificationsPage() {
 
                   <button
                     onClick={(e) => handleDelete(e, notif.id)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2.5 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10"
+                    className="absolute right-2 top-2 sm:right-4 sm:top-5 p-2.5 text-slate-400 hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10"
                     title="Delete notification"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               ))}

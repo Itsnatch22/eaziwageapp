@@ -30,10 +30,13 @@ export async function sendAccountLockedEmail(
   email: string,
   fullName: string,
   lockoutMinutes: number,
-  loginContext: LoginContext
+  loginContext: LoginContext,
+  unlockToken?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const unlockUrl = `${BASE_URL}/unlock-account?email=${encodeURIComponent(email)}`;
+    const unlockUrl = unlockToken
+      ? `${BASE_URL}/unlock-account?token=${unlockToken}`
+      : `${BASE_URL}/unlock-account?email=${encodeURIComponent(email)}`;
 
     const html = await render(
       AccountLockedEmail({

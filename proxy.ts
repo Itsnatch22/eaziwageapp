@@ -78,7 +78,8 @@ export async function proxy(req: NextRequest) {
     pathname === "/register" ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/verify-email");
+    pathname.startsWith("/verify-email") ||
+    pathname.startsWith("/unlock-account");
 
   // /console is founder-only (checked separately below, on top of the admin
   // role check) — deliberately not nested under /admin so it doesn't share a
