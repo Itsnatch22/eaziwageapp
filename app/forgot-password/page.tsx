@@ -14,16 +14,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 type PageState = 'idle' | 'loading' | 'success' | 'error';
 
-declare global {
-  interface Window {
-    grecaptcha: {
-      ready: (cb: () => void) => void;
-      execute: (siteKey: string, options: { action: string }) => Promise<string>;
-      render: (container: string | HTMLElement, parameters: Record<string, unknown>) => number;
-    reset: (widgetId?: number) => void;
-    };
-  }
-}
 
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';

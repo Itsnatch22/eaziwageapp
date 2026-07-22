@@ -179,16 +179,6 @@ interface RegisterPayload {
   employer_referral: EmployerReferral | null;
 }
 
-declare global {
-  interface Window {
-    grecaptcha: {
-      ready: (cb: () => void) => void;
-      execute: (siteKey: string, options: { action: string }) => Promise<string>;
-      render: (container: string | HTMLElement, parameters: Record<string, unknown>) => number;
-      reset: (widgetId?: number) => void;
-    };
-  }
-}
 
 
 const DIALING_CODES: DialCode[] = [

@@ -18,14 +18,6 @@ type UnlockState =
   | 'invalid'
   | 'error';
 
-declare global {
-  interface Window {
-    grecaptcha: {
-      ready: (cb: () => void) => void;
-      execute: (siteKey: string, options: { action: string }) => Promise<string>;
-    };
-  }
-}
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
 const AUTO_REDIRECT_SECS = 5;
