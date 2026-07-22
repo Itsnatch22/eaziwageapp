@@ -158,13 +158,6 @@ export default function UnlockAccountPage() {
       case 'submitting':
         return (
           <div className="text-center">
-            <div className="relative mx-auto mb-8 w-20 h-20">
-              <div className="w-20 h-20 bg-linear-to-br from-amber-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/30">
-                <Lock className="w-10 h-10 text-white" />
-              </div>
-              <div className="absolute inset-0 bg-amber-400/20 rounded-2xl blur-xl -z-10" />
-            </div>
-
             <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
               Unlock your account
             </h1>
