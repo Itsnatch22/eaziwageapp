@@ -11,6 +11,7 @@ const BulkEmployeeSchema = z.object({
     job_title: z.string().optional(),
     department: z.string().optional(),
     monthly_salary: z.number().nonnegative().optional(),
+    net_monthly_salary: z.number().nonnegative().optional(),
     phone: z.string().optional(),
   }))
 });
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        const isNetProvided = emp.net_monthly_salary !== undefined && emp.net_monthly_salary !== null;
         const { error: insertError } = await adminSupabase
           .from('employee_onboarding')
           .insert({
@@ -114,6 +116,8 @@ export async function POST(req: NextRequest) {
             job_title: emp.job_title,
             department: emp.department,
             monthly_salary: emp.monthly_salary,
+            net_monthly_salary: isNetProvided ? emp.net_monthly_salary : emp.monthly_salary,
+            net_salary_is_estimated: !isNetProvided,
             // status omitted — the column defaults to 'pending', matching
             // what a brand-new zero-document row would derive anyway.
             invitation_sent: false

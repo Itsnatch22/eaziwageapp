@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   const { data: employer, error: employerError } = await supabase
     .from('employers')
-    .select('id, onboarding_id')
+    .select('id')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -26,25 +26,7 @@ export async function GET(req: NextRequest) {
     return dbErrorResponse('employer-dashboard/employees', employerError);
   }
 
-  const employerIds: string[] = [];
-  if (employer?.onboarding_id) employerIds.push(employer.onboarding_id);
-  if (employer?.id && !employerIds.includes(employer.id)) {
-    employerIds.push(employer.id);
-  }
-
-  // Fall back to employer_onboarding when employers row hasn't been synced yet
-  if (employerIds.length === 0) {
-    const { data: onboarding } = await supabase
-      .from('employer_onboarding')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (onboarding?.id) {
-      employerIds.push(onboarding.id);
-    }
-  }
-
-  if (employerIds.length === 0) {
+  if (!employer?.id) {
     return NextResponse.json({ employees: [], stats: buildStats([]) });
   }
 
@@ -57,28 +39,22 @@ export async function GET(req: NextRequest) {
   const toDate           = searchParams.get('to') ?? '';
 
   let query = supabase
-    .from('employee_onboarding')
+    .from('employees')
     .select(`
       id,
       user_id,
       employee_code,
       full_name,
-      full_name_placeholder,
       email,
-      email_placeholder,
-      national_id,
-      id_type,
-      date_of_birth,
+      phone,
+      employee_number,
       job_title,
       department,
       employment_type,
-      start_date,
+      hire_date,
       monthly_salary,
-      country,
-      city,
       status,
-      kyc_status:status,
-      submitted_at,
+      kyc_status,
       created_at,
       ewa_settings:employee_ewa_settings (
         ewa_enabled,
@@ -88,11 +64,11 @@ export async function GET(req: NextRequest) {
         cooldown_period
       )
     `)
-    .in('employer_id', employerIds)
+    .eq('employer_id', employer.id)
     .order('created_at', { ascending: false });
 
-  if (fromDate) query = query.gte('submitted_at', fromDate);
-  if (toDate)   query = query.lte('submitted_at', toDate + 'T23:59:59Z');
+  if (fromDate) query = query.gte('created_at', fromDate);
+  if (toDate)   query = query.lte('created_at', toDate + 'T23:59:59Z');
 
   const { data: rawEmployees, error: empError } = await query;
 
@@ -125,10 +101,9 @@ export async function GET(req: NextRequest) {
     const full_name: string =
       profilesMap[lookupId]?.full_name ??
       e.full_name ??
-      e.full_name_placeholder ??
       ('Employee ' + (e.employee_code ?? ''));
 
-    const startDate = e.start_date ? new Date(e.start_date) : null;
+    const startDate = e.hire_date ? new Date(e.hire_date) : null;
     const tenure_months = startDate
       ? Math.max(
           0,
@@ -144,19 +119,19 @@ export async function GET(req: NextRequest) {
       user_id: e.user_id ?? '',
       employee_code: e.employee_code ?? '',
       full_name,
-      email: e.email ?? e.email_placeholder ?? null,
-      national_id: e.national_id ?? '',
+      email: e.email ?? null,
+      national_id: '',
       job_title: e.job_title ?? '',
       department: e.department ?? '',
       employment_type: e.employment_type ?? '',
-      start_date: e.start_date ?? null,
+      start_date: e.hire_date ?? null,
       monthly_salary: Number(e.monthly_salary ?? 0),
-      country: e.country ?? '',
-      city: e.city ?? '',
-      kyc_status: e.status ?? '',
-      status: e.status === 'approved' ? 'approved' : e.status === 'rejected' ? 'rejected' : 'pending',
+      country: '',
+      city: '',
+      kyc_status: e.kyc_status ?? 'approved',
+      status: e.status === 'Active' || e.status === 'approved' ? 'approved' : e.status === 'Terminated' || e.status === 'rejected' ? 'rejected' : 'pending',
       tenure_months,
-      submitted_at: e.submitted_at ?? '',
+      submitted_at: e.created_at ?? '',
       created_at: e.created_at ?? '',
       ewa_settings: ewa
         ? {

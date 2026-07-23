@@ -75,7 +75,8 @@ export async function GET(req: Request) {
   const { data: employees, error: employeeError } = await supabase
     .from('employees')
     .select('id')
-    .eq('employer_id', employer.id);
+    .eq('employer_id', employer.id)
+    .eq('status', 'Active');
 
   if (employeeError) {
     console.error('[credit-overview] Employee query error:', employeeError);

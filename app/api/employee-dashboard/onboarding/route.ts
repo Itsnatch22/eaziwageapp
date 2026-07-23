@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
   const coerced = {
     ...body,
     monthly_salary: parseFloat(body.monthly_salary) || 0,
+    net_monthly_salary: body.net_monthly_salary !== undefined && body.net_monthly_salary !== '' ? parseFloat(body.net_monthly_salary) : undefined,
   };
 
   const parsed = employeeOnboardingSchema.safeParse(coerced);
@@ -201,6 +202,7 @@ const { data: existing } = await adminSupabase
      department,
      start_date,
      monthly_salary,
+     net_monthly_salary,
      bank_name,
      bank_account,
      mobile_money_provider,
@@ -244,6 +246,8 @@ const { data: existing } = await adminSupabase
      employment_type: normalizedEmploymentType,
      start_date: start_date || null,
      monthly_salary,
+     net_monthly_salary: net_monthly_salary !== undefined && net_monthly_salary !== null ? net_monthly_salary : monthly_salary,
+     net_salary_is_estimated: net_monthly_salary === undefined || net_monthly_salary === null,
      currency: employeeCurrency,
      bank_name,
      mobile_money_provider,

@@ -640,7 +640,7 @@ export default function EmployerDashboard() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <GradientIconBox icon={Landmark} size="md" />
-              <h2 className="font-bold text-slate-900 dark:text-white">Company-Wide Credit</h2>
+              <h2 className="font-bold text-slate-900 dark:text-white">Access Volume</h2>
             </div>
             <Link href="/dashboards/employer-dashboard/reports" className="text-xs font-medium text-primary flex items-center gap-1 hover:gap-1.5 transition-all">
               Export Reports <ChevronRight className="w-3.5 h-3.5" />
@@ -649,15 +649,15 @@ export default function EmployerDashboard() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
               icon={Landmark}
-              label="Credit Limit"
+              label="Access Volume"
               value={formatCurrency(data.credit?.company_credit_limit ?? 0, currency)}
-              subtext="Configured monthly cap"
+              subtext="Based on approved employees"
             />
             <MetricCard
               icon={CreditCard}
-              label="Outstanding Credit"
+              label="Utilized Access"
               value={formatCurrency(data.credit?.total_outstanding_credit ?? 0, currency)}
-              subtext="Currently exposed company-wide"
+              subtext="Currently outstanding company-wide"
             />
             <MetricCard
               icon={Zap}

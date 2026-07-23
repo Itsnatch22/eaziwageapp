@@ -182,10 +182,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const onboardingEmployerId = employer.onboarding_id;
   const currency = getCurrencyFromCountry(employer.country ?? registrationCountryCode, 'KES');
 
-  // Resolve all employee IDs for this employer.
-  // Primary: employees table (normalized). Fallback: employee_onboarding (legacy).
-  // We query by employee_id when fetching advances to bypass the employer_id
-  // ambiguity — some advances still carry employer_onboarding.id there.
+  // Direct query to public.employees table for active employees linked to employer.id
   let allEmployeeIds: string[] = [];
   let activeCount = 0;
 
@@ -193,25 +190,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { data: empRows } = await supabase
       .from('employees')
       .select('id, status')
-      .eq('employer_id', employerId);
+      .eq('employer_id', employer.id);
 
     if (empRows && empRows.length > 0) {
-      allEmployeeIds = (empRows as { id: string; status: string }[]).map((e) => e.id);
-      activeCount = (empRows as { id: string; status: string }[])
-        .filter((e) => e.status === 'Active' || e.status === 'approved').length;
-    } else {
-      // Fallback: pull from employee_onboarding using both employer IDs
-      const onboardingIds = [employerId, onboardingEmployerId].filter(Boolean) as string[];
-      const { data: onbRows } = await supabase
-        .from('employee_onboarding')
-        .select('id, status')
-        .in('employer_id', onboardingIds);
-
-      if (onbRows && onbRows.length > 0) {
-        allEmployeeIds = (onbRows as { id: string; status: string }[]).map((e) => e.id);
-        activeCount = (onbRows as { id: string; status: string }[])
-          .filter((e) => e.status === 'Active' || e.status === 'approved').length;
-      }
+      allEmployeeIds = empRows.map((e) => e.id);
+      activeCount = empRows.filter((e) => e.status === 'Active').length;
     }
   } catch (err) {
     console.error('[reports] Exception fetching employees:', err);

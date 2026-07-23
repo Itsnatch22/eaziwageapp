@@ -296,6 +296,7 @@ interface OnboardingFormData {
   job_title: string;
   department: string;
   monthly_salary: string;
+  net_monthly_salary: string;
   bank_name: string;
   bank_account: string;
   mobile_money_provider: string;
@@ -719,6 +720,7 @@ export default function Onboarding() {
     job_title: "",
     department: "",
     monthly_salary: "",
+    net_monthly_salary: "",
     bank_name: "",
     bank_account: "",
     mobile_money_provider: "",
@@ -771,6 +773,7 @@ export default function Onboarding() {
               job_title: profile.job_title || "",
               department: profile.department || "",
               monthly_salary: profile.monthly_salary?.toString() || "",
+              net_monthly_salary: profile.net_monthly_salary?.toString() || "",
               bank_name: profile.bank_name || "",
               bank_account: profile.bank_account || "",
               mobile_money_provider: profile.mobile_money_provider || "",
@@ -1146,6 +1149,7 @@ export default function Onboarding() {
         employment_type: formData.employment_type,
         start_date: finalStartDate || undefined,
         monthly_salary: parseFloat(formData.monthly_salary) || 0,
+        net_monthly_salary: formData.net_monthly_salary ? parseFloat(formData.net_monthly_salary) : undefined,
         bank_name: formData.bank_name,
         bank_account: formData.bank_account,
         mobile_money_provider: formData.mobile_money_provider,
@@ -1925,20 +1929,38 @@ export default function Onboarding() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
-                  Monthly Salary (Gross)
-                </Label>
-                <Input
-                  type="number"
-                  value={formData.monthly_salary}
-                  onChange={(e) =>
-                    updateField("monthly_salary", e.target.value)
-                  }
-                  aria-label="Your gross monthly salary, used to calculate your advance limit"
-                  className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
-                  placeholder="Enter amount..."
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Monthly Salary (Gross)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={formData.monthly_salary}
+                    onChange={(e) =>
+                      updateField("monthly_salary", e.target.value)
+                    }
+                    aria-label="Your gross monthly salary, used to calculate your advance limit"
+                    className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
+                    placeholder="Enter amount..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Net Monthly Salary (Take-Home)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={formData.net_monthly_salary}
+                    onChange={(e) =>
+                      updateField("net_monthly_salary", e.target.value)
+                    }
+                    aria-label="Your net take-home salary after taxes and deductions (optional)"
+                    className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
+                    placeholder="Optional (defaults to gross)..."
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

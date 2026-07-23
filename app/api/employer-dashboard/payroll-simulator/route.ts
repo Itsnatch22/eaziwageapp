@@ -67,7 +67,7 @@ export async function GET() {
       .from('employees')
       .select('id, full_name, employee_code, department, monthly_salary, status')
       .eq('employer_id', employerId)
-      .in('status', ['Active', 'approved', 'active']);
+      .eq('status', 'Active');
 
     if (employeesError) {
       return dbErrorResponse('employer-dashboard/payroll-simulator', employeesError);

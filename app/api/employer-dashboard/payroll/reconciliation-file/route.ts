@@ -87,7 +87,8 @@ export async function GET(req: NextRequest) {
   const { data: employees, error: employeeError } = await supabase
     .from('employees')
     .select('id, user_id, employee_code, monthly_salary')
-    .eq('employer_id', employer.id);
+    .eq('employer_id', employer.id)
+    .eq('status', 'Active');
 
   if (employeeError) {
     return dbErrorResponse('employer-dashboard/payroll/reconciliation-file', employeeError);

@@ -75,6 +75,7 @@ export const employeeOnboardingSchema = z.object({
   ),
   start_date: z.string().optional(),
   monthly_salary: z.number().nonnegative('Monthly salary must be 0 or more'),
+  net_monthly_salary: z.number().nonnegative('Net monthly salary must be 0 or more').optional(),
   bank_name: z.string().min(1, 'Bank name is required'),
   bank_account: z.string().min(1, 'Bank account is required'),
   // Mobile money is an optional, additional payout channel — bank_name/
