@@ -34,9 +34,10 @@ export async function PATCH(
   }
   const { status, notes } = parsed.data;
 
+  // Re-fetch the payment method to get verification metadata and current state
   const { data: pm, error: pmError } = await adminSupabase
     .from('payment_methods')
-    .select('id, employee_id, method_type, verification_status, provider_name')
+    .select('id, employee_id, method_type, verification_status, provider_name, verification_document_path, verification_metadata, verification_document_hash')
     .eq('id', paymentMethodId)
     .maybeSingle();
 
@@ -45,27 +46,57 @@ export async function PATCH(
   if (pm.method_type !== 'bank_account') {
     return NextResponse.json({ error: 'This review flow only applies to bank accounts' }, { status: 400 });
   }
+
+  // Idempotency: if it's already been reviewed, return current state
   if (pm.verification_status !== 'pending_review') {
-    return NextResponse.json({ error: `Payment method is not pending review (current: ${pm.verification_status})` }, { status: 422 });
+    const { data: current } = await adminSupabase
+      .from('payment_methods')
+      .select('id, employee_id, is_verified, verification_status')
+      .eq('id', paymentMethodId)
+      .maybeSingle();
+    return NextResponse.json({ success: true, message: 'Already reviewed', payment_method: current });
   }
 
+  // Attempt to update only if still pending_review (guard against races)
   const { data: updated, error: updateError } = await adminSupabase
     .from('payment_methods')
     .update({
       verification_status: status,
       verification_notes: notes ?? null,
       is_verified: status === 'approved',
-      verified_by: user.id,
-      verified_at: new Date().toISOString(),
+      verified_by: status === 'approved' ? user.id : null,
+      verified_at: status === 'approved' ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', paymentMethodId)
+    .eq('verification_status', 'pending_review')
     .select('id, employee_id, is_verified, verification_status')
     .single();
 
   if (updateError) {
+    // If the update affected 0 rows due to race, fetch current and return success
     console.error('[admin/payment-methods/review] Update error:', updateError);
-    return NextResponse.json({ error: 'Failed to update payment method' }, { status: 500 });
+    const { data: current } = await adminSupabase
+      .from('payment_methods')
+      .select('id, employee_id, is_verified, verification_status')
+      .eq('id', paymentMethodId)
+      .maybeSingle();
+    return NextResponse.json({ success: true, message: 'Concurrent update detected, returning current state', payment_method: current });
+  }
+
+  // Record verification audit for traceability
+  try {
+    await adminSupabase.from('payment_method_verification_audit').insert({
+      payment_method_id: paymentMethodId,
+      admin_id: user.id,
+      action: status === 'approved' ? 'approved' : 'rejected',
+      notes: notes ?? null,
+      checksum: pm.verification_document_hash ?? (pm.verification_metadata?.checksum ?? null),
+      document_path: pm.verification_document_path ?? null,
+    });
+  } catch (auditErr) {
+    console.error('[admin/payment-methods/review] Failed to write verification audit:', auditErr);
+    // don't fail the whole request for audit write failures, but log
   }
 
   const { data: employee } = await adminSupabase

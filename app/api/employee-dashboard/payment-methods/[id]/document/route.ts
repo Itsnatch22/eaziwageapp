@@ -72,14 +72,26 @@ export async function POST(
     const storagePath = `${employee.id}/bank-verification/${paymentMethodId}/${Date.now()}.${ext}`;
 
     const arrayBuffer = await file.arrayBuffer();
+
+    // Compute a checksum for tamper detection/auditability before upload
+    const buffer = Buffer.from(arrayBuffer);
+    const checksum = (await import('@/lib/fileUtils')).computeChecksum(buffer);
+
     const { error: uploadError } = await adminSupabase.storage
       .from(BUCKET)
-      .upload(storagePath, arrayBuffer, { contentType: file.type, upsert: true });
+      .upload(storagePath, buffer, { contentType: file.type, upsert: true });
 
     if (uploadError) {
       console.error('[payment-methods/document] Upload error:', uploadError);
       return NextResponse.json({ error: 'Failed to upload file. Please try again.' }, { status: 500 });
     }
+
+    const verificationMetadata = {
+      filename: (file as File & { name?: string })?.name ?? null,
+      content_type: file.type ?? null,
+      checksum,
+      scan_status: 'queued', // placeholder for async virus/scan pipeline
+    };
 
     const { data: updated, error: updateError } = await adminSupabase
       .from('payment_methods')
@@ -87,10 +99,12 @@ export async function POST(
         verification_document_path: storagePath,
         verification_status: 'pending_review',
         verification_notes: null,
+        verification_metadata: verificationMetadata,
+        verification_document_hash: checksum,
         updated_at: new Date().toISOString(),
       })
       .eq('id', paymentMethodId)
-      .select('id, verification_status')
+      .select('id, verification_status, verification_metadata, verification_document_hash')
       .single();
 
     if (updateError) {

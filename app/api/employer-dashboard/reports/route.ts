@@ -179,7 +179,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const employerId = employer.id;
-  const onboardingEmployerId = employer.onboarding_id;
   const currency = getCurrencyFromCountry(employer.country ?? registrationCountryCode, 'KES');
 
   // Direct query to public.employees table for active employees linked to employer.id

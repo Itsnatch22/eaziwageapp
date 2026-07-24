@@ -1,3 +1,4 @@
+export {}; 
 /**
  * Environment variable validation utility
  * Validates that all required environment variables are present and properly formatted
@@ -22,6 +23,7 @@ interface EnvConfig {
   NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   SUPABASE_PRIVATE_VAPID_KEY?: string;
+  CRON_SECRET?: string;
 
   STANBIC_ENVIRONMENT?: string;
   STANBIC_API_KEY?: string;
@@ -111,6 +113,10 @@ export function validateEnv(): EnvConfig {
 
     if (!process.env.ADMIN_PASSWORD) {
       errors.push('ADMIN_PASSWORD is not defined');
+    }
+
+    if (!process.env.CRON_SECRET) {
+      errors.push('CRON_SECRET is not defined');
     }
 
     if (!process.env.RESEND_API_KEY) {
@@ -238,6 +244,7 @@ export function validateEnv(): EnvConfig {
     STANBIC_BALANCE_ACCOUNT_MODE: process.env.STANBIC_BALANCE_ACCOUNT_MODE,
     STANBIC_BALANCE_ACCOUNT_PARAM: process.env.STANBIC_BALANCE_ACCOUNT_PARAM,
     STANBIC_BALANCE_HTTP_METHOD: process.env.STANBIC_BALANCE_HTTP_METHOD,
+    CRON_SECRET: process.env.CRON_SECRET,
 
     AT_ENVIRONMENT: process.env.AT_ENVIRONMENT,
     AT_API_KEY: process.env.AT_API_KEY,
