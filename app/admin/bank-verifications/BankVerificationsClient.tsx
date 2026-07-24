@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
-import { Landmark, CheckCircle2, XCircle, Loader2, FileText, Clock } from 'lucide-react';
+import { Landmark, CheckCircle2, XCircle, Loader2, FileText, Clock, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface VerificationMetadata {
@@ -31,6 +32,9 @@ interface PendingMethod {
 }
 
 export default function PaymentVerificationsClient() {
+  const searchParams = useSearchParams();
+  const targetPaymentMethodId = searchParams.get('pm');
+  
   const [methods, setMethods] = useState<PendingMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
@@ -42,6 +46,7 @@ export default function PaymentVerificationsClient() {
   const [q, setQ] = useState<string>('');
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [bulkActing, setBulkActing] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(targetPaymentMethodId);
 
   const fetchMethods = useCallback(async (pageNum = page, query = q) => {
     setLoading(true);
@@ -200,11 +205,31 @@ export default function PaymentVerificationsClient() {
         </div>
       ) : (
         <div className="space-y-4">
+          {targetPaymentMethodId && (
+            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-blue-900 dark:text-blue-300">Verification Details</p>
+                <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">Showing bank account verification details from the notification. Review and approve or reject below.</p>
+              </div>
+            </div>
+          )}
           {methods.map((m) => (
             <div
               key={m.id}
-              className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30"
+              className={cn(
+                "bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/30 transition-all",
+                targetPaymentMethodId === m.id && "ring-2 ring-blue-500 border-blue-500/50"
+              )}
             >
+              {targetPaymentMethodId === m.id && (
+                <div className="mb-3 pb-3 border-b border-blue-200 dark:border-blue-500/30">
+                  <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-semibold">
+                    <span className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></span>
+                    From Notification
+                  </span>
+                </div>
+              )}
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <input type="checkbox" checked={!!selected[m.id]} onChange={() => toggleSelect(m.id)} className="mt-2" />

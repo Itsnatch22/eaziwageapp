@@ -67,6 +67,7 @@ function getNotificationAction(notif: Notification): { label: string; href: stri
   switch (notif.type) {
     case 'review_request':
       if (meta.wallet_transaction_id) return { label: 'View Request', href: '/admin/wallet/topup-requests' };
+      if (meta.payment_method_id) return { label: 'View Verification', href: `/admin/bank-verifications?pm=${meta.payment_method_id}` };
       if (title.includes('kyc') || title.includes('document')) return { label: 'View KYC', href: '/admin/kyc-review' };
       return { label: 'View', href: '/admin' };
 

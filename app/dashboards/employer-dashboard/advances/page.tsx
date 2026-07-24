@@ -223,10 +223,6 @@ export default function EmployerAdvancesPage() {
       setActingId(null);
     }
   };
-    } finally {
-      setActingId(null);
-    }
-  };
 
   // Search/status filtering happens client-side over the current page only
   // (the list itself is server-paginated). Jump back to page 1 whenever a
