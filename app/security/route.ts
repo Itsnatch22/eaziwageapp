@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     const adminSupabase = createAdminClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.redirect(new URL('/login', req.url));
+    if (!user) return NextResponse.redirect(new URL('/', req.url));
 
     const { data: profile } = await adminSupabase
       .from('profiles')
