@@ -2,9 +2,9 @@ import { redirect } from 'next/navigation';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
-import PaymentVerificationsClient from './PaymentVerificationsClient';
+import BankVerificationsClient from './BankVerificationsClient';
 
-export default async function AdminPaymentVerificationsPage() {
+export default async function AdminBankVerificationsPage() {
   const supabase = await createRouteHandlerClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) redirect('/login');
@@ -12,5 +12,5 @@ export default async function AdminPaymentVerificationsPage() {
   const access = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
   if (!access.isAdmin) redirect('/');
 
-  return <PaymentVerificationsClient />;
+  return <BankVerificationsClient />;
 }

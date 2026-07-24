@@ -70,6 +70,7 @@ interface AdvanceDetailModalProps {
   onDisburse: (id: string) => void;
   onMarkRepaid: (id: string) => void;
   onRetryDisbursement: (id: string) => void;
+  onRetryApprove: (id: string) => void;
 }
 
 interface GradientIconBoxProps {
@@ -130,6 +131,7 @@ interface AdvanceRowProps {
   onDisburse: (id: string) => void;
   onMarkRepaid: (id: string) => void;
   onRetryDisbursement: (id: string) => void;
+  onRetryApprove: (id: string) => void;
 }
 
 export function AdvanceRow({
@@ -141,6 +143,7 @@ export function AdvanceRow({
   onDisburse,
   onMarkRepaid,
   onRetryDisbursement,
+  onRetryApprove,
 }: AdvanceRowProps) {
   const styles = statusStyles[advance.status];
 
@@ -213,6 +216,13 @@ export function AdvanceRow({
                   className="px-2 py-1.5 text-emerald-600"
                 >
                   <CheckCircle2 className="w-4 h-4" /> Approve
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => onRetryApprove(advance.id)}
+                  className="px-2 py-1.5 text-amber-600"
+                >
+                  <RotateCcw className="w-4 h-4" /> Retry Approval
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
@@ -661,6 +671,29 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
     }
   };
 
+  const handleRetryApprove = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/advances/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        toast.success('Approval retry successful');
+        fetchAdvances();
+        setShowDetailModal(false);
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to retry approval');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Network error occurred while retrying approval';
+      toast.error(message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const filteredAdvances = advances.filter((adv: Advance) => {
     if (statusFilter && adv.status !== statusFilter) return false;
     if (searchTerm) {
@@ -795,6 +828,7 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
                   onDisburse={handleDisburse}
                   onMarkRepaid={handleMarkRepaid}
                   onRetryDisbursement={handleRetryDisbursement}
+                  onRetryApprove={handleRetryApprove}
                 />
               ))}
             </div>
@@ -821,6 +855,7 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
         onDisburse={handleDisburse}
         onMarkRepaid={handleMarkRepaid}
         onRetryDisbursement={handleRetryDisbursement}
+        onRetryApprove={handleRetryApprove}
         loading={actionLoading}
       />
     </>

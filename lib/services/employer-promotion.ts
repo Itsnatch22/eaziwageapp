@@ -118,20 +118,27 @@ export async function promoteEmployerToLive(
   }
 
   // Resolve organization_id — required by advances.organization_id NOT NULL.
-  // Look up by country_code first, then country name. Non-fatal if not found (logged).
+  // Look up by country_code first (from COUNTRY_CODE_MAP), then by country code directly,
+  // then by country name. Non-fatal if not found (logged), but advances will fail.
   const employerCountryCode = COUNTRY_CODE_MAP[employer.country ?? ''] ?? null;
   let resolvedOrgId: string | null = existingEmployer?.organization_id ?? null;
   if (!resolvedOrgId) {
-    const byCode = employerCountryCode
+    // Try mapping (e.g., 'Kenya' → 'KE')
+    const byMappedCode = employerCountryCode
       ? (await adminSupabase.from('organizations').select('id').eq('country_code', employerCountryCode).maybeSingle()).data?.id
       : null;
-    const byName = !byCode && employer.country
+    // Try direct country code lookup (e.g., 'KE' → 'KE')
+    const byDirectCode = !byMappedCode && employer.country && employer.country.length === 2
+      ? (await adminSupabase.from('organizations').select('id').eq('country_code', employer.country).maybeSingle()).data?.id
+      : null;
+    // Try country match (e.g., 'Kenya' → 'KE' in organizations.country)
+    const byCountry = !byMappedCode && !byDirectCode && employer.country
       ? (await adminSupabase.from('organizations').select('id').eq('country', employer.country).maybeSingle()).data?.id
       : null;
-    resolvedOrgId = byCode ?? byName ?? null;
+    resolvedOrgId = byMappedCode ?? byDirectCode ?? byCountry ?? null;
   }
   if (!resolvedOrgId) {
-    console.warn(`[employer-promotion] No organization found for country=${employer.country}. advances will fail until organization_id is set manually.`);
+    console.warn(`[employer-promotion] No organization found for country=${employer.country}. advances.organization_id will be NULL and advance requests will fail.`);
   }
 
   const syncPayload = {

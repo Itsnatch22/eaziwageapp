@@ -203,6 +203,31 @@ export default function EmployerAdvancesPage() {
     }
   };
 
+  const handleRetryAction = async (id: string, action: 'approve' | 'reject' | 'deny') => {
+    setActingId(id);
+    try {
+      const res = await fetch(`/api/employer-dashboard/advances/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data: Record<string, string> = await res.json();
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Retry failed');
+
+      toast.success(action === 'approve' ? 'Retry successful — advance approved' : 'Retry successful — advance rejected');
+      await fetchAdvances(page);
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Retry failed: ${errorMsg}`);
+    } finally {
+      setActingId(null);
+    }
+  };
+    } finally {
+      setActingId(null);
+    }
+  };
+
   // Search/status filtering happens client-side over the current page only
   // (the list itself is server-paginated). Jump back to page 1 whenever a
   // filter changes so results aren't scoped to whatever page was open before.
@@ -375,7 +400,14 @@ export default function EmployerAdvancesPage() {
                         disabled={!canReview || actingId === advance.id}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
-                        Approve
+                        {actingId === advance.id ? (
+                          <>
+                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
+                            Processing
+                          </>
+                        ) : (
+                          'Approve'
+                        )}
                       </Button>
                       <Button
                         size="sm"
@@ -395,6 +427,27 @@ export default function EmployerAdvancesPage() {
                       >
                         Deny
                       </Button>
+                      {!canReview && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRetryAction(advance.id, 'approve')}
+                          disabled={actingId === advance.id}
+                          className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                          title="Retry the last action"
+                        >
+                          {actingId === advance.id ? (
+                            <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Retry
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
