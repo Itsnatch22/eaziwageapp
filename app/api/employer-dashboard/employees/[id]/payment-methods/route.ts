@@ -98,7 +98,7 @@ export async function GET(
         is_verified: m.is_verified,
       }));
 
-    return NextResponse.json({ methods, country_code: emp.country ?? onboarding.country });
+    return NextResponse.json({ methods, country_code: emp.country ?? onboarding?.country ?? null });
   } catch (error) {
     console.error('[GET employer/employees/[id]/payment-methods] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
