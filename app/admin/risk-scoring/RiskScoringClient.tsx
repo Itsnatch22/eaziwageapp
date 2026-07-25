@@ -446,9 +446,12 @@ const RiskAssessmentModal = ({ employer, isOpen, onClose, onSuccess, framework }
   );
 };
 
-export default function AdminEmployersPage() {
+export default function AdminRiskScoringPage() {
   const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState<'employers' | 'employees'>('employers');
+
   const [employers, setEmployers] = useState<Employer[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [filters, setFilters] = useState<ApiResponse['filters'] | null>(null);
   const [framework, setFramework] = useState<ApiResponse['framework'] | null>(null);
@@ -456,12 +459,15 @@ export default function AdminEmployersPage() {
   const [selectedEmployer, setSelectedEmployer] = useState<Employer | null>(null);
   const [showAssessment, setShowAssessment] = useState(false);
 
+  const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
+  const [showEmployeeAssessment, setShowEmployeeAssessment] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [countryFilter, setCountryFilter] = useState<string>('');
   const [riskRatingFilter, setRiskRatingFilter] = useState<string>('');
   
-  const [sortField, setSortField] = useState<keyof Employer>('created_at');
+  const [sortField, setSortField] = useState<keyof Employer | keyof any>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const fetchEmployers = useCallback(async () => {
@@ -474,11 +480,7 @@ export default function AdminEmployersPage() {
       if (riskRatingFilter) params.append('risk_rating', riskRatingFilter);
 
       const response = await fetch(`/api/admin/employers?${params.toString()}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch employers');
-      }
-
+      if (!response.ok) throw new Error('Failed to fetch employers');
       const data: ApiResponse = await response.json();
       setEmployers(data.data);
       setStats(data.stats);
@@ -492,23 +494,47 @@ export default function AdminEmployersPage() {
     }
   }, [searchTerm, statusFilter, countryFilter, riskRatingFilter]);
 
-  useEffect(() => {
-    if (searchTerm.length === 1) return;
+  const fetchEmployees = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
 
+      const response = await fetch(`/api/admin/employees?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch employees');
+      const payload = await response.json();
+      setEmployees(payload.data || []);
+      // keep stats as-is; the employers endpoint populates the dashboard stats
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      toast.error('Failed to load employees');
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (activeSection === 'employers') void fetchEmployers();
+    else void fetchEmployees();
+  }, [activeSection, fetchEmployers, fetchEmployees]);
+
+  useEffect(() => {
     const delay = searchTerm.length >= 2 ? 500 : 0;
     const timeoutId = window.setTimeout(() => {
-      fetchEmployers();
+      if (activeSection === 'employers') fetchEmployers();
+      else fetchEmployees();
     }, delay);
-
     return () => window.clearTimeout(timeoutId);
-  }, [searchTerm, statusFilter, countryFilter, riskRatingFilter, fetchEmployers]);
+  }, [searchTerm, statusFilter, countryFilter, riskRatingFilter, activeSection, fetchEmployers, fetchEmployees]);
 
   useRealtimeRefresh(
-    [{ table: 'employer_onboarding' }, { table: 'employers' }],
-    () => fetchEmployers(),
+    [{ table: 'employer_onboarding' }, { table: 'employers' }, { table: 'employee_onboarding' }, { table: 'employees' }],
+    () => {
+      if (activeSection === 'employers') fetchEmployers(); else fetchEmployees();
+    },
   );
 
-  const handleSort = (field: keyof Employer) => {
+  const handleSort = (field: keyof Employer | keyof any) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -518,22 +544,32 @@ export default function AdminEmployersPage() {
   };
 
   const sortedEmployers = [...employers].sort((a, b) => {
-    const aValue = a[sortField];
-    const bValue = b[sortField];
+    const aValue = a[sortField as keyof Employer];
+    const bValue = b[sortField as keyof Employer];
     const modifier = sortDirection === 'asc' ? 1 : -1;
 
-    if (typeof aValue === 'string' && typeof bValue === 'string') {
-      return aValue.localeCompare(bValue) * modifier;
-    }
-    if (typeof aValue === 'number' && typeof bValue === 'number') {
-      return (aValue - bValue) * modifier;
-    }
+    if (typeof aValue === 'string' && typeof bValue === 'string') return aValue.localeCompare(bValue) * modifier;
+    if (typeof aValue === 'number' && typeof bValue === 'number') return (aValue - bValue) * modifier;
+    return 0;
+  });
+
+  const sortedEmployees = [...employees].sort((a, b) => {
+    const aValue = a[sortField as keyof any];
+    const bValue = b[sortField as keyof any];
+    const modifier = sortDirection === 'asc' ? 1 : -1;
+    if (typeof aValue === 'string' && typeof bValue === 'string') return aValue.localeCompare(bValue) * modifier;
+    if (typeof aValue === 'number' && typeof bValue === 'number') return (aValue - bValue) * modifier;
     return 0;
   });
 
   const handleAssessRisk = (employer: Employer) => {
     setSelectedEmployer(employer);
     setShowAssessment(true);
+  };
+
+  const handleAssessEmployee = (employee: any) => {
+    setSelectedEmployee(employee);
+    setShowEmployeeAssessment(true);
   };
 
   if (loading) {
@@ -549,358 +585,411 @@ export default function AdminEmployersPage() {
 
   return (
     <div className="space-y-6">
-      
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
-            Risk Scoring & Management
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Analyze and assess employer risk profiles based on EaziWage Framework
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Risk Scoring & Management</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Analyze and assess partner risk profiles based on EaziWage Framework</p>
         </div>
+
         <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-full bg-slate-100 p-1 dark:bg-slate-800">
+            <button
+              onClick={() => setActiveSection('employers')}
+              className={cn('px-3 py-1.5 rounded-full font-medium text-sm', activeSection === 'employers' ? 'bg-white dark:bg-slate-900 shadow' : 'text-slate-600')}
+            >
+              Employers
+            </button>
+            <button
+              onClick={() => setActiveSection('employees')}
+              className={cn('px-3 py-1.5 rounded-full font-medium text-sm', activeSection === 'employees' ? 'bg-white dark:bg-slate-900 shadow' : 'text-slate-600')}
+            >
+              Employees
+            </button>
+          </div>
+
           {framework && (
-            <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium">
-              Framework {framework.version} ({framework.date})
-            </span>
+            <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium">Framework {framework.version} ({framework.date})</span>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchEmployers}
-            className="flex items-center gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
-          >
+
+          <Button variant="outline" size="sm" onClick={() => { if (activeSection === 'employers') fetchEmployers(); else fetchEmployees(); }} className="flex items-center gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <RefreshCw className="w-4 h-4" />
             Refresh
           </Button>
         </div>
       </div>
 
-      
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            icon={Building2}
-            label="Total Employers"
-            value={stats.total}
-            subtext={`${stats.active} approved, ${stats.risk_review || 0} in review`}
-            variant="purple"
-          />
-          <MetricCard
-            icon={Users}
-            label="Total Employees"
-            value={stats.total_employees.toLocaleString()}
-            subtext="Across all platforms"
-            variant="blue"
-          />
-          <MetricCard
-            icon={Shield}
-            label="Avg Risk Score"
-            value={stats.avg_risk_score.toFixed(2)}
-            subtext="Composite rating index"
-            variant="green"
-          />
-          <MetricCard
-            icon={DollarSign}
-            label="Avg Fee Rate"
-            value={`${stats.avg_application_fee.toFixed(2)}%`}
-            subtext="Based on current risk"
-            variant="amber"
-          />
+          <MetricCard icon={Building2} label="Total Employers" value={stats.total} subtext={`${stats.active} approved, ${stats.risk_review || 0} in review`} variant="purple" />
+          <MetricCard icon={Users} label="Total Employees" value={stats.total_employees.toLocaleString()} subtext="Across all platforms" variant="blue" />
+          <MetricCard icon={Shield} label="Avg Risk Score" value={stats.avg_risk_score.toFixed(2)} subtext="Composite rating index" variant="green" />
+          <MetricCard icon={DollarSign} label="Avg Fee Rate" value={`${stats.avg_application_fee.toFixed(2)}%`} subtext="Based on current risk" variant="amber" />
         </div>
       )}
 
-      
-      {stats && (
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/20 rounded-xl flex items-center justify-center">
-              <Shield className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-white">Risk Rating Distribution</h3>
-              <p className="text-sm text-slate-500">Portfolio health overview</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200/50 dark:border-emerald-500/30">
-              <div className="flex items-center justify-center mb-2">
-                <RiskRatingBadge rating="A" size="md" />
-              </div>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
-                {stats.risk_distribution.low_risk}
-              </p>
-              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Low Risk</p>
-            </div>
-            <div className="text-center p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200/50 dark:border-blue-500/30">
-              <div className="flex items-center justify-center mb-2">
-                <RiskRatingBadge rating="B" size="md" />
-              </div>
-              <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                {stats.risk_distribution.medium_risk}
-              </p>
-              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">Medium Risk</p>
-            </div>
-            <div className="text-center p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200/50 dark:border-amber-500/30">
-              <div className="flex items-center justify-center mb-2">
-                <RiskRatingBadge rating="C" size="md" />
-              </div>
-              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
-                {stats.risk_distribution.high_risk}
-              </p>
-              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">High Risk</p>
-            </div>
-            <div className="text-center p-4 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200/50 dark:border-red-500/30">
-              <div className="flex items-center justify-center mb-2">
-                <RiskRatingBadge rating="D" size="md" />
-              </div>
-              <p className="text-2xl font-bold text-red-700 dark:text-red-300">
-                {stats.risk_distribution.very_high_risk}
-              </p>
-              <p className="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase tracking-wider">Very High Risk</p>
-            </div>
-          </div>
-
-          {stats.needs_risk_assessment > 0 && (
-            <div className="mt-6 p-4 bg-linear-to-r from-amber-500/10 to-amber-500/10 rounded-xl border border-amber-500/20 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-amber-800 dark:text-amber-200">
-                <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
-                  <AlertTriangle className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <span className="text-sm font-bold">Action Required</span>
-                  <p className="text-xs opacity-80">{stats.needs_risk_assessment} employers are awaiting risk assessment</p>
-                </div>
-              </div>
-              <Button size="sm" variant="outline" className="bg-white/50 border-amber-500/20 text-amber-800 hover:bg-amber-500 hover:text-white transition-all">
-                View List
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/30">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="Search employers..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl"
-            />
+            <Input type="text" placeholder={activeSection === 'employers' ? 'Search employers...' : 'Search employees...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl" />
           </div>
-          
+
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
+            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              {filters?.statuses.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
-                </SelectItem>
-              ))}
+              {filters?.statuses.map((status) => (<SelectItem key={status} value={status}>{status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}</SelectItem>))}
             </SelectContent>
           </Select>
 
           <Select value={riskRatingFilter} onValueChange={setRiskRatingFilter}>
-            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
-              <SelectValue placeholder="All Risk Ratings" />
-            </SelectTrigger>
+            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl"><SelectValue placeholder="All Risk Ratings" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Risk Ratings</SelectItem>
-              {filters?.risk_ratings.map((rating) => (
-                <SelectItem key={rating} value={rating}>
-                  Rating {rating}
-                </SelectItem>
-              ))}
+              {filters?.risk_ratings.map((rating) => (<SelectItem key={rating} value={rating}>Rating {rating}</SelectItem>))}
             </SelectContent>
           </Select>
 
           <Select value={countryFilter} onValueChange={setCountryFilter}>
-            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
-              <SelectValue placeholder="All Countries" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Countries</SelectItem>
-              {filters?.countries.map((country) => (
-                <SelectItem key={country} value={country}>
-                  {country}
-                </SelectItem>
-              ))}
-            </SelectContent>
+            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl"><SelectValue placeholder="All Countries" /></SelectValue></SelectTrigger>
           </Select>
         </div>
       </div>
 
-      
-      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 border-0">
-                <TableHead 
-                  className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 h-12"
-                  onClick={() => handleSort('company_name')}
-                >
-                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                    Company
-                    {sortField === 'company_name' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider">Country</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
-                  onClick={() => handleSort('risk_score')}
-                >
-                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                    Score
-                    {sortField === 'risk_score' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider">Rating</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50"
-                  onClick={() => handleSort('application_fee')}
-                >
-                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                    App Fee
-                    {sortField === 'application_fee' && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedEmployers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-20">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center">
-                        <Building2 className="w-8 h-8 text-slate-300" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-white">No employers found</p>
-                        <p className="text-sm text-slate-400">Try adjusting your filters or search criteria</p>
-                      </div>
-                    </div>
-                  </TableCell>
+      {activeSection === 'employers' ? (
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            {/* existing employers table (unchanged) */}
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 border-0">
+                  <TableHead className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 h-12" onClick={() => handleSort('company_name')}>
+                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">Company {sortField === 'company_name' && (sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}</div>
+                  </TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Country</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50" onClick={() => handleSort('risk_score')}>
+                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">Score {sortField === 'risk_score' && (sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}</div>
+                  </TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Rating</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50" onClick={() => handleSort('application_fee')}>
+                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">App Fee {sortField === 'application_fee' && (sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}</div>
+                  </TableHead>
+                  <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
                 </TableRow>
-              ) : (
-                sortedEmployers.map((employer) => (
-                  <TableRow 
-                    key={employer.id}
-                    className="hover:bg-purple-50/30 dark:hover:bg-purple-500/5 group border-slate-100 dark:border-slate-800"
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-linear-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center font-bold text-white text-xs shadow-md shadow-purple-600/20">
-                          {employer.company_name.substring(0, 2).toUpperCase()}
+              </TableHeader>
+              <TableBody>
+                {sortedEmployers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-20">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center">
+                          <Building2 className="w-8 h-8 text-slate-300" />
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">
-                            {employer.company_name}
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-mono">{employer.employer_code}</p>
+                          <p className="font-bold text-slate-900 dark:text-white">No employers found</p>
+                          <p className="text-sm text-slate-400">Try adjusting your filters or search criteria</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-slate-600 dark:text-slate-400 font-medium">
-                      {employer.country || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={employer.status} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className={cn(
-                          "font-black text-sm",
-                          employer.risk_score >= RISK_SCORE.THRESHOLDS.HIGH ? "text-emerald-600" :
-                          employer.risk_score >= 3.0 ? "text-blue-600" :
-                          employer.risk_score >= 2.6 ? "text-amber-600" : 
-                          (employer.risk_score === 0 ? "text-slate-400" : "text-red-600")
-                        )}>
-                          {employer.risk_score > 0 ? employer.risk_score.toFixed(2) : '-'}
-                        </span>
-                        {(!employer.has_risk_factors || employer.status === 'risk_review_in_progress') && (
-                          <div className="animate-pulse" title="Assessment needed">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  </TableRow>
+                ) : (
+                  sortedEmployers.map((employer) => (
+                    <TableRow key={employer.id} className="hover:bg-purple-50/30 dark:hover:bg-purple-500/5 group border-slate-100 dark:border-slate-800">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-linear-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center font-bold text-white text-xs shadow-md shadow-purple-600/20">{employer.company_name.substring(0, 2).toUpperCase()}</div>
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">{employer.company_name}</p>
+                            <p className="text-[10px] text-slate-500 font-mono">{employer.employer_code}</p>
                           </div>
-                        )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400 font-medium">{employer.country || '-'}</TableCell>
+                      <TableCell><StatusBadge status={employer.status} /></TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("font-black text-sm", employer.risk_score >= RISK_SCORE.THRESHOLDS.HIGH ? "text-emerald-600" : employer.risk_score >= 3.0 ? "text-blue-600" : employer.risk_score >= 2.6 ? "text-amber-600" : (employer.risk_score === 0 ? "text-slate-400" : "text-red-600"))}>{employer.risk_score > 0 ? employer.risk_score.toFixed(2) : '-'}</span>
+                          {(!employer.has_risk_factors || employer.status === 'risk_review_in_progress') && (<div className="animate-pulse" title="Assessment needed"><AlertTriangle className="w-3.5 h-3.5 text-amber-500" /></div>)}
+                        </div>
+                      </TableCell>
+                      <TableCell>{employer.risk_score > 0 ? (<RiskRatingBadge rating={employer.risk_rating} showLabel />) : (<span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">In Progress</span>)}</TableCell>
+                      <TableCell className="font-bold text-purple-600 text-sm">{employer.risk_score > 0 ? `${employer.application_fee.toFixed(2)}%` : '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <Button className="h-9 px-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all font-bold text-xs rounded-lg shadow-sm" onClick={() => handleAssessRisk(employer)}>
+                          <Shield className="w-3.5 h-3.5 mr-2" /> Assess Risk
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 border-0">
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Employee</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Employer</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50" onClick={() => handleSort('risk_score')}><div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">Score {sortField === 'risk_score' && (sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}</div></TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">Rating</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider">App Fee</TableHead>
+                  <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedEmployees.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-20">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center">
+                          <Users className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white">No employees found</p>
+                          <p className="text-sm text-slate-400">Try adjusting your filters or search criteria</p>
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      {employer.risk_score > 0 ? (
-                          <RiskRatingBadge rating={employer.risk_rating} showLabel />
-                      ) : (
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">In Progress</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-bold text-purple-600 text-sm">
-                      {employer.risk_score > 0 ? `${employer.application_fee.toFixed(2)}%` : '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        className="h-9 px-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all font-bold text-xs rounded-lg shadow-sm"
-                        onClick={() => handleAssessRisk(employer)}
-                      >
-                        <Shield className="w-3.5 h-3.5 mr-2" />
-                        Assess Risk
-                      </Button>
-                    </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+                ) : (
+                  sortedEmployees.map((employee) => (
+                    <TableRow key={employee.id} className="hover:bg-blue-50/30 dark:hover:bg-blue-500/5 group border-slate-100 dark:border-slate-800">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center font-bold text-white text-xs">{(employee.full_name || 'E').substring(0,2).toUpperCase()}</div>
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">{employee.full_name || 'Employee'}</p>
+                            <p className="text-[10px] text-slate-500 font-mono">{employee.email || employee.id}</p>
+                          </div>
+                        </div>
+                      </TableCell>
 
-      
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400 font-medium">{employee.employer_name ?? employee.employer_id ?? '-'}</TableCell>
+                      <TableCell><StatusBadge status={employee.status ?? 'pending'} /></TableCell>
+                      <TableCell><span className={cn('font-black text-sm', employee.risk_score >= RISK_SCORE.THRESHOLDS.HIGH ? 'text-emerald-600' : employee.risk_score >= 3 ? 'text-blue-600' : 'text-red-600')}>{employee.risk_score ? employee.risk_score.toFixed(2) : '-'}</span></TableCell>
+                      <TableCell>{employee.risk_rating ? <RiskRatingBadge rating={employee.risk_rating} showLabel /> : <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">N/A</span>}</TableCell>
+                      <TableCell className="font-bold text-purple-600 text-sm">{employee.application_fee ? `${employee.application_fee.toFixed(2)}%` : '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <Button className="h-9 px-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all font-bold text-xs rounded-lg shadow-sm" onClick={() => handleAssessEmployee(employee)}>
+                          <Shield className="w-3.5 h-3.5 mr-2" /> Assess Risk
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
       {framework && (
         <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:border-slate-700/30">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
-              <Info className="w-5 h-5 text-blue-600" />
-            </div>
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0"><Info className="w-5 h-5 text-blue-600" /></div>
             <div className="text-sm">
               <p className="font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">Framework & Regulatory Notice ({framework.version})</p>
-              <p className="text-slate-600 dark:text-slate-400 leading-relaxed max-w-4xl">
-                Risk scores are dynamic and weighted across five core categories. The fee impact is automatically calculated using the framework standard: 
-                <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded mx-1 text-purple-600">
-                  Base({framework.base_fee}%) + Risk({framework.risk_factor}%) × (1 - Score/5)
-                </span>. 
-                Assessments should be reviewed quarterly or upon significant operational changes.
-              </p>
+              <p className="text-slate-600 dark:text-slate-400 leading-relaxed max-w-4xl">Risk scores are dynamic and weighted across five core categories. The fee impact is automatically calculated using the framework standard: <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded mx-1 text-purple-600">Base({framework.base_fee}%) + Risk({framework.risk_factor}%) × (1 - Score/5)</span>. Assessments should be reviewed quarterly or upon significant operational changes.</p>
             </div>
           </div>
         </div>
       )}
 
-      <RiskAssessmentModal 
-        key={selectedEmployer?.id ?? 'closed'}
-        employer={selectedEmployer}
-        isOpen={showAssessment}
-        onClose={() => {
-          setShowAssessment(false);
-          setSelectedEmployer(null);
-        }}
-        onSuccess={fetchEmployers}
-        framework={framework}
-      />
+      <RiskAssessmentModal key={selectedEmployer?.id ?? 'closed'} employer={selectedEmployer} isOpen={showAssessment} onClose={() => { setShowAssessment(false); setSelectedEmployer(null); }} onSuccess={fetchEmployers} framework={framework} />
+
+      {showEmployeeAssessment && selectedEmployee && (
+        <EmployeeRiskAssessmentModal
+          employee={selectedEmployee}
+          isOpen={showEmployeeAssessment}
+          onClose={() => { setShowEmployeeAssessment(false); setSelectedEmployee(null); }}
+          onSuccess={() => { fetchEmployees(); if (activeSection === 'employers') fetchEmployers(); }}
+        />
+      )}
     </div>
   );
 }
+
+// Employee risk assessment modal (prefills via GET and PATCH to /risk-factors)
+const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess }: { employee: any; isOpen: boolean; onClose: () => void; onSuccess: () => void }) => {
+  const [loading, setLoading] = useState(false);
+  const [factors, setFactors] = useState({
+    verification_status: 0,
+    tax_compliance: 0,
+    consent_data_rights: 0,
+    bank_mobile_wallet_verification: 0,
+    employment_status: 0,
+    employment_contract: 0,
+    recent_payslips: 0,
+    bank_statements_evidence: 0,
+  });
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (!isOpen || !employee) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/employees/${employee.id}/risk-factors`);
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (!mounted) return;
+        const rf = payload?.data?.risk_factors;
+        if (rf) {
+          setFactors({
+            verification_status: rf.verification_status ?? 0,
+            tax_compliance: rf.tax_compliance ?? 0,
+            consent_data_rights: rf.consent_data_rights ?? 0,
+            bank_mobile_wallet_verification: rf.bank_mobile_wallet_verification ?? 0,
+            employment_status: rf.employment_status ?? 0,
+            employment_contract: rf.employment_contract ?? 0,
+            recent_payslips: rf.recent_payslips ?? 0,
+            bank_statements_evidence: rf.bank_statements_evidence ?? 0,
+          });
+          setNotes(rf.notes ?? '');
+        }
+      } catch (e) {
+        console.error('Failed to prefill risk factors', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [isOpen, employee]);
+
+  const handleSubmit = async () => {
+    if (!employee) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/employees/${employee.id}/risk-factors`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...factors, notes }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (res.ok) {
+        toast.success('Employee risk assessment saved');
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(payload?.error || 'Failed to save assessment');
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to save assessment');
+    } finally { setLoading(false); }
+  };
+
+  if (!isOpen || !employee) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-bold">Assess Risk — {employee.full_name || 'Employee'}</h3>
+            <p className="text-sm text-slate-500">Use labeled options — do not use continuous sliders</p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <Label>Verification Status</Label>
+            <Select value={String(factors.verification_status)} onValueChange={(v) => setFactors(prev => ({ ...prev, verification_status: parseInt(v) }))}>
+              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Fully verified (5)</SelectItem>
+                <SelectItem value="2">Verification pending (2)</SelectItem>
+                <SelectItem value="0">Unverified (0)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Label>Tax Compliance</Label>
+            <Select value={String(factors.tax_compliance)} onValueChange={(v) => setFactors(prev => ({ ...prev, tax_compliance: parseInt(v) }))}>
+              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Valid certificate (5)</SelectItem>
+                <SelectItem value="3">Overdue or invalid (3)</SelectItem>
+                <SelectItem value="0">No certificate (0)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Label>Consent / Data Rights</Label>
+            <Select value={String(factors.consent_data_rights)} onValueChange={(v) => setFactors(prev => ({ ...prev, consent_data_rights: parseInt(v) }))}>
+              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Accepted (5)</SelectItem>
+                <SelectItem value="3">Partially accepted (3)</SelectItem>
+                <SelectItem value="0">Not accepted (0)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Label>Bank & Mobile Verification</Label>
+            <Select value={String(factors.bank_mobile_wallet_verification)} onValueChange={(v) => setFactors(prev => ({ ...prev, bank_mobile_wallet_verification: parseInt(v) }))}>
+              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Both bank & mobile fully verified (5)</SelectItem>
+                <SelectItem value="2">Pending on either (2)</SelectItem>
+                <SelectItem value="0">Unverified (0)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-3">
+            <Label>Employment Status</Label>
+            <Select value={String(factors.employment_status)} onValueChange={(v) => setFactors(prev => ({ ...prev, employment_status: parseInt(v) }))}>
+              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Full-time (5)</SelectItem>
+                <SelectItem value="3">Part-time (3)</SelectItem>
+                <SelectItem value="0">Probationary / Temporary (0)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Label>Employment Contract</Label>
+            <Select value={String(factors.employment_contract)} onValueChange={(v) => setFactors(prev => ({ ...prev, employment_contract: parseInt(v) }))}>
+              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Signed & valid (5)</SelectItem>
+                <SelectItem value="0">No signed contract (0)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Label>Recent Payslips</Label>
+            <Select value={String(factors.recent_payslips)} onValueChange={(v) => setFactors(prev => ({ ...prev, recent_payslips: parseInt(v) }))}>
+              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Last 3 months provided (5)</SelectItem>
+                <SelectItem value="3">1–3 months partial (3)</SelectItem>
+                <SelectItem value="1">>3 months outdated (1)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Label>Bank Statements Evidence</Label>
+            <Select value={String(factors.bank_statements_evidence)} onValueChange={(v) => setFactors(prev => ({ ...prev, bank_statements_evidence: parseInt(v) }))}>
+              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Last 3 months (5)</SelectItem>
+                <SelectItem value="3">1–3 months partial (3)</SelectItem>
+                <SelectItem value="1">>3 months outdated (1)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <Label>Notes (optional)</Label>
+          <Input className="mt-2" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes about the assessment" />
+        </div>
+
+        <div className="flex gap-3 mt-6 justify-end">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmit} disabled={loading}>{loading ? 'Saving...' : 'Save Assessment'}</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
