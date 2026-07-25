@@ -93,7 +93,7 @@ export default function EmailLayout({
               © {new Date().getFullYear()} EaziWage · Earned Wage Access Platform
             </Text>
             <Text style={{ ...styles.footerText, marginTop: '8px' }}>
-              <a href="https://app.eaziwage.com/admin" style={styles.footerLink}>Admin Dashboard</a>
+              <a href="https://app.eaziwage.com" style={styles.footerLink}>EaziWage App</a>
               {' · '}
               <a href="https://eaziwage.com/privacy" style={styles.footerLink}>Privacy Policy</a>
               {' · '}
