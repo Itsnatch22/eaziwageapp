@@ -167,7 +167,8 @@ const RiskRatingBadge = ({ rating, size = 'sm', showLabel = false }: RiskRatingB
   };
 
   const sizeClasses = size === 'sm' ? 'w-6 h-6 text-xs' : 'w-8 h-8 text-sm';
-  const { label, color, bgColor } = config[rating];
+  const cfg = config[rating as keyof typeof config] ?? { label: 'Unknown', color: 'bg-slate-400 text-white', bgColor: 'bg-slate-100 text-slate-700' };
+  const { label, color, bgColor } = cfg;
 
   if (showLabel) {
     return (
