@@ -76,7 +76,7 @@ export default function PaydayRecoupmentsClient({ recoupments }: { recoupments: 
         <div>
           <h1 className="text-2xl font-semibold">Payday Recoupments</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Employers whose automated mobile money collection failed. Confirm a bank transfer manually to settle these.
+            Employers requiring manual confirmation or with failed collection attempts. Bank transfers are the primary collection method; mobile money is used as fallback.
           </p>
         </div>
       </div>

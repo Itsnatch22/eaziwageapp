@@ -28,12 +28,33 @@ interface PaydayRecoupmentRow {
  * (from today or a past cycle) if one is already pending, so this is safe to
  * call repeatedly (per-employer page load, or a daily cron pass over every
  * employer) without creating duplicates.
+ *
+ * BANK-PRIMARY RECOUPMENT MODEL (V2)
+ * ==================================
+ * The recoupment_method field on employers now controls the preferred channel:
+ * - 'bank' (default): Bank account is the primary collection method; mobile money
+ *   is fallback if bank transfer fails or is manually declined.
+ * - 'mobile_money': Mobile money is preferred (legacy); bank is fallback.
+ *
+ * FUTURE: Automated Bank Collection
+ * When Stanbic direct debit/standing order support is confirmed:
+ * 1. After inserting payday_recoupments, if preferredMethod === 'bank':
+ *    a. Call Stanbic API to initiate direct debit/standing order (if configured).
+ *    b. Update payday_recoupments.status to 'collecting' (not 'pending_response').
+ *    c. Hook the Stanbic callback webhook into the collection flow.
+ * 2. Update notification copy to indicate bank collection is in progress.
+ * 3. If the bank collection fails (or is declined), fall back to mobile money
+ *    via the existing DusuPay workflow.
+ *
+ * For now, bank collection remains a manual-confirm flow (same UI as today),
+ * with bank as the default expectation instead of mobile money.
  */
 export async function checkAndCreatePaydayRecoupment(
   employerId: string,
   employerUserId: string | null,
   employerCompanyName: string | null,
   fallbackPaydayDayOfMonth: number | null,
+  recoupmentMethod?: string | null,
 ): Promise<PaydayRecoupmentRow | null> {
   const paydayDayOfMonth = await resolveEffectivePaydayDayOfMonth(
     employerId,
@@ -79,6 +100,9 @@ export async function checkAndCreatePaydayRecoupment(
 
   const currency = wallet?.currency || 'KES';
 
+  // Determine preferred recoupment method: 'bank' (primary) or 'mobile_money' (fallback)
+  const preferredMethod = recoupmentMethod === 'mobile_money' ? 'mobile_money' : 'bank';
+
   const { data: created, error: createError } = await supabaseAdmin
     .from('payday_recoupments')
     .insert({
@@ -87,6 +111,7 @@ export async function checkAndCreatePaydayRecoupment(
       amount_due: amountDue,
       currency,
       status: 'pending_response',
+      recoupment_method: preferredMethod,
     })
     .select('*')
     .single();
@@ -117,15 +142,15 @@ export async function checkAndCreatePaydayRecoupment(
       type: 'system',
       title: 'Payday Recoupment Due',
       message: `Today is your payday — ${currency} ${amountDue.toLocaleString()} is due for recoupment. Visit Wallet & Funding to confirm.`,
-      metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue },
+      metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue, recoupment_method: preferredMethod },
     }).catch(() => {});
   }
 
   void notifyAdmin({
     type: 'system_alert',
     title: `📅 Payday Recoupment Due — ${employerCompanyName ?? employerId}`,
-    message: `${currency} ${amountDue.toLocaleString()} is due for recoupment today.`,
-    metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue },
+    message: `${currency} ${amountDue.toLocaleString()} is due for recoupment today (via ${preferredMethod}).`,
+    metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue, recoupment_method: preferredMethod },
   }).catch(() => {});
 
   return created as PaydayRecoupmentRow;

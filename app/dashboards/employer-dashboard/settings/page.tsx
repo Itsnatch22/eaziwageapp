@@ -1197,8 +1197,8 @@ export default function EmployerSettings() {
                   </div>
                 </SettingsCard>
 
-                <SettingsCard icon={CreditCard} title="Payday & Recoupment" description="Used to schedule advance recoupment from your account">
-                  <div className="grid sm:grid-cols-2 gap-4">
+                <SettingsCard icon={CreditCard} title="Payday & Recoupment" description="Configure how we collect outstanding advances on payday">
+                  <div className="space-y-6">
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-300">Payday (day of month)</Label>
                       <Input
@@ -1210,26 +1210,66 @@ export default function EmployerSettings() {
                         onChange={(e) => setProfile((prev) => ({ ...prev, paydayDayOfMonth: e.target.value }))}
                         data-testid="payday-day-input"
                       />
-                      <p className="text-xs text-slate-500">Use 31 for last day of month.</p>
+                      <p className="text-xs text-slate-500">Use 31 for last day of month. On this date, we'll initiate recoupment from your primary account.</p>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-700 dark:text-slate-300">Mobile Money Provider</Label>
-                      <Input
-                        placeholder="e.g. M-PESA, Airtel Money"
-                        value={profile.mobileMoneyProvider}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyProvider: e.target.value }))}
-                        data-testid="payday-provider-input"
-                      />
+
+                    <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <h4 className="font-semibold text-slate-900 dark:text-white text-sm">Primary: Bank Account</h4>
+                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-full">Recommended</span>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300">Bank Name</Label>
+                          <Input
+                            value={employer?.bank_name || ''}
+                            readOnly
+                            placeholder="e.g. Stanbic Bank Kenya"
+                            className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
+                            data-testid="bank-name-input"
+                          />
+                          <p className="text-xs text-slate-500">Contact support to change your bank account</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300">Bank Account Number</Label>
+                          <Input
+                            value={employer?.bank_account_number ? `•••• ${employer.bank_account_number.slice(-4)}` : ''}
+                            readOnly
+                            placeholder="••••••••"
+                            className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
+                            data-testid="bank-account-input"
+                          />
+                          <p className="text-xs text-slate-500">Your account ending in {employer?.bank_account_number?.slice(-4) || '••••'}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label className="text-slate-700 dark:text-slate-300">Mobile Money Number</Label>
-                      <Input
-                        placeholder="07XXXXXXXX"
-                        value={profile.mobileMoneyNumber}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyNumber: e.target.value }))}
-                        data-testid="payday-number-input"
-                      />
-                      <p className="text-xs text-slate-500">On your payday, we&apos;ll ask to recoup any outstanding advances from this account.</p>
+
+                    <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <h4 className="font-semibold text-slate-900 dark:text-white text-sm">Fallback: Mobile Money</h4>
+                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded-full">Used if bank transfer fails</span>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300">Mobile Money Provider</Label>
+                          <Input
+                            placeholder="e.g. M-PESA, Airtel Money"
+                            value={profile.mobileMoneyProvider}
+                            onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyProvider: e.target.value }))}
+                            data-testid="payday-provider-input"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 dark:text-slate-300">Mobile Money Number</Label>
+                          <Input
+                            placeholder="07XXXXXXXX"
+                            value={profile.mobileMoneyNumber}
+                            onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyNumber: e.target.value }))}
+                            data-testid="payday-number-input"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-3">If your bank account is unavailable, we'll attempt to collect from this mobile money account instead.</p>
                     </div>
                   </div>
                 </SettingsCard>

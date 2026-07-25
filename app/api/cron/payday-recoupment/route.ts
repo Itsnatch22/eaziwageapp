@@ -15,7 +15,7 @@ async function run(): Promise<NextResponse> {
   try {
     const { data: employers, error } = await supabaseAdmin
       .from('employers')
-      .select('id, user_id, company_name, payday_day_of_month')
+      .select('id, user_id, company_name, payday_day_of_month, recoupment_method')
       .not('payday_day_of_month', 'is', null);
 
     if (error) {
@@ -35,6 +35,7 @@ async function run(): Promise<NextResponse> {
           employer.user_id,
           employer.company_name,
           employer.payday_day_of_month,
+          employer.recoupment_method,
         );
         if (recoupment) created++;
       } catch (err) {
