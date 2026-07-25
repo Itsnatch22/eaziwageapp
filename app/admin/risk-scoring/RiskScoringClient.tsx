@@ -830,14 +830,14 @@ export default function AdminRiskScoringPage() {
 const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess, framework }: { employee: any; isOpen: boolean; onClose: () => void; onSuccess: () => void; framework?: any }) => {
   const [loading, setLoading] = useState(false);
   const [factors, setFactors] = useState({
-    verification_status: 0,
-    tax_compliance: 0,
-    consent_data_rights: 0,
-    bank_mobile_wallet_verification: 0,
-    employment_status: 0,
+    verification_status: 2,
+    tax_compliance: 3,
+    consent_data_rights: 3,
+    bank_mobile_wallet_verification: 2,
+    employment_status: 3,
     employment_contract: 0,
-    recent_payslips: 0,
-    bank_statements_evidence: 0,
+    recent_payslips: 3,
+    bank_statements_evidence: 3,
   });
   const [notes, setNotes] = useState('');
 
@@ -853,14 +853,14 @@ const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess, fra
         const rf = payload?.data?.risk_factors;
         if (rf) {
           setFactors({
-            verification_status: rf.verification_status ?? 0,
-            tax_compliance: rf.tax_compliance ?? 0,
-            consent_data_rights: rf.consent_data_rights ?? 0,
-            bank_mobile_wallet_verification: rf.bank_mobile_wallet_verification ?? 0,
-            employment_status: rf.employment_status ?? 0,
+            verification_status: rf.verification_status ?? 2,
+            tax_compliance: rf.tax_compliance ?? 3,
+            consent_data_rights: rf.consent_data_rights ?? 3,
+            bank_mobile_wallet_verification: rf.bank_mobile_wallet_verification ?? 2,
+            employment_status: rf.employment_status ?? 3,
             employment_contract: rf.employment_contract ?? 0,
-            recent_payslips: rf.recent_payslips ?? 0,
-            bank_statements_evidence: rf.bank_statements_evidence ?? 0,
+            recent_payslips: rf.recent_payslips ?? 3,
+            bank_statements_evidence: rf.bank_statements_evidence ?? 3,
           });
           setNotes(rf.notes ?? '');
         }
@@ -923,8 +923,8 @@ const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess, fra
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-linear-to-r from-blue-600 to-blue-700 p-6 text-white rounded-xl mb-4 flex items-start justify-between">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-auto p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-linear-to-r from-blue-600 to-blue-700 p-4 text-white rounded-xl mb-4 flex items-start justify-between">
           <div>
             <h3 className="text-xl font-bold">Assess Risk — {employee.full_name || 'Employee'}</h3>
             <p className="text-sm text-blue-100 mt-1">Use the labeled options below to assess this employee (no sliders).</p>
@@ -932,7 +932,7 @@ const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess, fra
           <Button variant="ghost" size="sm" onClick={onClose} className="text-white">Close</Button>
         </div>
 
-        <div className="flex gap-8">
+        <div className="flex gap-6">
           <div className="flex-1 overflow-y-auto p-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
@@ -1025,7 +1025,7 @@ const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess, fra
             </div>
           </div>
 
-          <div className="w-72 sticky top-6 space-y-6">
+          <div className="w-72 sticky top-4 space-y-6">
             <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 space-y-4 text-center">
               <p className="text-xs text-slate-500 uppercase font-bold">Composite Score (preview)</p>
               <p className="text-3xl font-black text-blue-600">{currentScore.toFixed(2)}</p>

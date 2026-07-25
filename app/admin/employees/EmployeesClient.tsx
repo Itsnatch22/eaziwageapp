@@ -449,14 +449,14 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     employment_type: 'full-time',
   });
   const [riskFactors, setRiskFactors] = useState({
-    verification_status: 0,
-    tax_compliance: 0,
-    consent_data_rights: 0,
-    bank_mobile_wallet_verification: 0,
-    employment_status: 0,
+    verification_status: 2,
+    tax_compliance: 3,
+    consent_data_rights: 3,
+    bank_mobile_wallet_verification: 2,
+    employment_status: 3,
     employment_contract: 0,
-    recent_payslips: 0,
-    bank_statements_evidence: 0,
+    recent_payslips: 3,
+    bank_statements_evidence: 3,
   });
   const [riskNotes, setRiskNotes] = useState('');
   const [showRiskModal, setShowRiskModal] = useState(false);
@@ -497,14 +497,14 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
               const rf = payload?.data?.risk_factors;
               if (rf) {
                 setRiskFactors({
-                  verification_status: rf.verification_status ?? 0,
-                  tax_compliance: rf.tax_compliance ?? 0,
-                  consent_data_rights: rf.consent_data_rights ?? 0,
-                  bank_mobile_wallet_verification: rf.bank_mobile_wallet_verification ?? 0,
-                  employment_status: rf.employment_status ?? 0,
+                verification_status: rf.verification_status ?? 2,
+                tax_compliance: rf.tax_compliance ?? 3,
+                consent_data_rights: rf.consent_data_rights ?? 3,
+                bank_mobile_wallet_verification: rf.bank_mobile_wallet_verification ?? 2,
+                employment_status: rf.employment_status ?? 3,
                   employment_contract: rf.employment_contract ?? 0,
-                  recent_payslips: rf.recent_payslips ?? 0,
-                  bank_statements_evidence: rf.bank_statements_evidence ?? 0,
+                recent_payslips: rf.recent_payslips ?? 3,
+                bank_statements_evidence: rf.bank_statements_evidence ?? 3,
                 });
                 setRiskNotes(rf.notes ?? '');
               } else {
