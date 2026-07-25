@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   Select,
   SelectContent,
@@ -651,7 +652,15 @@ export default function AdminRiskScoringPage() {
           </Select>
 
           <Select value={countryFilter} onValueChange={setCountryFilter}>
-            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl"><SelectValue placeholder="All Countries" /></SelectValue></SelectTrigger>
+            <SelectTrigger className="h-11 bg-white/50 border-slate-200 dark:border-slate-700 rounded-xl">
+              <SelectValue placeholder="All Countries" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Countries</SelectItem>
+              {filters?.countries.map((country) => (
+                <SelectItem key={country} value={country}>{country}</SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
       </div>
@@ -964,7 +973,7 @@ const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess }: {
               <SelectContent>
                 <SelectItem value="5">Last 3 months provided (5)</SelectItem>
                 <SelectItem value="3">1–3 months partial (3)</SelectItem>
-                <SelectItem value="1">>3 months outdated (1)</SelectItem>
+               <SelectItem value="1">{'>'}3 months outdated (1)</SelectItem>
               </SelectContent>
             </Select>
 
@@ -974,7 +983,7 @@ const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess }: {
               <SelectContent>
                 <SelectItem value="5">Last 3 months (5)</SelectItem>
                 <SelectItem value="3">1–3 months partial (3)</SelectItem>
-                <SelectItem value="1">>3 months outdated (1)</SelectItem>
+                <SelectItem value="1">{'>'}3 months outdated (1)</SelectItem>
               </SelectContent>
             </Select>
           </div>
