@@ -80,6 +80,12 @@ export default function EmailLayout({
           
           <Hr style={styles.footerDivider} />
           <Section style={styles.footer}>
+            <div style={styles.socialLinksContainer}>
+              <a href="https://www.facebook.com/share/1CwgkthTRT/" style={styles.socialLink} title="EaziWage on Facebook">f</a>
+              <a href="https://www.instagram.com/eaziwagelimited/" style={styles.socialLink} title="EaziWage on Instagram">📷</a>
+              <a href="https://x.com/eaziwagelimited?t=m-WyH8sFtbLOAiRjVKFVPw&s=08" style={styles.socialLink} title="EaziWage on X (Twitter)">𝕏</a>
+              <a href="https://www.linkedin.com/company/eaziwage/?viewAsMember=true" style={styles.socialLink} title="EaziWage on LinkedIn">in</a>
+            </div>
             <Text style={styles.footerText}>
               This is an automated notification from EaziWage. Please do not reply to this email.
             </Text>
@@ -446,5 +452,27 @@ export const styles = {
   divider: {
     borderColor: '#e2e8f0',
     margin: '16px 0',
+  } as React.CSSProperties,
+
+  socialLinksContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '12px',
+    margin: '0 0 16px 0',
+  } as React.CSSProperties,
+
+  socialLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    backgroundColor: BRAND_GREEN,
+    color: '#ffffff',
+    fontSize: '16px',
+    fontWeight: 700,
+    textDecoration: 'none',
+    transition: 'opacity 0.2s',
   } as React.CSSProperties,
 } as const;
