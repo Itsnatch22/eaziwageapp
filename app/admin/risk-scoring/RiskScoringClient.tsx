@@ -819,6 +819,7 @@ export default function AdminRiskScoringPage() {
           isOpen={showEmployeeAssessment}
           onClose={() => { setShowEmployeeAssessment(false); setSelectedEmployee(null); }}
           onSuccess={() => { fetchEmployees(); if (activeSection === 'employers') fetchEmployers(); }}
+          framework={framework}
         />
       )}
     </div>
@@ -826,7 +827,7 @@ export default function AdminRiskScoringPage() {
 }
 
 // Employee risk assessment modal (prefills via GET and PATCH to /risk-factors)
-const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess }: { employee: any; isOpen: boolean; onClose: () => void; onSuccess: () => void }) => {
+const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess, framework }: { employee: any; isOpen: boolean; onClose: () => void; onSuccess: () => void; framework?: any }) => {
   const [loading, setLoading] = useState(false);
   const [factors, setFactors] = useState({
     verification_status: 0,
@@ -870,6 +871,32 @@ const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess }: {
     return () => { mounted = false; };
   }, [isOpen, employee]);
 
+  const calculateScore = () => {
+    const vals = Object.values(factors).map((v: any) => Number(v) || 0);
+    if (vals.length === 0) return 0;
+    const sum = vals.reduce((a, b) => a + b, 0);
+    return sum / vals.length;
+  };
+
+  const getRating = (score: number) => {
+    const low = framework?.rating_thresholds?.low ?? 4.0;
+    const medium = framework?.rating_thresholds?.medium ?? 3.0;
+    if (score >= low) return 'A';
+    if (score >= medium) return 'B';
+    if (score >= medium - 0.4) return 'C';
+    return 'D';
+  };
+
+  const calculateFee = (score: number) => {
+    const bf = framework?.base_fee ?? 3.5;
+    const rf = framework?.risk_factor ?? 3.0;
+    return bf + (rf * (1 - score / 5));
+  };
+
+  const currentScore = calculateScore();
+  const currentRating = getRating(currentScore);
+  const currentFee = calculateFee(currentScore);
+
   const handleSubmit = async () => {
     if (!employee) return;
     setLoading(true);
@@ -897,107 +924,130 @@ const EmployeeRiskAssessmentModal = ({ employee, isOpen, onClose, onSuccess }: {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between mb-4">
+        <div className="bg-linear-to-r from-blue-600 to-blue-700 p-6 text-white rounded-xl mb-4 flex items-start justify-between">
           <div>
             <h3 className="text-xl font-bold">Assess Risk — {employee.full_name || 'Employee'}</h3>
-            <p className="text-sm text-slate-500">Use labeled options — do not use continuous sliders</p>
+            <p className="text-sm text-blue-100 mt-1">Use the labeled options below to assess this employee (no sliders).</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-white">Close</Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <Label>Verification Status</Label>
-            <Select value={String(factors.verification_status)} onValueChange={(v) => setFactors(prev => ({ ...prev, verification_status: parseInt(v) }))}>
-              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Fully verified (5)</SelectItem>
-                <SelectItem value="2">Verification pending (2)</SelectItem>
-                <SelectItem value="0">Unverified (0)</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="flex gap-8">
+          <div className="flex-1 overflow-y-auto p-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <Label>Verification Status</Label>
+                <Select value={String(factors.verification_status)} onValueChange={(v) => setFactors(prev => ({ ...prev, verification_status: parseInt(v) }))}>
+                  <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Fully verified (5)</SelectItem>
+                    <SelectItem value="2">Verification pending (2)</SelectItem>
+                    <SelectItem value="0">Unverified (0)</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Label>Tax Compliance</Label>
-            <Select value={String(factors.tax_compliance)} onValueChange={(v) => setFactors(prev => ({ ...prev, tax_compliance: parseInt(v) }))}>
-              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Valid certificate (5)</SelectItem>
-                <SelectItem value="3">Overdue or invalid (3)</SelectItem>
-                <SelectItem value="0">No certificate (0)</SelectItem>
-              </SelectContent>
-            </Select>
+                <Label>Tax Compliance</Label>
+                <Select value={String(factors.tax_compliance)} onValueChange={(v) => setFactors(prev => ({ ...prev, tax_compliance: parseInt(v) }))}>
+                  <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Valid certificate (5)</SelectItem>
+                    <SelectItem value="3">Overdue or invalid (3)</SelectItem>
+                    <SelectItem value="0">No certificate (0)</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Label>Consent / Data Rights</Label>
-            <Select value={String(factors.consent_data_rights)} onValueChange={(v) => setFactors(prev => ({ ...prev, consent_data_rights: parseInt(v) }))}>
-              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Accepted (5)</SelectItem>
-                <SelectItem value="3">Partially accepted (3)</SelectItem>
-                <SelectItem value="0">Not accepted (0)</SelectItem>
-              </SelectContent>
-            </Select>
+                <Label>Consent / Data Rights</Label>
+                <Select value={String(factors.consent_data_rights)} onValueChange={(v) => setFactors(prev => ({ ...prev, consent_data_rights: parseInt(v) }))}>
+                  <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Accepted (5)</SelectItem>
+                    <SelectItem value="3">Partially accepted (3)</SelectItem>
+                    <SelectItem value="0">Not accepted (0)</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Label>Bank & Mobile Verification</Label>
-            <Select value={String(factors.bank_mobile_wallet_verification)} onValueChange={(v) => setFactors(prev => ({ ...prev, bank_mobile_wallet_verification: parseInt(v) }))}>
-              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Both bank & mobile fully verified (5)</SelectItem>
-                <SelectItem value="2">Pending on either (2)</SelectItem>
-                <SelectItem value="0">Unverified (0)</SelectItem>
-              </SelectContent>
-            </Select>
+                <Label>Bank & Mobile Verification</Label>
+                <Select value={String(factors.bank_mobile_wallet_verification)} onValueChange={(v) => setFactors(prev => ({ ...prev, bank_mobile_wallet_verification: parseInt(v) }))}>
+                  <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Both bank & mobile fully verified (5)</SelectItem>
+                    <SelectItem value="2">Pending on either (2)</SelectItem>
+                    <SelectItem value="0">Unverified (0)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Employment Status</Label>
+                <Select value={String(factors.employment_status)} onValueChange={(v) => setFactors(prev => ({ ...prev, employment_status: parseInt(v) }))}>
+                  <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Full-time (5)</SelectItem>
+                    <SelectItem value="3">Part-time (3)</SelectItem>
+                    <SelectItem value="0">Probationary / Temporary (0)</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Label>Employment Contract</Label>
+                <Select value={String(factors.employment_contract)} onValueChange={(v) => setFactors(prev => ({ ...prev, employment_contract: parseInt(v) }))}>
+                  <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Signed & valid (5)</SelectItem>
+                    <SelectItem value="0">No signed contract (0)</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Label>Recent Payslips</Label>
+                <Select value={String(factors.recent_payslips)} onValueChange={(v) => setFactors(prev => ({ ...prev, recent_payslips: parseInt(v) }))}>
+                  <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Last 3 months provided (5)</SelectItem>
+                    <SelectItem value="3">1–3 months partial (3)</SelectItem>
+                    <SelectItem value="1">{'>'}3 months outdated (1)</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Label>Bank Statements Evidence</Label>
+                <Select value={String(factors.bank_statements_evidence)} onValueChange={(v) => setFactors(prev => ({ ...prev, bank_statements_evidence: parseInt(v) }))}>
+                  <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Last 3 months (5)</SelectItem>
+                    <SelectItem value="3">1–3 months partial (3)</SelectItem>
+                    <SelectItem value="1">{'>'}3 months outdated (1)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <Label>Notes (optional)</Label>
+              <Input className="mt-2" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes about the assessment" />
+            </div>
           </div>
 
-          <div className="space-y-3">
-            <Label>Employment Status</Label>
-            <Select value={String(factors.employment_status)} onValueChange={(v) => setFactors(prev => ({ ...prev, employment_status: parseInt(v) }))}>
-              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Full-time (5)</SelectItem>
-                <SelectItem value="3">Part-time (3)</SelectItem>
-                <SelectItem value="0">Probationary / Temporary (0)</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="w-72 sticky top-6 space-y-6">
+            <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 space-y-4 text-center">
+              <p className="text-xs text-slate-500 uppercase font-bold">Composite Score (preview)</p>
+              <p className="text-3xl font-black text-blue-600">{currentScore.toFixed(2)}</p>
+              <div className="flex items-center justify-center">
+                <RiskRatingBadge rating={currentRating as any} size="md" />
+              </div>
+              <div className="mt-2 text-sm">
+                <p className="text-xs text-slate-500">Estimated App Fee</p>
+                <p className="font-bold text-purple-600">{currentFee.toFixed(2)}%</p>
+              </div>
+            </div>
 
-            <Label>Employment Contract</Label>
-            <Select value={String(factors.employment_contract)} onValueChange={(v) => setFactors(prev => ({ ...prev, employment_contract: parseInt(v) }))}>
-              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Signed & valid (5)</SelectItem>
-                <SelectItem value="0">No signed contract (0)</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="p-4 bg-linear-to-br from-blue-600/10 to-blue-700/10 rounded-2xl border border-blue-200/30">
+              <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Manual Notes</div>
+              <p className="text-xs text-slate-500">Add context for audit logs — these are saved with the assessment.</p>
+            </div>
 
-            <Label>Recent Payslips</Label>
-            <Select value={String(factors.recent_payslips)} onValueChange={(v) => setFactors(prev => ({ ...prev, recent_payslips: parseInt(v) }))}>
-              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Last 3 months provided (5)</SelectItem>
-                <SelectItem value="3">1–3 months partial (3)</SelectItem>
-               <SelectItem value="1">{'>'}3 months outdated (1)</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Label>Bank Statements Evidence</Label>
-            <Select value={String(factors.bank_statements_evidence)} onValueChange={(v) => setFactors(prev => ({ ...prev, bank_statements_evidence: parseInt(v) }))}>
-              <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Last 3 months (5)</SelectItem>
-                <SelectItem value="3">1–3 months partial (3)</SelectItem>
-                <SelectItem value="1">{'>'}3 months outdated (1)</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmit} disabled={loading}>{loading ? 'Saving...' : 'Save Assessment'}</Button>
+              <Button variant="outline" className="w-full" onClick={onClose}>Cancel</Button>
+            </div>
           </div>
-        </div>
-
-        <div className="mt-4">
-          <Label>Notes (optional)</Label>
-          <Input className="mt-2" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes about the assessment" />
-        </div>
-
-        <div className="flex gap-3 mt-6 justify-end">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmit} disabled={loading}>{loading ? 'Saving...' : 'Save Assessment'}</Button>
         </div>
       </div>
     </div>
