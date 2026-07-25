@@ -11,7 +11,7 @@ import {
   Row,
   Column,
 } from '@react-email/components';
-import { Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
+import { Facebook, Twitter, Instagram, Linkedin, Mail } from 'lucide-react';
 import * as React from 'react';
 
 interface EmailLayoutProps {
@@ -111,6 +111,9 @@ export default function EmailLayout({
               </a>
               <a href="https://www.linkedin.com/company/eaziwage/?viewAsMember=true" style={styles.socialLink} title="EaziWage on LinkedIn">
                 <Linkedin size={16} color="#ffffff" />
+              </a>
+              <a href="mailto:support@eaziwage.com" style={styles.socialLink} title="Email support@eaziwage.com">
+                <Mail size={16} color="#ffffff" />
               </a>
             </div>
           </Section>
