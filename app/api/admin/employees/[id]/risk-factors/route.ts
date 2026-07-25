@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { EmployeeRiskFactorsUpsertSchema } from '@/lib/validations/route-schemas';
+import { triggerNotification } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -94,6 +95,40 @@ export async function PATCH(req: NextRequest, { params }: IdRouteContext) {
       new_value:   payload,
       created_at:  new Date().toISOString(),
     });
+
+    // Notify employee (if linked to a profile) and employer dashboard user about the update.
+    try {
+      if (emp.user_id) {
+        void triggerNotification({
+          target: 'employee',
+          userId: emp.user_id,
+          type: 'system_alert',
+          title: 'Risk profile updated',
+          message: `An admin updated your risk profile for ${emp.id}. If you have questions contact support.`,
+          metadata: { employeeId: emp.id, adminId: user.id },
+        });
+      }
+
+      if (emp.employer_id) {
+        const { data: employerRow } = await adminSupabase
+          .from('employers')
+          .select('user_id, company_name')
+          .eq('id', emp.employer_id)
+          .maybeSingle();
+        if (employerRow?.user_id) {
+          void triggerNotification({
+            target: 'employer',
+            userId: employerRow.user_id,
+            type: 'risk_profile_updated',
+            title: 'Employee risk profile updated',
+            message: `Risk profile for ${emp.full_name ?? emp.id} was updated by an admin.`,
+            metadata: { employeeId: emp.id, previousScore: emp.risk_score, newScore: null, companyName: employerRow.company_name },
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('[PATCH /api/admin/employees/[id]/risk-factors] Notification error:', notifErr);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
