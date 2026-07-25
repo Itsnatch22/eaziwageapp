@@ -221,6 +221,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         employer_name:    emp.employers?.company_name || 'Unlinked',
         currency:         emp.currency || 'KES',
         risk_score:       emp.risk_score ?? null,
+        risk_rating:      emp.risk_rating ?? null,
+        application_fee:  emp.application_fee_percent ?? null,
         id_document_front:    Boolean(emp.id_document_front),
         id_document_back:     Boolean(emp.id_document_back),
         selfie:               Boolean(emp.selfie),
