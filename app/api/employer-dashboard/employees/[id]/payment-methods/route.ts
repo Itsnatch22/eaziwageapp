@@ -34,14 +34,15 @@ export async function GET(
 
     if (!employer) return NextResponse.json({ error: 'Employer not found or not approved' }, { status: 403 });
 
-    // The employer's employees list is sourced from employee_onboarding, so `id` here is
-    // an employee_onboarding.id — NOT employees.id (that's a separate UUID minted by the
-    // sync_employee_from_onboarding trigger). Verify ownership against employee_onboarding
-    // first, using the same employer_id candidates the list route uses.
+    // The employer's employees list historically used employee_onboarding IDs, but
+    // some callers (current frontend) pass the live employees.id. Accept both forms:
+    // 1) Try to resolve employee_onboarding by id (ownership check) and map to employees via user_id
+    // 2) Fallback to resolving employees by id and verify employer ownership
     const employerIds: string[] = [];
     if (employer.onboarding_id) employerIds.push(employer.onboarding_id);
     if (employer.id && !employerIds.includes(employer.id)) employerIds.push(employer.id);
 
+    // Attempt onboarding lookup first (old behavior)
     const { data: onboarding } = await adminSupabase
       .from('employee_onboarding')
       .select('user_id, country')
@@ -49,17 +50,35 @@ export async function GET(
       .in('employer_id', employerIds)
       .maybeSingle();
 
-    if (!onboarding) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    let emp: { id: string; country: string | null } | null = null;
+    if (onboarding) {
+      const { data: empRow } = await adminSupabase
+        .from('employees')
+        .select('id, country')
+        .eq('user_id', onboarding.user_id)
+        .maybeSingle();
 
-    // Resolve the live employees row — the only stable link between the two tables is user_id.
-    const { data: emp } = await adminSupabase
-      .from('employees')
-      .select('id, country')
-      .eq('user_id', onboarding.user_id)
-      .maybeSingle();
+      // Approved in onboarding but not yet provisioned as a live employee — legitimate empty state.
+      if (!empRow) return NextResponse.json({ methods: [], country_code: onboarding.country });
+      emp = { id: empRow.id, country: empRow.country ?? onboarding.country };
+    } else {
+      // Fallback: try resolving as a live employees.id (caller passed employees.id)
+      const { data: empById } = await adminSupabase
+        .from('employees')
+        .select('id, country, employer_id')
+        .eq('id', id)
+        .maybeSingle();
 
-    // Approved in onboarding but not yet provisioned as a live employee — legitimate empty state.
-    if (!emp) return NextResponse.json({ methods: [], country_code: onboarding.country });
+      if (!empById) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+
+      // Verify ownership: employee.employer_id should match the requesting employer.id (or onboarding_id)
+      const empEmployerId = empById.employer_id;
+      if (empEmployerId !== employer.id && empEmployerId !== employer.onboarding_id) {
+        return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+      }
+
+      emp = { id: empById.id, country: empById.country ?? null };
+    }
 
     // Reuse the same decrypt+mask path as the employee-side GET so the employer sees
     // "•••• 1234" instead of null — the raw PII columns are always null post-trigger.
