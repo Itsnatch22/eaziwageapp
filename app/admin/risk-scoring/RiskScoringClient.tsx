@@ -201,11 +201,11 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
     risk_review_in_progress: { label: 'Risk Review', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' },
   };
 
-  const { label, color } = config[status];
-  
+  const cfg = config[status as keyof typeof config] ?? { label: status, color: 'bg-slate-100 text-slate-700' };
+
   return (
-    <span className={cn("px-2 py-1 rounded-full text-xs font-medium", color)}>
-      {label}
+    <span className={cn("px-2 py-1 rounded-full text-xs font-medium", cfg.color)}>
+      {cfg.label}
     </span>
   );
 };
