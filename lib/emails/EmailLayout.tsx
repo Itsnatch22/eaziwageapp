@@ -11,6 +11,7 @@ import {
   Row,
   Column,
 } from '@react-email/components';
+import { Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
 import * as React from 'react';
 
 interface EmailLayoutProps {
@@ -80,12 +81,6 @@ export default function EmailLayout({
           
           <Hr style={styles.footerDivider} />
           <Section style={styles.footer}>
-            <div style={styles.socialLinksContainer}>
-              <a href="https://www.facebook.com/share/1CwgkthTRT/" style={styles.socialLink} title="EaziWage on Facebook">f</a>
-              <a href="https://www.instagram.com/eaziwagelimited/" style={styles.socialLink} title="EaziWage on Instagram">📷</a>
-              <a href="https://x.com/eaziwagelimited?t=m-WyH8sFtbLOAiRjVKFVPw&s=08" style={styles.socialLink} title="EaziWage on X (Twitter)">𝕏</a>
-              <a href="https://www.linkedin.com/company/eaziwage/?viewAsMember=true" style={styles.socialLink} title="EaziWage on LinkedIn">in</a>
-            </div>
             <Text style={styles.footerText}>
               This is an automated notification from EaziWage. Please do not reply to this email.
             </Text>
@@ -104,6 +99,20 @@ export default function EmailLayout({
               {' · '}
               <a href="https://eaziwage.com/terms" style={styles.footerLink}>Terms of Service</a>
             </Text>
+            <div style={styles.socialLinksContainer}>
+              <a href="https://www.facebook.com/share/1CwgkthTRT/" style={styles.socialLink} title="EaziWage on Facebook">
+                <Facebook size={16} color="#ffffff" />
+              </a>
+              <a href="https://www.instagram.com/eaziwagelimited/" style={styles.socialLink} title="EaziWage on Instagram">
+                <Instagram size={16} color="#ffffff" />
+              </a>
+              <a href="https://x.com/eaziwagelimited?t=m-WyH8sFtbLOAiRjVKFVPw&s=08" style={styles.socialLink} title="EaziWage on X (Twitter)">
+                <Twitter size={16} color="#ffffff" />
+              </a>
+              <a href="https://www.linkedin.com/company/eaziwage/?viewAsMember=true" style={styles.socialLink} title="EaziWage on LinkedIn">
+                <Linkedin size={16} color="#ffffff" />
+              </a>
+            </div>
           </Section>
         </Container>
       </Body>
@@ -458,21 +467,17 @@ export const styles = {
     display: 'flex',
     justifyContent: 'center',
     gap: '12px',
-    margin: '0 0 16px 0',
+    margin: '16px 0 0 0',
   } as React.CSSProperties,
 
   socialLink: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '32px',
-    height: '32px',
+    width: '36px',
+    height: '36px',
     borderRadius: '50%',
     backgroundColor: BRAND_GREEN,
-    color: '#ffffff',
-    fontSize: '16px',
-    fontWeight: 700,
     textDecoration: 'none',
-    transition: 'opacity 0.2s',
   } as React.CSSProperties,
 } as const;
