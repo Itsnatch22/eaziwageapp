@@ -448,8 +448,18 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     monthly_salary:  0,
     employment_type: 'full-time',
   });
-  const [riskOverride,     setRiskOverride]     = useState<RiskOverride>({ score: 3, reason: '' });
-  const [showRiskModal,    setShowRiskModal]    = useState(false);
+  const [riskFactors, setRiskFactors] = useState({
+    verification_status: 0,
+    tax_compliance: 0,
+    consent_data_rights: 0,
+    bank_mobile_wallet_verification: 0,
+    employment_status: 0,
+    employment_contract: 0,
+    recent_payslips: 0,
+    bank_statements_evidence: 0,
+  });
+  const [riskNotes, setRiskNotes] = useState('');
+  const [showRiskModal, setShowRiskModal] = useState(false);
   const [paymentMethods,   setPaymentMethods]   = useState<PaymentMethod[]>([]);
   const [paymentLoading,   setPaymentLoading]   = useState(false);
   const [showAddPayment,   setShowAddPayment]   = useState(false);
@@ -651,25 +661,24 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
     if (!employee) return;
 
     try {
-      const res = await fetch(`/api/admin/employees/${employee.id}/risk-score`, {
-        method:  'PATCH',
+      const res = await fetch(`/api/admin/employees/${employee.id}/risk-factors`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          risk_score: riskOverride.score,
-          reason:     riskOverride.reason,
-        }),
+        body: JSON.stringify({ ...riskFactors, notes: riskNotes }),
       });
 
+      const payload = await res.json().catch(() => null);
+
       if (res.ok) {
-        toast.success('Risk score updated');
+        toast.success('Risk factors updated');
         setShowRiskModal(false);
         fetchEmployeeDetail();
         onRefresh();
       } else {
-        toast.error('Failed to update risk score.');
+        toast.error(payload?.error || 'Failed to update risk factors.');
       }
     } catch {
-      toast.error('Failed to update risk score.');
+      toast.error('Failed to update risk factors.');
     }
   };
 
@@ -985,7 +994,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                   className="mt-4"
                   onClick={() => setShowRiskModal(true)}
                 >
-                  <Shield className="w-4 h-4 mr-2" /> Override Risk Score
+                  <Shield className="w-4 h-4 mr-2" /> Assess Risk
                 </Button>
               </div>
             </div>
@@ -1328,53 +1337,124 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
             onClick={() => setShowRiskModal(false)}
           >
             <div
-              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6"
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl p-6"
               onClick={e => e.stopPropagation()}
             >
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-                Override Risk Score
+                Assess Risk — Employee
               </h3>
-              <div className="space-y-4">
-                <div>
-                  <Label>Risk Score (0-5)</Label>
-                  <div className="flex items-center gap-4 mt-2">
-                    <Slider
-                      value={[riskOverride.score]}
-                      onValueChange={v => setRiskOverride(prev => ({ ...prev, score: v[0] }))}
-                      max={5}
-                      min={0}
-                      step={0.1}
-                      className="flex-1"
-                    />
-                    <span className="text-xl font-bold w-12 text-right">
-                      {riskOverride.score.toFixed(1)}
-                    </span>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div>
+                    <Label>Verification Status</Label>
+                    <Select value={String(riskFactors.verification_status)} onValueChange={(v) => setRiskFactors(prev => ({ ...prev, verification_status: parseInt(v) }))}>
+                      <SelectTrigger className="h-10 mt-2">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">Fully verified (5)</SelectItem>
+                        <SelectItem value="2">Verification pending (2)</SelectItem>
+                        <SelectItem value="0">Unverified (0)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Tax Compliance</Label>
+                    <Select value={String(riskFactors.tax_compliance)} onValueChange={(v) => setRiskFactors(prev => ({ ...prev, tax_compliance: parseInt(v) }))}>
+                      <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">Valid certificate (5)</SelectItem>
+                        <SelectItem value="3">Overdue or invalid (3)</SelectItem>
+                        <SelectItem value="0">No certificate (0)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Consent / Data Rights</Label>
+                    <Select value={String(riskFactors.consent_data_rights)} onValueChange={(v) => setRiskFactors(prev => ({ ...prev, consent_data_rights: parseInt(v) }))}>
+                      <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">Accepted (5)</SelectItem>
+                        <SelectItem value="3">Partially accepted (3)</SelectItem>
+                        <SelectItem value="0">Not accepted (0)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Bank & Mobile Verification</Label>
+                    <Select value={String(riskFactors.bank_mobile_wallet_verification)} onValueChange={(v) => setRiskFactors(prev => ({ ...prev, bank_mobile_wallet_verification: parseInt(v) }))}>
+                      <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">Both bank & mobile fully verified (5)</SelectItem>
+                        <SelectItem value="2">Pending on either (2)</SelectItem>
+                        <SelectItem value="0">Unverified (0)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <div>
-                  <Label>Reason for Override</Label>
-                  <Input
-                    className="mt-2"
-                    placeholder="Enter reason..."
-                    value={riskOverride.reason}
-                    onChange={(e) => setRiskOverride(prev => ({ ...prev, reason: e.target.value }))}
-                  />
+
+                <div className="space-y-3">
+                  <div>
+                    <Label>Employment Status</Label>
+                    <Select value={String(riskFactors.employment_status)} onValueChange={(v) => setRiskFactors(prev => ({ ...prev, employment_status: parseInt(v) }))}>
+                      <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">Full-time (5)</SelectItem>
+                        <SelectItem value="3">Part-time (3)</SelectItem>
+                        <SelectItem value="0">Probationary / Temporary (0)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Employment Contract</Label>
+                    <Select value={String(riskFactors.employment_contract)} onValueChange={(v) => setRiskFactors(prev => ({ ...prev, employment_contract: parseInt(v) }))}>
+                      <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">Signed & valid (5)</SelectItem>
+                        <SelectItem value="0">No signed contract (0)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Recent Payslips</Label>
+                    <Select value={String(riskFactors.recent_payslips)} onValueChange={(v) => setRiskFactors(prev => ({ ...prev, recent_payslips: parseInt(v) }))}>
+                      <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">Last 3 months provided (5)</SelectItem>
+                        <SelectItem value="3">1–3 months partial (3)</SelectItem>
+                        <SelectItem value="1">>3 months outdated (1)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Bank Statements Evidence</Label>
+                    <Select value={String(riskFactors.bank_statements_evidence)} onValueChange={(v) => setRiskFactors(prev => ({ ...prev, bank_statements_evidence: parseInt(v) }))}>
+                      <SelectTrigger className="h-10 mt-2"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">Last 3 months (5)</SelectItem>
+                        <SelectItem value="3">1–3 months partial (3)</SelectItem>
+                        <SelectItem value="1">>3 months outdated (1)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setShowRiskModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={handleRiskOverride}
-                >
-                  Save Override
-                </Button>
+
+              <div className="mt-4">
+                <Label>Notes (optional)</Label>
+                <Input className="mt-2" value={riskNotes} onChange={(e) => setRiskNotes(e.target.value)} placeholder="Optional notes about the assessment" />
+              </div>
+
+              <div className="flex gap-3 mt-6 justify-end">
+                <Button variant="outline" onClick={() => setShowRiskModal(false)}>Cancel</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleRiskOverride}>Save Assessment</Button>
               </div>
             </div>
           </div>

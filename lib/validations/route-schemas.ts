@@ -23,6 +23,19 @@ export const EmployeeRiskScorePatchSchema = z.object({
   reason: ReasonField,
 });
 
+// Admin — employee risk factors upsert (used by the employee risk assessment UI)
+export const EmployeeRiskFactorsUpsertSchema = z.object({
+  verification_status: z.union([z.literal(5), z.literal(2), z.literal(0)]),
+  tax_compliance: z.union([z.literal(5), z.literal(3), z.literal(0)]),
+  consent_data_rights: z.union([z.literal(5), z.literal(3), z.literal(0)]),
+  bank_mobile_wallet_verification: z.union([z.literal(5), z.literal(2), z.literal(0)]),
+  employment_status: z.union([z.literal(5), z.literal(3), z.literal(0)]),
+  employment_contract: z.union([z.literal(5), z.literal(0)]),
+  recent_payslips: z.union([z.literal(5), z.literal(3), z.literal(1)]),
+  bank_statements_evidence: z.union([z.literal(5), z.literal(3), z.literal(1)]),
+  notes: ReasonField,
+});
+
 export const EmployeeStatusPatchSchema = z.object({
   status: EmployeeStatusEnum,
   reason: ReasonField,
