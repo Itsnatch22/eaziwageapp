@@ -13,10 +13,6 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 
-// Email clients (Outlook especially) do not render inline SVG the way a browser does,
-// so icon component libraries like lucide-react silently disappear in real inboxes.
-// Use hosted image files instead, same pattern as the logo below.
-const ICON_BASE = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com'}/email-icons`;
 
 interface EmailLayoutProps {
   previewText: string;
@@ -98,30 +94,6 @@ export default function EmailLayout({
                 Terms of Service
               </a>
             </Text>
-
-            {/* Social icons — table-based row (email clients don't reliably support flexbox),
-                hosted PNG icons (email clients don't reliably support inline SVG) */}
-            <Row style={styles.socialLinksContainer}>
-              {[
-                { href: 'https://www.facebook.com/share/1CwgkthTRT/', icon: 'facebook', label: 'Facebook' },
-                { href: 'https://www.instagram.com/eaziwagelimited/', icon: 'instagram', label: 'Instagram' },
-                { href: 'https://x.com/eaziwagelimited?t=m-WyH8sFtbLOAiRjVKFVPw&s=08', icon: 'twitter', label: 'X (Twitter)' },
-                { href: 'https://www.linkedin.com/company/eaziwage/?viewAsMember=true', icon: 'linkedin', label: 'LinkedIn' },
-                { href: 'mailto:support@eaziwage.com', icon: 'mail', label: 'Email support@eaziwage.com' },
-              ].map((s) => (
-                <Column key={s.icon} style={styles.socialLinkColumn}>
-                  <a href={s.href} title={`EaziWage on ${s.label}`}>
-                    <Img
-                      src={`${ICON_BASE}/${s.icon}.png`}
-                      alt={s.label}
-                      width={18}
-                      height={18}
-                      style={{ display: 'block' }}
-                    />
-                  </a>
-                </Column>
-              ))}
-            </Row>
           </Section>
         </Container>
       </Body>
@@ -456,13 +428,5 @@ export const styles = {
     borderColor: '#e2e8f0',
     margin: '16px 0',
   } as React.CSSProperties,
-  socialLinksContainer: {
-    width: '100%',
-    textAlign: 'center' as const,
-    margin: '18px 0 0 0',
-  } as React.CSSProperties,
-  socialLinkColumn: {
-    padding: '0 10px',
-    width: 'auto',
-  } as React.CSSProperties,
+
 } as const;
