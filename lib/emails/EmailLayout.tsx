@@ -11,8 +11,12 @@ import {
   Row,
   Column,
 } from '@react-email/components';
-import { Facebook, Twitter, Instagram, Linkedin, Mail } from 'lucide-react';
 import * as React from 'react';
+
+// Email clients (Outlook especially) do not render inline SVG the way a browser does,
+// so icon component libraries like lucide-react silently disappear in real inboxes.
+// Use hosted image files instead, same pattern as the logo below.
+const ICON_BASE = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.eaziwage.com'}/email-icons`;
 
 interface EmailLayoutProps {
   previewText: string;
@@ -95,44 +99,29 @@ export default function EmailLayout({
               </a>
             </Text>
 
-            {/* Social icons – no background, muted color, clean alignment */}
-            <div style={styles.socialLinksContainer}>
-              <a
-                href="https://www.facebook.com/share/1CwgkthTRT/"
-                style={styles.socialLink}
-                title="EaziWage on Facebook"
-              >
-                <Facebook size={18} color="#64748b" />
-              </a>
-              <a
-                href="https://www.instagram.com/eaziwagelimited/"
-                style={styles.socialLink}
-                title="EaziWage on Instagram"
-              >
-                <Instagram size={18} color="#64748b" />
-              </a>
-              <a
-                href="https://x.com/eaziwagelimited?t=m-WyH8sFtbLOAiRjVKFVPw&s=08"
-                style={styles.socialLink}
-                title="EaziWage on X (Twitter)"
-              >
-                <Twitter size={18} color="#64748b" />
-              </a>
-              <a
-                href="https://www.linkedin.com/company/eaziwage/?viewAsMember=true"
-                style={styles.socialLink}
-                title="EaziWage on LinkedIn"
-              >
-                <Linkedin size={18} color="#64748b" />
-              </a>
-              <a
-                href="mailto:support@eaziwage.com"
-                style={styles.socialLink}
-                title="Email support@eaziwage.com"
-              >
-                <Mail size={18} color="#64748b" />
-              </a>
-            </div>
+            {/* Social icons — table-based row (email clients don't reliably support flexbox),
+                hosted PNG icons (email clients don't reliably support inline SVG) */}
+            <Row style={styles.socialLinksContainer}>
+              {[
+                { href: 'https://www.facebook.com/share/1CwgkthTRT/', icon: 'facebook', label: 'Facebook' },
+                { href: 'https://www.instagram.com/eaziwagelimited/', icon: 'instagram', label: 'Instagram' },
+                { href: 'https://x.com/eaziwagelimited?t=m-WyH8sFtbLOAiRjVKFVPw&s=08', icon: 'twitter', label: 'X (Twitter)' },
+                { href: 'https://www.linkedin.com/company/eaziwage/?viewAsMember=true', icon: 'linkedin', label: 'LinkedIn' },
+                { href: 'mailto:support@eaziwage.com', icon: 'mail', label: 'Email support@eaziwage.com' },
+              ].map((s) => (
+                <Column key={s.icon} style={styles.socialLinkColumn}>
+                  <a href={s.href} title={`EaziWage on ${s.label}`}>
+                    <Img
+                      src={`${ICON_BASE}/${s.icon}.png`}
+                      alt={s.label}
+                      width={18}
+                      height={18}
+                      style={{ display: 'block' }}
+                    />
+                  </a>
+                </Column>
+              ))}
+            </Row>
           </Section>
         </Container>
       </Body>
@@ -468,17 +457,12 @@ export const styles = {
     margin: '16px 0',
   } as React.CSSProperties,
   socialLinksContainer: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: '20px',
+    width: '100%',
+    textAlign: 'center' as const,
     margin: '18px 0 0 0',
   } as React.CSSProperties,
-  socialLink: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textDecoration: 'none',
-    lineHeight: 0,
+  socialLinkColumn: {
+    padding: '0 10px',
+    width: 'auto',
   } as React.CSSProperties,
 } as const;
