@@ -1,45 +1,48 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { requireOrganization } from '@/lib/auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
 import { getEnv } from '@/env';
 import { randomUUID } from 'crypto';
 
-// This endpoint initiates the Stanbic OAuth flow
+// This endpoint initiates the Stanbic OAuth flow.
+// Admin-only: this is EaziWage's own one-time authorization of its own Stanbic
+// account (used for URL whitelisting with Stanbic), NOT a per-employer
+// "connect your bank account" flow. Previously scoped to requireOrganization(),
+// which meant any employer could trigger this and land on their own wallet page --
+// corrected to requireAdmin() so only EaziWage admins can initiate it, and the
+// registered redirect_uri stays a single, stable, whitelistable admin URL.
+//
 // Expected behavior:
 // 1. Generate a random state value for CSRF protection
 // 2. Store the state in an HTTP-only cookie
 // 3. Redirect to Stanbic's OAuth authorization URL
 export async function GET(request: Request) {
   try {
-    const { searchParams, origin } = new URL(request.url);
-    const organization = await requireOrganization();
-    
-    if (!organization) {
-      return NextResponse.redirect(
-        new URL(`/dashboards/employer-dashboard/wallet?error=unauthorized`, origin)
-      );
-    }
+    const { origin } = new URL(request.url);
+
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
 
     // Generate a random state value for CSRF protection
     const state = randomUUID();
-    
+
     // Get environment configuration
     const env = getEnv();
-    
+
     // Determine the authorization URL based on environment
     // Stanbic uses the same base URL for token and auth endpoints, replacing /token with /authorize
     const tokenUrl =
       process.env.STANBIC_ENVIRONMENT === 'production'
         ? (env.STANBIC_PRODUCTION_TOKEN_URL ?? env.STANBIC_TOKEN_URL)
         : (env.STANBIC_SANDBOX_TOKEN_URL ?? env.STANBIC_TOKEN_URL);
-    
+
     if (!tokenUrl) {
       throw new Error('STANBIC_TOKEN_URL not configured');
     }
-    
+
     // Construct authorization URL by replacing /token with /authorize
     const authorizationUrl = tokenUrl.replace('/token', '/authorize');
-    
+
     if (!authorizationUrl || authorizationUrl === tokenUrl) {
       throw new Error('STANBIC authorization URL could not be constructed from token URL');
     }
@@ -59,7 +62,6 @@ export async function GET(request: Request) {
     const authorizationUrlWithParams = `${authorizationUrl}?${authParams.toString()}`;
 
     // Set the state cookie (HttpOnly for security, but we need to read it in the callback)
-    // Using regular cookie since we need to read it in the callback route
     const cookieStore = await cookies();
     cookieStore.set('stanbic_oauth_state', state, {
       httpOnly: true,
@@ -75,7 +77,7 @@ export async function GET(request: Request) {
     console.error('Stanbic OAuth initiation error:', error);
     const { origin } = new URL(request.url);
     return NextResponse.redirect(
-      new URL(`/dashboards/employer-dashboard/wallet?error=initiation_failed`, origin)
+      new URL(`/admin/wallet?error=initiation_failed`, origin)
     );
   }
 }

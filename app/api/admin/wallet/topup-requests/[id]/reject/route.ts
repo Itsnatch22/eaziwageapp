@@ -32,7 +32,7 @@ export async function PATCH(
 
     const { data: tx, error: txError } = await adminSupabase
       .from('wallet_transactions')
-      .select('id, wallet_id, amount, type, status, metadata')
+      .select('id, wallet_id, amount, type, status, metadata, local_currency')
       .eq('id', id)
       .maybeSingle();
 
@@ -84,16 +84,15 @@ export async function PATCH(
       new_value:   { status: 'rejected', reason: reason || null },
       created_at:  new Date().toISOString(),
     });
-
-    // Look up employer for notification metadata
+    
     const { data: employer } = await adminSupabase
       .from('employers')
-      .select('user_id, company_name, contact_person, currency')
+      .select('user_id, company_name, contact_person')
       .eq('id', employerId)
       .maybeSingle();
 
     if (employer?.user_id) {
-      const currency = employer.currency ?? 'KES';
+      const currency = tx.local_currency || 'KES';
       await notifyEmployer({
         userId: employer.user_id,
         type: 'system',

@@ -76,7 +76,7 @@ export async function PATCH(
 
     const { data: employer, error: employerErr } = await adminSupabase
       .from('employers')
-      .select('id, user_id, company_name, contact_person, currency, country, funding_model')
+      .select('id, user_id, company_name, contact_person, country, funding_model')
       .eq('id', employerId)
       .maybeSingle() as { data: EmployerRow | null; error: unknown };
 

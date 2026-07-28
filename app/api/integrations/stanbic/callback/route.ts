@@ -2,9 +2,14 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { Redis } from '@upstash/redis';
 import { getEnv } from '@/env';
-import { requireOrganization } from '@/lib/auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
-// This endpoint handles the OAuth callback from Stanbic Bank
+// This endpoint handles the OAuth callback from Stanbic Bank.
+// Admin-only -- see initiation route for why this changed from requireOrganization()
+// to requireAdmin(). The token obtained here belongs to EaziWage's own Stanbic
+// account, not any individual employer, so it's cached under a single
+// environment-scoped key rather than one key per organization.
+//
 // Expected query parameters: code, state
 // We expect a cookie named 'stanbic_oauth_state' to be set during the initiation of the OAuth flow
 export async function GET(request: Request) {
@@ -18,23 +23,19 @@ export async function GET(request: Request) {
     // Validate state to prevent CSRF
     if (!state || !stateCookie || state !== stateCookie) {
       return NextResponse.redirect(
-        new URL(`/dashboards/employer-dashboard/wallet?error=invalid_state`, origin)
+        new URL(`/admin/wallet?error=invalid_state`, origin)
       );
     }
 
     if (!code) {
       return NextResponse.redirect(
-        new URL(`/dashboards/employer-dashboard/wallet?error=missing_code`, origin)
+        new URL(`/admin/wallet?error=missing_code`, origin)
       );
     }
 
-    // Get the organization (employer) from the session
-    const organization = await requireOrganization();
-    if (!organization) {
-      return NextResponse.redirect(
-        new URL(`/dashboards/employer-dashboard/wallet?error=unauthorized`, origin)
-      );
-    }
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
+    const { user, adminSupabase } = auth;
 
     // Prepare token request
     const env = getEnv();
@@ -80,7 +81,7 @@ export async function GET(request: Request) {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       return NextResponse.redirect(
-        new URL(`/dashboards/employer-dashboard/wallet?error=token_exchange_failed&details=${encodeURIComponent(
+        new URL(`/admin/wallet?error=token_exchange_failed&details=${encodeURIComponent(
           errorText.substring(0, 100)
         )}`, origin)
       );
@@ -88,23 +89,36 @@ export async function GET(request: Request) {
 
     const tokenData = await tokenResponse.json();
 
-    // Store the tokens in Redis (keyed by organization ID) for later use
-    // We'll use the same Redis client as the Stanbic client
+    // Store the token in Redis -- scoped to EaziWage's own account + environment,
+    // NOT per-organization, since this is a single shared corporate connection.
     const redis = new Redis({
       url: env.UPSTASH_REDIS_REST_URL,
       token: env.UPSTASH_REDIS_REST_TOKEN,
     });
 
-    const redisKey = `stanbic:user_token:${organization.id}`;
+    const environment = process.env.STANBIC_ENVIRONMENT === 'production' ? 'production' : 'sandbox';
+    const redisKey = `stanbic:oauth_token:${environment}`;
     const tokenObj = {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token ?? null,
       expires_in: tokenData.expires_in ?? 3600,
       obtained_at: Date.now(),
+      connected_by: user.id,
     };
 
     await redis.set(redisKey, JSON.stringify(tokenObj), {
       ex: Math.max(60, Math.floor((tokenData.expires_in ?? 3600) - 60)), // expire 60 seconds before expiry
+    });
+
+    // Audit trail, consistent with other admin actions in this codebase
+    void adminSupabase.from('system_audit_logs').insert({
+      admin_id: user.id,
+      admin_name: user.email,
+      target_type: 'stanbic_integration',
+      action: 'stanbic_oauth_connected',
+      new_value: { environment },
+    }).then(({ error }: { error: unknown }) => {
+      if (error) console.error('[audit] stanbic_oauth_connected:', error);
     });
 
     // Remove the state cookie
@@ -112,12 +126,13 @@ export async function GET(request: Request) {
 
     // Redirect to success page
     return NextResponse.redirect(
-      new URL(`/dashboards/employer-dashboard/wallet?success=stanbic_connected`, origin)
+      new URL(`/admin/wallet?success=stanbic_connected`, origin)
     );
   } catch (error) {
     console.error('Stanbic OAuth callback error:', error);
+    const { origin } = new URL(request.url);
     return NextResponse.redirect(
-      new URL(`/dashboards/employer-dashboard/wallet?error=internal_error`, origin)
+      new URL(`/admin/wallet?error=internal_error`, origin)
     );
   }
 }

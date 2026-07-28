@@ -1,4 +1,19 @@
-# There is no way to verify bank statement for payment methods
+I was thinking about the following products from the sign-off:
 
-`@/app/dashboards/employee-dashboard/payment-methods` 
-When an employee uploads a bank statement as proof so as to use as a payment method, there is no way to verify it in the admin side. Hence the employee can't use it when requesting for an advance
+
+
+1. Inter-Bank transfers
+
+2. Payments to Stanbic Accounts 
+
+3. STK Push - M-Pesa Checkout API
+
+4. Transaction Notification API
+
+5. Account Statements API
+
+
+
+
+
+Even though it will mean expanding the `client.ts` file, and bringing Pesalink in the mix.
