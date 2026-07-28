@@ -454,7 +454,7 @@ export class PayoutService {
       if (employee?.kyc_status !== 'approved') {
         return { eligible: false, rejectionReason: 'Employee KYC not approved', fraudFlags: [] };
       }
-      if (!ees?.ewa_enabled) {
+      if (!(ees?.ewa_enabled ?? employer?.ewa_enabled)) {
         return { eligible: false, rejectionReason: 'EWA disabled for this employee', fraudFlags: [] };
       }
 

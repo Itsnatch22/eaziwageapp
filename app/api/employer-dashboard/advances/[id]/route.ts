@@ -46,7 +46,7 @@ export async function PATCH(
 
   const { data: employer, error: employerError } = await supabase
     .from('employers')
-    .select('id, onboarding_id, funding_model, funding_buffer_percent, credit_limit')
+    .select('id, onboarding_id, funding_model, funding_buffer_percent, credit_limit, ewa_enabled')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -125,7 +125,7 @@ export async function PATCH(
       .maybeSingle();
 
     let effective = {
-      ewa_enabled: true,
+      ewa_enabled: employer.ewa_enabled ?? true,
       max_advance_percentage: 50,
       min_advance_amount: 500,
       max_advance_amount: 50000,
