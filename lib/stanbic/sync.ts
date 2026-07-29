@@ -73,8 +73,8 @@ function normalizeBalance(raw: unknown): number | null {
 }
 
 function isSuspiciousDrop(previous: number, incoming: number): boolean {
-  if (previous <= 100) return false;
-  const drop = ((previous - incoming) / previous) * 100;
+  if (previous >= 0 && previous <= 100) return false;
+  const drop = ((previous - incoming) / Math.abs(previous)) * 100;
   return drop > 50;
 }
 
