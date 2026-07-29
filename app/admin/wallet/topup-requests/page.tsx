@@ -41,14 +41,6 @@ interface TopUpRequest {
   wallet_currency: string;
 }
 
-interface AdminWallet {
-  id: string;
-  name: string;
-  balance: number;
-  currency: 'USD';
-  last_reconciled_at: string | null;
-}
-
 async function fetchTopUpData() {
   try {
     const supabase = await createRouteHandlerClient();
@@ -82,6 +74,7 @@ async function fetchTopUpData() {
           total_advanced,
           outstanding_liability,
           total_repaid,
+          reserved_amount,
           currency,
           employers!employer_id (
             company_name,
@@ -120,6 +113,7 @@ async function fetchTopUpData() {
         total_advanced: number;
         outstanding_liability: number;
         total_repaid: number;
+        reserved_amount: number;
         currency: string;
         employers?: {
           company_name: string;
@@ -154,29 +148,21 @@ async function fetchTopUpData() {
         contact_person: employer?.contact_person ?? null,
         risk_score: employer?.risk_score ?? null,
         risk_rating: employer?.risk_rating ?? null,
-        current_wallet_balance: (wallet?.total_advanced ?? 0) - (wallet?.total_repaid ?? 0) - (wallet?.outstanding_liability ?? 0),
+        // Spendable balance, matching reserve_employer_funds()'s own availability
+        // check — not total_advanced - total_repaid - outstanding_liability,
+        // which double-subtracts the liability (outstanding_liability already
+        // tracks the same money as total_advanced - total_repaid; the deduction
+        // that actually applies here is reserved_amount, held against in-flight
+        // advances).
+        current_wallet_balance: Math.max(
+          0,
+          (wallet?.total_advanced ?? 0) - (wallet?.total_repaid ?? 0) - (wallet?.reserved_amount ?? 0),
+        ),
         wallet_currency: wallet?.currency ?? 'KES',
       };
     });
 
-    const { data: adminWalletRow, error: walletError } = await supabaseAdmin
-      .from('admin_wallets')
-      .select('id, name, balance, currency, last_reconciled_at')
-      .eq('name', 'Main Stanbic Source')
-      .maybeSingle<AdminWallet>();
-
-    if (walletError) throw walletError;
-
-    return {
-      requests: enrichedRequests,
-      adminWallet: adminWalletRow ?? {
-        id: '',
-        name: 'Main Stanbic Source',
-        balance: 0,
-        currency: 'USD' as const,
-        last_reconciled_at: null,
-      },
-    };
+    return { requests: enrichedRequests };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load data';
     throw new Error(message);
@@ -186,14 +172,6 @@ async function fetchTopUpData() {
 function TopUpRequestsLoading() {
   return (
     <div className="space-y-8">
-      
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6 animate-pulse">
-        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-32 mb-3" />
-        <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded w-48 mb-6" />
-        <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-40" />
-      </div>
-
-      
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
         <div className="h-16 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700" />
         {[1, 2, 3].map(i => (
@@ -253,7 +231,6 @@ async function TopUpRequestsContent() {
   return (
     <TopUpRequestsClient
       initialRequests={data.requests}
-      initialAdminWallet={data.adminWallet}
     />
   );
 }

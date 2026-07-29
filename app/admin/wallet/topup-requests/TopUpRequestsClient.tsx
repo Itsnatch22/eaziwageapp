@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
-import { AlertCircle, Wallet, CheckCircle2, XCircle, Clock, Zap } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { AlertCircle, Wallet, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 
@@ -40,17 +40,8 @@ interface TopUpRequest {
   wallet_currency: string;
 }
 
-interface AdminWallet {
-  id: string;
-  name: string;
-  balance: number;
-  currency: 'USD';
-  last_reconciled_at: string | null;
-}
-
 interface TopUpRequestsClientProps {
   initialRequests: TopUpRequest[];
-  initialAdminWallet: AdminWallet;
 }
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -109,92 +100,35 @@ function formatAbsoluteDate(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
-function isSyncStale(lastReconciled: string | null): boolean {
-  if (!lastReconciled) return true;
-  const lastSync = new Date(lastReconciled);
-  const now = new Date();
-  const hoursSince = (now.getTime() - lastSync.getTime()) / (1000 * 60 * 60);
-  return hoursSince > 24;
-}
-
 export default function TopUpRequestsClient({
   initialRequests,
-  initialAdminWallet,
 }: TopUpRequestsClientProps) {
   const [requests, setRequests] = useState<TopUpRequest[]>(initialRequests);
-  const [adminWallet, setAdminWallet] = useState<AdminWallet>(initialAdminWallet);
   const [approving, setApproving] = useState<Record<string, boolean>>({});
   const [rejecting, setRejecting] = useState<Record<string, boolean>>({});
-  const [syncing, setSyncing] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const handleSync = useCallback(async () => {
-    setSyncing(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/wallet/sync', { method: 'POST' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Sync failed');
-
-      if (json.wallet) {
-        setAdminWallet(prev => ({
-          ...prev,
-          balance: json.wallet.balance,
-          last_reconciled_at: json.wallet.last_reconciled_at,
-        }));
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Sync failed');
-    } finally {
-      setSyncing(false);
-    }
-  }, []);
 
   const handleApprove = useCallback(async (request: TopUpRequest) => {
     setApproving(prev => ({ ...prev, [request.id]: true }));
     setConfirmingId(null);
     setError(null);
 
-    // The server enforces balance checks with the freshest synced figure —
-    // a hard 409 (INSUFFICIENT_BALANCE) for genuinely insufficient funds, or
-    // a 409 (LOW_BALANCE_WARNING) when this would drop the pool below the
-    // configured threshold but can still technically cover the request. The
-    // latter requires an explicit confirm-and-retry rather than a silent pass.
-    const doApprove = async (confirmLowBalance = false): Promise<void> => {
+    // Approval is a ledger-only credit-line update (approve_employer_credit_line
+    // RPC) — no DusuPay call, no admin_wallets balance touched, no cash moves.
+    // There is nothing to check funds against here.
+    try {
       const res = await fetch(
         `/api/admin/wallet/topup-requests/${encodeURIComponent(request.id)}/approve`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ confirmLowBalance }),
         }
       );
       const json = await res.json();
-
-      if (!res.ok) {
-        if (json?.code === 'LOW_BALANCE_WARNING' && !confirmLowBalance) {
-          if (window.confirm(`${json.error}\n\nProceed anyway?`)) {
-            await doApprove(true);
-            return;
-          }
-          return;
-        }
-        throw new Error(json?.error || 'Approval failed');
-      }
+      if (!res.ok) throw new Error(json?.error || 'Approval failed');
 
       setRequests(prev => prev.filter(r => r.id !== request.id));
-      // Approval now only *initiates* a real DusuPay collection or payout —
-      // the admin wallet's USD balance (for the payout leg) and the employer's
-      // available balance (for the collection leg) only change once DusuPay
-      // confirms via webhook, not synchronously here. Optimistically
-      // decrementing it at this point would show a number that hasn't
-      // actually moved yet (or, for a prefunded/collection employer, never
-      // moves at all — the admin wallet isn't touched by that leg).
-    };
-
-    try {
-      await doApprove();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Approval failed');
     } finally {
@@ -230,69 +164,8 @@ export default function TopUpRequestsClient({
     }
   }, []);
 
-  const insufficientFundsRequests = useMemo(
-    () => new Set(requests.filter(r => (r.usd_amount ?? 0) > adminWallet.balance).map(r => r.id)),
-    [requests, adminWallet.balance]
-  );
-
-  const isBalanceStale = isSyncStale(adminWallet.last_reconciled_at);
-
   return (
     <div className="space-y-8">
-      
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">EaziWage USD Wallet</h2>
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-slate-900 dark:text-white">
-                {formatCurrency(adminWallet.balance, 'USD')}
-              </span>
-              <span className="text-sm text-slate-500 dark:text-slate-400">Available balance</span>
-            </div>
-          </div>
-          <Wallet className="w-8 h-8 text-emerald-600" />
-        </div>
-
-        <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            {adminWallet.last_reconciled_at ? (
-              <>
-                <span>Last synced: </span>
-                <time title={formatAbsoluteDate(adminWallet.last_reconciled_at)}>
-                  {formatRelativeTime(adminWallet.last_reconciled_at)}
-                </time>
-              </>
-            ) : (
-              <span>Never synced</span>
-            )}
-          </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className={cn(
-              'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
-              syncing
-                ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
-                : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/50'
-            )}
-          >
-            <Zap className="w-4 h-4" />
-            {syncing ? 'Syncing…' : 'Sync Balance'}
-          </button>
-        </div>
-
-        {isBalanceStale && (
-          <Alert className="mt-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
-            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-            <AlertDescription className="text-amber-800 dark:text-amber-300">
-              Balance not recently synced. Approve with caution.
-            </AlertDescription>
-          </Alert>
-        )}
-      </div>
-
-      
       {error && (
         <Alert className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
           <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-500" />
@@ -346,7 +219,6 @@ export default function TopUpRequestsClient({
               </thead>
               <tbody>
                 {requests.map((request) => {
-                  const isInsufficient = insufficientFundsRequests.has(request.id);
                   const isApproving = approving[request.id];
                   const isRejecting = rejecting[request.id];
                   const isConfirming = confirmingId === request.id;
@@ -446,10 +318,10 @@ export default function TopUpRequestsClient({
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleApprove(request)}
-                              disabled={isApproving || isInsufficient}
+                              disabled={isApproving}
                               className={cn(
                                 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold transition-all',
-                                isApproving || isInsufficient
+                                isApproving
                                   ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
                                   : 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-950/50'
                               )}
@@ -496,14 +368,13 @@ export default function TopUpRequestsClient({
                             </button>
                             <button
                               onClick={() => setConfirmingId(request.id)}
-                              disabled={isInsufficient || isApproving || isRejecting}
+                              disabled={isApproving || isRejecting}
                               className={cn(
                                 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all',
-                                isInsufficient || isApproving || isRejecting
+                                isApproving || isRejecting
                                   ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
                                   : 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-950/50'
                               )}
-                              title={isInsufficient ? 'Insufficient USD balance' : undefined}
                             >
                               <CheckCircle2 className="w-4 h-4" />
                               Approve

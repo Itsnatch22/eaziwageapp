@@ -39,17 +39,8 @@ interface TopUpRequest {
   wallet_currency: string;
 }
 
-interface AdminWallet {
-  id: string;
-  name: string;
-  balance: number;
-  currency: 'USD';
-  last_reconciled_at: string | null;
-}
-
 interface TopUpRequestsResponse {
   requests: TopUpRequest[];
-  adminWallet: AdminWallet;
 }
 
 interface EnrichedRow {
@@ -169,23 +160,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopUpRequestsR
       };
     });
 
-    const { data: adminWalletRow, error: walletError } = await adminSupabase
-      .from('admin_wallets')
-      .select('id, name, balance, currency, last_reconciled_at')
-      .eq('name', 'Main Stanbic Source')
-      .maybeSingle<AdminWallet>();
-
-    if (walletError) throw walletError;
-
     return NextResponse.json({
       requests: enrichedRequests,
-      adminWallet: adminWalletRow ?? {
-        id: '',
-        name: 'Main Stanbic Source',
-        balance: 0,
-        currency: 'USD',
-        last_reconciled_at: null,
-      },
     });
   } catch (err: unknown) {
     return dbErrorResponse('admin/wallet/topup-requests GET', err);
