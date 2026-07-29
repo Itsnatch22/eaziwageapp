@@ -5,7 +5,7 @@ import {
   TrendingUp, Users, DollarSign, BarChart3, ChevronRight, Eye,
   CreditCard, Link2, RefreshCw, X, XCircle, AlertTriangle,
   Plug, Info, Download, Wifi, ChevronDown, ChevronUp,
-  TrendingDown, TableIcon, Wallet,
+  TrendingDown, TableIcon, Wallet, Upload,
 } from 'lucide-react';
 import { CopyButton } from '@/components/shared/CopyButton';
 
@@ -658,6 +658,186 @@ const ConnectPayrollModal = ({ isOpen, onClose, onConnected, existingIntegration
 
 
 
+const CSVUploadModal = ({
+  isOpen,
+  onClose,
+  month,
+  onUploadStart,
+  onUploadComplete,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  month: string;
+  onUploadStart: () => void;
+  onUploadComplete: () => void;
+}) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
+        setError('Only CSV files are supported');
+        return;
+      }
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        setError('File size must be less than 10MB');
+        return;
+      }
+      setFile(selectedFile);
+      setError(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file || !month) return;
+
+    setUploading(true);
+    setError(null);
+    onUploadStart();
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('month', month);
+
+      const res = await fetch('/api/employer-dashboard/payroll/csv-upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Upload failed');
+      }
+
+      toast.success(
+        data.status === 'processed'
+          ? `Upload complete — ${data.processed_rows} records loaded`
+          : data.status === 'partial'
+          ? `Upload complete with issues — ${data.failed_rows} record(s) failed`
+          : `Upload complete — ${data.total_rows} records received`
+      );
+
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      onUploadComplete();
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="bg-linear-to-r from-primary to-emerald-600 p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <Upload className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Upload Payroll CSV</h2>
+              <p className="text-white/70 text-sm">Import employee payroll data from a CSV file</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-white" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold text-slate-900 dark:text-white">Payroll Month</Label>
+            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                {new Date(month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold text-slate-900 dark:text-white">CSV File</Label>
+            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 text-center hover:border-primary/50 transition-colors">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              {!file ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center gap-2 w-full"
+                >
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <Upload className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Click to select CSV</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">or drag and drop</p>
+                  </div>
+                </button>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    <span className="text-sm font-medium text-slate-900 dark:text-white truncate">{file.name}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="p-1 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition-colors"
+                  >
+                    <X className="w-4 h-4 text-red-600" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Required columns: employee_code, gross_salary. Optional: days_worked, deductions
+            </p>
+          </div>
+
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/20 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={onClose} disabled={uploading} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={!file || uploading}
+              className="flex-1 bg-primary text-white"
+            >
+              {uploading ? 'Uploading...' : 'Upload CSV'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 const PayrollHistoryItem = ({
   record,
   onView,
@@ -703,7 +883,6 @@ const PayrollHistoryItem = ({
 };
 
 
-
 export default function EmployerPayroll() {
   const { currency } = useCurrency();
   const [employer, setEmployer] = useState<{ id: string; company_name: string; full_name: string | null; country?: string; currency?: string } | null>(null);
@@ -714,6 +893,7 @@ export default function EmployerPayroll() {
   const [syncing, setSyncing]                 = useState(false);
   const [selectedMonth, setSelectedMonth]     = useState(new Date().toISOString().slice(0, 7));
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [showCSVUploadModal, setShowCSVUploadModal] = useState(false);
 
 
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
@@ -921,6 +1101,9 @@ export default function EmployerPayroll() {
             </Button>
             <Button variant="outline" className="bg-white/60 dark:bg-slate-800/60" onClick={downloadPayrollDeductionFile}>
               <FileText className="w-4 h-4 mr-2" /> Payroll Deduction File
+            </Button>
+            <Button onClick={() => setShowCSVUploadModal(true)} className="bg-primary text-white">
+              <Upload className="w-4 h-4 mr-2" /> Upload CSV
             </Button>
             {!integration && (
               <Button onClick={() => setShowConnectModal(true)} className="bg-primary text-white">
@@ -1357,6 +1540,17 @@ export default function EmployerPayroll() {
         onConnected={(intg) => {
           setIntegration(intg as Integration);
           setShowConnectModal(false);
+        }}
+      />
+
+      <CSVUploadModal
+        isOpen={showCSVUploadModal}
+        onClose={() => setShowCSVUploadModal(false)}
+        month={selectedMonth}
+        onUploadStart={() => {}}
+        onUploadComplete={() => {
+          void fetchData();
+          void fetchSimulator();
         }}
       />
     </EmployerPortalLayout>
