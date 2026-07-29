@@ -44,12 +44,12 @@ function normalizeBalance(raw: unknown): number | null {
     const stripped = raw.trim().replace(/^\[|\]$/g, '').trim();
     const n = parseFloat(stripped);
     const rounded = Number(n.toFixed(2));
-    return Number.isFinite(rounded) && rounded >= 0 ? rounded : null;
+    return Number.isFinite(rounded) ? rounded : null;
   }
 
   if (typeof raw === 'number') {
     const rounded = Number(raw.toFixed(2));
-    return Number.isFinite(rounded) && rounded >= 0 ? rounded : null;
+    return Number.isFinite(rounded) ? rounded : null;
   }
 
   // Actual array (rawBalanceResponse schema): take first element's availableBalance
