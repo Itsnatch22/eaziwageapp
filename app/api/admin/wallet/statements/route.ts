@@ -22,18 +22,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { data: wallet, error: walletError } = await adminSupabase
       .from('admin_wallets')
-      .select('id, currency')
+      .select('id, account_number, currency')
       .eq('id', raw.wallet_id)
       .maybeSingle();
 
     if (walletError) throw walletError;
-    if (!wallet) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 });
+    if (!wallet || !wallet.account_number) {
+      return NextResponse.json({ error: 'Wallet missing account number' }, { status: 404 });
     }
 
     const result = await fetchStanbicStatement(adminSupabase, log, {
       walletId: wallet.id,
       currency: wallet.currency,
+      accountNumber: wallet.account_number,
       fromDate: raw.from_date,
       toDate: raw.to_date,
       noOfTxns: raw.no_of_txns,

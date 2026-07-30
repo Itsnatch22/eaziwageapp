@@ -42,14 +42,14 @@ function normalizeStatementItem(item: Record<string, unknown>) {
 export async function fetchStanbicStatement(
   adminSupabase: SupabaseClient,
   log: Logger | { info: (...a: unknown[]) => void; warn: (...a: unknown[]) => void; error: (...a: unknown[]) => void },
-  params: { walletId: string; currency: string; fromDate: string; toDate: string; noOfTxns?: string },
+  params: { walletId: string; currency: string; accountNumber: string; fromDate: string; toDate: string; noOfTxns?: string },
 ): Promise<FetchStatementResult> {
-  const { walletId, currency, fromDate, toDate, noOfTxns } = params;
+  const { walletId, currency, accountNumber, fromDate, toDate, noOfTxns } = params;
   const client = getStanbicStatementsClientForCurrency(currency);
 
   let request;
   try {
-    request = await client.buildStatementRequest(fromDate, toDate, noOfTxns);
+    request = await client.buildStatementRequest(accountNumber, fromDate, toDate, noOfTxns);
   } catch (err) {
     log.error('Failed to build Stanbic statement request', { err: err instanceof Error ? err.message : String(err) });
     return { ok: false, status: 502, error: 'Failed to authenticate with Stanbic statement API' };
