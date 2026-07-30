@@ -986,7 +986,7 @@ const handleFetchStatements = useCallback(async () => {
            <button
              onClick={handleFetchStatements}
              disabled={statementsLoading}
-             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50"
+             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50"
            >
              {statementsLoading ? 'Fetching...' : 'Fetch Statements'}
            </button>
