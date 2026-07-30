@@ -346,3 +346,138 @@ export async function buildStanbicBalanceRequest(
 ): Promise<StanbicBalanceRequest> {
   return stanbicClient.buildBalanceRequest(context);
 }
+
+export interface StanbicStatementRequest {
+  url: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export class StanbicStatementsClient {
+  private environment: StanbicEnvironment;
+  private tokenCacheKey: string;
+  private currency: 'USD' | 'KES';
+
+  constructor(currency: 'USD' | 'KES') {
+    this.environment = (process.env.STANBIC_ENVIRONMENT as StanbicEnvironment) === 'production' ? 'production' : 'sandbox';
+    this.currency = currency;
+    this.tokenCacheKey = `stanbic:statement_access_token:${this.environment}:${this.currency.toLowerCase()}`;
+  }
+
+  getEnvironment(): StanbicEnvironment {
+    return this.environment;
+  }
+
+  private getTokenUrl(): string {
+    const url = this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_TOKEN_URL ?? env.STANBIC_TOKEN_URL
+      : env.STANBIC_SANDBOX_TOKEN_URL ?? env.STANBIC_TOKEN_URL;
+    if (!url) throw new Error(`STANBIC_TOKEN_URL not configured for environment: ${this.environment}`);
+    return url;
+  }
+
+  private getSubscriptionKey(): string {
+    if (this.currency === 'KES') {
+      return this.environment === 'production'
+        ? env.STANBIC_PRODUCTION_STATEMENT_FOR_KES_API_KEY ?? ''
+        : env.STANBIC_SANDBOX_STATEMENT_FOR_KES_API_KEY ?? '';
+    }
+    return this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_STATEMENT_FOR_USD_API_KEY ?? ''
+      : env.STANBIC_SANDBOX_STATEMENT_FOR_USD_API_KEY ?? '';
+  }
+
+  private getClientSecret(): string {
+    if (this.currency === 'KES') {
+      return this.environment === 'production'
+        ? env.STANBIC_PRODUCTION_STATEMENT_FOR_KES_CLIENT_SECRET ?? ''
+        : env.STANBIC_SANDBOX_STATEMENT_FOR_KES_CLIENT_SECRET ?? '';
+    }
+    return this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_STATEMENT_FOR_USD_CLIENT_SECRET ?? ''
+      : env.STANBIC_SANDBOX_STATEMENT_FOR_USD_CLIENT_SECRET ?? '';
+  }
+
+  getStatementsUrl(): string {
+    return this.environment === 'production'
+      ? env.STANBIC_PRODUCTION_STATEMENT_URL_ENDPOINT ?? (() => { throw new Error('STANBIC_PRODUCTION_STATEMENT_URL_ENDPOINT not configured'); })()
+      : env.STANBIC_SANDBOX_STATEMENT_URL_ENDPOINT ?? 'https://sandbox.connect.stanbicbank.co.ke/api/sandbox/fetchTransactions/';
+  }
+
+  private async getCachedToken(): Promise<string | null> {
+    try {
+      const cached = await redis.get<string>(this.tokenCacheKey);
+      if (cached) return cached;
+    } catch (err) {
+      console.error('[Stanbic Statements Client] Redis GET error:', err instanceof Error ? err.message : String(err));
+    }
+    return null;
+  }
+
+  private async cacheToken(token: string, ttlSeconds: number): Promise<void> {
+    try {
+      await redis.set(this.tokenCacheKey, token, { ex: Math.max(60, Math.floor(ttlSeconds)) });
+    } catch (err) {
+      console.error('[Stanbic Statements Client] Redis SET error:', err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  private async fetchToken(): Promise<{ token: string; expiresIn: number }> {
+    const tokenUrl = this.getTokenUrl();
+    const clientId = this.getSubscriptionKey();
+    const clientSecret = this.getClientSecret();
+    if (!clientId || !clientSecret) {
+      throw new Error(`Stanbic statement credentials not configured for environment=${this.environment} currency=${this.currency}`);
+    }
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: 'payments',
+    });
+    const resp = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    if (!resp.ok) {
+      const bodyText = await resp.text().catch(() => '(unreadable)');
+      throw new Error(`Stanbic statement token endpoint returned ${resp.status}: ${bodyText}`);
+    }
+    const data = (await resp.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!data) throw new Error('Stanbic statement token endpoint returned invalid JSON');
+    const token = typeof data.access_token === 'string' ? data.access_token : null;
+    const expiresIn = Number(data.expires_in ?? 3600);
+    if (!token) throw new Error('Stanbic statement token response did not include access_token');
+    return { token, expiresIn: Number.isFinite(expiresIn) ? expiresIn : 3600 };
+  }
+
+  async getToken(): Promise<string> {
+    const cached = await this.getCachedToken();
+    if (cached) return cached;
+    const { token, expiresIn } = await this.fetchToken();
+    await this.cacheToken(token, Math.max(60, expiresIn - 60));
+    return token;
+  }
+
+  async buildStatementRequest(accountNumber: string): Promise<StanbicStatementRequest> {
+    const token = await this.getToken();
+    return {
+      url: this.getStatementsUrl(),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Ocp-Apim-Subscription-Key': this.getSubscriptionKey(),
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ accountNumber }),
+    };
+  }
+}
+
+export const stanbicUsdStatementsClient = new StanbicStatementsClient('USD');
+export const stanbicKesStatementsClient = new StanbicStatementsClient('KES');
+
+export function getStanbicStatementsClientForCurrency(currency?: string | null): StanbicStatementsClient {
+  return currency?.toUpperCase() === 'KES' ? stanbicKesStatementsClient : stanbicUsdStatementsClient;
+}

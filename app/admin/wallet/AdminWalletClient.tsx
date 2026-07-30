@@ -106,6 +106,24 @@ interface AdminWalletClientProps {
   initialForecasts: CashRequirementForecast[];
 }
 
+interface StanbicStatement {
+  id: string;
+  admin_wallet_id: string;
+  stanbic_transaction_id: string;
+  booking_date: string | null;
+  value_date: string | null;
+  credit_debit_indicator: string | null;
+  amount: number | null;
+  currency_code: string | null;
+  counter_party_name: string | null;
+  counter_party_account_number: string | null;
+  description: string | null;
+  category: string | null;
+  raw_response: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface CashRequirementForecast {
   id: string;
   forecast_date: string;
@@ -515,11 +533,14 @@ export default function AdminWalletClient({
   initialReconciliationFlags,
   initialForecasts,
 }: AdminWalletClientProps) {
-  const [wallet, setWallet] = useState<AdminWallet | null>(initialWallet);
+const [wallet, setWallet] = useState<AdminWallet | null>(initialWallet);
   const [wallets, setWallets] = useState<AdminWallet[]>(initialWallets);
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(initialWallet?.id ?? initialWallets[0]?.id ?? null);
   const [transactions, setTransactions] = useState<AdminWalletTransaction[]>(initialTransactions);
   const [reconciliationFlags, setReconciliationFlags] = useState<ReconciliationFlag[]>(initialReconciliationFlags);
+  const [statements, setStatements] = useState<StanbicStatement[]>([]);
+  const [statementsLoading, setStatementsLoading] = useState(false);
+  const [statementsError, setStatementsError] = useState<string | null>(null);
   const [resolvingFlagId, setResolvingFlagId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDepositing, setIsDepositing] = useState(false);
@@ -671,6 +692,37 @@ export default function AdminWalletClient({
     },
     [wallet, wallets, transactions]
   );
+
+const handleFetchStatements = useCallback(async () => {
+  if (!selectedWalletId) {
+    setStatementsError('Please select a wallet first');
+    return;
+  }
+
+  setStatementsLoading(true);
+  setStatementsError(null);
+  setStatements([]);
+
+  try {
+    const response = await fetch(`/api/admin/wallet/statements?wallet_id=${selectedWalletId}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json()) as ApiError;
+      throw new Error(errorData.error || 'Failed to fetch statements');
+    }
+
+    const data = await response.json();
+    setStatements(data.transactions || []);
+  } catch (error) {
+    setStatementsError((error as Error).message || 'Failed to fetch statements');
+    console.error('Statement fetch error:', error);
+  } finally {
+    setStatementsLoading(false);
+  }
+}, [selectedWalletId]);
 
   const handleResolveFlag = useCallback(
     async (flagId: string, status: 'resolved' | 'dismissed') => {
@@ -880,52 +932,124 @@ export default function AdminWalletClient({
         </div>
       </div>
 
-      {reconciliationFlags.length > 0 && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg space-y-3">
-          <div className="flex gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
-                Unconfirmed Stanbic Deposit{reconciliationFlags.length > 1 ? 's' : ''}
-              </h3>
-              <p className="text-sm text-red-800 dark:text-red-200">
-                {reconciliationFlags.length} manually-recorded deposit{reconciliationFlags.length > 1 ? 's are' : ' is'} still not reflected in Stanbic&apos;s real balance more than 24 hours after being recorded. Verify against the bank statement before trusting this balance.
-              </p>
-            </div>
-          </div>
-          <div className="space-y-2">
-            {reconciliationFlags.map((flag) => (
-              <div
-                key={flag.id}
-                className="flex items-center justify-between gap-3 p-3 bg-white/60 dark:bg-slate-900/40 rounded-lg border border-red-200/50 dark:border-red-800/30"
-              >
-                <div className="text-sm">
-                  <span className="font-semibold text-slate-900 dark:text-white">
-                    {formatCurrency(flag.recorded_amount, 'USD')}
-                  </span>
-                  <span className="text-slate-500 dark:text-slate-400"> recorded {formatDateTime(flag.created_at)} — Stanbic reported {formatCurrency(flag.stanbic_reported_balance, 'USD')} vs. expected {formatCurrency(flag.balance_before_sync, 'USD')}</span>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => handleResolveFlag(flag.id, 'dismissed')}
-                    disabled={resolvingFlagId === flag.id}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    onClick={() => handleResolveFlag(flag.id, 'resolved')}
-                    disabled={resolvingFlagId === flag.id}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50"
-                  >
-                    {resolvingFlagId === flag.id ? 'Confirming…' : 'Confirm Genuine'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+{reconciliationFlags.length > 0 && (
+         <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg space-y-3">
+           <div className="flex gap-3">
+             <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+             <div>
+               <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
+                 Unconfirmed Stanbic Deposit{reconciliationFlags.length > 1 ? 's' : ''}
+               </h3>
+               <p className="text-sm text-red-800 dark:text-red-200">
+                 {reconciliationFlags.length} manually-recorded deposit{reconciliationFlags.length > 1 ? 's are' : ' is'} still not reflected in Stanbic&apos;s real balance more than 24 hours after being recorded. Verify against the bank statement before trusting this balance.
+               </p>
+             </div>
+           </div>
+           <div className="space-y-2">
+             {reconciliationFlags.map((flag) => (
+               <div
+                 key={flag.id}
+                 className="flex items-center justify-between gap-3 p-3 bg-white/60 dark:bg-slate-900/40 rounded-lg border border-red-200/50 dark:border-red-800/30"
+               >
+                 <div className="text-sm">
+                   <span className="font-semibold text-slate-900 dark:text-white">
+                     {formatCurrency(flag.recorded_amount, 'USD')}
+                   </span>
+                   <span className="text-slate-500 dark:text-slate-400"> recorded {formatDateTime(flag.created_at)} — Stanbic reported {formatCurrency(flag.stanbic_reported_balance, 'USD')} vs. expected {formatCurrency(flag.balance_before_sync, 'USD')}</span>
+                 </div>
+                 <div className="flex gap-2 shrink-0">
+                   <button
+                     onClick={() => handleResolveFlag(flag.id, 'dismissed')}
+                     disabled={resolvingFlagId === flag.id}
+                     className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                   >
+                     Dismiss
+                   </button>
+                   <button
+                     onClick={() => handleResolveFlag(flag.id, 'resolved')}
+                     disabled={resolvingFlagId === flag.id}
+                     className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50"
+                   >
+                     {resolvingFlagId === flag.id ? 'Confirming…' : 'Confirm Genuine'}
+                   </button>
+                 </div>
+               </div>
+             ))}
+           </div>
+         </div>
+       )}
+
+       {/* Statements Section */}
+       <div className="p-4 bg-white/60 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-700/30 rounded-lg">
+         <div className="flex items-center justify-between mb-4">
+           <h3 className="font-semibold text-slate-900 dark:text-white">Stanbic Bank Statements</h3>
+           <button
+             onClick={handleFetchStatements}
+             disabled={statementsLoading}
+             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50"
+           >
+             {statementsLoading ? 'Fetching...' : 'Fetch Statements'}
+           </button>
+         </div>
+         
+         {statementsError && (
+           <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+             {statementsError}
+           </div>
+         )}
+         
+         {statements.length > 0 ? (
+           <div className="overflow-x-auto">
+             <table className="w-full text-sm">
+               <thead className="text-left text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/30">
+                 <tr>
+                   <th className="px-4 py-3">Date</th>
+                   <th className="px-4 py-3">Amount</th>
+                   <th className="px-4 py-3">Currency</th>
+                   <th className="px-4 py-3">Type</th>
+                   <th className="px-4 py-3">Counter Party</th>
+                   <th className="px-4 py-3">Description</th>
+                 </tr>
+               </thead>
+               <tbody>
+{statements.map((stmt) => (
+                    <tr key={stmt.id} className="border-t border-slate-200/50 dark:border-slate-700/30 hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                        {formatDateTimeCompact(stmt.booking_date || stmt.value_date)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {stmt.amount !== null ? (
+                          <>
+                            {stmt.amount >= 0 ? '+' : '-'}
+                            {formatCurrency(Math.abs(stmt.amount), stmt.currency_code || 'USD')}
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                        {stmt.currency_code || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400 capitalize">
+                        {stmt.credit_debit_indicator?.toLowerCase() === 'credit' ? 'Credit' : stmt.credit_debit_indicator?.toLowerCase() === 'debit' ? 'Debit' : stmt.credit_debit_indicator || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400 max-w-xs truncate" title={stmt.counter_party_name || undefined}>
+                        {stmt.counter_party_name || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400 max-w-xs truncate" title={stmt.description || undefined}>
+                        {stmt.description ? (stmt.description.length > 50 ? stmt.description.substring(0, 50) + '…' : stmt.description) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+               </tbody>
+             </table>
+           </div>
+         ) : (
+           <p className="text-center text-slate-500 dark:text-slate-400 py-8">
+             No statement data available. Click "Fetch Statements" to load bank statement data.
+           </p>
+         )}
+       </div>
 
       {syncConflict && (
         <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex gap-3">
