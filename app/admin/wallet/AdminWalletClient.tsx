@@ -550,6 +550,31 @@ const [wallet, setWallet] = useState<AdminWallet | null>(initialWallet);
   const [currentPage, setCurrentPage] = useState(1);
   const [nextSyncIn, setNextSyncIn] = useState(30);
 
+  // Handle OAuth callback URL parameters (e.g. error=invalid_state or success=stanbic_connected)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get('error');
+    const success = params.get('success');
+    const details = params.get('details');
+
+    if (err) {
+      if (err === 'invalid_state') {
+        toast.error('Stanbic authentication failed: Security state mismatch or expired session. Please try reconnecting.');
+      } else if (err === 'missing_code') {
+        toast.error('Stanbic authentication failed: Authorization code was missing.');
+      } else if (err === 'token_exchange_failed') {
+        toast.error(`Stanbic token exchange failed${details ? `: ${details}` : ''}`);
+      } else if (err === 'initiation_failed') {
+        toast.error('Failed to initiate Stanbic authentication.');
+      } else {
+        toast.error(`Bank integration error: ${err}`);
+      }
+    } else if (success === 'stanbic_connected') {
+      toast.success('Stanbic Bank account successfully connected!');
+    }
+  }, []);
+
   const handleSync = useCallback(async () => {
     setIsSyncing(true);
     setSyncError('');

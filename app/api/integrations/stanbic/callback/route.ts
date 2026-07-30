@@ -121,13 +121,12 @@ export async function GET(request: Request) {
       if (error) console.error('[audit] stanbic_oauth_connected:', error);
     });
 
-    // Remove the state cookie
-    cookieStore.delete('stanbic_oauth_state');
-
-    // Redirect to success page
-    return NextResponse.redirect(
+    // Remove the state cookie on response
+    const response = NextResponse.redirect(
       new URL(`/admin/wallet?success=stanbic_connected`, origin)
     );
+    response.cookies.delete('stanbic_oauth_state');
+    return response;
   } catch (error) {
     console.error('Stanbic OAuth callback error:', error);
     const { origin } = new URL(request.url);

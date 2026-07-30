@@ -61,9 +61,9 @@ export async function GET(request: Request) {
 
     const authorizationUrlWithParams = `${authorizationUrl}?${authParams.toString()}`;
 
-    // Set the state cookie (HttpOnly for security, but we need to read it in the callback)
-    const cookieStore = await cookies();
-    cookieStore.set('stanbic_oauth_state', state, {
+    // Set the state cookie on the redirect response so browser receives Set-Cookie header
+    const response = NextResponse.redirect(authorizationUrlWithParams);
+    response.cookies.set('stanbic_oauth_state', state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -71,8 +71,7 @@ export async function GET(request: Request) {
       maxAge: 600, // 10 minutes - should be enough for OAuth flow
     });
 
-    // Redirect to Stanbic's authorization page
-    return NextResponse.redirect(authorizationUrlWithParams);
+    return response;
   } catch (error) {
     console.error('Stanbic OAuth initiation error:', error);
     const { origin } = new URL(request.url);
