@@ -15,24 +15,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (auth instanceof NextResponse) return auth;
     const { adminSupabase } = auth;
 
-    const raw = await req.json().catch(() => ({})) as { wallet_id?: string };
-    if (!raw.wallet_id) return NextResponse.json({ error: 'wallet_id is required' }, { status: 400 });
+    const raw = await req.json().catch(() => ({})) as { wallet_id?: string; from_date?: string; to_date?: string; no_of_txns?: string };
+    if (!raw.wallet_id || !raw.from_date || !raw.to_date) {
+      return NextResponse.json({ error: 'wallet_id, from_date, and to_date are required (YYYYMMDD)' }, { status: 400 });
+    }
 
     const { data: wallet, error: walletError } = await adminSupabase
       .from('admin_wallets')
-      .select('id, account_number, currency')
+      .select('id, currency')
       .eq('id', raw.wallet_id)
       .maybeSingle();
 
     if (walletError) throw walletError;
-    if (!wallet || !wallet.account_number) {
-      return NextResponse.json({ error: 'Wallet not found or missing account number' }, { status: 404 });
+    if (!wallet) {
+      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 });
     }
 
     const result = await fetchStanbicStatement(adminSupabase, log, {
       walletId: wallet.id,
-      accountNumber: wallet.account_number,
       currency: wallet.currency,
+      fromDate: raw.from_date,
+      toDate: raw.to_date,
+      noOfTxns: raw.no_of_txns,
     });
 
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });

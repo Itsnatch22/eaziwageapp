@@ -401,7 +401,7 @@ export class StanbicStatementsClient {
   getStatementsUrl(): string {
     return this.environment === 'production'
       ? env.STANBIC_PRODUCTION_STATEMENT_URL_ENDPOINT ?? (() => { throw new Error('STANBIC_PRODUCTION_STATEMENT_URL_ENDPOINT not configured'); })()
-      : env.STANBIC_SANDBOX_STATEMENT_URL_ENDPOINT ?? 'https://sandbox.connect.stanbicbank.co.ke/api/sandbox/fetchTransactions/';
+      : env.STANBIC_SANDBOX_STATEMENT_URL_ENDPOINT ?? 'https://sandbox.connect.stanbicbank.co.ke/api/sandbox/fetchStatements/';
   }
 
   private async getCachedToken(): Promise<string | null> {
@@ -460,8 +460,10 @@ export class StanbicStatementsClient {
     return token;
   }
 
-  async buildStatementRequest(accountNumber: string): Promise<StanbicStatementRequest> {
+  async buildStatementRequest(fromDate: string, toDate: string, noOfTxns?: string): Promise<StanbicStatementRequest> {
     const token = await this.getToken();
+    const bodyObj: Record<string, string> = { FromDate: fromDate, ToDate: toDate };
+    if (noOfTxns) bodyObj.NoOfTxns = noOfTxns;
     return {
       url: this.getStatementsUrl(),
       headers: {
@@ -470,7 +472,7 @@ export class StanbicStatementsClient {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({ accountNumber }),
+      body: JSON.stringify(bodyObj),
     };
   }
 }

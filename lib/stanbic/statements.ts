@@ -2,13 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Logger } from '@/lib/logger';
 import { getStanbicStatementsClientForCurrency } from './client';
 
-interface FetchStatementParams {
-  walletId: string;
-  accountNumber: string;
-  currency: string;
-}
-
-interface FetchStatementResult {
+export interface FetchStatementResult {
   ok: boolean;
   status: number;
   error?: string;
@@ -16,43 +10,46 @@ interface FetchStatementResult {
   zeroRecords?: boolean;
 }
 
-// PROVISIONAL: field mapping follows the documented swagger schema
-// (GetTransactionResponse). Not yet validated against a real Stanbic
-// response — every attempt so far hit a T24 backend error before
-// returning transaction data. Confirm field names against a real payload
-// before trusting this in production.
+function parseStanbicDate(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.length !== 8) return null;
+  return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+}
+
 function normalizeStatementItem(item: Record<string, unknown>) {
-  const amountObj = item['transactionAmountCurrency'] as Record<string, unknown> | undefined;
-  const rawAmount = amountObj?.['amount'];
+  const rawAmount = item['TxnAmount'];
   const amount = typeof rawAmount === 'string' ? parseFloat(rawAmount)
     : typeof rawAmount === 'number' ? rawAmount : null;
 
+  const rawBalance = item['RemainingBalance'];
+  const remainingBalance = typeof rawBalance === 'string' ? parseFloat(rawBalance)
+    : typeof rawBalance === 'number' ? rawBalance : null;
+
   return {
-    stanbic_transaction_id: String(item['id'] ?? ''),
-    booking_date: typeof item['bookingDate'] === 'string' ? item['bookingDate'] : null,
-    value_date: typeof item['valueDate'] === 'string' ? item['valueDate'] : null,
-    credit_debit_indicator: typeof item['creditDebitIndicator'] === 'string' ? item['creditDebitIndicator'] : null,
+    stanbic_transaction_id: String(item['T24UniqRef'] ?? ''),
+    booking_date: parseStanbicDate(item['TransactionDate']),
+    value_date: parseStanbicDate(item['ValueDate']),
+    from_account_no: typeof item['FromAcctNo'] === 'string' ? item['FromAcctNo'] : null,
+    to_account_no: typeof item['ToAcctNo'] === 'string' ? item['ToAcctNo'] : null,
+    transaction_type: typeof item['TransactionType'] === 'string' ? item['TransactionType'] : null,
     amount: Number.isFinite(amount) ? amount : null,
-    currency_code: typeof amountObj?.['currencyCode'] === 'string' ? amountObj['currencyCode'] as string : null,
-    counter_party_name: typeof item['counterPartyName'] === 'string' ? item['counterPartyName'] : null,
-    counter_party_account_number: typeof item['counterPartyAccountNumber'] === 'string' ? item['counterPartyAccountNumber'] : null,
-    description: typeof item['description'] === 'string' ? item['description'] : null,
-    category: typeof item['category'] === 'string' ? item['category'] : null,
+    currency_code: typeof item['TxnCurrency'] === 'string' ? item['TxnCurrency'] : null,
+    remaining_balance: Number.isFinite(remainingBalance) ? remainingBalance : null,
+    description: typeof item['TxnDescr'] === 'string' ? item['TxnDescr'] : null,
     raw_response: item,
   };
 }
 
 export async function fetchStanbicStatement(
-   adminSupabase: SupabaseClient,
-   log: Logger,
-   params: FetchStatementParams,
+  adminSupabase: SupabaseClient,
+  log: Logger | { info: (...a: unknown[]) => void; warn: (...a: unknown[]) => void; error: (...a: unknown[]) => void },
+  params: { walletId: string; currency: string; fromDate: string; toDate: string; noOfTxns?: string },
 ): Promise<FetchStatementResult> {
-  const { walletId, accountNumber, currency } = params;
+  const { walletId, currency, fromDate, toDate, noOfTxns } = params;
   const client = getStanbicStatementsClientForCurrency(currency);
 
   let request;
   try {
-    request = await client.buildStatementRequest(accountNumber);
+    request = await client.buildStatementRequest(fromDate, toDate, noOfTxns);
   } catch (err) {
     log.error('Failed to build Stanbic statement request', { err: err instanceof Error ? err.message : String(err) });
     return { ok: false, status: 502, error: 'Failed to authenticate with Stanbic statement API' };
@@ -75,22 +72,18 @@ export async function fetchStanbicStatement(
     return { ok: false, status: 502, error: 'Stanbic statement API returned an unparseable response' };
   }
 
-  const errorCode = parsed && typeof parsed['errorCode'] === 'string' ? parsed['errorCode'] : null;
-  if (errorCode === '2001') {
-    log.info('Stanbic statement: zero records', { walletId, accountNumber });
-    return { ok: true, status: 200, inserted: 0, zeroRecords: true };
+  const responseCode = parsed && typeof parsed['ResponseCode'] === 'string' ? parsed['ResponseCode'] : null;
+  if (!resp.ok || responseCode !== '00') {
+    log.error('Stanbic statement API non-success response', { status: resp.status, responseCode, body: parsed });
+    return { ok: false, status: resp.ok ? 502 : resp.status, error: `Stanbic statement API returned ResponseCode=${responseCode ?? 'unknown'}` };
   }
 
-  if (!resp.ok) {
-    log.error('Stanbic statement API error response', { status: resp.status, body: parsed });
-    return { ok: false, status: resp.status, error: 'Stanbic statement API returned an error' };
-  }
-
-  const items = Array.isArray(parsed?.['transaction-items'])
-    ? (parsed!['transaction-items'] as Record<string, unknown>[])
+  const items = Array.isArray(parsed?.['TransactionHistory'])
+    ? (parsed!['TransactionHistory'] as Record<string, unknown>[])
     : [];
 
   if (items.length === 0) {
+    log.info('Stanbic statement: zero records in range', { walletId, fromDate, toDate });
     return { ok: true, status: 200, inserted: 0, zeroRecords: true };
   }
 
