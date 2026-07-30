@@ -549,6 +549,14 @@ const [wallet, setWallet] = useState<AdminWallet | null>(initialWallet);
   const [syncConflict, setSyncConflict] = useState<SyncConflictResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [nextSyncIn, setNextSyncIn] = useState(30);
+  const [statementFromDate, setStatementFromDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [statementToDate, setStatementToDate] = useState(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
 
   // Handle OAuth callback URL parameters (e.g. error=invalid_state or success=stanbic_connected)
   useEffect(() => {
@@ -718,36 +726,76 @@ const [wallet, setWallet] = useState<AdminWallet | null>(initialWallet);
     [wallet, wallets, transactions]
   );
 
-const handleFetchStatements = useCallback(async () => {
-  if (!selectedWalletId) {
-    setStatementsError('Please select a wallet first');
-    return;
-  }
+  const loadStoredStatements = useCallback(async () => {
+    if (!selectedWalletId) return;
+    try {
+      const response = await fetch(`/api/admin/wallet/statements?wallet_id=${selectedWalletId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setStatements(data.transactions || []);
+      }
+    } catch (err) {
+      console.error('Error loading stored statements:', err);
+    }
+  }, [selectedWalletId]);
 
-  setStatementsLoading(true);
-  setStatementsError(null);
-  setStatements([]);
+  useEffect(() => {
+    void loadStoredStatements();
+  }, [loadStoredStatements]);
 
-  try {
-    const response = await fetch(`/api/admin/wallet/statements?wallet_id=${selectedWalletId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      const errorData = (await response.json()) as ApiError;
-      throw new Error(errorData.error || 'Failed to fetch statements');
+  const handleFetchStatements = useCallback(async () => {
+    if (!selectedWalletId) {
+      setStatementsError('Please select a wallet first');
+      return;
     }
 
-    const data = await response.json();
-    setStatements(data.transactions || []);
-  } catch (error) {
-    setStatementsError((error as Error).message || 'Failed to fetch statements');
-    console.error('Statement fetch error:', error);
-  } finally {
-    setStatementsLoading(false);
-  }
-}, [selectedWalletId]);
+    const fromFormatted = statementFromDate.replace(/-/g, '');
+    const toFormatted = statementToDate.replace(/-/g, '');
+
+    if (!fromFormatted || !toFormatted) {
+      setStatementsError('Please select valid From and To dates');
+      return;
+    }
+
+    setStatementsLoading(true);
+    setStatementsError(null);
+
+    try {
+      const response = await fetch('/api/admin/wallet/statements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wallet_id: selectedWalletId,
+          from_date: fromFormatted,
+          to_date: toFormatted,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json()) as ApiError;
+        throw new Error(errorData.error || 'Failed to fetch statements from Stanbic');
+      }
+
+      const data = await response.json();
+      await loadStoredStatements();
+
+      if (data.zeroRecords) {
+        toast.info('No transactions found in Stanbic for the selected date range');
+      } else {
+        toast.success(`Successfully synced ${data.inserted ?? 0} statement records from Stanbic`);
+      }
+    } catch (error) {
+      const msg = (error as Error).message || 'Failed to fetch statements';
+      setStatementsError(msg);
+      toast.error(msg);
+      console.error('Statement fetch error:', error);
+    } finally {
+      setStatementsLoading(false);
+    }
+  }, [selectedWalletId, statementFromDate, statementToDate, loadStoredStatements]);
 
   const handleResolveFlag = useCallback(
     async (flagId: string, status: 'resolved' | 'dismissed') => {
@@ -1006,15 +1054,35 @@ const handleFetchStatements = useCallback(async () => {
 
        {/* Statements Section */}
        <div className="p-4 bg-white/60 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-700/30 rounded-lg">
-         <div className="flex items-center justify-between mb-4">
+         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
            <h3 className="font-semibold text-slate-900 dark:text-white">Stanbic Bank Statements</h3>
-           <button
-             onClick={handleFetchStatements}
-             disabled={statementsLoading}
-             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50"
-           >
-             {statementsLoading ? 'Fetching...' : 'Fetch Statements'}
-           </button>
+           <div className="flex flex-wrap items-center gap-3">
+             <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+               <span>From:</span>
+               <input
+                 type="date"
+                 value={statementFromDate}
+                 onChange={(e) => setStatementFromDate(e.target.value)}
+                 className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+               />
+             </div>
+             <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+               <span>To:</span>
+               <input
+                 type="date"
+                 value={statementToDate}
+                 onChange={(e) => setStatementToDate(e.target.value)}
+                 className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+               />
+             </div>
+             <button
+               onClick={handleFetchStatements}
+               disabled={statementsLoading}
+               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+             >
+               {statementsLoading ? 'Fetching...' : 'Fetch Statements'}
+             </button>
+           </div>
          </div>
          
          {statementsError && (
