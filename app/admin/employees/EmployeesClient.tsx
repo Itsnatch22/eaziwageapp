@@ -30,7 +30,7 @@ type KYCStatus = 'approved' | 'pending' | 'submitted' | 'rejected';
 
 type EmploymentType = 'full-time' | 'part-time' | 'contract';
 
-type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'repaid' | 'defaulted';
+type AdvanceStatus = 'pending' | 'approved' | 'disbursed' | 'completed' | 'processing' | 'rejected' | 'failed' | 'repaid' | 'defaulted';
 
 export interface Employee {
   id:               string;
