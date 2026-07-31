@@ -128,9 +128,39 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    let statsQuery = supabaseAdmin
+      .from('advances')
+      .select('status, amount, net_amount, fee_amount, currency');
+
+    if (employerId) statsQuery = statsQuery.eq('employer_id', employerId);
+
+    const { data: statsRows } = await statsQuery;
+
+    const stats = {
+      total: statsRows?.length ?? 0,
+      pending: statsRows?.filter((a) => a.status === 'pending').length ?? 0,
+      approved: statsRows?.filter((a) => a.status === 'approved').length ?? 0,
+      disbursed: statsRows?.filter((a) => a.status === 'completed' || a.status === 'disbursed').length ?? 0,
+      disbursed_net_by_currency: {} as Record<string, number>,
+      disbursed_fees_by_currency: {} as Record<string, number>,
+    };
+
+    if (statsRows) {
+      for (const a of statsRows) {
+        if (a.status === 'completed' || a.status === 'disbursed') {
+          const curr = (a.currency || 'KES').toUpperCase();
+          const net = Number(a.net_amount || 0);
+          const fee = Number(a.fee_amount || 0);
+          stats.disbursed_net_by_currency[curr] = (stats.disbursed_net_by_currency[curr] || 0) + net;
+          stats.disbursed_fees_by_currency[curr] = (stats.disbursed_fees_by_currency[curr] || 0) + fee;
+        }
+      }
+    }
+
     return NextResponse.json({
       advances: payload,
       pagination: { total: count ?? 0, page, limit, hasMore: (count ?? 0) > from + payload.length },
+      stats,
     });
   } catch (error: unknown) {
     console.error('[AdminAdvances] Error:', error);

@@ -4,7 +4,20 @@ import { createClient } from '@/lib/supabase/client';
 // Module-level singleton — one client, one channel, one fetch shared across all consumers.
 const supabase = createClient();
 
-let cachedRates: Record<string, number> = {};
+const DEFAULT_FALLBACK_RATES: Record<string, number> = {
+  USD: 1,
+  KES: 129.5,
+  UGX: 3700,
+  TZS: 2650,
+  RWF: 1350,
+  GHS: 15.5,
+  NGN: 1500,
+  ZAR: 18.5,
+  EUR: 0.92,
+  GBP: 0.78,
+};
+
+let cachedRates: Record<string, number> = { ...DEFAULT_FALLBACK_RATES };
 let cachedLoading = true;
 const listeners = new Set<() => void>();
 
@@ -17,10 +30,12 @@ async function loadRates() {
     .from('exchange_rates')
     .select('currency_code, rate_to_usd');
 
-  if (!error && data) {
-    const map: Record<string, number> = {};
+  if (!error && data && data.length > 0) {
+    const map: Record<string, number> = { ...DEFAULT_FALLBACK_RATES };
     data.forEach(r => { map[r.currency_code] = Number(r.rate_to_usd); });
     cachedRates = map;
+  } else if (Object.keys(cachedRates).length === 0) {
+    cachedRates = { ...DEFAULT_FALLBACK_RATES };
   }
   cachedLoading = false;
   broadcast();

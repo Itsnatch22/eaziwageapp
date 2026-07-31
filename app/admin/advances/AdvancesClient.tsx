@@ -122,6 +122,15 @@ export interface Advance {
   fee_percentage?: number;
 }
 
+export interface ServerStats {
+  total: number;
+  pending: number;
+  approved: number;
+  disbursed: number;
+  disbursed_net_by_currency: Record<string, number>;
+  disbursed_fees_by_currency: Record<string, number>;
+}
+
 interface AdvanceRowProps {
   advance: Advance;
   rates: Record<string, number>;
@@ -526,6 +535,7 @@ export function AdvanceDetailModal({
 export default function AdminAdvances({ initialAdvances }: { initialAdvances?: Advance[] } = {}){
   const { rates } = useExchangeRates();
   const [advances, setAdvances] = useState<Advance[]>(initialAdvances ?? []);
+  const [serverStats, setServerStats] = useState<ServerStats | null>(null);
   const [loading, setLoading] = useState(!initialAdvances);
   const [selectedAdvance, setSelectedAdvance] = useState<Advance | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -540,6 +550,7 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
       if(res.ok) {
         const data = await res.json();
         setAdvances(Array.isArray(data?.advances) ? data.advances : []);
+        if (data?.stats) setServerStats(data.stats);
       } else {
         toast.error('Failed to fetch advances');
       }
@@ -706,9 +717,20 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
     return true;
   });
 
-  const isDisbursed = (a: Advance) => a.status === 'completed';
+  const isDisbursed = (a: Advance) => a.status === 'completed' || a.status === 'disbursed';
 
-  const stats = {
+  const stats = serverStats ? {
+    total: serverStats.total,
+    pending: serverStats.pending,
+    approved: serverStats.approved,
+    disbursed: serverStats.disbursed,
+    total_amount: Object.entries(serverStats.disbursed_net_by_currency || {}).reduce(
+      (sum, [curr, amt]) => sum + convertToUSD(amt, curr, rates), 0
+    ),
+    total_fees: Object.entries(serverStats.disbursed_fees_by_currency || {}).reduce(
+      (sum, [curr, amt]) => sum + convertToUSD(amt, curr, rates), 0
+    ),
+  } : {
     total: advances.length,
     pending: advances.filter(a => a.status === 'pending').length,
     approved: advances.filter(a => a.status === 'approved').length,
