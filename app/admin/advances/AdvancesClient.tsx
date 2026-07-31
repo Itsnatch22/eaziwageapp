@@ -706,7 +706,7 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
     return true;
   });
 
-  const isDisbursed = (a: Advance) => a.status === 'disbursed' || a.status === 'completed';
+  const isDisbursed = (a: Advance) => a.status === 'completed';
 
   const stats = {
     total: advances.length,

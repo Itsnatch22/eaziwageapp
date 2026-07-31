@@ -1039,7 +1039,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                       <div
                         className={cn(
                           'w-10 h-10 rounded-xl flex items-center justify-center',
-                          adv.status === 'disbursed'
+                          adv.status === 'disbursed' || adv.status === 'completed'
                             ? 'bg-emerald-100 dark:bg-emerald-500/20'
                             : adv.status === 'approved'
                             ? 'bg-slate-100 dark:bg-slate-500/20'
@@ -1049,7 +1049,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                         <CreditCard
                           className={cn(
                             'w-5 h-5',
-                            adv.status === 'disbursed'
+                            adv.status === 'disbursed' || adv.status === 'completed'
                               ? 'text-emerald-600'
                               : adv.status === 'approved'
                               ? 'text-slate-600'
@@ -1067,7 +1067,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({
                         <span
                           className={cn(
                             'px-2 py-1 rounded-full text-xs font-medium',
-                            adv.status === 'disbursed'
+                            adv.status === 'disbursed' || adv.status === 'completed'
                               ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                               : adv.status === 'approved'
                               ? 'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-300'

@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 const QuerySchema = z.object({
   page:   z.coerce.number().int().min(0).default(0),
   limit:  z.coerce.number().int().min(1).max(200).default(50),
-  status: z.enum(['pending', 'approved', 'disbursed', 'rejected']).optional(),
+  status: z.enum(['pending', 'approved', 'disbursed', 'completed', 'processing', 'rejected', 'failed', 'repaid']).optional(),
   search: z.string().max(100).optional(),
   // employer_onboarding.id — matches the id used by /admin/employers/[id] pages,
   // resolved below to the live employers.id that advances.employer_id references.
@@ -27,6 +27,7 @@ interface AdvanceRow {
   fee_amount: number | string | null;
   fee_percentage: number | string | null;
   net_amount: number | string | null;
+  currency?: string | null;
   disbursement_method: string | null;
   status: string;
   created_at: string;
@@ -83,7 +84,7 @@ export async function GET(req: NextRequest) {
     let query = supabaseAdmin
       .from('advances')
       .select(
-        `id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount,
+        `id, employee_id, organization_id, amount, fee_amount, fee_percentage, net_amount, currency,
         disbursement_method, status, created_at, requested_at, approved_at, employer_id,
         employees!advances_employee_id_fkey(id, full_name, employee_code, country),
         employers!advances_employer_id_fkey(id, company_name)`,
@@ -106,7 +107,7 @@ export async function GET(req: NextRequest) {
     let payload = typedAdvances.map((a) => {
       const employee       = a.employees;
       const employer       = a.employers;
-      const sourceCurrency = getCurrencyFromCountry(employee?.country, 'KES');
+      const sourceCurrency = a.currency || getCurrencyFromCountry(employee?.country, 'KES');
 
       return {
         ...a,

@@ -55,7 +55,7 @@ export async function PATCH(
     if (action === 'approve') {
       newStatus = 'approved';
     } else if (action === 'disburse') {
-      newStatus = 'disbursed';
+      newStatus = 'completed';
     } else if (action === 'reject') {
       newStatus = 'rejected';
     } else {
@@ -110,7 +110,7 @@ export async function PATCH(
       .update({
         status: newStatus,
         approved_at: newStatus === 'approved' ? (advance.approved_at || new Date().toISOString()) : advance.approved_at,
-        disbursed_at: newStatus === 'disbursed' ? (advance.disbursed_at || new Date().toISOString()) : advance.disbursed_at,
+        disbursed_at: newStatus === 'completed' ? (advance.disbursed_at || new Date().toISOString()) : advance.disbursed_at,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
@@ -168,7 +168,7 @@ export async function PATCH(
               message: `Your advance request of ${currency} ${Number(advance.amount).toLocaleString()} was not approved at this time.`,
               metadata: { advanceId: id, requestedAmount: advance.amount, currency, rejectedAt: now, employeeName },
             });
-          } else if (newStatus === 'disbursed') {
+          } else if (newStatus === 'completed' || newStatus === 'disbursed') {
             await notifyEmployee({
               userId: empOnboarding.user_id,
               type: 'advance_approval',
