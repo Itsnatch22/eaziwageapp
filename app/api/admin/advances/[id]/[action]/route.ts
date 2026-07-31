@@ -29,7 +29,7 @@ export async function PATCH(
   try {
     const { data: advance, error: getError } = await supabase
       .from('advances')
-      .select('id, status, employee_id, employer_id, amount, fee_amount, approved_at')
+      .select('id, status, employee_id, employer_id, amount, fee_amount, approved_at, disbursed_at')
       .eq('id', id)
       .maybeSingle();
 
@@ -109,7 +109,8 @@ export async function PATCH(
       .from('advances')
       .update({
         status: newStatus,
-        approved_at: newStatus === 'approved' ? new Date().toISOString() : advance.approved_at,
+        approved_at: newStatus === 'approved' ? (advance.approved_at || new Date().toISOString()) : advance.approved_at,
+        disbursed_at: newStatus === 'disbursed' ? (advance.disbursed_at || new Date().toISOString()) : advance.disbursed_at,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);

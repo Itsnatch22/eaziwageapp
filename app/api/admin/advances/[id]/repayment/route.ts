@@ -26,9 +26,9 @@ export async function PATCH(
     return NextResponse.json({ error: 'Advance not found' }, { status: 404 });
   }
 
-  if (advance.status !== 'completed') {
+  if (!['completed', 'disbursed'].includes(advance.status)) {
     return NextResponse.json(
-      { error: `Cannot mark repaid: advance status is '${advance.status}', expected 'completed'.` },
+      { error: `Cannot mark repaid: advance status is '${advance.status}', expected 'completed' or 'disbursed'.` },
       { status: 409 },
     );
   }

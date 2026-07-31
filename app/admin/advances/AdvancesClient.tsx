@@ -706,13 +706,15 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
     return true;
   });
 
+  const isDisbursed = (a: Advance) => a.status === 'disbursed' || a.status === 'completed';
+
   const stats = {
     total: advances.length,
     pending: advances.filter(a => a.status === 'pending').length,
     approved: advances.filter(a => a.status === 'approved').length,
-    disbursed: advances.filter(a => a.status === 'disbursed').length,
-    total_amount: advances.reduce((sum, a) => sum + convertToUSD(a.amount || 0, a.currency || 'KES', rates), 0),
-    total_fees: advances.reduce((sum, a) => sum + convertToUSD(a.fee_amount || 0, a.currency || 'KES', rates), 0),
+    disbursed: advances.filter(isDisbursed).length,
+    total_amount: advances.filter(isDisbursed).reduce((sum, a) => sum + convertToUSD(a.net_amount || 0, a.currency || 'KES', rates), 0),
+    total_fees: advances.filter(isDisbursed).reduce((sum, a) => sum + convertToUSD(a.fee_amount || 0, a.currency || 'KES', rates), 0),
   };
     
   return (
