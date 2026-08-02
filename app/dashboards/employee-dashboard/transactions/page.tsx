@@ -87,6 +87,7 @@ export default function Transactions() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [expandedItemId, setExpandedItemId] = useState<string | number | null>(null);
 
   const fetchAdvances = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -146,6 +147,30 @@ export default function Transactions() {
   const allItems: TransactionItem[] = advances
     .map((a) => ({ id: a.id, type: 'advance' as const, amount: a.amount, status: a.status, method: a.disbursement_method, created_at: a.created_at }))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const toggleExpandedItem = (itemId: string | number) => {
+    setExpandedItemId((current) => (current === itemId ? null : itemId));
+  };
+
+  const getItemDetailText = (item: TransactionItem) => {
+    if (item.status === 'failed') {
+      return 'This advance did not complete and may need a new request or a follow-up with support.';
+    }
+
+    if (item.status === 'rejected') {
+      return 'This advance was not approved and will not be disbursed.';
+    }
+
+    if (item.status === 'fraud_review') {
+      return 'This advance is under review while we verify the request.';
+    }
+
+    if (['pending', 'processing', 'approved'].includes(item.status)) {
+      return 'This advance is still being processed for disbursement.';
+    }
+
+    return 'This advance has been completed and sent to your selected payout method.';
+  };
 
   const isPending = (status: AdvanceStatus) => ['pending', 'processing', 'approved', 'fraud_review'].includes(status);
   const isCompleted = (status: AdvanceStatus) => ['disbursed', 'completed', 'repaid'].includes(status);
@@ -293,51 +318,63 @@ export default function Transactions() {
                 const config = getStatusConfig(item.status);
                 const StatusIcon = config.icon;
                 return (
-                  <div key={item.id} className="px-5 py-4 flex items-center gap-4 hover:bg-slate-50/50 dark:hover:bg-white/2 transition-colors group">
-
-                    
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
-                      item.method === 'mobile_money'
-                        ? "border-emerald-400/20 text-emerald-500"
-                        : "border-blue-400/20 text-blue-500"
-                    )}
-                      style={{ background: item.method === 'mobile_money' ? '#10b98110' : '#3b82f610' }}>
-                      {item.method === 'mobile_money'
-                        ? <Smartphone className="w-4 h-4" />
-                        : <Landmark className="w-4 h-4" />}
-                    </div>
-
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white leading-none">Wage Advance</p>
-                        {config.pulse && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 uppercase tracking-wider">
-                        {formatDate(item.created_at)} · {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-
-                    
-                    <div className="text-right shrink-0">
-                      <p className={cn(
-                        "text-sm font-bold tabular-nums tracking-tight",
-                        isFailed(item.status) ? "text-slate-300 dark:text-white/20 line-through" : "text-slate-900 dark:text-white"
-                      )}>
-                        {formatCurrency(item.amount, currency).split('.')[0]}
-                      </p>
+                  <div key={item.id} className="px-5 py-4 hover:bg-slate-50/50 dark:hover:bg-white/2 transition-colors group">
+                    <div className="flex items-center gap-4">
                       <div className={cn(
-                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border mt-1",
-                        config.bg, config.color
-                      )}>
-                        <StatusIcon className="w-2.5 h-2.5" />
-                        {config.label}
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
+                        item.method === 'mobile_money'
+                          ? "border-emerald-400/20 text-emerald-500"
+                          : "border-blue-400/20 text-blue-500"
+                      )}
+                        style={{ background: item.method === 'mobile_money' ? '#10b98110' : '#3b82f610' }}>
+                        {item.method === 'mobile_money'
+                          ? <Smartphone className="w-4 h-4" />
+                          : <Landmark className="w-4 h-4" />}
                       </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white leading-none">Wage Advance</p>
+                          {config.pulse && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-medium mt-0.5 uppercase tracking-wider">
+                          {formatDate(item.created_at)} · {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <p className={cn(
+                          "text-sm font-bold tabular-nums tracking-tight",
+                          isFailed(item.status) ? "text-slate-300 dark:text-white/20 line-through" : "text-slate-900 dark:text-white"
+                        )}>
+                          {formatCurrency(item.amount, currency).split('.')[0]}
+                        </p>
+                        <div className={cn(
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border mt-1",
+                          config.bg, config.color
+                        )}>
+                          <StatusIcon className="w-2.5 h-2.5" />
+                          {config.label}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandedItem(item.id)}
+                        aria-expanded={expandedItemId === item.id}
+                        className="p-1 rounded-lg text-slate-300 dark:text-white/20 shrink-0 opacity-70 hover:opacity-100 hover:bg-slate-100 dark:hover:bg-white/10 transition-all hidden sm:flex"
+                        title={expandedItemId === item.id ? 'Hide details' : 'Show details'}
+                      >
+                        <ChevronRight className={cn("w-4 h-4 transition-transform", expandedItemId === item.id && "rotate-90")} />
+                      </button>
                     </div>
 
-                    
-                    <ChevronRight className="w-4 h-4 text-slate-300 dark:text-white/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
+                    {expandedItemId === item.id && (
+                      <div className="mt-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-3 py-3 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                        <p className="font-medium text-slate-900 dark:text-white">Transaction details</p>
+                        <p className="mt-1 text-sm leading-6">{getItemDetailText(item)}</p>
+                      </div>
+                    )}
                   </div>
                 );
               })}
