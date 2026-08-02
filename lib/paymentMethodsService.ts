@@ -118,7 +118,8 @@ export async function listPaymentMethods(supabaseClient: SupabaseClient, employe
     .from('payment_methods')
     .select('*')
     .eq('employee_id', employeeId)
-    .order('created_at', { ascending: false });
+    .eq('is_active', true)   
+    .order('created_at', { ascending: false })
 
   if (error) {
     console.error('[paymentMethodsService]', error);
@@ -209,17 +210,26 @@ export async function deletePaymentMethod(supabaseClient: SupabaseClient, employ
     throw new Error('Payment method not found');
   }
 
-  const { error } = await supabaseClient
+  const { data: updated, error } = await supabaseClient
     .from('payment_methods')
-    .delete()
-    .eq('id', id);
+    .update({
+      is_active: false,
+      is_default: false,  // never leave a deactivated method flagged as default
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('employee_id', employeeId)
+    .select('*')
+    .single();
 
   if (error) {
     console.error('[paymentMethodsService]', error);
     throw new Error('Payment method operation failed');
   }
 
-  await supabaseClient.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: employeeId, action: 'deleted', old_data: method }]);
+  await supabaseClient.from('payment_method_audit').insert([
+    { payment_method_id: id, employee_id: employeeId, action: 'deactivated', old_data: method, new_data: updated },
+  ]);
 
   return true;
 }
