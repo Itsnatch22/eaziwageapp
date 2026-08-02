@@ -15,7 +15,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { toast } from 'sonner';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
-import { DISBURSED_STATUSES } from '@/lib/constants/advance-status';
+import { DISBURSED_STATUSES, getAdvanceStatusLabel } from '@/lib/constants/advance-status';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
 import { ListSkeleton } from '@/components/shared/Skeletons';
 
@@ -62,10 +62,11 @@ const getStatusConfig = (status: AdvanceStatus): StatusConfig => {
     case 'approved':
       return { icon: CheckCircle2, label: 'Approved', color: 'text-blue-600', bg: 'bg-blue-500/10 border-blue-500/20' };
     case 'failed':
-    case 'rejected':
       return { icon: AlertCircle, label: 'Failed', color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' };
+    case 'rejected':
+      return { icon: AlertCircle, label: 'Rejected', color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' };
     default:
-      return { icon: Clock, label: status, color: 'text-slate-500', bg: 'bg-slate-50 border-slate-200' };
+      return { icon: Clock, label: getAdvanceStatusLabel(status), color: 'text-slate-500', bg: 'bg-slate-50 border-slate-200' };
   }
 };
 
@@ -148,7 +149,7 @@ export default function Transactions() {
 
   const isPending = (status: AdvanceStatus) => ['pending', 'processing', 'approved', 'fraud_review'].includes(status);
   const isCompleted = (status: AdvanceStatus) => ['disbursed', 'completed', 'repaid'].includes(status);
-  const isFailed = (status: AdvanceStatus) => ['failed', 'rejected'].includes(status);
+  const isFailed = (status: AdvanceStatus) => ['failed'].includes(status);
 
   const filteredItems = allItems.filter((item) => {
     const matchesFilter =

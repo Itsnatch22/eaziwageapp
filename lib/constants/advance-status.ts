@@ -16,3 +16,35 @@ export const DISBURSED_STATUSES = ['disbursed', 'completed', 'repaid'] as const;
 // Money is disbursed and not yet repaid — still counts against the employee's
 // limit / the employer's outstanding liability.
 export const OUTSTANDING_STATUSES = ['disbursed', 'completed'] as const;
+
+export type AdvanceOutcomeKind = 'manual_rejection' | 'disbursement_failure';
+
+export function normalizeAdvanceTerminalStatus(status: string, kind: AdvanceOutcomeKind): string {
+  if (status === 'rejected' && kind === 'disbursement_failure') {
+    return 'failed';
+  }
+  return status;
+}
+
+export function getAdvanceStatusLabel(status: string): string {
+  switch (status) {
+    case 'failed':
+      return 'Failed';
+    case 'rejected':
+      return 'Rejected';
+    case 'processing':
+      return 'Processing';
+    case 'approved':
+      return 'Approved';
+    case 'completed':
+    case 'disbursed':
+    case 'repaid':
+      return 'Completed';
+    case 'pending':
+      return 'Pending';
+    case 'fraud_review':
+      return 'Under Review';
+    default:
+      return status || 'Unknown';
+  }
+}

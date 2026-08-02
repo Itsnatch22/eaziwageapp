@@ -7,6 +7,7 @@ import { generateRepaymentReference, resolveEffectivePaydayDayOfMonth } from '..
 import { notifyAdmin } from '../notifications';
 import { getEnv } from '@/env';
 import { convertFromUSD, convertToUSD, getCurrencyFromCountry, normalizeCountryCode } from '../utils';
+import { normalizeAdvanceTerminalStatus } from '../constants/advance-status';
 
 // Platform-wide defaults an admin configures via the Global Settings tab
 // (app/admin/settings — Global Settings). Stored in USD; converted to the
@@ -389,12 +390,14 @@ export class PayoutService {
     }
 
     if (employer?.disbursements_frozen) {
-      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: `Employer disbursements frozen: ${employer.freeze_reason}` }).eq('id', advanceId);
+      const status = normalizeAdvanceTerminalStatus('rejected', 'disbursement_failure');
+      await supabaseAdmin.from('advances').update({ status, reason: `Employer disbursements frozen: ${employer.freeze_reason}` }).eq('id', advanceId);
       throw new Error(`Employer disbursements frozen: ${employer.freeze_reason}`);
     }
 
     if (!employer?.ewa_enabled) {
-      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'EWA not enabled for this employer' }).eq('id', advanceId);
+      const status = normalizeAdvanceTerminalStatus('rejected', 'disbursement_failure');
+      await supabaseAdmin.from('advances').update({ status, reason: 'EWA not enabled for this employer' }).eq('id', advanceId);
       throw new Error('EWA not enabled for employer');
     }
 
@@ -408,7 +411,8 @@ export class PayoutService {
     // checks it at request-creation time (an advance can sit pending for
     // days between those two points).
     if (employer?.is_verified !== true) {
-      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'Employer KYC verification is not currently valid' }).eq('id', advanceId);
+      const status = normalizeAdvanceTerminalStatus('rejected', 'disbursement_failure');
+      await supabaseAdmin.from('advances').update({ status, reason: 'Employer KYC verification is not currently valid' }).eq('id', advanceId);
       throw new Error('Employer KYC verification is not currently valid');
     }
 
@@ -429,8 +433,9 @@ export class PayoutService {
       .maybeSingle();
 
     if (unresolvedRecoupment) {
+      const status = normalizeAdvanceTerminalStatus('rejected', 'disbursement_failure');
       const reason = `Employer has not recouped ${unresolvedRecoupment.currency} ${unresolvedRecoupment.amount_due} in arrears from ${unresolvedRecoupment.payday_date}`;
-      await supabaseAdmin.from('advances').update({ status: 'rejected', reason }).eq('id', advanceId);
+      await supabaseAdmin.from('advances').update({ status, reason }).eq('id', advanceId);
       throw new Error(reason);
     }
 
@@ -582,7 +587,8 @@ export class PayoutService {
 
     const eligibility = await checkEmployeeEligibility();
     if (!eligibility.eligible && eligibility.rejectionReason) {
-      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: eligibility.rejectionReason }).eq('id', advanceId);
+      const status = normalizeAdvanceTerminalStatus('rejected', 'disbursement_failure');
+      await supabaseAdmin.from('advances').update({ status, reason: eligibility.rejectionReason }).eq('id', advanceId);
       throw new Error(eligibility.rejectionReason);
     }
 
@@ -621,12 +627,14 @@ export class PayoutService {
     if (paymentMethod?.method_type === 'mobile_money') {
       const instantAllowed = (employer?.instant_enabled ?? true) && (globalSettings.instant_mobile_enabled ?? true);
       if (!instantAllowed) {
-        await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'Mobile money disbursements are currently disabled' }).eq('id', advanceId);
+        const status = normalizeAdvanceTerminalStatus('rejected', 'disbursement_failure');
+        await supabaseAdmin.from('advances').update({ status, reason: 'Mobile money disbursements are currently disabled' }).eq('id', advanceId);
         throw new Error('Mobile money disbursements are currently disabled');
       }
     } else if (paymentMethod?.method_type === 'bank_account') {
       if (!(globalSettings.bank_transfers_enabled ?? true)) {
-        await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'Bank transfer disbursements are currently disabled' }).eq('id', advanceId);
+        const status = normalizeAdvanceTerminalStatus('rejected', 'disbursement_failure');
+        await supabaseAdmin.from('advances').update({ status, reason: 'Bank transfer disbursements are currently disabled' }).eq('id', advanceId);
         throw new Error('Bank transfer disbursements are currently disabled');
       }
     }
