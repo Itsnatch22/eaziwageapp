@@ -59,11 +59,15 @@ const STATUS_OPTIONS: Record<RequestType, { value: string; label: string }[]> = 
 };
 
 interface RawData {
-  // bank_change fields
+  // bank_change & payment_method_change fields
   old_bank_name?: string;
   old_account_number?: string;
+  old_provider_name?: string;
+  old_phone_number?: string;
   new_bank_name?: string;
   new_account_number?: string;
+  new_provider_name?: string;
+  new_phone_number?: string;
   reason?: string;
   // kyc_review fields
   document_type?: string;

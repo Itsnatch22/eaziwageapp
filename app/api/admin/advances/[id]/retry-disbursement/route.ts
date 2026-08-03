@@ -67,7 +67,7 @@ export async function POST(
       .from('advances')
       .update({ status: 'failed', reason })
       .eq('id', id)
-      .eq('status', 'approved');
+      .in('status', ['approved', 'processing']);
 
     void notifyAdmin({
       type: 'system_alert',

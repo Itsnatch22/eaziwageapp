@@ -150,7 +150,9 @@ export async function tryAutoApproveAdvance(params: AutoApproveParams): Promise<
       metadata: { advance_id: advanceId, status: 'approved' },
     }).catch(() => {});
 
-    payoutService.disburseAdvance(advanceId).catch(async (err) => {
+    try {
+      await payoutService.disburseAdvance(advanceId);
+    } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : 'Disbursement failed';
       console.error(`[auto-approve] Disbursement failed for ${advanceId}:`, reason);
 
@@ -158,7 +160,7 @@ export async function tryAutoApproveAdvance(params: AutoApproveParams): Promise<
         .from('advances')
         .update({ status: 'failed', reason })
         .eq('id', advanceId)
-        .eq('status', 'approved');
+        .in('status', ['approved', 'processing']);
 
       if (fundingModel === 'prefunded') {
         const { error: releaseError } = await supabaseAdmin.rpc('release_employer_reservation', {
@@ -199,7 +201,7 @@ export async function tryAutoApproveAdvance(params: AutoApproveParams): Promise<
         message: 'Your advance was approved but there was a delay sending the funds. Our team has been notified and will resolve this shortly.',
         metadata: { advance_id: advanceId },
       }).catch(() => {});
-    });
+    }
   } catch (err) {
     console.error(`[auto-approve] Unexpected error for advance ${advanceId}:`, err);
   }

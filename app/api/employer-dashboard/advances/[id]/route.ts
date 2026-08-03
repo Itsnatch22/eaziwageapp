@@ -188,7 +188,7 @@ export async function PATCH(
         .from('advances')
         .update({ status: 'approved', approved_at: nowIso, approved_by: user.id })
         .eq('id', id)
-        .eq('status', 'pending')
+        .in('status', ['pending', 'failed'])
         .select('id')
         .maybeSingle();
 
@@ -252,16 +252,18 @@ export async function PATCH(
         }
       }
 
-      payoutService.disburseAdvance(id).catch(async (err) => {
+      try {
+        await payoutService.disburseAdvance(id);
+      } catch (err: unknown) {
         const reason = err instanceof Error ? err.message : 'Disbursement failed';
         console.error(`[Advance Approval] Disbursement failed for ${id}:`, reason);
 
-        // Mark as failed so it doesn't sit at 'approved' forever
+        // Mark as failed so it doesn't sit at 'approved' or 'processing' forever
         await supabaseAdmin
           .from('advances')
           .update({ status: 'failed', reason })
           .eq('id', id)
-          .eq('status', 'approved');
+          .in('status', ['approved', 'processing']);
 
         if (fundingModel === 'prefunded') {
           // Release the wallet reservation so the employer's available balance
@@ -316,7 +318,9 @@ export async function PATCH(
             metadata: { advance_id: id },
           }).catch(() => {});
         }
-      });
+
+        return NextResponse.json({ error: `Disbursement failed: ${reason}` }, { status: 500 });
+      }
 
     } catch (err: unknown) {
       console.error('[Advance Approval] Error:', err);

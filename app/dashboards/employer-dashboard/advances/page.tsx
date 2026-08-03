@@ -423,14 +423,14 @@ export default function EmployerAdvancesPage() {
                       >
                         Deny
                       </Button>
-                      {!canReview && (
+                      {advance.status === 'failed' && (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleRetryAction(advance.id, 'approve')}
                           disabled={actingId === advance.id}
                           className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40"
-                          title="Retry the last action"
+                          title="Retry disbursement"
                         >
                           {actingId === advance.id ? (
                             <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />

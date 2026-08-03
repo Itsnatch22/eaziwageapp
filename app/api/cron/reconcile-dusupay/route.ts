@@ -203,14 +203,71 @@ async function run(): Promise<NextResponse> {
   console.log(`[reconcile-dusupay] Checked ${checked}/${rows.length} advances, ${mismatches} mismatch(es)`);
 
   const walletResult = await reconcileWalletTopups(console.log);
+  const watchdogResult = await checkStuckProcessingAdvances(console.log);
 
   return NextResponse.json({
-    checked: checked + walletResult.checked,
+    checked: checked + walletResult.checked + watchdogResult.checked,
     total: rows.length,
     mismatches: mismatches + walletResult.mismatches,
+    stuckProcessing: watchdogResult.stuck,
     advances: { checked, total: rows.length, mismatches },
     walletTopups: walletResult,
+    watchdog: watchdogResult,
   });
+}
+
+async function checkStuckProcessingAdvances(log: (msg: string) => void): Promise<{ checked: number; resolved: number; stuck: number }> {
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+
+  const { data: stuckRows, error } = await supabaseAdmin
+    .from('advances')
+    .select('id, reference, status')
+    .eq('status', 'processing')
+    .lt('updated_at', fifteenMinutesAgo)
+    .limit(MAX_PER_RUN);
+
+  if (error) {
+    console.error('[reconcile-dusupay] Failed to fetch stuck processing advances:', error);
+    return { checked: 0, resolved: 0, stuck: 0 };
+  }
+
+  const advances = (stuckRows ?? []) as AdvanceRow[];
+  let checked = advances.length;
+  let resolved = 0;
+  const unresolvedStuck: string[] = [];
+
+  for (const adv of advances) {
+    if (adv.reference) {
+      try {
+        const result = await dusupay.checkPayoutStatus(adv.reference);
+        const mapped = mapDusupayStatus(result.status);
+        if (mapped === 'completed') {
+          await supabaseAdmin.from('advances').update({ status: 'completed', disbursed_at: new Date().toISOString() }).eq('id', adv.id);
+          resolved++;
+          continue;
+        } else if (mapped === 'failed') {
+          await supabaseAdmin.from('advances').update({ status: 'failed', reason: 'DusuPay payout marked failed in reconciliation' }).eq('id', adv.id);
+          resolved++;
+          continue;
+        }
+      } catch (err) {
+        console.error('[reconcile-dusupay] Error verifying stuck advance reference:', adv.id, err);
+      }
+    }
+    unresolvedStuck.push(adv.id);
+  }
+
+  if (unresolvedStuck.length > 0) {
+    void notifyAdmin({
+      type: 'system_alert',
+      title: `Watchdog Alert: ${unresolvedStuck.length} advance(s) stuck in processing`,
+      message: `${unresolvedStuck.length} advance(s) have been sitting in status 'processing' for >15 minutes. Manual review required.`,
+      metadata: { stuck_advance_ids: unresolvedStuck },
+    }).catch((err) => console.error('[reconcile-dusupay] notifyAdmin failed:', err));
+  }
+
+  log(`[reconcile-dusupay] Watchdog: checked ${checked} stuck advances, resolved ${resolved}, ${unresolvedStuck.length} remaining stuck`);
+  return { checked, resolved, stuck: unresolvedStuck.length };
 }
 
 function authorize(req: NextRequest): boolean {

@@ -754,16 +754,28 @@ export class PayoutService {
 
     let payoutResponse;
     try {
-      payoutResponse = await dusupayClient.sendFunds({
-        merchant_reference: merchantReference,
-        transaction_method: payoutMethod,
-        currency: advance.currency as Currency,
-        amount: netAmount,
-        provider_code: providerCode,
-        account_number: account,
-        customer_name: employee?.full_name ?? 'EaziWage Employee',
-        description: `EaziWage Advance: ${advanceId}`,
-      });
+      // Check if DusuPay has already processed this merchant reference before firing sendFunds
+      let preVerified;
+      try {
+        preVerified = await dusupayClient.verifyTransaction(merchantReference);
+      } catch {
+        preVerified = null;
+      }
+
+      if (preVerified?.data?.transaction_status === PayoutStatus.COMPLETED) {
+        payoutResponse = preVerified;
+      } else {
+        payoutResponse = await dusupayClient.sendFunds({
+          merchant_reference: merchantReference,
+          transaction_method: payoutMethod,
+          currency: advance.currency as Currency,
+          amount: netAmount,
+          provider_code: providerCode,
+          account_number: account,
+          customer_name: employee?.full_name ?? 'EaziWage Employee',
+          description: `EaziWage Advance: ${advanceId}`,
+        });
+      }
     } catch (err: unknown) {
       // DusuPay support confirmed merchant_reference is a true server-side
       // idempotency key: "In case you perform another request with a
