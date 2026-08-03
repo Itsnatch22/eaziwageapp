@@ -96,11 +96,7 @@ export async function createPaymentMethod(supabaseClient: SupabaseClient, employ
   }
 
   if (payload.is_default) {
-    await supabaseClient
-      .from('payment_methods')
-      .update({ is_default: false })
-      .neq('id', data.id)
-      .eq('employee_id', employeeId);
+    await setDefaultPaymentMethod(supabaseClient, employeeId, data.id);
   }
 
   // Strip PII from audit — account_number/phone_number are null post-trigger but be explicit
@@ -161,42 +157,23 @@ export async function getPaymentMethodById(supabaseClient: SupabaseClient, id: s
 }
 
 export async function setDefaultPaymentMethod(supabaseClient: SupabaseClient, employeeId: string, id: string) {
-
-  const { data: method } = await supabaseClient
-    .from('payment_methods')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (!method || method.employee_id !== employeeId) {
-    throw new Error('Payment method not found');
-  }
-
-  const { error: unsetError } = await supabaseClient
-    .from('payment_methods')
-    .update({ is_default: false })
-    .eq('employee_id', employeeId);
-
-  if (unsetError) {
-    console.error('[paymentMethodsService]', unsetError);
-    throw new Error('Payment method operation failed');
-  }
-
-  const { data: updated, error } = await supabaseClient
-    .from('payment_methods')
-    .update({ is_default: true })
-    .eq('id', id)
-    .select('*')
-    .single();
+  const { data: updated, error } = await supabaseClient.rpc('set_default_payment_method', {
+    p_payment_method_id: id,
+  });
 
   if (error) {
     console.error('[paymentMethodsService]', error);
     throw new Error('Payment method operation failed');
   }
 
-  await supabaseClient.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: employeeId, action: 'set_default', new_data: updated }]);
+  const updatedMethod = Array.isArray(updated) ? updated[0] : updated;
+  if (!updatedMethod) {
+    throw new Error('Payment method operation failed');
+  }
 
-  return decryptAndMaskRow(supabaseClient, updated as Record<string, unknown>);
+  await supabaseClient.from('payment_method_audit').insert([{ payment_method_id: id, employee_id: employeeId, action: 'set_default', new_data: updatedMethod }]);
+
+  return decryptAndMaskRow(supabaseClient, updatedMethod as Record<string, unknown>);
 }
 
 export async function deletePaymentMethod(supabaseClient: SupabaseClient, employeeId: string, id: string) {

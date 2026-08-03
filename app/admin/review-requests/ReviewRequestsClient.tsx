@@ -22,7 +22,7 @@ type IconType = React.ComponentType<{ className?: string }>;
 
 type RequestStatus = 'pending' | 'approved' | 'rejected' | 'resolved' | 'dismissed' | 'under_review' | 'in_progress';
 type RequestPriority = 'high' | 'medium' | 'low';
-type RequestType = 'risk_score' | 'kyc_review' | 'bank_change' | 'general';
+type RequestType = 'risk_score' | 'kyc_review' | 'bank_change' | 'payment_method_change' | 'general';
 
 const requestStatuses = ['pending', 'approved', 'rejected', 'resolved', 'dismissed', 'under_review', 'in_progress'] as const;
 
@@ -43,6 +43,11 @@ const STATUS_OPTIONS: Record<RequestType, { value: string; label: string }[]> = 
     { value: 'dismissed', label: 'Dismissed' },
   ],
   bank_change: [
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+  ],
+  payment_method_change: [
     { value: 'pending', label: 'Pending' },
     { value: 'approved', label: 'Approved' },
     { value: 'rejected', label: 'Rejected' },
@@ -73,6 +78,7 @@ const TYPE_LABELS: Record<RequestType, string> = {
   risk_score: 'Risk Score Review',
   kyc_review: 'KYC Review',
   bank_change: 'Bank Change Request',
+  payment_method_change: 'Payment Method Change',
   general: 'General',
 };
 
@@ -215,12 +221,12 @@ const ReviewRequestCard = ({ request, onAction }: ReviewRequestCardProps) => (
         "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
         request.type === 'risk_score' ? "bg-amber-100 dark:bg-amber-500/20" :
         request.type === 'kyc_review' ? "bg-blue-100 dark:bg-blue-500/20" :
-        request.type === 'bank_change' ? "bg-emerald-100 dark:bg-emerald-500/20" :
+        request.type === 'bank_change' || request.type === 'payment_method_change' ? "bg-emerald-100 dark:bg-emerald-500/20" :
         "bg-purple-100 dark:bg-purple-500/20"
       )}>
         {request.type === 'risk_score' ? <Shield className="w-6 h-6 text-amber-600" /> :
          request.type === 'kyc_review' ? <FileSearch className="w-6 h-6 text-blue-600" /> :
-         request.type === 'bank_change' ? <CreditCard className="w-6 h-6 text-emerald-600" /> :
+         request.type === 'bank_change' || request.type === 'payment_method_change' ? <CreditCard className="w-6 h-6 text-emerald-600" /> :
          <MessageSquare className="w-6 h-6 text-purple-600" />}
       </div>
       
@@ -307,20 +313,38 @@ const ReviewDetailModal = ({ request, isOpen, onClose, onSubmitResponse }: Revie
         </div>
 
         <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 300px)' }}>
-          {request.type === 'bank_change' && request.raw_data && (
+          {(request.type === 'bank_change' || request.type === 'payment_method_change') && request.raw_data && (
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Current Details</h4>
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">{request.raw_data.old_bank_name || 'N/A'}</p>
-                  <p className="text-xs text-slate-500">{request.raw_data.old_account_number || 'N/A'}</p>
+                  {request.type === 'payment_method_change' ? (
+                    <>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{request.raw_data.old_provider_name || 'N/A'}</p>
+                      <p className="text-xs text-slate-500">{request.raw_data.old_account_number || request.raw_data.old_phone_number || 'N/A'}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{request.raw_data.old_bank_name || 'N/A'}</p>
+                      <p className="text-xs text-slate-500">{request.raw_data.old_account_number || 'N/A'}</p>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800/30">
                 <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3">Requested Details</h4>
                 <div className="space-y-2">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">{request.raw_data.new_bank_name}</p>
-                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold">{request.raw_data.new_account_number}</p>
+                  {request.type === 'payment_method_change' ? (
+                    <>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{request.raw_data.new_provider_name || 'N/A'}</p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold">{request.raw_data.new_account_number || request.raw_data.new_phone_number || 'N/A'}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{request.raw_data.new_bank_name}</p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold">{request.raw_data.new_account_number}</p>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="col-span-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800/30">
@@ -611,6 +635,7 @@ export default function ReviewRequests() {
                 <SelectItem value="risk_score">Risk Score</SelectItem>
                 <SelectItem value="kyc_review">KYC Review</SelectItem>
                 <SelectItem value="bank_change">Bank Change</SelectItem>
+                <SelectItem value="payment_method_change">Payment Method Change</SelectItem>
               </SelectContent>
             </Select>
           </div>

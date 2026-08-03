@@ -120,7 +120,7 @@ export const ReviewRequestPatchSchema = z.object({
   status: z.string().min(1).max(50),
   response: z.string().max(2000).optional(),
   internal_notes: z.string().max(2000).optional(),
-  type: z.enum(['risk_score', 'kyc_review', 'bank_change']),
+  type: z.enum(['risk_score', 'kyc_review', 'bank_change', 'payment_method_change']),
 });
 
 // ---------------------------------------------------------------------------

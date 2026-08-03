@@ -118,6 +118,85 @@ export async function PATCH(
     return NextResponse.json({ message: 'Request updated successfully', data: document });
   }
 
+  if (type === 'payment_method_change') {
+    const { data: request, error: fetchError } = await adminSupabase
+      .from('payment_method_change_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (fetchError || !request) {
+      return NextResponse.json({ error: 'Request not found' }, { status: 404 });
+    }
+
+    if (status === 'approved') {
+      const updatePayload: Record<string, unknown> = {
+        provider_name: request.new_provider_name,
+        account_name: request.new_account_name ?? null,
+        account_number: request.new_account_number ?? null,
+        phone_number: request.new_phone_number ?? null,
+        method_type: request.requested_method_type,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: paymentMethodUpdateError } = await adminSupabase
+        .from('payment_methods')
+        .update(updatePayload)
+        .eq('id', request.payment_method_id)
+        .eq('employee_id', request.employee_id);
+
+      if (paymentMethodUpdateError) {
+        return dbErrorResponse('admin/review-requests/payment_method_change', paymentMethodUpdateError);
+      }
+    }
+
+    const { data: updatedRequest, error: updateError } = await adminSupabase
+      .from('payment_method_change_requests')
+      .update({
+        status,
+        internal_notes,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: adminUser.id,
+      })
+      .eq('id', requestId)
+      .select()
+      .single();
+
+    if (updateError) {
+      return dbErrorResponse('admin/review-requests/payment_method_change', updateError);
+    }
+
+    const { data: employeeRow } = await adminSupabase
+      .from('employees')
+      .select('user_id')
+      .eq('id', request.employee_id)
+      .maybeSingle();
+
+    if (employeeRow?.user_id) {
+      await notifyEmployee({
+        userId: employeeRow.user_id,
+        type: 'kyc_update',
+        title: `Payment Method Change ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+        message: status === 'approved'
+          ? 'Your payment method change request was approved.'
+          : `Your payment method change request was rejected.${response ? ` Reason: ${response}` : ''}`,
+      });
+    }
+
+    void adminSupabase.from('system_audit_logs').insert({
+      admin_id: adminUser.id,
+      admin_name: adminUser.email,
+      target_id: requestId,
+      target_type: 'payment_method_change_request',
+      action: `payment_method_change_${status}`,
+      old_value: null,
+      new_value: { status },
+      metadata: { payment_method_id: request.payment_method_id, reason: response || internal_notes },
+    }).then(({ error }) => { if (error) console.error('[audit] payment_method_change_resolved:', error); });
+
+    return NextResponse.json({ message: 'Request updated successfully', data: updatedRequest });
+  }
+
   if (type === 'bank_change') {
     const { data: bRequest, error: fetchError } = await adminSupabase
       .from('bank_change_requests')

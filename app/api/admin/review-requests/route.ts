@@ -55,6 +55,14 @@ export async function GET(req: NextRequest) {
 
   if (bankError) console.error('Error fetching bank change requests:', bankError);
 
+  const { data: paymentMethodRequests, error: paymentMethodError } = await adminSupabase
+    .from('payment_method_change_requests')
+    .select('id, employee_id, payment_method_id, requested_method_type, old_provider_name, new_provider_name, old_phone_number, new_phone_number, old_account_number, new_account_number, old_account_name, new_account_name, reason, status, created_at, updated_at, reviewed_at, reviewed_by, internal_notes')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (paymentMethodError) console.error('Error fetching payment method change requests:', paymentMethodError);
+
   const formattedRisk = (riskRequests || []).map(r => ({
     id: r.id,
     type: 'risk_score',
@@ -95,7 +103,23 @@ export async function GET(req: NextRequest) {
     raw_data: b
   }));
 
-  const allRequests = [...formattedRisk, ...formattedKyc, ...formattedBank].sort(
+  const formattedPaymentMethod = (paymentMethodRequests || []).map(r => ({
+    id: r.id,
+    type: 'payment_method_change' as const,
+    subject: `Payment Method Change Request: ${r.new_provider_name}`,
+    employee_name: r.employee_id,
+    message: [
+      r.reason ? `Reason: ${r.reason}` : null,
+      r.new_account_number ? `Account: ${r.new_account_number}` : null,
+      r.new_phone_number ? `Phone: ${r.new_phone_number}` : null,
+    ].filter(Boolean).join(' · '),
+    status: (r.status === 'approved' ? 'approved' : r.status === 'rejected' ? 'rejected' : 'pending') as 'pending' | 'approved' | 'rejected',
+    priority: 'high' as const,
+    requested_at: r.created_at,
+    raw_data: r,
+  }));
+
+  const allRequests = [...formattedRisk, ...formattedKyc, ...formattedBank, ...formattedPaymentMethod].sort(
     (a, b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime()
   );
 

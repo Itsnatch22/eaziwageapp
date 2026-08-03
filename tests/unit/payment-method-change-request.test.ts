@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EmployeePaymentMethodChangeRequestSchema } from '@/lib/validations/route-schemas';
+import { EmployeePaymentMethodChangeRequestSchema, ReviewRequestPatchSchema } from '@/lib/validations/route-schemas';
 
 describe('EmployeePaymentMethodChangeRequestSchema', () => {
   it('accepts a valid mobile money change request', () => {
@@ -28,5 +28,16 @@ describe('EmployeePaymentMethodChangeRequestSchema', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it('accepts payment-method change reviews', () => {
+    const result = ReviewRequestPatchSchema.safeParse({
+      status: 'approved',
+      response: 'Updated successfully',
+      internal_notes: 'Verified by admin',
+      type: 'payment_method_change',
+    });
+
+    expect(result.success).toBe(true);
   });
 });
