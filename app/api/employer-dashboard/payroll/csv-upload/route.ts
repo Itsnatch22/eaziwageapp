@@ -2,43 +2,9 @@
 import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadPayrollSchema } from '@/lib/validations/payroll-validation';
+import { parsePayrollRowsFromFile, normalizeHeaderValue } from '@/lib/payroll-upload';
 
 export const runtime = 'nodejs';
-
-function parseCSV(csvContent: string): string[][] {
-  const lines = csvContent.trim().split('\n');
-  const rows: string[][] = [];
-
-  for (const line of lines) {
-    const row: string[] = [];
-    let current = '';
-    let insideQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      const nextChar = line[i + 1];
-
-      if (char === '"') {
-        if (insideQuotes && nextChar === '"') {
-          current += '"';
-          i++;
-        } else {
-          insideQuotes = !insideQuotes;
-        }
-      } else if (char === ',' && !insideQuotes) {
-        row.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-
-    row.push(current.trim());
-    rows.push(row);
-  }
-
-  return rows;
-}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -71,26 +37,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Month is required' }, { status: 400 });
     }
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      return NextResponse.json({ error: 'Only CSV files are supported' }, { status: 400 });
-    }
-
-    const csvContent = await file.text();
-    const rows = parseCSV(csvContent);
+    const rows = await parsePayrollRowsFromFile(file);
 
     if (rows.length < 2) {
-      return NextResponse.json({ error: 'CSV must contain headers and at least one data row' }, { status: 400 });
+      return NextResponse.json({ error: 'The file must contain headers and at least one data row' }, { status: 400 });
     }
 
-    const headers = rows[0].map(h => h.toLowerCase().trim());
-    const employeeCodeIdx = headers.findIndex(h => h === 'employee_code' || h === 'employee code');
-    const daysWorkedIdx = headers.findIndex(h => h === 'days_worked' || h === 'days worked');
-    const grossSalaryIdx = headers.findIndex(h => h === 'gross_salary' || h === 'gross salary' || h === 'gross');
-    const deductionsIdx = headers.findIndex(h => h === 'deductions' || h === 'deduction');
+    const headers = rows[0].map(h => normalizeHeaderValue(String(h)));
+    const employeeCodeIdx = headers.findIndex(h => h === 'employee_code');
+    const daysWorkedIdx = headers.findIndex(h => h === 'days_worked');
+    const grossSalaryIdx = headers.findIndex(h => h === 'gross_salary' || h === 'gross');
+    const deductionsIdx = headers.findIndex(h => h === 'deductions');
 
     if (employeeCodeIdx === -1 || grossSalaryIdx === -1) {
       return NextResponse.json(
-        { error: 'CSV must contain "employee_code" and "gross_salary" columns' },
+        { error: 'The file must contain employee_code and gross_salary columns' },
         { status: 400 }
       );
     }
@@ -131,7 +92,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (employees.length === 0) {
-      return NextResponse.json({ error: 'No valid employee rows found in CSV' }, { status: 400 });
+      return NextResponse.json({ error: 'No valid employee rows found in the uploaded file' }, { status: 400 });
     }
 
     const payload = {
@@ -164,6 +125,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     console.error('[payroll/csv-upload] error:', err);
-    return NextResponse.json({ error: 'Failed to process CSV file' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to process the uploaded file' }, { status: 500 });
   }
 }

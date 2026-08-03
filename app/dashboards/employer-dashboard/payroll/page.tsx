@@ -679,8 +679,11 @@ const CSVUploadModal = ({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
-        setError('Only CSV files are supported');
+      const name = selectedFile.name.toLowerCase();
+      const isSupported = name.endsWith('.csv') || name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.xlsm');
+
+      if (!isSupported) {
+        setError('Only CSV and Excel files are supported');
         return;
       }
       if (selectedFile.size > 10 * 1024 * 1024) {
@@ -747,8 +750,8 @@ const CSVUploadModal = ({
               <Upload className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Upload Payroll CSV</h2>
-              <p className="text-white/70 text-sm">Import employee payroll data from a CSV file</p>
+              <h2 className="text-xl font-bold text-white">Upload Payroll File</h2>
+              <p className="text-white/70 text-sm">Import employee payroll data from a CSV or Excel file</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
@@ -772,7 +775,7 @@ const CSVUploadModal = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls,.xlsm"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -785,7 +788,7 @@ const CSVUploadModal = ({
                     <Upload className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Click to select CSV</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Click to select CSV or Excel</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">or drag and drop</p>
                   </div>
                 </button>
@@ -808,7 +811,7 @@ const CSVUploadModal = ({
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Required columns: employee_code, gross_salary. Optional: days_worked, deductions
+              Required columns: employee code, gross salary. Optional: days worked, deductions
             </p>
           </div>
 
@@ -828,7 +831,7 @@ const CSVUploadModal = ({
               disabled={!file || uploading}
               className="flex-1 bg-primary text-white"
             >
-              {uploading ? 'Uploading...' : 'Upload CSV'}
+              {uploading ? 'Uploading...' : 'Upload File'}
             </Button>
           </div>
         </div>
