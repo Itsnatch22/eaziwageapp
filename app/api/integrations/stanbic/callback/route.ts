@@ -21,13 +21,32 @@ export async function GET(request: Request) {
     const stateCookie = cookieStore.get('stanbic_oauth_state')?.value;
 
     // Validate state to prevent CSRF
-    if (!state || !stateCookie || state !== stateCookie) {
+    if (!state) {
+      console.error('[Stanbic OAuth] Missing state parameter in callback');
+      return NextResponse.redirect(
+        new URL(`/admin/wallet?error=invalid_state`, origin)
+      );
+    }
+
+    if (!stateCookie) {
+      console.error('[Stanbic OAuth] State cookie not found. Cookie may have expired or been cleared.');
+      return NextResponse.redirect(
+        new URL(`/admin/wallet?error=invalid_state`, origin)
+      );
+    }
+
+    if (state !== stateCookie) {
+      console.error(
+        '[Stanbic OAuth] State mismatch: received=' + state.substring(0, 8) + '..., ' +
+        'cookie=' + stateCookie.substring(0, 8) + '...'
+      );
       return NextResponse.redirect(
         new URL(`/admin/wallet?error=invalid_state`, origin)
       );
     }
 
     if (!code) {
+      console.error('[Stanbic OAuth] Missing authorization code in callback');
       return NextResponse.redirect(
         new URL(`/admin/wallet?error=missing_code`, origin)
       );
@@ -80,6 +99,7 @@ export async function GET(request: Request) {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
+      console.error('[Stanbic OAuth] Token exchange failed:', tokenResponse.status, errorText);
       return NextResponse.redirect(
         new URL(`/admin/wallet?error=token_exchange_failed&details=${encodeURIComponent(
           errorText.substring(0, 100)

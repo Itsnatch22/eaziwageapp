@@ -14,7 +14,7 @@ import { randomUUID } from 'crypto';
 //
 // Expected behavior:
 // 1. Generate a random state value for CSRF protection
-// 2. Store the state in an HTTP-only cookie
+// 2. Store the state in an HTTP-only cookie with relaxed SameSite
 // 3. Redirect to Stanbic's OAuth authorization URL
 export async function GET(request: Request) {
   try {
@@ -62,13 +62,17 @@ export async function GET(request: Request) {
     const authorizationUrlWithParams = `${authorizationUrl}?${authParams.toString()}`;
 
     // Set the state cookie on the redirect response so browser receives Set-Cookie header
+    // Use 'none' for SameSite to ensure cookie is sent back from external OAuth provider,
+    // but requires secure: true (https only). For development, fallback to 'lax'.
+    const isProduction = process.env.NODE_ENV === 'production';
     const response = NextResponse.redirect(authorizationUrlWithParams);
     response.cookies.set('stanbic_oauth_state', state, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax', // 'none' required for cross-site OAuth, but needs secure
       path: '/',
       maxAge: 600, // 10 minutes - should be enough for OAuth flow
+      domain: undefined, // Let browser set domain automatically (same-site scope)
     });
 
     return response;

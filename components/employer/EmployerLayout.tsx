@@ -1,7 +1,7 @@
 "use client"
 import {
   LayoutDashboard, Users, CreditCard, BarChart3, Settings, LogOut,
-  Menu, X, ChevronRight, Upload, HelpCircle, Shield, Wallet, MessageSquare, Search
+  Menu, X, ChevronRight, Upload, HelpCircle, Shield, Wallet, MessageSquare, Search, Bell
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
@@ -173,6 +173,7 @@ const SidebarNav = ({ isOpen, onClose, width, collapsed, onToggleCollapse, onSta
     { href: '/dashboards/employer-dashboard/wallet', label: 'Wallet & Funding', icon: Wallet },
     { href: '/dashboards/employer-dashboard/messages', label: 'Communication', icon: MessageSquare },
     { href: '/dashboards/employer-dashboard/advances', label: 'Advances', icon: CreditCard },
+    { href: '/dashboards/employer-dashboard/notifications', label: 'Notifications', icon: Bell },
     { href: '/dashboards/employer-dashboard/reports', label: 'Reports', icon: BarChart3 },
     { href: '/dashboards/employer-dashboard/risk-insights', label: 'Risk Insights', icon: Shield },
     { href: '/dashboards/employer-dashboard/settings', label: 'Settings', icon: Settings },

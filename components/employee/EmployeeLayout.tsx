@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Home, Wallet, History, User, LogOut, ChevronRight,
   Loader2, Menu, X, Shield, Sparkles,
-  HelpCircle, Landmark
+  HelpCircle, Landmark, Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -71,6 +71,7 @@ const EmployeeSidebarNav = ({ isOpen, onClose, user, width, collapsed, onToggleC
     { label: 'Transactions',     href: '/dashboards/employee-dashboard/transactions',    icon: History },
     { label: 'Employment',       href: '/dashboards/employee-dashboard/employment',      icon: Shield },
     { label: 'Payment Methods',  href: '/dashboards/employee-dashboard/payment-methods', icon: Landmark },
+    { label: 'Notifications',    href: '/dashboards/employee-dashboard/notifications',   icon: Bell   },
     { label: 'Wellness Tools',   href: '/dashboards/employee-dashboard/wellness',         icon: Sparkles },
     { label: 'Help Center',      href: '/dashboards/employee-dashboard/support',          icon: HelpCircle },
     { label: 'Profile Settings', href: '/dashboards/employee-dashboard/settings',        icon: User },
