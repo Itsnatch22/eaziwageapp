@@ -51,15 +51,15 @@ class LazyRatelimit {
   private _instance: Ratelimit | null = null;
   private readonly prefix: string;
   private readonly tokens: number;
-  private readonly window: `${number} ${"ms" | "s" | "m" | "h" | "d`};
+  private readonly window: `${number} ${"ms" | "s" | "m" | "h" | "d"}`;
   
-  constructor(prefix: string, tokens = 7, window: `${number} ${"ms" | "s" | "m" | "h" | "d` = "1 h") {
+  constructor(prefix: string, tokens = 7, window: `${number} ${"ms" | "s" | "m" | "h" | "d"}` = "1 h") {
     this.prefix = prefix;
     this.tokens = tokens;
-    this.window = window as `${number} ${"ms" | "s" | "m" | "h" | "d`};
+    this.window = window as `${number} ${"ms" | "s" | "m" | "h" | "d"}`;
   }
   
-  async limit(identifier: string): Promise<ReturnType<Ratelimit["limit"]>> {
+  async limit(identifier: string): Promise<Awaited<ReturnType<Ratelimit["limit"]>>> {
     // Initialize the real instance on first use
     if (this._instance === null) {
       if (process.env.PLAYWRIGHT_TEST === "1" && process.env.NODE_ENV !== "production") {
@@ -186,7 +186,7 @@ export interface RateLimitResult {
  * Wrapper to check rate limit and return formatted result
  */
 export async function checkRateLimit(
-  limiter: Ratelimit,
+  limiter: { limit: (identifier: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }> },
   identifier: string
 ): Promise<RateLimitResult> {
   const result = await limiter.limit(identifier);
