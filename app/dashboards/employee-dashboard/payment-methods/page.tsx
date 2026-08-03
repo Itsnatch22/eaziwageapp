@@ -47,7 +47,14 @@ const PaymentMethods = () => {
 
 
   const [verifyingMethodId, setVerifyingMethodId] = useState<string | null>(null);
+  const [changeRequestMethodId, setChangeRequestMethodId] = useState<string | null>(null);
   const [otpInput, setOtpInput] = useState('');
+  const [changeReason, setChangeReason] = useState('');
+  const [changeProvider, setChangeProvider] = useState('');
+  const [changeAccountNumber, setChangeAccountNumber] = useState('');
+  const [changeAccountName, setChangeAccountName] = useState('');
+  const [changePhoneNumber, setChangePhoneNumber] = useState('');
+  const [submittingChangeRequest, setSubmittingChangeRequest] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [otpSubmitting, setOtpSubmitting] = useState(false);
 
@@ -286,6 +293,55 @@ const PaymentMethods = () => {
     setOtpInput('');
   };
 
+  const openChangeRequestModal = (method: PaymentMethod) => {
+    setChangeRequestMethodId(method.id);
+    setChangeProvider(method.provider_name || '');
+    setChangeReason('');
+    setChangeAccountNumber(method.account_number || '');
+    setChangeAccountName(method.account_name || '');
+    setChangePhoneNumber(method.phone_number || '');
+  };
+
+  const submitChangeRequest = async () => {
+    if (!changeRequestMethodId) return;
+    setSubmittingChangeRequest(true);
+    try {
+      const selectedMethod = methods.find((m) => m.id === changeRequestMethodId);
+      const payload = {
+        action: 'request_change',
+        payload: {
+          method_id: changeRequestMethodId,
+          method_type: selectedMethod?.method_type || 'mobile_money',
+          new_provider_name: changeProvider.trim(),
+          new_account_name: changeAccountName.trim() || null,
+          new_account_number: changeAccountNumber.trim() || null,
+          new_phone_number: changePhoneNumber.trim() || null,
+          reason: changeReason.trim() || 'No reason provided',
+        },
+      };
+
+      const res = await fetch('/api/employee-dashboard/payment-methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || 'Failed to submit change request');
+      toast.success(json?.message || 'Change request submitted');
+      setChangeRequestMethodId(null);
+      setChangeReason('');
+      setChangeProvider('');
+      setChangeAccountNumber('');
+      setChangeAccountName('');
+      setChangePhoneNumber('');
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : 'Failed to submit change request');
+    } finally {
+      setSubmittingChangeRequest(false);
+    }
+  };
+
   return (
     <EmployeePortalLayout>
       <input
@@ -404,6 +460,12 @@ const PaymentMethods = () => {
                       </button>
                     )}
                     <button
+                      onClick={() => openChangeRequestModal(m)}
+                      className="px-3 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+                    >
+                      Request Change
+                    </button>
+                    <button
                       onClick={() => handleDelete(m.id)}
                       className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
                     >
@@ -516,6 +578,45 @@ const PaymentMethods = () => {
         )}
 
         
+        {changeRequestMethodId && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setChangeRequestMethodId(null)}>
+            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-emerald-500 p-8 text-white">
+                <h2 className="text-2xl font-bold">Request Payment Method Change</h2>
+                <p className="text-white/80 mt-1">Ask an admin to review an updated payment destination.</p>
+              </div>
+              <div className="p-8 space-y-4">
+                <div className="space-y-2">
+                  <Label>New Provider / Bank</Label>
+                  <Input value={changeProvider} onChange={(e) => setChangeProvider(e.target.value)} placeholder="Enter the new provider or bank" />
+                </div>
+                <div className="space-y-2">
+                  <Label>{changeAccountNumber || changePhoneNumber ? 'Updated Details' : 'Phone Number / Account Number'}</Label>
+                  <Input
+                    value={changePhoneNumber}
+                    onChange={(e) => setChangePhoneNumber(e.target.value)}
+                    placeholder="Mobile money number or bank account"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Account Holder Name</Label>
+                  <Input value={changeAccountName} onChange={(e) => setChangeAccountName(e.target.value)} placeholder="Account holder name" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Reason</Label>
+                  <textarea value={changeReason} onChange={(e) => setChangeReason(e.target.value)} placeholder="Why do you need this change?" className="w-full min-h-24 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2" />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="ghost" onClick={() => setChangeRequestMethodId(null)} className="flex-1 rounded-xl h-12">Cancel</Button>
+                  <Button type="button" onClick={submitChangeRequest} disabled={submittingChangeRequest} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-12">
+                    {submittingChangeRequest ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit Request'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {verifyingMethodId && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeVerifyModal}>
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden p-8" onClick={e => e.stopPropagation()}>

@@ -51,6 +51,23 @@ export const EmployerBankPatchSchema = z.object({
   reason: ReasonField,
 });
 
+export const EmployeePaymentMethodChangeRequestSchema = z.object({
+  method_id: z.string().min(1),
+  method_type: z.enum(['mobile_money', 'bank_account']),
+  new_provider_name: z.string().min(1).max(200),
+  new_phone_number: z.string().max(50).optional().nullable(),
+  new_account_number: z.string().max(50).optional().nullable(),
+  new_account_name: z.string().max(200).optional().nullable(),
+  reason: z.string().max(1000).optional(),
+}).superRefine((data, ctx) => {
+  if (data.method_type === 'mobile_money' && !data.new_phone_number) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Phone number is required for mobile money', path: ['new_phone_number'] });
+  }
+  if (data.method_type === 'bank_account' && !data.new_account_number) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Account number is required for bank accounts', path: ['new_account_number'] });
+  }
+});
+
 export const EmployerStatusPatchSchema = z.object({
   status: z.enum(['approved', 'pending', 'rejected', 'suspended', 'risk_review_in_progress']),
   employer_code: z.string().max(20).optional(),

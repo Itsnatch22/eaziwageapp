@@ -15,6 +15,8 @@ import {
 } from '@/lib/paymentMethodsService';
 import { sendOtpSms } from '@/lib/sendOtp';
 import { dbErrorResponse } from '@/lib/api-errors';
+import { notifyAdmin } from '@/lib/notifications';
+import { EmployeePaymentMethodChangeRequestSchema } from '@/lib/validations/route-schemas';
 
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -81,6 +83,70 @@ export async function POST(req: NextRequest) {
       if (!id) return NextResponse.json({ error: 'Missing id for set_default' }, { status: 400 });
       const updated = await setDefaultPaymentMethod(adminSupabase, employee.id, id);
       return NextResponse.json({ success: true, method: updated });
+    }
+
+    if (body.action === 'request_change') {
+      const parsed = EmployeePaymentMethodChangeRequestSchema.safeParse(body.payload ?? body);
+      if (!parsed.success) {
+        return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 });
+      }
+
+      const requestPayload = parsed.data;
+      const currentMethod = await adminSupabase
+        .from('payment_methods')
+        .select('id, employee_id, provider_name, method_type, account_name, account_number, phone_number, is_verified')
+        .eq('id', requestPayload.method_id)
+        .eq('employee_id', employee.id)
+        .maybeSingle();
+
+      if (!currentMethod.data) {
+        return NextResponse.json({ error: 'Payment method not found' }, { status: 404 });
+      }
+
+      const { data: requestRecord, error: requestError } = await adminSupabase
+        .from('payment_method_change_requests')
+        .insert({
+          employee_id: employee.id,
+          payment_method_id: requestPayload.method_id,
+          requested_method_type: requestPayload.method_type,
+          old_provider_name: currentMethod.data.provider_name,
+          new_provider_name: requestPayload.new_provider_name,
+          old_phone_number: currentMethod.data.phone_number,
+          new_phone_number: requestPayload.new_phone_number ?? null,
+          old_account_number: currentMethod.data.account_number,
+          new_account_number: requestPayload.new_account_number ?? null,
+          old_account_name: currentMethod.data.account_name,
+          new_account_name: requestPayload.new_account_name ?? null,
+          reason: requestPayload.reason ?? 'Not provided',
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (requestError) {
+        console.error('[employee/payment-methods] request_change insert error:', requestError);
+        return NextResponse.json({ error: 'Failed to submit change request' }, { status: 500 });
+      }
+
+      const notificationResult = await notifyAdmin({
+        type: 'bank_change',
+        title: 'Payment Method Change Request',
+        message: `${employee.id} requested a payment method change.`,
+        metadata: {
+          employee_id: employee.id,
+          payment_method_id: requestPayload.method_id,
+          request_id: requestRecord.id,
+          reason: requestPayload.reason ?? 'Not provided',
+          requested_provider: requestPayload.new_provider_name,
+          request_type: 'payment_method_change',
+        },
+      });
+
+      if (!notificationResult.success) {
+        console.error('[employee/payment-methods] admin notification failed', notificationResult.error);
+      }
+
+      return NextResponse.json({ success: true, message: 'Change request submitted successfully. An admin will review it shortly.' });
     }
 
     if (body.action === 'request_verification') {
