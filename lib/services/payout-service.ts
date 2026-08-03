@@ -8,6 +8,7 @@ import { notifyAdmin } from '../notifications';
 import { getEnv } from '@/env';
 import { convertFromUSD, convertToUSD, getCurrencyFromCountry, normalizeCountryCode } from '../utils';
 import { normalizeAdvanceTerminalStatus } from '../constants/advance-status';
+import { validateTreasuryBalance, TreasuryValidationError } from './treasury-service';
 
 // Platform-wide defaults an admin configures via the Global Settings tab
 // (app/admin/settings — Global Settings). Stored in USD; converted to the
@@ -733,23 +734,26 @@ export class PayoutService {
       throw new Error(reason);
     }
 
-    const { data: treasuryWallet, error: treasuryWalletError } = await supabaseAdmin
-      .from('admin_wallets')
-      .select('id, balance')
-      .eq('country_code', treasuryCountry)
-      .eq('currency', localCurrency)
-      .maybeSingle();
+    // Validate treasury wallet has sufficient balance
+    try {
+      await validateTreasuryBalance(netAmount, localCurrency, treasuryCountry);
+    } catch (treasuryErr) {
+      if (treasuryErr instanceof TreasuryValidationError) {
+        const reason = treasuryErr.message;
+        await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
 
-    if (treasuryWalletError || !treasuryWallet) {
-      const reason = `No ${localCurrency}-${treasuryCountry} treasury account is configured for this payout`;
-      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
-      throw new Error(reason);
-    }
-
-    if (Number(treasuryWallet.balance ?? 0) < netAmount) {
-      const reason = `Insufficient ${localCurrency}-${treasuryCountry} treasury balance for this payout`;
-      await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
-      throw new Error(reason);
+        // For insufficient balance, alert the admin to top up
+        if (treasuryErr.code === 'insufficient_treasury_balance') {
+          void notifyAdmin({
+            type: 'system_alert',
+            title: 'Treasury Balance Critical',
+            message: `Advance ${advanceId} cannot be disbursed: ${reason}. Please fund the ${localCurrency}-${treasuryCountry} treasury account immediately.`,
+            metadata: treasuryErr.details || {},
+          }).catch(() => {});
+        }
+        throw treasuryErr;
+      }
+      throw treasuryErr;
     }
 
     let payoutResponse;

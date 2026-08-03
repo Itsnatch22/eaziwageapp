@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { notifyEmployee, notifyAdmin } from '@/lib/notifications';
 import { payoutService } from '@/lib/services/payout-service';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { dbErrorResponse } from '@/lib/api-errors';
+import { dbErrorResponse, problemResponse } from '@/lib/api-errors';
+import { TreasuryValidationError } from '@/lib/services/treasury-service';
 
 export const runtime = 'nodejs';
 
@@ -255,6 +256,8 @@ export async function PATCH(
       try {
         await payoutService.disburseAdvance(id);
       } catch (err: unknown) {
+        const isTreasuryError = err instanceof TreasuryValidationError && err.code === 'insufficient_treasury_balance';
+        const errorStatus = isTreasuryError ? 503 : 500;
         const reason = err instanceof Error ? err.message : 'Disbursement failed';
         console.error(`[Advance Approval] Disbursement failed for ${id}:`, reason);
 
@@ -319,7 +322,20 @@ export async function PATCH(
           }).catch(() => {});
         }
 
-        return NextResponse.json({ error: `Disbursement failed: ${reason}` }, { status: 500 });
+        // Use RFC 7807 Problem Details for treasury errors; standard JSON for others
+        if (isTreasuryError && err instanceof TreasuryValidationError) {
+          return problemResponse(
+            'insufficient_treasury_balance',
+            'Treasury Temporarily Unavailable',
+            errorStatus,
+            `The ${err.details?.currency}-${err.details?.countryCode} treasury account does not have sufficient balance. ` +
+            `Your advance has been saved and will be processed once funds are available.`,
+            `/advances/${id}`,
+            err.details,
+          );
+        }
+
+        return NextResponse.json({ error: `Disbursement failed: ${reason}` }, { status: errorStatus });
       }
 
     } catch (err: unknown) {

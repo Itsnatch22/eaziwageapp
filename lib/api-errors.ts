@@ -1,5 +1,16 @@
 import { NextResponse } from 'next/server';
 
+// RFC 7807 Problem Details error response
+// https://www.rfc-editor.org/rfc/rfc7807
+export interface ProblemDetails {
+  type: string;
+  title: string;
+  status: number;
+  detail?: string;
+  instance?: string;
+  [key: string]: unknown;
+}
+
 // Postgres error code 53300 = too_many_connections; Supavisor/pgbouncer surface
 // the same condition as a plain string ("too many connections", "max client
 // connections reached", "remaining connection slots are reserved"). This
@@ -37,4 +48,27 @@ export function dbErrorResponse<T = never>(
   }
 
   return NextResponse.json({ error: message }, { status });
+}
+
+// Create an RFC 7807 Problem Details response
+export function problemResponse(
+  errorType: string,
+  title: string,
+  status: number,
+  detail?: string,
+  instance?: string,
+  extra?: Record<string, unknown>,
+): NextResponse<ProblemDetails> {
+  const problem: ProblemDetails = {
+    type: `https://api.eaziwage.com/errors/${errorType}`,
+    title,
+    status,
+    ...(detail && { detail }),
+    ...(instance && { instance }),
+    ...extra,
+  };
+  return NextResponse.json(problem, { 
+    status,
+    headers: { 'Content-Type': 'application/problem+json' },
+  });
 }
