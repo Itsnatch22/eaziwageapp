@@ -27,20 +27,33 @@ async function run(): Promise<NextResponse> {
     const employerIds = employerList.map(e => e.id);
 
     // Batch query latest processed payroll run for all employers to avoid N+1 DB calls
-    const { data: payrollUploads } = employerIds.length > 0
+    const sincePayroll = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // 60 days back
+
+    const { data: payrollUploads, error: payrollError } = employerIds.length > 0
       ? await supabaseAdmin
           .from('payroll_uploads')
           .select('employer_live_id, processed_at')
           .in('employer_live_id', employerIds)
           .eq('status', 'processed')
           .not('processed_at', 'is', null)
+          .gte('processed_at', sincePayroll)
           .order('processed_at', { ascending: false })
       : { data: [] };
+
+    if (payrollError) {
+      console.error('[cron/payday-recoupment] payroll_uploads fetch error:', payrollError);
+      return NextResponse.json({ error: 'Failed to fetch payroll uploads' }, { status: 500 });
+    }
 
     const effectivePaydayMap = new Map<string, number>();
     for (const upload of payrollUploads ?? []) {
       if (upload.employer_live_id && !effectivePaydayMap.has(upload.employer_live_id) && upload.processed_at) {
-        effectivePaydayMap.set(upload.employer_live_id, new Date(upload.processed_at).getDate());
+        // Parse processed_at as UTC then shift to East Africa Time (UTC+3) to determine the
+        // calendar day in EAT. This avoids server-runtime timezone drift (e.g. UTC vs EAT).
+        const processedAt = String(upload.processed_at);
+        const eatMs = Date.parse(processedAt) + 3 * 60 * 60 * 1000; // shift UTC -> EAT (UTC+3)
+        const eatDay = new Date(eatMs).getUTCDate();
+        effectivePaydayMap.set(upload.employer_live_id, eatDay);
       }
     }
 

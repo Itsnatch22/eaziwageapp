@@ -36,6 +36,8 @@ interface AdvanceRow {
   id: string;
   reference: string | null;
   status: string;
+  employer_id?: string | null;
+  amount?: number | null;
 }
 
 interface WalletTxRow {
@@ -221,7 +223,7 @@ async function checkStuckProcessingAdvances(log: (msg: string) => void): Promise
 
   const { data: stuckRows, error } = await supabaseAdmin
     .from('advances')
-    .select('id, reference, status')
+    .select('id, reference, status, employer_id, amount')
     .eq('status', 'processing')
     .lt('updated_at', fifteenMinutesAgo)
     .limit(MAX_PER_RUN);
@@ -242,11 +244,53 @@ async function checkStuckProcessingAdvances(log: (msg: string) => void): Promise
         const result = await dusupay.checkPayoutStatus(adv.reference);
         const mapped = mapDusupayStatus(result.status);
         if (mapped === 'completed') {
-          await supabaseAdmin.from('advances').update({ status: 'completed', disbursed_at: new Date().toISOString() }).eq('id', adv.id);
+          const { data: updated, error: updateError } = await supabaseAdmin
+            .from('advances')
+            .update({ status: 'completed', disbursed_at: new Date().toISOString() })
+            .eq('id', adv.id);
+          if (updateError) {
+            console.error('[reconcile-dusupay] Failed to mark advance completed', { advanceId: adv.id, updateError });
+            // keep this advance in the unresolved list so it will be alerted on and retried next run
+            unresolvedStuck.push(adv.id);
+            continue;
+          }
           resolved++;
           continue;
         } else if (mapped === 'failed') {
-          await supabaseAdmin.from('advances').update({ status: 'failed', reason: 'DusuPay payout marked failed in reconciliation' }).eq('id', adv.id);
+          const { data: updated, error: updateError } = await supabaseAdmin
+            .from('advances')
+            .update({ status: 'failed', reason: 'DusuPay payout marked failed in reconciliation' })
+            .eq('id', adv.id);
+          if (updateError) {
+            console.error('[reconcile-dusupay] Failed to mark advance failed', { advanceId: adv.id, updateError });
+            // keep this advance in the unresolved list so it will be alerted on and retried next run
+            unresolvedStuck.push(adv.id);
+            continue;
+          }
+
+          // Attempt to release the employer reservation associated with this advance.
+          // Uses the existing DB RPC used elsewhere in the codebase. This is money-\
+adjacent; errors are logged and cause the advance to remain in the unresolved list
+          // so manual intervention or a retry can pick it up.
+          if (!adv.employer_id || typeof adv.amount !== 'number') {
+            console.error('[reconcile-dusupay] Missing employer_id or amount for advance when attempting reservation release', { advanceId: adv.id, employer_id: adv.employer_id, amount: adv.amount });
+            unresolvedStuck.push(adv.id);
+            continue;
+          }
+
+          const { error: releaseError } = await supabaseAdmin.rpc('release_employer_reservation', {
+            p_employer_id: adv.employer_id,
+            p_amount: adv.amount,
+            p_advance_id: adv.id,
+          });
+
+          if (releaseError) {
+            console.error('[reconcile-dusupay] release_employer_reservation RPC failed', { advanceId: adv.id, releaseError });
+            // Keep this advance unresolved so it shows up in alerts and can be retried.
+            unresolvedStuck.push(adv.id);
+            continue;
+          }
+
           resolved++;
           continue;
         }
