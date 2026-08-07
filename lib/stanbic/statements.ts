@@ -39,6 +39,35 @@ function normalizeStatementItem(item: Record<string, unknown>) {
   };
 }
 
+function extractResponseCode(parsed: Record<string, unknown> | null): string | null {
+  if (!parsed) return null;
+  const fields = ['ResponseCode', 'responseCode', 'errorCode', 'code', 'status', 'statusCode', 'httpCode', 'error'];
+  for (const f of fields) {
+    const val = parsed[f];
+    if (typeof val === 'string' && val.trim()) return val.trim();
+    if (typeof val === 'number') return String(val);
+  }
+  return null;
+}
+
+function extractResponseMessage(parsed: Record<string, unknown> | null, rawBody: string): string {
+  if (parsed) {
+    const fields = [
+      'ResponseMessage', 'responseMessage', 'errorMessage', 'message',
+      'error_description', 'detail', 'httpMessage', 'moreInformation', 'description'
+    ];
+    for (const f of fields) {
+      const val = parsed[f];
+      if (typeof val === 'string' && val.trim()) return val.trim();
+    }
+    if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error.trim();
+  }
+  if (rawBody && rawBody.trim()) {
+    return rawBody.slice(0, 300).trim();
+  }
+  return 'No response message';
+}
+
 export async function fetchStanbicStatement(
   adminSupabase: SupabaseClient,
   log: Logger | { info: (...a: unknown[]) => void; warn: (...a: unknown[]) => void; error: (...a: unknown[]) => void },
@@ -69,20 +98,11 @@ export async function fetchStanbicStatement(
     parsed = raw ? JSON.parse(raw) : null;
   } catch {
     log.error('Stanbic statement API returned non-JSON response', { status: resp.status, raw: raw.slice(0, 500) });
-    return { ok: false, status: 502, error: 'Stanbic statement API returned an unparseable response' };
+    return { ok: false, status: 502, error: `Stanbic statement API returned non-JSON response (HTTP ${resp.status})` };
   }
 
-  const responseCode = parsed && typeof parsed['ResponseCode'] === 'string'
-    ? parsed['ResponseCode']
-    : parsed && typeof parsed['errorCode'] === 'string'
-    ? parsed['errorCode']
-    : null;
-
-  const responseMsg = parsed && typeof parsed['ResponseMessage'] === 'string'
-    ? parsed['ResponseMessage']
-    : parsed && typeof parsed['errorMessage'] === 'string'
-    ? parsed['errorMessage']
-    : null;
+  const responseCode = extractResponseCode(parsed);
+  const responseMsg = extractResponseMessage(parsed, raw);
 
   // Code 2001 or "ZERO RECORDS" indicates no transactions found in requested window
   const isZeroRecordsError =
@@ -94,12 +114,15 @@ export async function fetchStanbicStatement(
     return { ok: true, status: 200, inserted: 0, zeroRecords: true };
   }
 
-  if (!resp.ok || (responseCode !== null && responseCode !== '00')) {
+  const isSuccessCode = responseCode === '00' || responseCode === '0' || responseCode === '200' || responseCode === 'SUCCESS';
+
+  if (!resp.ok || (!isSuccessCode && responseCode !== null)) {
     log.error('Stanbic statement API non-success response', { status: resp.status, responseCode, responseMsg, body: parsed });
+    const codeDisplay = responseCode ? `Code=${responseCode}` : `HTTP ${resp.status}`;
     return {
       ok: false,
       status: resp.ok ? 502 : resp.status,
-      error: `Stanbic statement API returned ResponseCode=${responseCode ?? 'unknown'}${responseMsg ? ` (${responseMsg})` : ''}`,
+      error: `Stanbic statement API error (${codeDisplay}): ${responseMsg}`,
     };
   }
 

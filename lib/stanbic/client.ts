@@ -462,8 +462,10 @@ export class StanbicStatementsClient {
 
   async buildStatementRequest(accountNumber: string, fromDate: string, toDate: string, noOfTxns?: string): Promise<StanbicStatementRequest> {
     const token = await this.getToken();
-    const bodyObj: Record<string, string> = { AccountNumber: accountNumber, FromDate: fromDate, ToDate: toDate };
-    if (noOfTxns) bodyObj.NoOfTxns = noOfTxns;
+    const cleanFromDate = fromDate.replace(/[-/]/g, '').trim();
+    const cleanToDate = toDate.replace(/[-/]/g, '').trim();
+    const bodyObj: Record<string, string> = { AccountNumber: accountNumber, FromDate: cleanFromDate, ToDate: cleanToDate };
+    if (noOfTxns) bodyObj.NoOfTxns = String(noOfTxns);
     return {
       url: this.getStatementsUrl(),
       headers: {
