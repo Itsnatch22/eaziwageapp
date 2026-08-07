@@ -72,15 +72,44 @@ export async function fetchStanbicStatement(
     return { ok: false, status: 502, error: 'Stanbic statement API returned an unparseable response' };
   }
 
-  const responseCode = parsed && typeof parsed['ResponseCode'] === 'string' ? parsed['ResponseCode'] : null;
-  if (!resp.ok || responseCode !== '00') {
-    log.error('Stanbic statement API non-success response', { status: resp.status, responseCode, body: parsed });
-    return { ok: false, status: resp.ok ? 502 : resp.status, error: `Stanbic statement API returned ResponseCode=${responseCode ?? 'unknown'}` };
+  const responseCode = parsed && typeof parsed['ResponseCode'] === 'string'
+    ? parsed['ResponseCode']
+    : parsed && typeof parsed['errorCode'] === 'string'
+    ? parsed['errorCode']
+    : null;
+
+  const responseMsg = parsed && typeof parsed['ResponseMessage'] === 'string'
+    ? parsed['ResponseMessage']
+    : parsed && typeof parsed['errorMessage'] === 'string'
+    ? parsed['errorMessage']
+    : null;
+
+  // Code 2001 or "ZERO RECORDS" indicates no transactions found in requested window
+  const isZeroRecordsError =
+    responseCode === '2001' ||
+    (typeof responseMsg === 'string' && responseMsg.toUpperCase().includes('ZERO RECORDS'));
+
+  if (isZeroRecordsError) {
+    log.info('Stanbic statement: zero records reported by API (2001/ZERO RECORDS)', { walletId, fromDate, toDate });
+    return { ok: true, status: 200, inserted: 0, zeroRecords: true };
   }
 
-  const items = Array.isArray(parsed?.['TransactionHistory'])
-    ? (parsed!['TransactionHistory'] as Record<string, unknown>[])
-    : [];
+  if (!resp.ok || (responseCode !== null && responseCode !== '00')) {
+    log.error('Stanbic statement API non-success response', { status: resp.status, responseCode, responseMsg, body: parsed });
+    return {
+      ok: false,
+      status: resp.ok ? 502 : resp.status,
+      error: `Stanbic statement API returned ResponseCode=${responseCode ?? 'unknown'}${responseMsg ? ` (${responseMsg})` : ''}`,
+    };
+  }
+
+  // Swagger spec defines 'transaction-items'; keep 'TransactionHistory' & 'data' as fallbacks
+  const rawItems =
+    parsed?.['transaction-items'] ??
+    parsed?.['TransactionHistory'] ??
+    parsed?.['data'];
+
+  const items = Array.isArray(rawItems) ? (rawItems as Record<string, unknown>[]) : [];
 
   if (items.length === 0) {
     log.info('Stanbic statement: zero records in range', { walletId, fromDate, toDate });

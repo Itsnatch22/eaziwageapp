@@ -1,0 +1,218 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "API used to retrieve account statements either by specifying date ranges or by requesting a certain number of transactions, with the response always returning the most recent records (Latest API).",
+    "version": "1.0.0",
+    "title": "Account Transactions History API Sandbox.",
+    "termsOfService": "None",
+    "contact": {
+      "name": "API Support",
+      "email": "kilele@stanbic.com"
+    },
+    "x-ibm-name": "fetch-statements"
+  },
+  "basePath": "/api/sandbox/fetchStatements",
+  "tags": [
+    {
+      "name": "fetch-statements",
+      "description": "."
+    }
+  ],
+  "schemes": [
+    "https"
+  ],
+  "paths": {
+    "/": {
+      "post": {
+        "tags": [
+          "statements"
+        ],
+        "summary": "Get account Transactions",
+        "operationId": "getTransactions",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "description": "API to get the transactions.",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TransactionRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully processed",
+            "schema": {
+              "$ref": "#/definitions/ListTransactionsResponse"
+            }
+          },
+          "default": {
+            "description": "Processing failed",
+            "schema": {
+              "$ref": "#/definitions/errorMessage"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "TransactionRequest": {
+      "type": "object",
+      "required": [
+        "FromDate",
+        "ToDate"
+      ],
+      "properties": {
+        "FromDate": {
+          "type": "string",
+          "example": "yyyymmdd"
+        },
+        "ToDate": {
+          "type": "string",
+          "example": "yyyymmdd"
+        },
+        "NoOfTxns": {
+          "type": "string",
+          "example": "5"
+        }
+      }
+    },
+    "GetTransactionResponse": {
+      "type": "object",
+      "properties": {
+        "FromAcctNo": {
+          "type": "string",
+          "example": "KES1403400770001"
+        },
+        "ToAcctNumber": {
+          "type": "string",
+          "example": "0100008791109"
+        },
+        "T24UniqRef": {
+          "type": "string",
+          "example": "FT260021FT2D"
+        },
+        "ValueDate": {
+          "type": "string",
+          "example": "20260102"
+        },
+        "TransactionDate": {
+          "type": "string",
+          "example": "20260102"
+        },
+        "TransactionType": {
+          "type": "string",
+          "example": "PesaLink Transaction"
+        },
+        "TxnDescr": {
+          "type": "string",
+          "example": "PesaLink Transaction 3126A977 FT260021FT2D"
+        },
+        "TxnCurrency": {
+          "type": "string",
+          "example": "KES"
+        },
+        "TxnAmount": {
+          "type": "string",
+          "example": "12637.00"
+        },
+        "RemainingBalance": {
+          "type": "string",
+          "example": "2254103.66"
+        }
+      }
+    },
+    "ListTransactionsResponse": {
+      "type": "object",
+      "properties": {
+        "SourceMsgId": {
+          "type": "string",
+          "example": "19829829182911"
+        },
+        "ResponseTime": {
+          "type": "string",
+          "example": "2026-03-23 12:38:49.131507"
+        },
+        "ResponseCode": {
+          "type": "string",
+          "example": "00"
+        },
+        "ResponseMessage": {
+          "type": "string",
+          "example": "success"
+        },
+        "transaction-items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GetTransactionResponse"
+          }
+        }
+      }
+    },
+    "errorMessage": {
+      "type": "object",
+      "properties": {
+        "errorCode": {
+          "type": "string",
+          "example": "2001"
+        },
+        "errorMessage": {
+          "type": "string",
+          "example": "ZERO RECORDS"
+        }
+      }
+    }
+  },
+  "x-ibm-configuration": {
+    "type": "rest",
+    "phase": "realized",
+    "enforced": true,
+    "testable": true,
+    "cors": {
+      "enabled": false
+    },
+    "servers": [
+      {
+        "url": "https://sandbox.connect.stanbicbank.co.ke/api/sandbox/fetchStatements",
+        "description": "",
+        "type": [
+          "production",
+          "development"
+        ]
+      }
+    ],
+    "oauth-servers": {
+      "OAuth": {
+        "tokenUrls": [
+          "https://sandbox.connect.stanbicbank.co.ke/api/sandbox/auth/oauth2/token"
+        ],
+        "authorizationUrls": [],
+        "refreshUrls": []
+      }
+    }
+  },
+  "securityDefinitions": {
+    "OAuth": {
+      "type": "oauth2",
+      "x-ibm-oauth-provider": "oauth2",
+      "flow": "application",
+      "tokenUrl": "/auth/oauth2/token",
+      "scopes": {
+        "payments": "securely get Loan Limits"
+      }
+    }
+  },
+  "security": [
+    {
+      "OAuth": [
+        "payments"
+      ]
+    }
+  ],
+  "host": "sandbox.connect.stanbicbank.co.ke"
+}

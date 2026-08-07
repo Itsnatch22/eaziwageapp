@@ -367,13 +367,6 @@ const PaymentMethods = () => {
           </Button>
         </div>
 
-        <Banner
-          variant="announcement"
-          message="We're are currently implementing bank account verification — until it's ready, please use mobile verification for your payment method."
-          className="rounded-2xl"
-        />
-
-
         <div className="grid gap-4">
           {loading ? (
             <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>

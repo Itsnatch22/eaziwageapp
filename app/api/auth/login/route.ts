@@ -281,6 +281,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         },
         { status: 423, headers: rateResult.headers },
       );
+    } else {
+      // Lock has expired — reset failed attempts so the user gets fresh attempts
+      const currentId = isAdmin ? adminRecord?.id : profileRecord?.id;
+      if (currentId) {
+        await clearFailedAttempts(currentId, isAdmin);
+        if (isAdmin && adminRecord) {
+          adminRecord.failed_login_attempts = 0;
+          adminRecord.locked_until = null;
+        } else if (profileRecord) {
+          profileRecord.failed_login_attempts = 0;
+          profileRecord.locked_until = null;
+        }
+      }
     }
   }
 
