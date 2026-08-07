@@ -7,5 +7,9 @@ export async function HEAD() {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    commit: process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev',
+    timestamp: new Date().toISOString(),
+  });
 }

@@ -55,8 +55,9 @@ export async function checkAndCreatePaydayRecoupment(
   employerCompanyName: string | null,
   fallbackPaydayDayOfMonth: number | null,
   recoupmentMethod?: string | null,
+  preResolvedPaydayDay?: number | null,
 ): Promise<PaydayRecoupmentRow | null> {
-  const paydayDayOfMonth = await resolveEffectivePaydayDayOfMonth(
+  const paydayDayOfMonth = preResolvedPaydayDay ?? await resolveEffectivePaydayDayOfMonth(
     employerId,
     fallbackPaydayDayOfMonth,
     supabaseAdmin,
@@ -65,14 +66,13 @@ export async function checkAndCreatePaydayRecoupment(
   if (!paydayDayOfMonth) return null;
 
   const today = new Date();
-  const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const effectivePaydayDate = new Date(
-    todayDateOnly.getFullYear(),
-    todayDateOnly.getMonth(),
-    clampDayToMonth(todayDateOnly.getFullYear(), todayDateOnly.getMonth(), paydayDayOfMonth),
-  );
-  const isPaydayToday = todayDateOnly.getTime() === effectivePaydayDate.getTime();
-  const todayStr = todayDateOnly.toISOString().split('T')[0];
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const day = today.getDate();
+
+  const effectivePaydayDay = clampDayToMonth(year, month, paydayDayOfMonth);
+  const isPaydayToday = day === effectivePaydayDay;
+  const todayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
   // Any not-yet-resolved row (from today or a past cycle) keeps surfacing until
   // acted on — an employer shouldn't be able to make a prompt disappear by just
@@ -81,7 +81,7 @@ export async function checkAndCreatePaydayRecoupment(
     .from('payday_recoupments')
     .select('*')
     .eq('employer_id', employerId)
-    .in('status', ['pending_response', 'confirmed', 'collecting', 'failed'])
+    .in('status', ['pending_response', 'confirmed', 'collecting', 'partially_collected', 'failed'])
     .order('payday_date', { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -177,17 +177,39 @@ export async function applyPaydayRecoupmentCollection(
   paymentReference: string,
   log: Logger,
 ): Promise<void> {
+  // Atomic claim to prevent double-collection concurrency race conditions
+  const { data: claimed } = await supabaseAdmin
+    .from('payday_recoupments')
+    .update({ status: 'processing_collection', updated_at: new Date().toISOString() })
+    .eq('id', recoupmentId)
+    .in('status', ['pending_response', 'confirmed', 'failed', 'partially_collected', 'collecting'])
+    .select('id, amount_due, status')
+    .maybeSingle();
+
+  if (!claimed) {
+    log.info('Payday recoupment already collected or processing — skipping', { recoupmentId });
+    return;
+  }
+
+  const originalAmountDue = Number(claimed.amount_due ?? 0);
+
   const { data: schedules } = await supabaseAdmin
     .from('repayment_schedules')
-    .select('id, advance_id, repayment_amount')
+    .select('id, advance_id, repayment_amount, paid_amount')
     .eq('employer_id', employerId)
-    .in('status', ['pending', 'overdue']);
+    .in('status', ['pending', 'overdue', 'partial']);
 
   let remaining = amount;
+  let hasRpcError = false;
+
   for (const schedule of schedules ?? []) {
     if (remaining <= 0) break;
+    const alreadyPaid = Number(schedule.paid_amount ?? 0);
     const scheduleAmount = Number(schedule.repayment_amount);
-    const applied = Math.min(remaining, scheduleAmount);
+    const unpaidBalance = scheduleAmount - alreadyPaid;
+    if (unpaidBalance <= 0) continue;
+
+    const applied = Math.min(remaining, unpaidBalance);
 
     const { error: rpcError } = await supabaseAdmin.rpc('repay_advance_to_admin', {
       p_advance_id: schedule.advance_id,
@@ -195,15 +217,17 @@ export async function applyPaydayRecoupmentCollection(
     });
 
     if (rpcError) {
-      // Leave this schedule pending rather than mark it paid without the RPC
-      // having actually run — it'll be picked up by a future recoupment/cron pass.
       log.error('repay_advance_to_admin RPC failed during payday recoupment', { err: rpcError, scheduleId: schedule.id });
+      hasRpcError = true;
       continue;
     }
 
+    const newTotalPaid = alreadyPaid + applied;
+    const isFullyPaid = newTotalPaid >= scheduleAmount;
+
     await supabaseAdmin.from('repayment_schedules').update({
-      status: 'paid',
-      paid_amount: applied,
+      status: isFullyPaid ? 'paid' : 'partial',
+      paid_amount: newTotalPaid,
       paid_at: new Date().toISOString(),
       payment_reference: paymentReference,
       updated_at: new Date().toISOString(),
@@ -221,30 +245,49 @@ export async function applyPaydayRecoupmentCollection(
 
     if (liabilityErr) {
       log.error('repay_employer_liability_to_admin RPC failed during payday recoupment', { err: liabilityErr, employerId, remaining });
-    } else {
-      remaining = 0;
+      hasRpcError = true;
     }
   }
 
-  await supabaseAdmin.from('payday_recoupments').update({
-    status: 'collected',
-    collected_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }).eq('id', recoupmentId);
+  const remainingDue = Math.max(0, originalAmountDue - amount);
+  const isFullyCollected = remainingDue <= 0 && !hasRpcError;
 
-  // Cycle resolved — clear the overdue signal set by checkAndCreatePaydayRecoupment.
-  // A future payday cycle will set it again if a new recoupment is created.
-  await supabaseAdmin
-    .from('employer_wallets')
-    .update({ repayment_due_date: null })
-    .eq('employer_id', employerId);
+  if (isFullyCollected) {
+    await supabaseAdmin.from('payday_recoupments').update({
+      status: 'collected',
+      amount_due: 0,
+      collected_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', recoupmentId);
 
-  void notifyAdmin({
-    type: 'system_alert',
-    title: '✅ Payday Recoupment Collected',
-    message: `${amount} collected from employer ${employerId}. Reference: ${paymentReference}.`,
-    metadata: { recoupment_id: recoupmentId, employer_id: employerId, amount, reference: paymentReference },
-  }).catch(() => {});
+    // Cycle resolved — clear the overdue signal set by checkAndCreatePaydayRecoupment.
+    await supabaseAdmin
+      .from('employer_wallets')
+      .update({ repayment_due_date: null })
+      .eq('employer_id', employerId);
 
-  log.info('Payday recoupment collection complete', { recoupmentId, amount });
+    void notifyAdmin({
+      type: 'system_alert',
+      title: '✅ Payday Recoupment Collected',
+      message: `${amount} collected from employer ${employerId}. Reference: ${paymentReference}.`,
+      metadata: { recoupment_id: recoupmentId, employer_id: employerId, amount, reference: paymentReference },
+    }).catch(() => {});
+  } else {
+    const finalStatus = hasRpcError ? 'failed' : 'partially_collected';
+    await supabaseAdmin.from('payday_recoupments').update({
+      status: finalStatus,
+      amount_due: remainingDue,
+      failure_reason: hasRpcError ? 'RPC execution error during collection application' : 'Partial collection received',
+      updated_at: new Date().toISOString(),
+    }).eq('id', recoupmentId);
+
+    void notifyAdmin({
+      type: 'system_alert',
+      title: hasRpcError ? '❌ Payday Recoupment RPC Failed' : '⚠️ Payday Recoupment Partially Collected',
+      message: `${amount} collected from employer ${employerId} (Remaining Due: ${remainingDue}). Reference: ${paymentReference}. Status: ${finalStatus}.`,
+      metadata: { recoupment_id: recoupmentId, employer_id: employerId, amount_collected: amount, remaining_due: remainingDue, reference: paymentReference, hasRpcError },
+    }).catch(() => {});
+  }
+
+  log.info('Payday recoupment collection processing complete', { recoupmentId, amount, isFullyCollected, remainingDue });
 }

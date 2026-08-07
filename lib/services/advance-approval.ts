@@ -139,6 +139,12 @@ export async function tryAutoApproveAdvance(params: AutoApproveParams): Promise<
 
       if (liabilityError) {
         console.error(`[auto-approve] Failed to record ${fundingModel} liability for ${advanceId}:`, liabilityError);
+        void notifyAdmin({
+          type: 'system_alert',
+          title: '⚠️ Employer Liability Record Failed',
+          message: `Auto-approved advance ${advanceId} failed to update ${fundingModel} liability for employer ${employerId}. Manual intervention required to reconcile ledger.`,
+          metadata: { advance_id: advanceId, employer_id: employerId, error: liabilityError.message },
+        }).catch(() => {});
       }
     }
 

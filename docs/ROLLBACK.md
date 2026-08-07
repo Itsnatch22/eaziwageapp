@@ -29,7 +29,7 @@ If you don't have dashboard access in the moment, `git revert <bad-commit-sha> &
 
 ## Step 3: Confirm the rollback actually fixed it
 
-- Hit `/api/ping` and one authenticated page per role (admin/employer/employee) to confirm the old build is serving.
+- Hit `/api/ping` (returns `{ ok: true, commit: "<VERCEL_GIT_COMMIT_SHA>", timestamp: "..." }`) and one authenticated page per role (admin/employer/employee) to confirm the active deployment SHA matches the expected rolled-back build.
 - Check `/status` (public status page) and `/admin/api-health` for the current health snapshot.
 - Watch `admin_notifications` / your alert email for the next 15 minutes (the `sync-health.yml` health check runs every 15 min and will notify on a real down/degraded state — see `app/api/admin/check-api-health/route.ts`).
 

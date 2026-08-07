@@ -23,19 +23,42 @@ async function run(): Promise<NextResponse> {
       return NextResponse.json({ error: 'Failed to fetch employers' }, { status: 500 });
     }
 
+    const employerList = employers ?? [];
+    const employerIds = employerList.map(e => e.id);
+
+    // Batch query latest processed payroll run for all employers to avoid N+1 DB calls
+    const { data: payrollUploads } = employerIds.length > 0
+      ? await supabaseAdmin
+          .from('payroll_uploads')
+          .select('employer_live_id, processed_at')
+          .in('employer_live_id', employerIds)
+          .eq('status', 'processed')
+          .not('processed_at', 'is', null)
+          .order('processed_at', { ascending: false })
+      : { data: [] };
+
+    const effectivePaydayMap = new Map<string, number>();
+    for (const upload of payrollUploads ?? []) {
+      if (upload.employer_live_id && !effectivePaydayMap.has(upload.employer_live_id) && upload.processed_at) {
+        effectivePaydayMap.set(upload.employer_live_id, new Date(upload.processed_at).getDate());
+      }
+    }
+
     let created = 0;
     let checked = 0;
     const failures: Array<{ employer_id: string; error: string }> = [];
 
-    for (const employer of employers ?? []) {
+    for (const employer of employerList) {
       checked++;
       try {
+        const effectivePayday = effectivePaydayMap.get(employer.id) ?? employer.payday_day_of_month;
         const recoupment = await checkAndCreatePaydayRecoupment(
           employer.id,
           employer.user_id,
           employer.company_name,
           employer.payday_day_of_month,
           employer.recoupment_method,
+          effectivePayday,
         );
         if (recoupment) created++;
       } catch (err) {

@@ -41,9 +41,17 @@ export function generateRepaymentReference(
 // non-alphanumeric characters in merchant_reference, so no hyphens here
 // (unlike generateMerchantReference in lib/dusupay/utils.ts, which is only
 // used for payouts and does allow hyphens).
-export function generatePaydayRecoupmentReference(employerId: string, paydayDate: Date): string {
+export function generatePaydayRecoupmentReference(employerId: string, paydayDate: Date | string): string {
   const employerPart = employerId.replace(/-/g, '').slice(0, 8).toUpperCase();
-  const datePart = `${paydayDate.getFullYear()}${String(paydayDate.getMonth() + 1).padStart(2, '0')}${String(paydayDate.getDate()).padStart(2, '0')}`;
+  let datePart: string;
+  if (typeof paydayDate === 'string') {
+    datePart = paydayDate.replace(/-/g, '').slice(0, 8);
+  } else {
+    const year = paydayDate.getFullYear();
+    const month = String(paydayDate.getMonth() + 1).padStart(2, '0');
+    const day = String(paydayDate.getDate()).padStart(2, '0');
+    datePart = `${year}${month}${day}`;
+  }
   return `EWAPAYDAY${employerPart}${datePart}`;
 }
 

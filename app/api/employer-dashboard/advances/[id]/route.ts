@@ -250,6 +250,12 @@ export async function PATCH(
 
         if (liabilityError) {
           console.error(`[Advance Approval] Failed to record ${fundingModel} liability for ${id}:`, liabilityError);
+          void notifyAdmin({
+            type: 'system_alert',
+            title: '⚠️ Employer Liability Record Failed',
+            message: `Manually approved advance ${id} failed to update ${fundingModel} liability for employer ${employer.id}. Manual intervention required to reconcile ledger.`,
+            metadata: { advance_id: id, employer_id: employer.id, error: liabilityError.message },
+          }).catch(() => {});
         }
       }
 

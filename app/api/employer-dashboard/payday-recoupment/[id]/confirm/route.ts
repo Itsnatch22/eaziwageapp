@@ -83,9 +83,13 @@ export async function POST(
     return NextResponse.json({ error: 'Mobile money provider on file is not recognized. Please update it in Settings.' }, { status: 422 });
   }
 
-  const dialCode = COUNTRY_PROVIDER_PREFIXES[employer.country ?? ''] ?? '254';
+  if (!employer.country || !COUNTRY_PROVIDER_PREFIXES[employer.country]) {
+    return NextResponse.json({ error: 'Unsupported or missing country code on file. Please update your Settings.' }, { status: 422 });
+  }
+
+  const dialCode = COUNTRY_PROVIDER_PREFIXES[employer.country];
   const msisdn = formatPhoneNumber(employer.mobile_money_number, dialCode);
-  const merchantReference = generatePaydayRecoupmentReference(employer.id, new Date(recoupment.payday_date));
+  const merchantReference = generatePaydayRecoupmentReference(employer.id, recoupment.payday_date);
 
   // Atomically claim the row before calling DusuPay — same pattern as the
   // advance-request race fix. merchant_reference is deterministic per

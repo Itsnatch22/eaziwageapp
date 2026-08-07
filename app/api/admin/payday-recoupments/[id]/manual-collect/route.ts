@@ -30,7 +30,8 @@ export async function POST(
 
   if (fetchError) return dbErrorResponse('admin/payday-recoupments/manual-collect', fetchError);
   if (!recoupment) return NextResponse.json({ error: 'Recoupment not found' }, { status: 404 });
-  if (recoupment.status !== 'failed') {
+  const allowedStatuses = ['failed', 'pending_response', 'partially_collected', 'confirmed'];
+  if (!allowedStatuses.includes(recoupment.status)) {
     return NextResponse.json({ error: `Cannot manually collect — status is '${recoupment.status}'` }, { status: 409 });
   }
 
@@ -50,15 +51,16 @@ export async function POST(
     log,
   );
 
-  void adminSupabase.from('system_audit_logs').insert({
+  const { error: auditError } = await adminSupabase.from('system_audit_logs').insert({
     admin_id: user.id,
     admin_name: user.email,
     target_id: recoupment.id,
     target_type: 'payday_recoupment',
     action: 'payday_recoupment_manual_collect',
-    old_value: { status: 'failed' },
+    old_value: { status: recoupment.status },
     new_value: { status: 'collected', method: 'manual_bank_transfer', amount: recoupment.amount_due },
-  }).then(({ error }) => { if (error) console.error('[audit] payday_recoupment_manual_collect:', error); });
+  });
+  if (auditError) console.error('[audit] payday_recoupment_manual_collect error:', auditError);
 
   if (employer?.user_id) {
     void notifyEmployer({
