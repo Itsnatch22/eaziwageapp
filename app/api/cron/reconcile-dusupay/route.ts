@@ -204,17 +204,202 @@ async function run(): Promise<NextResponse> {
 
   console.log(`[reconcile-dusupay] Checked ${checked}/${rows.length} advances, ${mismatches} mismatch(es)`);
 
+  // New reconciliation passes per ranked-fixes: handle disbursed_pending_ledger
+  // (retry ledger RPC) and processing_unknown (indeterminate send/verify network failures).
+  async function processDisbursedPendingLedger(log: (msg: string) => void): Promise<{ checked: number; resolved: number; unresolved: number }> {
+    const { data: rows2, error: fetchError } = await supabaseAdmin
+      .from('advances')
+      .select('id, reference, amount, currency, employer_id, internal_reference')
+      .eq('status', 'disbursed_pending_ledger')
+      .gte('updated_at', since)
+      .limit(MAX_PER_RUN);
+
+    if (fetchError) {
+      console.error('[reconcile-dusupay] Failed to fetch disbursed_pending_ledger advances:', fetchError);
+      return { checked: 0, resolved: 0, unresolved: 0 };
+    }
+
+    const advances = (rows2 ?? []) as Array<{ id: string; reference?: string | null; amount?: number | null; currency?: string | null; employer_id?: string | null; internal_reference?: string | null }>;
+    let checked2 = 0;
+    let resolved2 = 0;
+    let unresolved2 = 0;
+
+    for (const adv of advances) {
+      checked2++;
+      try {
+        // Call idempotent RPC to record the ledger debit. Use whatever fields we have.
+        const { error: rpcError } = await supabaseAdmin.rpc('record_employee_disbursement_from_treasury', {
+          p_advance_id: adv.id,
+          p_amount: adv.amount ?? 0,
+          p_country_code: null,
+          p_currency: adv.currency ?? null,
+          p_reference: adv.reference ?? null,
+          p_internal_reference: adv.internal_reference ?? null,
+        });
+
+        if (rpcError) {
+          console.error('[reconcile-dusupay] record_employee_disbursement_from_treasury retry failed', { advanceId: adv.id, rpcError });
+          unresolved2++;
+          continue;
+        }
+
+        // Mark advance completed now that treasury RPC succeeded
+        const { error: updateError } = await supabaseAdmin
+          .from('advances')
+          .update({ status: 'completed', disbursed_at: new Date().toISOString() })
+          .eq('id', adv.id);
+
+        if (updateError) {
+          console.error('[reconcile-dusupay] Failed to mark advance completed after successful treasury RPC', { advanceId: adv.id, updateError });
+          unresolved2++;
+          continue;
+        }
+
+        resolved2++;
+      } catch (err) {
+        console.error('[reconcile-dusupay] Error processing disbursed_pending_ledger advance', { advanceId: adv.id, err });
+        unresolved2++;
+      }
+
+      if (DELAY_MS > 0) await sleep(DELAY_MS);
+    }
+
+    if (unresolved2 > 0) {
+      void notifyAdmin({
+        type: 'system_alert',
+        title: `DusuPay reconciliation: ${unresolved2} disbursed_pending_ledger advances still unresolved`,
+        message: `${unresolved2} advances remain in disbursed_pending_ledger after retry attempts. Manual investigation required.`,
+        metadata: { unresolved: unresolved2 },
+      }).catch((err) => console.error('[reconcile-dusupay] notifyAdmin failed:', err));
+    }
+
+    log(`[reconcile-dusupay] disbursed_pending_ledger: checked ${checked2}, resolved ${resolved2}, unresolved ${unresolved2}`);
+    return { checked: checked2, resolved: resolved2, unresolved: unresolved2 };
+  }
+
+  async function processProcessingUnknown(log: (msg: string) => void): Promise<{ checked: number; resolved: number; unresolved: number }> {
+    const { data: rows3, error: fetchError } = await supabaseAdmin
+      .from('advances')
+      .select('id, reference, amount, employer_id')
+      .eq('status', 'processing_unknown')
+      .gte('updated_at', since)
+      .limit(MAX_PER_RUN);
+
+    if (fetchError) {
+      console.error('[reconcile-dusupay] Failed to fetch processing_unknown advances:', fetchError);
+      return { checked: 0, resolved: 0, unresolved: 0 };
+    }
+
+    const advances = (rows3 ?? []) as Array<{ id: string; reference?: string | null; amount?: number | null; employer_id?: string | null }>;
+    let checked3 = 0;
+    let resolved3 = 0;
+    let unresolved3 = 0;
+
+    for (const adv of advances) {
+      if (!adv.reference) {
+        unresolved3++;
+        continue;
+      }
+      checked3++;
+
+      let result;
+      try {
+        result = await dusupay.checkPayoutStatus(adv.reference);
+      } catch (err) {
+        console.error('[reconcile-dusupay] checkPayoutStatus threw for processing_unknown', { advanceId: adv.id, err });
+        unresolved3++;
+        continue;
+      }
+
+      if (!result.success) {
+        // Still indeterminate
+        unresolved3++;
+        continue;
+      }
+
+      const mapped = mapDusupayStatus(result.status);
+      if (mapped === 'completed') {
+        // Move to disbursed_pending_ledger so the ledger-RPC pass can settle it
+        const { error: updateError } = await supabaseAdmin
+          .from('advances')
+          .update({ status: 'disbursed_pending_ledger', reference: adv.reference, internal_reference: result.internalReference ?? null })
+          .eq('id', adv.id);
+
+        if (updateError) {
+          console.error('[reconcile-dusupay] Failed to mark processing_unknown -> disbursed_pending_ledger', { advanceId: adv.id, updateError });
+          unresolved3++;
+          continue;
+        }
+
+        resolved3++;
+      } else if (mapped === 'failed') {
+        // Money did not move — mark failed and release employer reservation
+        const { error: updateError } = await supabaseAdmin
+          .from('advances')
+          .update({ status: 'failed', reason: 'DusuPay reported payout failed on reconciliation' })
+          .eq('id', adv.id);
+
+        if (updateError) {
+          console.error('[reconcile-dusupay] Failed to mark processing_unknown -> failed', { advanceId: adv.id, updateError });
+          unresolved3++;
+          continue;
+        }
+
+        // Release reservation — safe because DusuPay confirmed failure
+        if (!adv.employer_id || typeof adv.amount !== 'number') {
+          console.error('[reconcile-dusupay] Missing employer_id or amount when releasing reservation for processing_unknown advance', { advanceId: adv.id, employer_id: adv.employer_id, amount: adv.amount });
+        } else {
+          const { error: releaseError } = await supabaseAdmin.rpc('release_employer_reservation', {
+            p_employer_id: adv.employer_id,
+            p_amount: adv.amount,
+            p_advance_id: adv.id,
+          });
+          if (releaseError) {
+            console.error('[reconcile-dusupay] release_employer_reservation failed for processing_unknown advance', { advanceId: adv.id, releaseError });
+          }
+        }
+
+        resolved3++;
+      } else {
+        // Still processing — leave as-is
+        unresolved3++;
+      }
+
+      if (DELAY_MS > 0) await sleep(DELAY_MS);
+    }
+
+    if (unresolved3 > 0) {
+      void notifyAdmin({
+        type: 'system_alert',
+        title: `DusuPay reconciliation: ${unresolved3} processing_unknown advances still indeterminate`,
+        message: `${unresolved3} advances remain in processing_unknown after status checks. They will be retried in the next run.`,
+        metadata: { unresolved: unresolved3 },
+      }).catch((err) => console.error('[reconcile-dusupay] notifyAdmin failed:', err));
+    }
+
+    log(`[reconcile-dusupay] processing_unknown: checked ${checked3}, resolved ${resolved3}, unresolved ${unresolved3}`);
+    return { checked: checked3, resolved: resolved3, unresolved: unresolved3 };
+  }
+
+  const disbursedPendingResult = await processDisbursedPendingLedger(console.log);
+  const processingUnknownResult = await processProcessingUnknown(console.log);
+
   const walletResult = await reconcileWalletTopups(console.log);
   const watchdogResult = await checkStuckProcessingAdvances(console.log);
 
+  const totalChecked = checked + disbursedPendingResult.checked + processingUnknownResult.checked + walletResult.checked + watchdogResult.checked;
+  const totalMismatches = mismatches + walletResult.mismatches;
+
   return NextResponse.json({
-    checked: checked + walletResult.checked + watchdogResult.checked,
+    checked: totalChecked,
     total: rows.length,
-    mismatches: mismatches + walletResult.mismatches,
+    mismatches: totalMismatches,
     stuckProcessing: watchdogResult.stuck,
     advances: { checked, total: rows.length, mismatches },
     walletTopups: walletResult,
     watchdog: watchdogResult,
+    disbursed_pending_ledger: disbursedPendingResult,
+    processing_unknown: processingUnknownResult,
   });
 }
 
@@ -269,8 +454,8 @@ async function checkStuckProcessingAdvances(log: (msg: string) => void): Promise
           }
 
           // Attempt to release the employer reservation associated with this advance.
-          // Uses the existing DB RPC used elsewhere in the codebase. This is money-\
-adjacent; errors are logged and cause the advance to remain in the unresolved list
+          // Uses the existing DB RPC used elsewhere in the codebase. This is money-adjacent;
+          // errors are logged and cause the advance to remain in the unresolved list
           // so manual intervention or a retry can pick it up.
           if (!adv.employer_id || typeof adv.amount !== 'number') {
             console.error('[reconcile-dusupay] Missing employer_id or amount for advance when attempting reservation release', { advanceId: adv.id, employer_id: adv.employer_id, amount: adv.amount });

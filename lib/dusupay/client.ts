@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'crypto';
 import {
   PayoutRequest,
   PayoutResponse,
@@ -8,6 +9,8 @@ import {
   CollectionRequest,
   CollectionResponse,
 } from './types';
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
 // Thrown only when fetch() itself fails — DNS, connection reset, abort,
 // timeout — meaning DusuPay's server never actually responded. Callers must
@@ -39,22 +42,40 @@ export class DusupayClient {
     if (this.environment === 'production') {
       this.baseUrl = process.env.DUSUPAY_PRODUCTION_BASE_URL || 'https://payments.dusupay.com';
     } else {
-      // NOT sdbxportal.dusupay.com — that's DusuPay's human merchant web portal
-      // (redirects to an Oracle APEX login page) and 404s as HTML on API paths
-      // like /payout/send-funds, which is what caused the "Unexpected token '<'"
-      // JSON-parse crash. sandboxapi.dusupay.com is the actual API host, and is
-      // what lib/dusupay.ts (the webhook/verify client) already uses correctly.
+      // Default sandbox API host (must be the API, not the merchant dashboard)
       this.baseUrl = process.env.DUSUPAY_SANDBOX_BASE_URL || 'https://sandboxapi.dusupay.com';
     }
   }
 
-  private get headers() {
-    return {
+  // Deliberate behavior: include 'secret-key' header only when a secret is set.
+  // If you need to force sending an empty secret (for testing), set
+  // DUSUPAY_INCLUDE_EMPTY_SECRET=true in the environment.
+  private get headers(): Record<string, string> {
+    const includeEmpty = process.env.DUSUPAY_INCLUDE_EMPTY_SECRET === 'true';
+    const h: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-api-version': '1',
       'public-key': this.publicKey,
-      'secret-key': this.secretKey,
     };
+    if (includeEmpty || this.secretKey) {
+      h['secret-key'] = this.secretKey;
+    }
+    return h;
+  }
+
+  private normalizeHeaders(h?: HeadersInit): Record<string, string> {
+    if (!h) return {};
+    if (h instanceof Headers) {
+      const out: Record<string, string> = {};
+      h.forEach((v, k) => { out[k] = v; });
+      return out;
+    }
+    if (Array.isArray(h)) {
+      const out: Record<string, string> = {};
+      for (const [k, v] of h) out[k] = v;
+      return out;
+    }
+    return { ...(h as Record<string, string>) };
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -62,12 +83,14 @@ export class DusupayClient {
 
     let response: Response;
     try {
+      const combinedHeaders: Record<string, string> = {
+        ...this.headers,
+        ...this.normalizeHeaders(options.headers),
+      };
+
       response = await fetch(url, {
         ...options,
-        headers: {
-          ...this.headers,
-          ...options.headers,
-        },
+        headers: combinedHeaders as HeadersInit,
       });
     } catch (err: unknown) {
       // fetch() threw before any response arrived — a network-level failure,
@@ -141,7 +164,42 @@ export class DusupayClient {
    * Verify transaction status manually
    */
   async verifyTransaction(merchantReference: string): Promise<PayoutResponse> {
-    return this.request<PayoutResponse>(`/data/transaction/verify/${merchantReference}`);
+    return this.request<PayoutResponse>(`/data/transaction/verify/${encodeURIComponent(merchantReference)}`);
+  }
+
+  get isConfigured(): boolean {
+    return Boolean(this.publicKey && this.secretKey);
+  }
+
+  // New: checkPayoutStatus preserves network-error distinction — it will
+  // rethrow DusupayNetworkError on network-level failures, and return a
+  // structured { success: boolean, status, internalReference } on API
+  // responses so callers can inspect without handling JSON parsing themselves.
+  async checkPayoutStatus(merchantReference: string): Promise<{
+    success: boolean;
+    message: string;
+    internalReference?: string | null;
+    merchantReference?: string | null;
+    status?: string | null;
+    errorCode?: string | null;
+    raw?: unknown;
+  }> {
+    try {
+      const res = await this.request<Record<string, unknown>>(`/data/transaction/verify/${encodeURIComponent(merchantReference)}`);
+      const data = res as any;
+      return {
+        success: true,
+        message: data.message ?? 'Status retrieved',
+        internalReference: data.data?.internal_reference ?? null,
+        merchantReference: data.data?.merchant_reference ?? null,
+        status: data.data?.transaction_status ?? null,
+        errorCode: null,
+        raw: data,
+      };
+    } catch (err: unknown) {
+      if (err instanceof DusupayNetworkError) throw err;
+      return { success: false, message: err instanceof Error ? err.message : String(err), errorCode: 'STATUS_ERROR', raw: err };
+    }
   }
 
   /**
@@ -157,6 +215,68 @@ export class DusupayClient {
       body: JSON.stringify(collection),
     });
   }
+}
+
+// Webhook helpers — exported standalone so they can be used from server-side
+// webhook route handlers without pulling in the network client instance.
+export function verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
+  const webhookSecret = process.env.DUSUPAY_WEBHOOK_SECRET ?? '';
+  if (!webhookSecret) return false;
+
+  const headerParts = signatureHeader.split(',').map((part) => part.trim());
+  const timestampPart = headerParts.find((part) => part.startsWith('t='));
+  const signaturePart = headerParts.find((part) => part.startsWith('s='));
+  const timestamp = timestampPart?.split('=')[1];
+  const signature = signaturePart?.split('=')[1] ?? signatureHeader;
+
+  if (timestamp && signature) {
+    const parsedTimestamp = Number(timestamp);
+    const now = Date.now();
+    const timestampMs = Number.isFinite(parsedTimestamp)
+      ? parsedTimestamp * (timestamp.length <= 10 ? 1000 : 1)
+      : Date.parse(timestamp);
+
+    if (!Number.isFinite(timestampMs) || Math.abs(now - timestampMs) > 5 * 60 * 1000) {
+      return false;
+    }
+
+    const expected = createHmac('sha256', webhookSecret).update(`${timestamp}.${rawBody}`).digest('hex');
+
+    try {
+      return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex'));
+    } catch {
+      return false;
+    }
+  }
+
+  const expected = createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+
+  try {
+    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signatureHeader, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+export function parseWebhook(body: unknown) {
+  if (!isRecord(body)) {
+    return { event: 'unknown', payload: {} } as any;
+  }
+
+  const event = typeof (body as any).event === 'string' ? (body as any).event : 'unknown';
+  const payloadSource = isRecord((body as any).payload) ? (body as any).payload : (body as any);
+  const payload = Object.fromEntries(
+    Object.entries(payloadSource).filter((entry): entry is [string, any] => {
+      const value = entry[1];
+      return (
+        value === null ||
+        value === undefined ||
+        ['string', 'number', 'boolean'].includes(typeof value)
+      );
+    })
+  );
+
+  return { event, payload } as any;
 }
 
 export const dusupayClient = new DusupayClient();

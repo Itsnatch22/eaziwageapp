@@ -794,15 +794,42 @@ export class PayoutService {
       // whose retry was rejected as a dupe precisely because the original
       // went through) would get permanently marked 'failed' in our records.
       let verified;
+      let verifyErrored = false;
       try {
         verified = await dusupayClient.verifyTransaction(merchantReference);
-      } catch {
+      } catch (vErr) {
+        // Verification also failed (network/timeout). This is an indeterminate
+        // outcome — we cannot safely mark the advance as failed because the
+        // payout may have actually succeeded. Record an explicit 'processing_unknown'
+        // status so the reconciliation worker can resolve it later.
+        verifyErrored = true;
         verified = null;
+        console.error('[disburseAdvance] verifyTransaction threw after sendFunds error', { advanceId, merchantReference, err: vErr });
       }
 
       if (verified?.data?.transaction_status === PayoutStatus.COMPLETED) {
         payoutResponse = verified;
       } else {
+        if (verifyErrored) {
+          const reason = 'DusuPay status unknown after network error';
+          // Leave reservation intact — we do not know whether money moved.
+          await supabaseAdmin.from('advances').update({
+            status: 'processing_unknown',
+            reason,
+            reference: merchantReference,
+            internal_reference: verified?.data?.internal_reference ?? null,
+          }).eq('id', advanceId);
+
+          void notifyAdmin({
+            type: 'system_alert',
+            title: 'DusuPay: indeterminate payout (network failure)',
+            message: `Advance ${advanceId} could not be verified after a network error; reconciliation required.`,
+            metadata: { advance_id: advanceId, merchant_reference: merchantReference, note: 'processing_unknown' },
+          }).catch(() => {});
+
+          throw new Error(reason);
+        }
+
         const reason = err instanceof Error ? err.message : 'DusuPay sendFunds failed';
         await supabaseAdmin.from('advances').update({ status: 'failed', reason }).eq('id', advanceId);
         throw new Error(reason);
@@ -829,17 +856,28 @@ export class PayoutService {
     });
 
     if (treasuryDebitError) {
+      // DusuPay confirmed the payout but the treasury ledger RPC failed.
+      // Do NOT mark this advance as 'failed' or release the employer reservation —
+      // money has already left our treasury and reconciliation must ensure the
+      // ledger catches up. Mark an explicit 'disbursed_pending_ledger' state so
+      // the reconciliation worker can retry the idempotent RPC.
       await supabaseAdmin.from('advances').update({
-        status: 'failed',
+        status: 'disbursed_pending_ledger',
         reason: `DusuPay payout succeeded, but treasury ledger debit failed: ${treasuryDebitError.message}`,
+        reference: merchantReference,
+        internal_reference: payoutResponse.data?.internal_reference ?? null,
       }).eq('id', advanceId);
+
       void notifyAdmin({
         type: 'system_alert',
-        title: 'Treasury Ledger Debit Failed',
-        message: `Advance ${advanceId} was accepted by DusuPay, but the ${localCurrency}-${treasuryCountry} treasury ledger could not be debited. Manual reconciliation required.`,
-        metadata: { advance_id: advanceId, country: treasuryCountry, currency: localCurrency, error: treasuryDebitError.message },
+        title: 'Treasury Ledger Debit Failed — reconciliation required',
+        message: `Advance ${advanceId} was accepted by DusuPay but the treasury ledger RPC failed. Manual or automatic reconciliation required.`,
+        metadata: { advance_id: advanceId, merchant_reference: merchantReference, internal_reference: payoutResponse.data?.internal_reference ?? null, country: treasuryCountry, currency: localCurrency, error: treasuryDebitError.message },
       }).catch(() => {});
-      throw new Error('Treasury ledger debit failed after DusuPay payout');
+
+      // Throw so upstream callers see this as an error condition; the
+      // reconciliation job will handle retrying the RPC and settling the row.
+      throw new Error('Treasury ledger debit failed after DusuPay payout (disbursed_pending_ledger)');
     }
 
     // NOTE: employer liability is already fully recorded at funding time —
