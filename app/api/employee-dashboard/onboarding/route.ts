@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
   const adminSupabase = createAdminClient();
 
   let employerId = data.employer_id;
+  let employerIdFromOnboarding = false;
 
   if (!employerId && data.company_code) {
     const code = data.company_code.trim().toUpperCase();
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
         );
       }
       employerId = byOnboarding.id;
+      employerIdFromOnboarding = true;
     }
   }
 
@@ -152,6 +154,18 @@ export async function POST(req: NextRequest) {
   } else if (employerId !== liveEmployerId) {
     // employerId is already from employers table — keep it
     liveEmployerId = employerId;
+  }
+
+  // Block employee creation when the selected employer is still only an
+  // employer_onboarding row and has not been promoted to a live employers
+  // record. employees.employer_id is NOT NULL and FK'd to employers.id; writing
+  // an onboarding.id would fail the FK constraint. Inform the applicant so
+  // they can ask their employer to complete promotion.
+  if (employerIdFromOnboarding && !liveEmp?.id) {
+    return NextResponse.json(
+      { error: 'This employer is not yet promoted to a live EaziWage account. Please ask your employer to complete their onboarding.' },
+      { status: 422 },
+    );
   }
 
 const { data: existing } = await adminSupabase
