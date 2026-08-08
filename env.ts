@@ -217,11 +217,17 @@ export function validateEnv(): EnvConfig {
     if (process.env.DUSUPAY_WEBHOOK_URL && !isValidUrl(process.env.DUSUPAY_WEBHOOK_URL)) {
       errors.push('DUSUPAY_WEBHOOK_URL is not a valid URL');
     }
-    if (process.env.DUSUPAY_SANDBOX_BASE_URL && !isValidUrl(process.env.DUSUPAY_SANDBOX_BASE_URL)) {
-      errors.push('DUSUPAY_SANDBOX_BASE_URL is not a valid URL');
+    if (process.env.DUSUPAY_SANDBOX_BASE_URL) {
+      const val = process.env.DUSUPAY_SANDBOX_BASE_URL;
+      if (!isValidUrl(val) && !isValidUrl(`https://${val}`)) {
+        errors.push('DUSUPAY_SANDBOX_BASE_URL is not a valid URL');
+      }
     }
-    if (process.env.DUSUPAY_PRODUCTION_BASE_URL && !isValidUrl(process.env.DUSUPAY_PRODUCTION_BASE_URL)) {
-      errors.push('DUSUPAY_PRODUCTION_BASE_URL is not a valid URL');
+    if (process.env.DUSUPAY_PRODUCTION_BASE_URL) {
+      const val = process.env.DUSUPAY_PRODUCTION_BASE_URL;
+      if (!isValidUrl(val) && !isValidUrl(`https://${val}`)) {
+        errors.push('DUSUPAY_PRODUCTION_BASE_URL is not a valid URL');
+      }
     }
     if (process.env.DUSUPAY_ALLOWED_IPS && process.env.DUSUPAY_ALLOWED_IPS.split(',').some(ip => !ip.trim())) {
       errors.push('DUSUPAY_ALLOWED_IPS must be a comma-separated list of IPs if set');
