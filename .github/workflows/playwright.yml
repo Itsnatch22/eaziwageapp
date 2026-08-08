@@ -68,6 +68,12 @@ jobs:
         ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || 'test-admin-password' }}
         STANBIC_SANDBOX_API_KEY: ${{ secrets.STANBIC_SANDBOX_API_KEY || 'test-stanbic' }}
         DUSUPAY_WEBHOOK_SECRET: ${{ secrets.DUSUPAY_WEBHOOK_SECRET || 'test-dusupay-secret' }}
+        # Test fallbacks for secrets that env.ts requires but aren't necessary for test logic
+        CRON_SECRET: ${{ secrets.CRON_SECRET || 'test-cron-secret' }}
+        DUSUPAY_PUBLIC_KEY: ${{ secrets.DUSUPAY_PUBLIC_KEY || 'test-dusupay-pub' }}
+        DUSUPAY_SIGNING_KEY: ${{ secrets.DUSUPAY_SIGNING_KEY || 'test-dusupay-signing' }}
+        AT_SANDBOX_API_KEY: ${{ secrets.AT_SANDBOX_API_KEY || secrets.AT_API_KEY || 'test-at-api' }}
+        AT_SANDBOX_USERNAME: ${{ secrets.AT_SANDBOX_USERNAME || secrets.AT_USERNAME || 'test-at-user' }}
     - name: Upload Playwright artifacts
       uses: actions/upload-artifact@v4
       if: ${{ always() }}
