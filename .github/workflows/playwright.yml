@@ -22,6 +22,16 @@ jobs:
     - name: Install dependencies
       # Prefer clean CI install, but fall back to `npm install` when lockfile is out-of-sync
       run: npm ci || npm install --no-audit --no-fund
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/ms-playwright
+          ~/.local/share/ms-playwright
+        key: playwright-browsers-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          playwright-browsers-${{ runner.os }}-
+
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
     - name: Run Playwright tests
