@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, timestamp, jsonb, pgEnum, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, numeric, boolean, timestamp, jsonb, pgEnum, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const employeeStatusEnum = pgEnum('employee_status', ['Active', 'Inactive']);
@@ -180,7 +180,7 @@ export const blackoutPeriods = pgTable('blackout_periods', {
   end_date: timestamp('end_date').notNull(),
   applies_to: text('applies_to').default('all').notNull(), 
   reason: text('reason'),
-  is_active: numeric('is_active', { precision: 1, scale: 0 }).default('1').notNull(),
+  is_active: boolean('is_active').default(true).notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -192,7 +192,7 @@ export const legalDocuments = pgTable('legal_documents', {
   content: text('content').notNull(),
   version: text('version').notNull(),
   effective_date: timestamp('effective_date').notNull(),
-  is_active: numeric('is_active', { precision: 1, scale: 0 }).default('1').notNull(),
+  is_active: boolean('is_active').default(true).notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({

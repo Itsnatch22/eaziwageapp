@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: AppRouteContext<{ type: 
     const auth = await requireAdmin();
     if (auth instanceof NextResponse) return auth;
     const { adminSupabase } = auth;
-    const { data, error } = await adminSupabase.from('legal_documents').select('*').eq('document_type', type).eq('is_active', 1).maybeSingle();
+    const { data, error } = await adminSupabase.from('legal_documents').select('*').eq('document_type', type).eq('is_active', true).maybeSingle();
     if (error) throw error;
     return NextResponse.json(data || { document_type: type, content: '', title: '', version: '1.0' });
   } catch (error) {

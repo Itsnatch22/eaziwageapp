@@ -26,6 +26,18 @@ export async function POST(req: NextRequest) {
 
   log.info('Webhook received');
 
+  // Optional IP allowlist: DUSUPAY_ALLOWED_IPS can be a comma-separated list of allowed IPs.
+  try {
+    const allowedIps = (process.env.DUSUPAY_ALLOWED_IPS || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (allowedIps.length > 0 && !allowedIps.includes(ip)) {
+      log.warn('Webhook IP not in allowed list', { ip });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  } catch (e) {
+    // fail closed? Log and continue to signature verification as a fallback
+    log.warn('Failed to parse DUSUPAY_ALLOWED_IPS; continuing without allowlist', { err: e });
+  }
+
   try {
     const rawBody = await req.text();
     const signature = req.headers.get('dusupay-signature') ?? '';

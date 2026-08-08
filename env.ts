@@ -25,6 +25,17 @@ interface EnvConfig {
   SUPABASE_PRIVATE_VAPID_KEY?: string;
   CRON_SECRET?: string;
 
+  DUSUPAY_ENVIRONMENT?: string;
+  DUSUPAY_PUBLIC_KEY?: string;
+  DUSUPAY_SECRET_KEY?: string;
+  DUSUPAY_WEBHOOK_SECRET?: string;
+  DUSUPAY_SIGNING_KEY?: string;
+  DUSUPAY_WEBHOOK_URL?: string;
+  DUSUPAY_SANDBOX_BASE_URL?: string;
+  DUSUPAY_PRODUCTION_BASE_URL?: string;
+  DUSUPAY_ALLOWED_IPS?: string;
+  DUSUPAY_INCLUDE_EMPTY_SECRET?: string;
+
   STANBIC_ENVIRONMENT?: string;
   STANBIC_API_KEY?: string;
   STANBIC_CLIENT_SECRET?: string;
@@ -190,6 +201,32 @@ export function validateEnv(): EnvConfig {
       errors.push('STANBIC_BALANCE_HTTP_METHOD must be GET or POST');
     }
 
+    // DusuPay config
+    if (!process.env.DUSUPAY_PUBLIC_KEY) {
+      errors.push('DUSUPAY_PUBLIC_KEY is not defined');
+    }
+    if (process.env.DUSUPAY_ENVIRONMENT === 'production' && !process.env.DUSUPAY_SECRET_KEY) {
+      errors.push('DUSUPAY_SECRET_KEY is not defined for production environment');
+    }
+    if (!process.env.DUSUPAY_WEBHOOK_SECRET) {
+      errors.push('DUSUPAY_WEBHOOK_SECRET is not defined (required to verify webhooks)');
+    }
+    if (!process.env.DUSUPAY_SIGNING_KEY) {
+      errors.push('DUSUPAY_SIGNING_KEY is not defined');
+    }
+    if (process.env.DUSUPAY_WEBHOOK_URL && !isValidUrl(process.env.DUSUPAY_WEBHOOK_URL)) {
+      errors.push('DUSUPAY_WEBHOOK_URL is not a valid URL');
+    }
+    if (process.env.DUSUPAY_SANDBOX_BASE_URL && !isValidUrl(process.env.DUSUPAY_SANDBOX_BASE_URL)) {
+      errors.push('DUSUPAY_SANDBOX_BASE_URL is not a valid URL');
+    }
+    if (process.env.DUSUPAY_PRODUCTION_BASE_URL && !isValidUrl(process.env.DUSUPAY_PRODUCTION_BASE_URL)) {
+      errors.push('DUSUPAY_PRODUCTION_BASE_URL is not a valid URL');
+    }
+    if (process.env.DUSUPAY_ALLOWED_IPS && process.env.DUSUPAY_ALLOWED_IPS.split(',').some(ip => !ip.trim())) {
+      errors.push('DUSUPAY_ALLOWED_IPS must be a comma-separated list of IPs if set');
+    }
+
     if (process.env.AT_ENVIRONMENT === 'production') {
       if (!process.env.AT_PRODUCTION_API_KEY && !process.env.AT_API_KEY) {
         errors.push('AT_PRODUCTION_API_KEY or AT_API_KEY is not defined (required when AT_ENVIRONMENT=production)');
@@ -256,6 +293,16 @@ export function validateEnv(): EnvConfig {
     STANBIC_BALANCE_ACCOUNT_PARAM: process.env.STANBIC_BALANCE_ACCOUNT_PARAM,
     STANBIC_BALANCE_HTTP_METHOD: process.env.STANBIC_BALANCE_HTTP_METHOD,
     CRON_SECRET: process.env.CRON_SECRET,
+    DUSUPAY_ENVIRONMENT: process.env.DUSUPAY_ENVIRONMENT,
+    DUSUPAY_PUBLIC_KEY: process.env.DUSUPAY_PUBLIC_KEY,
+    DUSUPAY_SECRET_KEY: process.env.DUSUPAY_SECRET_KEY,
+    DUSUPAY_WEBHOOK_SECRET: process.env.DUSUPAY_WEBHOOK_SECRET,
+    DUSUPAY_SIGNING_KEY: process.env.DUSUPAY_SIGNING_KEY,
+    DUSUPAY_WEBHOOK_URL: process.env.DUSUPAY_WEBHOOK_URL,
+    DUSUPAY_SANDBOX_BASE_URL: process.env.DUSUPAY_SANDBOX_BASE_URL,
+    DUSUPAY_PRODUCTION_BASE_URL: process.env.DUSUPAY_PRODUCTION_BASE_URL,
+    DUSUPAY_ALLOWED_IPS: process.env.DUSUPAY_ALLOWED_IPS,
+    DUSUPAY_INCLUDE_EMPTY_SECRET: process.env.DUSUPAY_INCLUDE_EMPTY_SECRET,
 
     AT_ENVIRONMENT: process.env.AT_ENVIRONMENT,
     AT_API_KEY: process.env.AT_API_KEY,
