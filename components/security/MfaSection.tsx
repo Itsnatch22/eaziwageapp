@@ -184,10 +184,13 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
             Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
           </p>
           {qrCode && (
-            <div
-              className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-slate-200"
-              dangerouslySetInnerHTML={{ __html: qrCode }}
-            />
+            <div className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-center">
+              <img
+                src={`data:image/svg+xml;utf8,${encodeURIComponent(qrCode)}`}
+                alt="MFA QR code"
+                style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
+              />
+            </div>
           )}
           {secret && (
             <p className="text-xs text-slate-500 mt-2 flex items-center justify-center gap-1.5">
