@@ -29,7 +29,7 @@ export function signMfaBackupCookie(userId: string, hmacKey: string): { value: s
  * request through, blocking legitimate backup-code sessions.
  */
 export function verifyMfaBackupCookie(rawValue: string | undefined, userId: string): boolean {
-  const hmacKey = process.env.PII_ENCRYPTION_KEY;
+  const hmacKey = getEnv().PII_ENCRYPTION_KEY;
   if (!rawValue || !hmacKey) return false;
 
   const [expiresAtStr, signature] = rawValue.split('.');
@@ -72,7 +72,7 @@ export function signDeviceTrustCookie(userId: string, hmacKey: string): { value:
  * through.
  */
 export function verifyDeviceTrustCookie(rawValue: string | undefined, userId: string): boolean {
-  const hmacKey = process.env.PII_ENCRYPTION_KEY;
+  const hmacKey = getEnv().PII_ENCRYPTION_KEY;
   if (!rawValue || !hmacKey) return false;
 
   const [expiresAtStr, signature] = rawValue.split('.');
