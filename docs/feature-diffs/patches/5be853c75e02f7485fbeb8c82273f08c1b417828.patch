@@ -1,0 +1,224 @@
+From 5be853c75e02f7485fbeb8c82273f08c1b417828 Mon Sep 17 00:00:00 2001
+From: Itsnatch <kamaumark996@gmail.com>
+Date: Sat, 18 Jul 2026 11:42:47 +0300
+Subject: [PATCH] fix: separate account approval from KYC eligibility for money
+ movement
+
+Root cause (confirmed via live DB trace): sync_employee_from_onboarding()
+and handle_employer_onboarding_approval() only fire their promotion
+logic IF NEW.status = 'approved' -- there was no symmetric path to
+demote employees.kyc_status / employers state when a later KYC document
+rejection correctly recomputed employee_onboarding.status /
+employer_onboarding.status back down. Once an account was approved,
+employees.kyc_status and employers.status stayed at their promotion-time
+values forever, so a post-approval document rejection never blocked
+money movement -- exactly the scenario described: an admin approves an
+account, a document (required or not) later gets rejected, and the
+system still treated the account as fully KYC-approved.
+
+Added two DB triggers (mirroring the existing
+fn_sync_employer_risk_score_to_live pattern already used in this
+codebase) that keep employees.kyc_status and a new employers.is_verified
+flag continuously synced to the live onboarding rollup, in both
+directions -- without touching employees.status / employers.status,
+which remain the admin-controlled account-approval flags (dashboard
+access). This is the intended 3-way split:
+  - account approval (employees.status / employers.status) -> dashboard
+    access only, admin discretion, independent of KYC state
+  - KYC approval (employees.kyc_status / employers.is_verified) -> now
+    continuously live-synced, gates money movement
+  - review requests (risk_review_requests / bank_change_requests) --
+    already a separate workflow, unaffected by this change
+
+lib/services/payout-service.ts's checkEmployeeEligibility() already
+checked employees.kyc_status as a separate condition from
+employees.status -- it starts working correctly automatically once the
+new trigger keeps kyc_status live-synced, no route code change needed
+there. Added the equivalent employer-side check (is_verified) at both
+the real disbursement chokepoint (payout-service.ts, which previously
+didn't even select employer status/is_verified) and at advance-request
+creation time (request-advance/route.ts).
+
+Verified live end-to-end against the Notion Labs test employer: toggling
+employer_onboarding.status to a non-approved value flipped
+employers.is_verified to false while employers.status stayed 'approved'
+untouched, then correctly re-synced back to true on re-approval.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../request-advance/route.ts                  | 11 ++-
+ lib/services/payout-service.ts                | 17 +++-
+ ...8090000_sync_kyc_status_to_live_tables.sql | 90 +++++++++++++++++++
+ 3 files changed, 116 insertions(+), 2 deletions(-)
+ create mode 100644 supabase/migrations/20260718090000_sync_kyc_status_to_live_tables.sql
+
+diff --git a/app/api/employee-dashboard/request-advance/route.ts b/app/api/employee-dashboard/request-advance/route.ts
+index d1175e1..ace13a7 100644
+--- a/app/api/employee-dashboard/request-advance/route.ts
++++ b/app/api/employee-dashboard/request-advance/route.ts
+@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
+     // organization_id is required for the advances.organization_id NOT NULL constraint.
+     const { data: employerRecord, error: employerLookupError } = await adminSupabase
+       .from('employers')
+-      .select('id, organization_id, status, ewa_enabled, disbursements_frozen, is_defaulted, auto_approve')
++      .select('id, organization_id, status, is_verified, ewa_enabled, disbursements_frozen, is_defaulted, auto_approve')
+       .eq('onboarding_id', employee.employer_id)
+       .maybeSingle();
+ 
+@@ -263,6 +263,15 @@ export async function POST(req: NextRequest) {
+     if (employerRecord.status !== 'approved') {
+       return errorResponse(403, 'Your employer account is not yet fully activated. Please contact support.');
+     }
++    // status ('approved') is the admin-controlled account flag and can stay
++    // 'approved' indefinitely; is_verified is kept live-synced to the
++    // employer's actual KYC rollup (trg_sync_employer_kyc_to_live) and flips
++    // to false the moment a KYC document is rejected post-approval, even
++    // though the account itself remains active — that must independently
++    // block money movement here.
++    if (employerRecord.is_verified !== true) {
++      return errorResponse(403, 'Your employer’s KYC verification is not currently valid. Please contact support.');
++    }
+     if (employerRecord.ewa_enabled === false) {
+       return errorResponse(403, 'EWA is not currently enabled for your employer.');
+     }
+diff --git a/lib/services/payout-service.ts b/lib/services/payout-service.ts
+index f5c3a54..e5eeee2 100644
+--- a/lib/services/payout-service.ts
++++ b/lib/services/payout-service.ts
+@@ -286,7 +286,7 @@ export class PayoutService {
+       .select(`
+         *,
+         e:employees(id, full_name, kyc_status, status:status, risk_score, employer_id, country, monthly_salary, created_at),
+-        er:employers(ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access, instant_enabled, funding_model, risk_tier, funding_buffer_percent, credit_limit)
++        er:employers(is_verified, ewa_enabled, disbursements_frozen, freeze_reason, is_defaulted, processing_fee, advance_limit_percent, min_advance_amount, cooldown_days, max_monthly_advances, weekend_access, instant_enabled, funding_model, risk_tier, funding_buffer_percent, credit_limit)
+       `)
+       .eq('id', advanceId)
+       .maybeSingle();
+@@ -337,6 +337,7 @@ export class PayoutService {
+     }
+ 
+     interface EmployerRow {
++      is_verified?: boolean | null;
+       ewa_enabled?: boolean | null;
+       disbursements_frozen?: boolean | null;
+       freeze_reason?: string | null;
+@@ -397,6 +398,20 @@ export class PayoutService {
+       throw new Error('EWA not enabled for employer');
+     }
+ 
++    // is_verified is kept live-synced to the employer's actual KYC rollup
++    // (trg_sync_employer_kyc_to_live) independent of the employer's account
++    // status, which an admin controls separately and can stay 'approved'
++    // indefinitely. A KYC document rejected after the employer was already
++    // approved flips this to false without touching account status — this
++    // is the real money-movement chokepoint, so it must be checked here even
++    // though app/api/employee-dashboard/request-advance/route.ts already
++    // checks it at request-creation time (an advance can sit pending for
++    // days between those two points).
++    if (employer?.is_verified !== true) {
++      await supabaseAdmin.from('advances').update({ status: 'rejected', reason: 'Employer KYC verification is not currently valid' }).eq('id', advanceId);
++      throw new Error('Employer KYC verification is not currently valid');
++    }
++
+     // Employer arrears gate: if a past payday's recoupment was declined or never
+     // resolved, new advances are paused for this employer's employees until it's
+     // sorted out. Today's still-open prompt (payday_date === today) doesn't count
+diff --git a/supabase/migrations/20260718090000_sync_kyc_status_to_live_tables.sql b/supabase/migrations/20260718090000_sync_kyc_status_to_live_tables.sql
+new file mode 100644
+index 0000000..9ca47a1
+--- /dev/null
++++ b/supabase/migrations/20260718090000_sync_kyc_status_to_live_tables.sql
+@@ -0,0 +1,90 @@
++-- Separates "account approval" (dashboard access — employees.status /
++-- employers.status, admin-controlled) from "KYC approval" (money-movement
++-- eligibility — employees.kyc_status / employers.is_verified).
++--
++-- Root cause: sync_employee_from_onboarding() and
++-- handle_employer_onboarding_approval() only fire their promotion logic
++-- IF NEW.status = 'approved' — there was no symmetric path to demote
++-- employees.kyc_status / employers.is_verified when a later document
++-- rejection recomputes employee_onboarding.status / employer_onboarding.status
++-- back down. Result: once an account was promoted, a subsequent KYC document
++-- rejection (recompute_employee_onboarding_status /
++-- recompute_employer_onboarding_status already correctly flip the onboarding
++-- rollup status) never propagated anywhere money-movement eligibility checks
++-- actually look — lib/services/payout-service.ts's checkEmployeeEligibility()
++-- reads employees.kyc_status, and app/api/employee-dashboard/request-advance
++-- reads employers.status — both stayed stuck at their promotion-time values
++-- forever. These triggers close that gap by keeping kyc_status/is_verified
++-- continuously synced to the onboarding rollup, in both directions, without
++-- touching employees.status/employers.status (the admin-controlled account
++-- flags) at all — so a KYC rejection blocks money movement without also
++-- revoking dashboard access.
++
++CREATE OR REPLACE FUNCTION public.fn_sync_employee_kyc_to_live()
++RETURNS trigger
++LANGUAGE plpgsql
++SET search_path TO 'public', 'pg_temp'
++AS $function$
++DECLARE
++  v_kyc_status text;
++BEGIN
++  IF NEW.status IS DISTINCT FROM OLD.status THEN
++    -- 'suspended' is an admin hold, not a KYC-derived state — leave
++    -- employees.kyc_status untouched, mirroring
++    -- recompute_employee_onboarding_status()'s own carve-out for it.
++    IF NEW.status = 'suspended' THEN
++      RETURN NEW;
++    END IF;
++
++    v_kyc_status := CASE NEW.status
++      WHEN 'approved'      THEN 'approved'
++      WHEN 'rejected'      THEN 'rejected'
++      WHEN 'under_review'  THEN 'submitted'
++      ELSE 'pending'
++    END;
++
++    UPDATE public.employees
++    SET kyc_status = v_kyc_status, updated_at = now()
++    WHERE user_id = NEW.user_id AND kyc_status IS DISTINCT FROM v_kyc_status;
++  END IF;
++  RETURN NEW;
++END;
++$function$;
++
++DROP TRIGGER IF EXISTS trg_sync_employee_kyc_to_live ON public.employee_onboarding;
++CREATE TRIGGER trg_sync_employee_kyc_to_live
++AFTER UPDATE ON public.employee_onboarding
++FOR EACH ROW
++EXECUTE FUNCTION public.fn_sync_employee_kyc_to_live();
++
++CREATE OR REPLACE FUNCTION public.fn_sync_employer_kyc_to_live()
++RETURNS trigger
++LANGUAGE plpgsql
++SET search_path TO 'public', 'pg_temp'
++AS $function$
++DECLARE
++  v_is_verified boolean;
++BEGIN
++  IF NEW.status IS DISTINCT FROM OLD.status THEN
++    -- 'suspended'/'risk_review_in_progress' are admin holds, not KYC-derived
++    -- states — leave employers.is_verified untouched, mirroring
++    -- recompute_employer_onboarding_status()'s own carve-outs for them.
++    IF NEW.status IN ('suspended', 'risk_review_in_progress') THEN
++      RETURN NEW;
++    END IF;
++
++    v_is_verified := (NEW.status = 'approved');
++
++    UPDATE public.employers
++    SET is_verified = v_is_verified, updated_at = now()
++    WHERE user_id = NEW.user_id AND is_verified IS DISTINCT FROM v_is_verified;
++  END IF;
++  RETURN NEW;
++END;
++$function$;
++
++DROP TRIGGER IF EXISTS trg_sync_employer_kyc_to_live ON public.employer_onboarding;
++CREATE TRIGGER trg_sync_employer_kyc_to_live
++AFTER UPDATE ON public.employer_onboarding
++FOR EACH ROW
++EXECUTE FUNCTION public.fn_sync_employer_kyc_to_live();
+-- 
+2.54.0.windows.1
+
