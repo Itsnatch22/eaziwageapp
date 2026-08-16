@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
+import { getAdvanceStatusLabel } from '@/lib/constants/advance-status';
 
 const patchSchema = z.object({
   action: z.enum(['approve', 'deny']),
@@ -148,14 +149,48 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
     }
   }
 
+  // Authoritative status guard — update only when current status is one of the
+  // allowed values for the requested action. Perform a conditional (atomic)
+  // update so there is no race window between read and write.
+  const approveAllowed = ['pending', 'failed'];
+  const rejectAllowed = ['pending', 'approved'];
+
+  // Sanity-check statuses against constants to avoid typos (maps to a label).
+  // If a status is unknown here, getAdvanceStatusLabel will return 'Unknown'.
+  // This is a lightweight runtime check and preserves existing behaviour if
+  // the constants file is extended later.
+  for (const s of [...approveAllowed, ...rejectAllowed]) {
+    const lbl = getAdvanceStatusLabel(s);
+    if (lbl === 'Unknown') {
+      console.warn('[advance-approve] Using an unrecognized advance status:', s);
+    }
+  }
+
+  const allowed = action === 'approve' ? approveAllowed : rejectAllowed;
   const update = action === 'approve'
     ? { status: 'approved', approved_at: new Date().toISOString(), approved_by: user.id }
     : { status: 'rejected' };
 
-  const { error: updateError } = await supabase.from('advances').update(update).eq('id', id);
+  // Atomic conditional update: only updates if the current status is in allowed
+  // set. Select the status field back so we can tell whether the update applied.
+  const { data: updatedRow, error: updateError } = await supabase
+    .from('advances')
+    .update(update)
+    .eq('id', id)
+    .in('status', allowed)
+    .select('status')
+    .maybeSingle();
+
   if (updateError) {
     console.error('[Approve advance] update error:', updateError);
     return NextResponse.json({ error: 'Failed to update advance status' }, { status: 500 });
+  }
+
+  if (!updatedRow) {
+    // No row updated — fetch current status to include in the 409 response.
+    const { data: current } = await supabase.from('advances').select('status').eq('id', id).maybeSingle();
+    const currentStatus = current?.status ?? 'unknown';
+    return NextResponse.json({ error: `Advance cannot be ${action}d from its current status`, current_status: currentStatus }, { status: 409 });
   }
 
   return NextResponse.json({ success: true, message: action === 'approve' ? 'Advance approved' : 'Advance rejected' });
