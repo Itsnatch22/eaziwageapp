@@ -119,6 +119,12 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
         .select('max_advance_percentage, min_advance_amount, max_advance_amount')
        .eq('id', organization_id)
         .maybeSingle();
+      const { data: employerSettings } = await supabase
+        .from('employers')
+        .select('ewa_enabled')
+        .eq('onboarding_id', organization_id)
+        .maybeSingle<{ ewa_enabled: boolean | null }>();
+      effective.ewa_enabled = employerSettings?.ewa_enabled ?? effective.ewa_enabled;
       if (employerOnboarding) {
         effective.max_advance_percentage = employerOnboarding.max_advance_percentage ?? effective.max_advance_percentage;
         effective.min_advance_amount = Number(employerOnboarding.min_advance_amount ?? effective.min_advance_amount);
