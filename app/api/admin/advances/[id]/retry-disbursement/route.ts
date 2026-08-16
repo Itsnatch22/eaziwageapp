@@ -34,14 +34,20 @@ export async function POST(
   }
 
   // Reset to approved so disburseAdvance can claim it
-  const { error: resetError } = await supabaseAdmin
+  const { data: resetRow, error: resetError } = await supabaseAdmin
     .from('advances')
     .update({ status: 'approved', reason: null, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('status', 'failed');
+    .eq('status', 'failed')
+    .select('id')
+    .maybeSingle();
 
   if (resetError) {
     return NextResponse.json({ error: 'Failed to reset advance status' }, { status: 500 });
+  }
+
+  if (!resetRow) {
+    return NextResponse.json({ error: 'Advance is no longer in a retryable state' }, { status: 409 });
   }
 
   // Audit the manual retry
