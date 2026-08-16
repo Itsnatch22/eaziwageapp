@@ -152,10 +152,41 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
     ? { status: 'approved', approved_at: new Date().toISOString(), approved_by: user.id }
     : { status: 'rejected' };
 
-  const { error: updateError } = await supabase.from('advances').update(update).eq('id', id);
+  const approveAllowed = ['pending', 'failed'];
+  const rejectAllowed = ['pending', 'approved'];
+  const allowedStatuses = action === 'approve' ? approveAllowed : rejectAllowed;
+
+  const { data: updatedAdvance, error: updateError } = await supabase
+    .from('advances')
+    .update(update)
+    .eq('id', id)
+    .in('status', allowedStatuses)
+    .select('status')
+    .maybeSingle<{ status: string | null }>();
   if (updateError) {
     console.error('[Approve advance] update error:', updateError);
     return NextResponse.json({ error: 'Failed to update advance status' }, { status: 500 });
+  }
+
+  if (!updatedAdvance) {
+    const { data: currentAdvance, error: currentStatusError } = await supabase
+      .from('advances')
+      .select('status')
+      .eq('id', id)
+      .maybeSingle<{ status: string | null }>();
+
+    if (currentStatusError) {
+      console.error('[Approve advance] current status error:', currentStatusError);
+      return NextResponse.json({ error: 'Failed to update advance status' }, { status: 500 });
+    }
+
+    return NextResponse.json(
+      {
+        error: `Advance cannot be ${action === 'approve' ? 'approved' : 'rejected'} from its current status`,
+        status: currentAdvance?.status ?? null,
+      },
+      { status: 409 },
+    );
   }
 
   return NextResponse.json({ success: true, message: action === 'approve' ? 'Advance approved' : 'Advance rejected' });
