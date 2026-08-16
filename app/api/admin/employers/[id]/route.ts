@@ -122,11 +122,13 @@ export async function GET(
           .select('monthly_salary,status')
           .eq('employer_id', liveEmployer.id)
       : Promise.resolve({ data: [] as Array<{ monthly_salary: number | null; status: string | null }> }),
-    adminSupabase
-      .from('advances')
-      .select('amount')
-      .eq('employer_id', id)
-      .gte('created_at', startOfMonth),
+    liveEmployer?.id
+      ? adminSupabase
+          .from('advances')
+          .select('amount')
+          .eq('employer_id', liveEmployer.id)
+          .gte('created_at', startOfMonth)
+      : Promise.resolve({ data: [] as Array<{ amount: number | null }> }),
   ]);
 
   const activeEmployees = (employeeResult.data ?? []).filter((e) => e.status?.toLowerCase() === 'active');
