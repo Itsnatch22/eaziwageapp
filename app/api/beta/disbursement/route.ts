@@ -112,6 +112,28 @@ export async function POST(req: NextRequest) {
             console.error("Error sending disbursement feedback email:", error);
         }
 
+        try {
+            await resend.emails.send({
+                from: "EaziWage Beta Testers <noreply@eaziwage.com>",
+                to: email,
+                subject: "Your EaziWage beta disbursement feedback receipt",
+                react: BetaDisbursementFeedback({
+                    userId,
+                    userName: name,
+                    userEmail: email,
+                    reviewedPages,
+                    answers,
+                    recipient: "tester",
+                    submittedAt: submittedAt.toLocaleString("en-US", {
+                        dateStyle: "long",
+                        timeStyle: "short",
+                    }),
+                }),
+            });
+        } catch (error) {
+            console.error("Error sending disbursement feedback receipt:", error);
+        }
+
         return NextResponse.json(
             { message: "Feedback submitted successfully", success: true },
             {

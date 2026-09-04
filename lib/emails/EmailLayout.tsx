@@ -19,7 +19,7 @@ interface EmailLayoutProps {
   recipientEmail?: string;
   children: React.ReactNode;
   accentColor?: string;
-  portalLabel?: 'Admin Portal' | 'Employee Portal' | 'Employer Portal' | 'EaziWage Security';
+  portalLabel?: 'Admin Portal' | 'Employee Portal' | 'Employer Portal' | 'EaziWage Security' | 'Beta Feedback';
 }
 
 const BRAND_GREEN = '#16a34a';

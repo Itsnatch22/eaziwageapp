@@ -42,6 +42,7 @@ interface BetaOnboardingFeedbackProps {
   userId?: string;
   userName: string;
   userEmail?: string;
+  recipient?: 'admin' | 'tester';
   reviewedPages?: string[];
   answers: BetaOnboardingAnswers;
   submittedAt: string;
@@ -97,6 +98,7 @@ export default function BetaOnboardingFeedback({
   userId,
   userName,
   userEmail,
+  recipient = 'admin',
   reviewedPages = [],
   answers,
   submittedAt,
@@ -104,35 +106,34 @@ export default function BetaOnboardingFeedback({
   userAgent = 'unknown',
   dashboardUrl = 'https://app.eaziwage.com/admin',
 }: BetaOnboardingFeedbackProps) {
+  const isTesterReceipt = recipient === 'tester';
   const hasBlockingFriction = answers.q4.encountered || answers.q6.confusing || answers.q10.issue || Boolean(answers.q12?.encountered);
   const sentimentVariant = hasBlockingFriction ? 'yellow' : 'green';
 
   return (
     <EmailLayout
-      previewText={`New beta onboarding feedback from ${userName}`}
+      previewText={isTesterReceipt ? 'Your EaziWage beta onboarding feedback receipt' : `New beta onboarding feedback from ${userName}`}
       accentColor="#16a34a"
-      portalLabel="Admin Portal"
+      portalLabel={isTesterReceipt ? 'Beta Feedback' : 'Admin Portal'}
     >
-      <AlertBanner variant="info" icon="BETA" label="Beta Onboarding Feedback" />
+      <AlertBanner variant="info" icon="BETA" label={isTesterReceipt ? 'Feedback Received' : 'Beta Onboarding Feedback'} />
 
-      <Heading style={styles.heading}>New beta onboarding feedback</Heading>
+      <Heading style={styles.heading}>{isTesterReceipt ? 'Your beta onboarding feedback' : 'New beta onboarding feedback'}</Heading>
 
       <Text style={styles.text}>
-        A beta tester completed the onboarding feedback survey. Review the summary below and
-        follow up where friction was reported.
+        {isTesterReceipt
+          ? 'Thank you for reviewing the onboarding experience. Here is a copy of the answers you submitted.'
+          : 'A beta tester completed the onboarding feedback survey. Review the summary below and follow up where friction was reported.'}
       </Text>
 
       <InfoBox title="Submission Details">
         <MetaRow label="Name" value={userName} />
         {userEmail && <MetaRow label="Email" value={userEmail} />}
-        {userId && <MetaRow label="User ID" value={userId} />}
+        {!isTesterReceipt && userId && <MetaRow label="User ID" value={userId} />}
         {reviewedPages.length > 0 && <MetaRow label="Reviewed Pages" value={reviewedPages.join(', ')} />}
         <MetaRow label="Submitted At" value={submittedAt} />
-        <MetaRow label="IP Address" value={ipAddress} />
-        <MetaRow
-          label="Friction"
-          value={<StatusPill label={hasBlockingFriction ? 'Needs Review' : 'No Major Issues'} variant={sentimentVariant} />}
-        />
+        {!isTesterReceipt && <MetaRow label="IP Address" value={ipAddress} />}
+        <MetaRow label="Friction" value={<StatusPill label={hasBlockingFriction ? 'Needs Review' : 'No Major Issues'} variant={sentimentVariant} />} />
       </InfoBox>
 
       <InfoBox title="Experience Scores">
@@ -173,16 +174,9 @@ export default function BetaOnboardingFeedback({
         </InfoBox>
       )}
 
-      <InfoBox title="Technical Context">
-        <MetaRow label="User Agent" value={userAgent} />
-        <MetaRow label="Encountered Blocker" value={booleanLabel(hasBlockingFriction)} />
-      </InfoBox>
+      {!isTesterReceipt && <InfoBox title="Technical Context"><MetaRow label="User Agent" value={userAgent} /><MetaRow label="Encountered Blocker" value={booleanLabel(hasBlockingFriction)} /></InfoBox>}
 
-      <Section style={styles.buttonContainer}>
-        <Button style={styles.button} href={dashboardUrl}>
-          Open Admin Dashboard
-        </Button>
-      </Section>
+      {!isTesterReceipt && <Section style={styles.buttonContainer}><Button style={styles.button} href={dashboardUrl}>Open Admin Dashboard</Button></Section>}
     </EmailLayout>
   );
 }
@@ -191,6 +185,7 @@ BetaOnboardingFeedback.PreviewProps = {
   userId: '00000000-0000-0000-0000-000000000000',
   userName: 'Beta Tester',
   userEmail: 'tester@example.com',
+  recipient: 'admin',
   reviewedPages: ['Register', 'Login', 'Employee onboarding', 'Employer onboarding'],
   submittedAt: new Date().toLocaleString(),
   ipAddress: '127.0.0.1',

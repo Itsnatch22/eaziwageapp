@@ -7,6 +7,7 @@ interface BetaDisbursementFeedbackProps {
   userId?: string;
   userName: string;
   userEmail?: string;
+  recipient?: 'admin' | 'tester';
   reviewedPages?: string[];
   answers: BetaDisbursementAnswers;
   submittedAt: string;
@@ -56,6 +57,7 @@ export function BetaDisbursementFeedback({
   userId,
   userName,
   userEmail,
+  recipient = 'admin',
   reviewedPages = [],
   answers,
   submittedAt,
@@ -63,24 +65,24 @@ export function BetaDisbursementFeedback({
   userAgent = 'unknown',
   dashboardUrl = 'https://app.eaziwage.com/admin',
 }: BetaDisbursementFeedbackProps) {
+  const isTesterReceipt = recipient === 'tester';
   const hasIssue = answers.q8.value;
 
   return (
-    <EmailLayout previewText={`New beta disbursement feedback from ${userName}`} portalLabel="Admin Portal">
-      <AlertBanner variant="info" icon="BETA" label="Beta Disbursement Feedback" />
-      <Heading style={styles.heading}>New beta disbursement feedback</Heading>
+    <EmailLayout previewText={isTesterReceipt ? 'Your EaziWage beta disbursement feedback receipt' : `New beta disbursement feedback from ${userName}`} portalLabel={isTesterReceipt ? 'Beta Feedback' : 'Admin Portal'}>
+      <AlertBanner variant="info" icon="BETA" label={isTesterReceipt ? 'Feedback Received' : 'Beta Disbursement Feedback'} />
+      <Heading style={styles.heading}>{isTesterReceipt ? 'Your beta disbursement feedback' : 'New beta disbursement feedback'}</Heading>
       <Text style={styles.text}>
-        A beta tester completed the employee disbursement flow survey. Review the experience
-        scores and any reported issues below.
+        {isTesterReceipt ? 'Thank you for reviewing the disbursement experience. Here is a copy of the answers you submitted.' : 'A beta tester completed the employee disbursement flow survey. Review the experience scores and any reported issues below.'}
       </Text>
 
       <InfoBox title="Submission Details">
         <MetaRow label="Name" value={userName} />
         {userEmail && <MetaRow label="Email" value={userEmail} />}
-        {userId && <MetaRow label="User ID" value={userId} />}
+        {!isTesterReceipt && userId && <MetaRow label="User ID" value={userId} />}
         {reviewedPages.length > 0 && <MetaRow label="Reviewed Pages" value={reviewedPages.join(', ')} />}
         <MetaRow label="Submitted At" value={submittedAt} />
-        <MetaRow label="IP Address" value={ipAddress} />
+        {!isTesterReceipt && <MetaRow label="IP Address" value={ipAddress} />}
         <MetaRow
           label="Issue"
           value={<StatusPill label={hasIssue ? 'Needs Review' : 'No Issue Reported'} variant={hasIssue ? 'yellow' : 'green'} />}
@@ -110,13 +112,9 @@ export function BetaDisbursementFeedback({
         </InfoBox>
       )}
 
-      <InfoBox title="Technical Context">
-        <MetaRow label="User Agent" value={userAgent} />
-      </InfoBox>
+      {!isTesterReceipt && <InfoBox title="Technical Context"><MetaRow label="User Agent" value={userAgent} /></InfoBox>}
 
-      <Section style={styles.buttonContainer}>
-        <Button style={styles.button} href={dashboardUrl}>Open Admin Dashboard</Button>
-      </Section>
+      {!isTesterReceipt && <Section style={styles.buttonContainer}><Button style={styles.button} href={dashboardUrl}>Open Admin Dashboard</Button></Section>}
     </EmailLayout>
   );
 }
