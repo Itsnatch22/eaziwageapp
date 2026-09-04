@@ -155,6 +155,15 @@ export const advanceLimiter = new LazyRatelimit("ratelimit:advance");
  * Risk scoring, Topups, and Fraud rules).
  */
 export const adminApiLimiter = new LazyRatelimit("ratelimit:admin_api", 900, "1 m");
+/**
+ * Beta onboarding limiter — limits to 5 requests per hour per user.
+ */
+export const betaOnboardingLimiter = new LazyRatelimit("ratelimit:beta_onboarding", 5, "1 h");
+
+/**
+ * Beta disbursement limiter — limits to 5 requests per hour per user.
+ */
+export const betaDisbursementLimiter = new LazyRatelimit("ratelimit:beta_disbursement", 5, "1 h");
 
 /**
  * Helper to format rate limit response headers
