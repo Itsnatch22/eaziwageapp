@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminApiLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { getEnv } from '@/env';
-import { convertToUSD, getCurrencyFromCountry } from '@/lib/utils';
 
 type AdminEmployerStatus = 'approved' | 'pending' | 'rejected' | 'suspended' | 'risk_review_in_progress';
 
@@ -116,7 +115,7 @@ export async function GET(
   const employerCode = liveEmployer?.employer_code || profileRow?.company_code || `EW-${employer.id.slice(0, 8).toUpperCase()}`;
 
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-  const [employeeResult, advancesResult, exchangeResult] = await Promise.all([
+  const [employeeResult, advancesResult] = await Promise.all([
     liveEmployer?.id
       ? adminSupabase
           .from('employees')
@@ -130,26 +129,12 @@ export async function GET(
           .eq('employer_id', liveEmployer.id)
           .gte('created_at', startOfMonth)
       : Promise.resolve({ data: [] as Array<{ amount: number | null }> }),
-    adminSupabase
-      .from('exchange_rates')
-      .select('currency_code, rate_to_usd')
-      .limit(100),
   ]);
 
   const activeEmployees = (employeeResult.data ?? []).filter((e) => e.status?.toLowerCase() === 'active');
   const employeeCount = employeeResult.data?.length ?? 0;
   const monthlyPayroll = activeEmployees.reduce((sum, e) => sum + (e.monthly_salary ?? 0), 0);
   const totalAdvances = (advancesResult.data ?? []).reduce((sum, a) => sum + (a.amount ?? 0), 0);
-
-  const rates = (exchangeResult.data ?? []).reduce((acc: Record<string, number>, rate) => {
-    if (rate.currency_code) acc[rate.currency_code.toUpperCase()] = Number(rate.rate_to_usd ?? 0);
-    return acc;
-  }, {} as Record<string, number>);
-
-  const companyCurrency = getCurrencyFromCountry(employer.country, 'KES');
-
-  const totalAdvancesUSD = convertToUSD(totalAdvances, companyCurrency, rates);
-  const monthlyPayrollUSD = convertToUSD(monthlyPayroll, companyCurrency, rates);
 
   return NextResponse.json(
     {
@@ -177,8 +162,8 @@ export async function GET(
       created_at: employer.created_at,
       updated_at: employer.updated_at ?? employer.created_at,
       employee_count: employeeCount,
-      total_advances: totalAdvancesUSD,
-      monthly_payroll: monthlyPayrollUSD,
+      total_advances: totalAdvances,
+      monthly_payroll: monthlyPayroll,
     },
     { status: 200, headers: rateResult.headers }
   );
