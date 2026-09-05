@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import * as faceapi from "face-api.js";
 import { useRouter } from "next/navigation";
 import {
@@ -666,6 +666,7 @@ export default function Onboarding() {
   const [capturingFaceId, setCapturingFaceId] = useState(false);
   const [faceIdCaptured, setFaceIdCaptured] = useState(false);
   const [cameraUnavailable, setCameraUnavailable] = useState(false);
+  const [startingCamera, setStartingCamera] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -757,6 +758,15 @@ export default function Onboarding() {
               ...prev,
               employer_id: profile.employer_id,
             }));
+          }
+
+          // Pre-populate face_id if previously captured/uploaded
+          if (profile?.face_id) {
+            setUploadedFiles((prev) => ({
+              ...prev,
+              face_id: { name: "face_id.jpg", url: profile.face_id },
+            }));
+            setFaceIdCaptured(true);
           }
 
           if (status === "rejected" && profile) {
@@ -924,7 +934,7 @@ export default function Onboarding() {
     );
   };
 
-  const handleFileUpload = async (file: File, docKey: OnboardingDocKey) => {
+  const handleFileUpload = async (file: File, docKey: OnboardingDocKey): Promise<boolean> => {
     setUploadingFile(docKey);
     try {
       const fd = new FormData();
@@ -943,8 +953,10 @@ export default function Onboarding() {
         [docKey]: { name: file.name, url: data.document_url },
       }));
       toast.success("File saved");
+      return true;
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
+      return false;
     } finally {
       setUploadingFile(null);
     }
@@ -986,10 +998,34 @@ export default function Onboarding() {
   };
 
 
+  const stopFaceCapture = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    if (detectionInterval.current) {
+      clearInterval(detectionInterval.current);
+      detectionInterval.current = null;
+    }
+    setCapturingFaceId(false);
+    setFaceDetected(false);
+  }, []);
+
   // Assign the stream to the video element once it's mounted in the DOM.
   useEffect(() => {
     if (capturingFaceId && streamRef.current && videoRef.current) {
-      videoRef.current.srcObject = streamRef.current;
+      const video = videoRef.current;
+      video.muted = true;
+      video.srcObject = streamRef.current;
+      const playVideo = () => {
+        video.play().catch((err) => {
+          console.warn("[FaceCapture] video.play() notice:", err);
+        });
+      };
+      if (video.readyState >= 1) {
+        playVideo();
+      } else {
+        video.onloadedmetadata = playVideo;
+      }
     }
   }, [capturingFaceId]);
 
@@ -1004,46 +1040,87 @@ export default function Onboarding() {
   // Load tiny face detector model when step 2 mounts — fail open so model errors never block onboarding.
   useEffect(() => {
     if (currentStep !== 2 || modelLoaded) return;
-    faceapi.nets.tinyFaceDetector
-      .loadFromUri("/models")
-      .then(() => setModelLoaded(true))
-      .catch(() => {
-        console.warn("[FaceCapture] Model failed to load, skipping detection");
-        setModelLoaded(true); // fail open — allow capture without detection
-        setFaceDetected(true);
-      });
+    let isCancelled = false;
+
+    const loadModel = async () => {
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
+        if (!isCancelled) setModelLoaded(true);
+      } catch (err) {
+        console.warn("[FaceCapture] Model failed to load, skipping detection:", err);
+        if (!isCancelled) {
+          setModelLoaded(true); // fail open — allow capture without detection
+          setFaceDetected(true);
+        }
+      }
+    };
+
+    loadModel();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [currentStep, modelLoaded]);
 
   // Run detection loop while camera is active.
   useEffect(() => {
     if (!capturingFaceId || !modelLoaded) return;
 
+    let isDetecting = false;
     detectionInterval.current = setInterval(async () => {
-      if (!videoRef.current) return;
+      if (isDetecting) return;
+      if (!videoRef.current || videoRef.current.readyState < 2) return;
+      isDetecting = true;
       try {
         const detection = await faceapi.detectSingleFace(
           videoRef.current,
-          new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }),
+          new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.35 }),
         );
         setFaceDetected(!!detection);
       } catch {
-        // Video not ready yet — ignore and wait for next tick
+        // Video not ready yet or inference error — ignore and wait for next tick
+      } finally {
+        isDetecting = false;
       }
     }, 300);
 
     return () => {
-      if (detectionInterval.current) clearInterval(detectionInterval.current);
+      if (detectionInterval.current) {
+        clearInterval(detectionInterval.current);
+        detectionInterval.current = null;
+      }
       setFaceDetected(false);
     };
   }, [capturingFaceId, modelLoaded]);
 
   const startFaceCapture = async () => {
+    if (typeof window === "undefined") return;
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      toast.error("Camera is not supported on this browser or requires a secure (HTTPS) connection. Please upload a photo instead.");
+      setCameraUnavailable(true);
+      return;
+    }
+
+    setStartingCamera(true);
     try {
-      // Acquire the stream before setting state so the video element is
-      // guaranteed to be in the DOM when we assign srcObject.
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: 640, height: 480 },
+      // Attempt user-facing camera with ideal dimensions, falling back to generic video if constrained
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+      }
+
+      // Handle unexpected track ending (e.g. camera unplugged or revoked)
+      stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+        stopFaceCapture();
+        setCameraUnavailable(true);
       });
+
       streamRef.current = stream;
       setCapturingFaceId(true);
       setCameraUnavailable(false);
@@ -1059,13 +1136,10 @@ export default function Onboarding() {
         toast.error("Could not start camera. Please try again, or upload a photo instead.");
       }
       setCapturingFaceId(false);
-      // Camera access can be permanently blocked (site permission set to
-      // "never allow"), a device with no camera, or hardware already in use
-      // by another app — none of which the "Start Camera" retry button can
-      // fix on its own, and without this fallback the employee is stuck and
-      // cannot complete onboarding at all. Surface a manual upload option
-      // instead of leaving them at a dead end.
+      // Surface a manual upload option instead of leaving the user at a dead end.
       setCameraUnavailable(true);
+    } finally {
+      setStartingCamera(false);
     }
   };
 
@@ -1073,15 +1147,10 @@ export default function Onboarding() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    await handleFileUpload(file, "face_id");
-    setFaceIdCaptured(true);
-  };
-
-  const stopFaceCapture = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-    setCapturingFaceId(false);
+    const ok = await handleFileUpload(file, "face_id");
+    if (ok) {
+      setFaceIdCaptured(true);
+    }
   };
 
   const captureFaceId = async () => {
@@ -1097,19 +1166,28 @@ export default function Onboarding() {
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      toast.error("Failed to capture photo from camera. Please try again.");
+      return;
+    }
+    ctx.drawImage(video, 0, 0);
 
     canvas.toBlob(
       async (blob) => {
         if (blob) {
           const file = new File([blob], "face_id.jpg", { type: "image/jpeg" });
-          await handleFileUpload(file, "face_id");
-          setFaceIdCaptured(true);
-          stopFaceCapture();
+          const ok = await handleFileUpload(file, "face_id");
+          if (ok) {
+            setFaceIdCaptured(true);
+            stopFaceCapture();
+          }
+        } else {
+          toast.error("Failed to capture photo from camera. Please try again.");
         }
       },
       "image/jpeg",
-      0.8,
+      0.85,
     );
   };
 
@@ -1178,6 +1256,7 @@ export default function Onboarding() {
   };
 
   const nextStep = () => {
+    if (capturingFaceId) stopFaceCapture();
     if (currentStep === 1 && !agreedToTerms)
       return setError("Please accept terms");
     setError("");
@@ -1185,6 +1264,7 @@ export default function Onboarding() {
   };
 
   const prevStep = () => {
+    if (capturingFaceId) stopFaceCapture();
     setError("");
     setCurrentStep((s) => Math.max(0, s - 1));
   };
@@ -1377,9 +1457,20 @@ export default function Onboarding() {
             <div className="max-w-md mx-auto">
               {faceIdCaptured && uploadedFiles.face_id ? (
                 <div className="text-center py-10 bg-emerald-500/5 rounded-3xl border-2 border-emerald-500/20">
-                  <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-emerald-500/25">
-                    <Check className="w-10 h-10 text-white" />
-                  </div>
+                  {uploadedFiles.face_id.url ? (
+                    <div className="relative w-24 h-24 rounded-full overflow-hidden mx-auto mb-4 border-4 border-emerald-500 shadow-xl shadow-emerald-500/25">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={uploadedFiles.face_id.url}
+                        alt="Face ID Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-emerald-500/25">
+                      <Check className="w-10 h-10 text-white" />
+                    </div>
+                  )}
                   <h4 className="text-lg font-bold text-slate-900 dark:text-white">
                     Face ID Captured
                   </h4>
@@ -1403,6 +1494,11 @@ export default function Onboarding() {
                       playsInline
                       muted
                       className="w-full h-full object-cover scale-x-[-1]"
+                      onLoadedMetadata={(e) => {
+                        (e.target as HTMLVideoElement).play().catch((err) => {
+                          console.warn("[FaceCapture] video.play() notice:", err);
+                        });
+                      }}
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="w-[70%] h-[80%] border-2 border-white/30 rounded-[100%] shadow-[0_0_0_1000px_rgba(0,0,0,0.4)]" />
@@ -1412,8 +1508,8 @@ export default function Onboarding() {
                       <div className={cn(
                         "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all",
                         faceDetected
-                          ? "bg-emerald-500 text-white"
-                          : "bg-black/50 text-white/70"
+                          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                          : "bg-black/60 text-white/80"
                       )}>
                         {faceDetected ? "✓ Face detected" : "Position your face in the oval"}
                       </div>
@@ -1429,7 +1525,7 @@ export default function Onboarding() {
                     </Button>
                     <Button
                       onClick={captureFaceId}
-                      disabled={uploadingFile === "face_id" || !faceDetected}
+                      disabled={uploadingFile === "face_id"}
                       className="flex-1 h-12 rounded-2xl bg-primary text-white font-black uppercase tracking-widest"
                     >
                       {uploadingFile === "face_id" ? (
@@ -1447,9 +1543,18 @@ export default function Onboarding() {
                   </div>
                   <Button
                     onClick={startFaceCapture}
+                    disabled={startingCamera}
                     className="h-14 px-8 rounded-2xl bg-primary text-white font-black uppercase tracking-widest shadow-xl shadow-primary/25"
                   >
-                    <Camera className="w-5 h-5 mr-2" /> Start Camera
+                    {startingCamera ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Starting Camera…
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5 mr-2" /> Start Camera
+                      </>
+                    )}
                   </Button>
 
                   <input

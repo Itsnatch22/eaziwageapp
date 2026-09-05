@@ -31,6 +31,7 @@ export async function proxy(req: NextRequest) {
     "img-src 'self' data: blob: https://etfytrhduspebpvybljq.supabase.co",
     "font-src 'self' data:",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+    "media-src 'self' blob: mediastream:",
     "frame-src 'self' https://www.google.com",
     "object-src 'none'",
     "base-uri 'self'",
@@ -364,6 +365,7 @@ export async function proxy(req: NextRequest) {
   }
 
   res.headers.set('Content-Security-Policy', cspValue);
+  res.headers.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(self), interest-cohort=()');
   return res;
 }
 
