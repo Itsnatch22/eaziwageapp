@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { normalizeCountryCode } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
@@ -36,10 +37,16 @@ export async function GET() {
     return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
   }
 
+  const countryCode = normalizeCountryCode(employee.country);
+  if (!countryCode) {
+    console.error('[payout-providers] unsupported employee country:', employee.country);
+    return NextResponse.json({ error: 'Employee country is not supported' }, { status: 422 });
+  }
+
   const { data: providers, error: providersError } = await adminSupabase
     .from('payout_providers')
     .select('id, provider_key, provider_name, method_type, country_code')
-    .eq('country_code', employee.country)
+    .eq('country_code', countryCode)
     .eq('enabled', true)
     .order('provider_name');
 
@@ -48,5 +55,5 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to load payout providers' }, { status: 500 });
   }
 
-  return NextResponse.json({ providers: providers ?? [] });
+  return NextResponse.json({ providers: providers ?? [], country_code: countryCode });
 }

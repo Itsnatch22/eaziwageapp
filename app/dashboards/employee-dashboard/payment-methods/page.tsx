@@ -127,6 +127,9 @@ const PaymentMethods = () => {
       if (res.ok) {
         const data = await res.json();
         setProviders(data.providers || []);
+        if (data.country_code) {
+          setNewMethod(prev => ({ ...prev, country_code: data.country_code }));
+        }
       }
     } catch (e) {
       console.error(e);

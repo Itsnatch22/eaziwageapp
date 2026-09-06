@@ -17,6 +17,7 @@ import { sendOtpSms } from '@/lib/sendOtp';
 import { dbErrorResponse } from '@/lib/api-errors';
 import { notifyAdmin } from '@/lib/notifications';
 import { EmployeePaymentMethodChangeRequestSchema } from '@/lib/validations/route-schemas';
+import { normalizeCountryCode } from '@/lib/utils';
 
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -57,8 +58,13 @@ export async function GET() {
     const employee = await resolveEmployeeId(adminSupabase, user.id);
     if (!employee) return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
 
+    const countryCode = normalizeCountryCode(employee.country);
+    if (!countryCode) {
+      return NextResponse.json({ error: 'Employee country is not supported' }, { status: 422 });
+    }
+
     const methods = await listPaymentMethods(adminSupabase, employee.id)
-    return NextResponse.json({ methods, country_code: employee.country });
+    return NextResponse.json({ methods, country_code: countryCode });
   } catch (err) {
     console.error('Payment methods GET error', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -297,7 +303,12 @@ export async function POST(req: NextRequest) {
     const parse = PaymentMethodCreateSchema.safeParse(body);
     if (!parse.success) return NextResponse.json({ error: 'Invalid payload', details: parse.error.flatten() }, { status: 400 });
 
-    const payload = parse.data;
+    const parsedPayload = parse.data;
+    const countryCode = normalizeCountryCode(parsedPayload.country_code);
+    if (!countryCode) {
+      return NextResponse.json({ error: 'Employee country is not supported' }, { status: 422 });
+    }
+    const payload = { ...parsedPayload, country_code: countryCode };
     if (payload.method_type === 'mobile_money' && !payload.phone_number) {
       return NextResponse.json({ error: 'phone_number is required for mobile_money' }, { status: 400 });
     }
