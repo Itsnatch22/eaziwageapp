@@ -116,13 +116,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .eq('status', 'pending');
 
     const { count: employeeTotal } = await supabase
-      .from('employee_onboarding')
+      .from('employees')
       .select('id', { count: 'exact', head: true });
 
     const { count: employeeActive } = await supabase
-      .from('employee_onboarding')
+      .from('employees')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'approved');
+      .eq('status', 'Active');
 
     const { count: employeeKYCPending } = await supabase
       .from('employee_kyc_documents')
@@ -157,7 +157,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .select('id', { count: 'exact', head: true })
         .gte('created_at', startOfMonth),
       supabase
-        .from('employee_onboarding')
+        .from('employees')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', startOfMonth),
       supabase

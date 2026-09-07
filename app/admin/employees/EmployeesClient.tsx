@@ -1792,7 +1792,7 @@ export default function AdminEmployees({ initialEmployees, initialStats }: { ini
               <FilterButton active={statusFilter === ''} onClick={() => setStatusFilter('')}>
                 All Status
               </FilterButton>
-              <FilterButton active={statusFilter === 'approved'} onClick={() => setStatusFilter('approved')}>
+              <FilterButton active={statusFilter === 'active'} onClick={() => setStatusFilter('active')}>
                 Active
               </FilterButton>
               <FilterButton active={statusFilter === 'pending'} onClick={() => setStatusFilter('pending')}>
