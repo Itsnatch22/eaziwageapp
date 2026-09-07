@@ -161,6 +161,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile, width, collapsed, onTog
       icon: ClipboardCheck,
     },
     { label: "Notifications", href: "/admin/notifications", icon: Bell },
+    { label: "Beta Feedback", href: "/admin/feedback", icon: ClipboardCheck },
     { label: "Support", href: "/admin/support", icon: MessageSquare },
     {
       label: "Fraud Detection",

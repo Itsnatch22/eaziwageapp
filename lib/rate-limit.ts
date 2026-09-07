@@ -166,6 +166,12 @@ export const betaOnboardingLimiter = new LazyRatelimit("ratelimit:beta_onboardin
 export const betaDisbursementLimiter = new LazyRatelimit("ratelimit:beta_disbursement", 5, "1 h");
 
 /**
+ * Rate limiter for admin feedback query from Supabase
+ * Limits to 10 feedback attempts per hour per IP
+ */
+export const adminFeedbackLimiter = new LazyRatelimit("ratelimit:admin_feedback", 10, "1 h");
+
+/**
  * Helper to format rate limit response headers
  */
 export function getRateLimitHeaders(
