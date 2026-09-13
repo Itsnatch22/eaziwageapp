@@ -4,6 +4,7 @@ import {
   Menu, X, ChevronRight, Upload, HelpCircle, Shield, Wallet, MessageSquare, Search, Bell
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import dynamic from 'next/dynamic';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -22,8 +23,12 @@ import PushClient from '@/components/push/PushClient';
 import { PaydayRecoupmentModal } from './PaydayRecoupmentModal';
 import { useSidebarPanel } from '@/hooks/useSidebarPanel';
 import { SidebarResizeControls } from '../layout/SidebarResizeControls';
-import { CommandPalette } from './CommandPalette';
 import { SatisfactionPromptMount } from '@/components/shared/SatisfactionPrompt';
+
+const CommandPalette = dynamic(
+  () => import('./CommandPalette').then((mod) => mod.CommandPalette),
+  { ssr: false, loading: () => null },
+);
 
 
 export const EmployerBackground = () => (
@@ -366,6 +371,8 @@ const TopHeader = ({ onMenuClick, employer }: TopHeaderProps) => {
               onClick={onMenuClick}
               className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
               data-testid="mobile-menu-btn"
+              aria-label="Open navigation menu"
+              title="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>

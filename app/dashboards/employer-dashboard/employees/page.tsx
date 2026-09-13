@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   Users,
   Search,
@@ -21,7 +22,6 @@ import {
   Loader2,
   LucideCheckCircle2,
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { ExportButton } from "@/components/ui/ExportButton";
@@ -50,6 +50,11 @@ import {
   currencies,
   countries,
 } from "@/components/employer/SharedComponents";
+
+const DepartmentPieChart = dynamic(
+  () => import("@/components/employer/DepartmentPieChart"),
+  { ssr: false },
+);
 
 interface EWASettings {
   ewa_enabled: boolean;
@@ -130,36 +135,6 @@ const DEFAULT_EWA: EWASettings = {
   max_advance_amount: 50000,
   cooldown_period: 7,
 };
-
-// Visually distinct hues (not several near-identical shades of the same
-// color in a row) — order doesn't matter since colors are assigned by a
-// stable hash of the department name below, not by array position.
-const CHART_COLORS = [
-  "#10b981", // emerald
-  "#3b82f6", // blue
-  "#f59e0b", // amber
-  "#a855f7", // purple
-  "#ef4444", // red
-  "#06b6d4", // cyan
-  "#ec4899", // pink
-  "#84cc16", // lime
-  "#6366f1", // indigo
-  "#f97316", // orange
-  "#14b8a6", // teal
-  "#d946ef", // fuchsia
-];
-
-// Deterministic color-per-department: hashes the department name itself
-// (from what the employee entered during onboarding), not its position in
-// the current data — so "Operations" is always the same color regardless of
-// what order departments happen to come back in from the API.
-function departmentColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  }
-  return CHART_COLORS[Math.abs(hash) % CHART_COLORS.length];
-}
 
 const BulkOnboardModal: React.FC<{
   isOpen: boolean;
@@ -513,114 +488,6 @@ const FilterButton: React.FC<{
     {children}
   </button>
 );
-
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: {
-    payload: { name: string; value: number };
-    value: number;
-    name: string;
-  }[];
-  totalEmployees: number;
-}
-
-const CustomTooltip = ({
-  active,
-  payload,
-  totalEmployees,
-}: CustomTooltipProps) => {
-  if (active && payload?.length) {
-    const d = payload[0].payload;
-    const value = d.value as number;
-    const name = d.name as string;
-    return (
-      <div className="bg-white dark:bg-slate-800 px-3 py-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
-        <p className="text-sm font-semibold text-slate-900 dark:text-white">
-          {name}
-        </p>
-        <p className="text-xs text-slate-600 dark:text-slate-400">
-          {value} employees (
-          {totalEmployees > 0 ? ((value / totalEmployees) * 100).toFixed(1) : 0}
-          %)
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
-const DepartmentPieChart: React.FC<{
-  data: Record<string, number>;
-  totalEmployees: number;
-}> = ({ data, totalEmployees }) => {
-  if (!data || Object.keys(data).length === 0) return null;
-
-  const chartData = Object.entries(data).map(([name, value]) => ({
-    name,
-    value: Number(value),
-    color: departmentColor(name),
-  }));
-
-  return (
-    <div className="flex items-center gap-6" data-testid="department-pie-chart">
-      <div className="relative w-40 h-40 shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={chartData}
-              cx="50%"
-              cy="50%"
-              innerRadius={35}
-              outerRadius={60}
-              paddingAngle={2}
-              dataKey="value"
-            >
-              {chartData.map((entry, i) => (
-                <Cell
-                  key={`cell-${i}`}
-                  fill={entry.color}
-                  className="hover:opacity-80 transition-opacity cursor-pointer"
-                />
-              ))}
-            </Pie>
-            <Tooltip
-              content={<CustomTooltip totalEmployees={totalEmployees} />}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-xl font-bold text-slate-900 dark:text-white">
-            {totalEmployees}
-          </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            Total
-          </span>
-        </div>
-      </div>
-      <div className="flex-1 grid grid-cols-2 gap-2">
-        {chartData.slice(0, 8).map((item) => (
-          <div key={item.name} className="flex items-center gap-2">
-            <div
-              className="w-3 h-3 rounded-full shrink-0"
-              style={{ backgroundColor: item.color }}
-            />
-            <span className="text-xs text-slate-600 dark:text-slate-400 truncate">
-              {item.name}
-            </span>
-            <span className="text-xs font-semibold text-slate-900 dark:text-white ml-auto">
-              {item.value}
-            </span>
-          </div>
-        ))}
-        {chartData.length > 8 && (
-          <div className="text-xs text-slate-500 col-span-2">
-            +{chartData.length - 8} more departments
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
 
 const EmployeeRow: React.FC<{
   employee: Employee;

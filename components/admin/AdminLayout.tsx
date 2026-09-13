@@ -30,12 +30,12 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { NotificationDropdown } from "../layout/NotificationDropdown";
 import { logout } from "@/actions/auth";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CommandPalette } from "./CommandPalette";
 import { useAuthStore } from "@/lib/stores/auth";
 
 import { DashboardBreadcrumbs } from "../layout/DashboardBreadcrumbs";
@@ -43,6 +43,11 @@ import PushClient from '@/components/push/PushClient';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useSidebarPanel } from '@/hooks/useSidebarPanel';
 import { SidebarResizeControls } from '../layout/SidebarResizeControls';
+
+const CommandPalette = dynamic(
+  () => import("./CommandPalette").then((mod) => mod.CommandPalette),
+  { ssr: false, loading: () => null },
+);
 
 
 
