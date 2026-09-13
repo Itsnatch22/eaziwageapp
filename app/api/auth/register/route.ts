@@ -6,7 +6,7 @@ import { z }                         from 'zod';
 import { render }                    from '@react-email/render';
 
 import { getEnv }                    from '@/env';
-import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { rateLimiter, checkRateLimit, getRateLimitRetryMinutes } from '@/lib/rate-limit';
 import { validateEmail }             from '@/lib/email-validation';
 import { createToken }               from '@/lib/token';
 import { getCurrencyFromCountry }     from '@/lib/utils';
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rateResult = await checkRateLimit(rateLimiter, `register:${ip}`);
   if (!rateResult.success) {
     return NextResponse.json(
-      { error: 'Too many registration attempts. Please try again later.' },
+      { error: `Too many registration attempts. Please try again in ${getRateLimitRetryMinutes(rateResult.reset)} minutes.` },
       { status: 429, headers: rateResult.headers },
     );
   }

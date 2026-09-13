@@ -198,6 +198,15 @@ export interface RateLimitResult {
 }
 
 /**
+ * Convert the rate limiter's absolute reset timestamp into a user-facing
+ * retry duration. Always return at least one minute so a 429 message does not
+ * tell the user to retry immediately while the limiter is still active.
+ */
+export function getRateLimitRetryMinutes(reset: number): number {
+  return Math.max(1, Math.ceil((reset - Date.now()) / 60_000));
+}
+
+/**
  * Wrapper to check rate limit and return formatted result
  */
 export async function checkRateLimit(

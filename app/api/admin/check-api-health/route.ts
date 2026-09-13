@@ -5,10 +5,6 @@ import { checkAdminAccess, requireAdmin } from '@/lib/server/admin-auth';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyAdmin } from '@/lib/notifications';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 type APIStatus = 'healthy' | 'degraded' | 'down';
 
 interface HealthCheckResult {
@@ -23,18 +19,12 @@ interface HealthCheckResult {
   metadata: Record<string, unknown>;
 }
 
-// ---------------------------------------------------------------------------
-// Supabase service-role client
-// ---------------------------------------------------------------------------
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ---------------------------------------------------------------------------
-// Auth — admin session OR CRON_SECRET bearer
-// ---------------------------------------------------------------------------
 
 async function requireAdminOrCron(
   req: Request
@@ -52,17 +42,10 @@ async function requireAdminOrCron(
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// HEAD
-// ---------------------------------------------------------------------------
 
 export async function HEAD() {
   return new NextResponse(null, { status: 200 });
 }
-
-// ---------------------------------------------------------------------------
-// GET — persisted health data (admin only)
-// ---------------------------------------------------------------------------
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -106,10 +89,6 @@ export async function GET() {
     { status: 200 }
   );
 }
-
-// ---------------------------------------------------------------------------
-// POST — run live checks, persist results, write incident_log
-// ---------------------------------------------------------------------------
 
 export async function POST(req: Request) {
   const authError = await requireAdminOrCron(req);

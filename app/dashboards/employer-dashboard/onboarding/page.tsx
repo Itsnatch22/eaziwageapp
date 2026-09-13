@@ -463,6 +463,7 @@ export default function EmployerOnboarding() {
     business_permit: null,
     audited_financials: null,
     bank_statement: null,
+    transaction_history: null,
     proof_of_address: null,
     proof_of_bank_account: null,
     employment_contract_template: null,
@@ -843,7 +844,6 @@ const handleRemoveAttachment = async (documentType: string, storagePath: string)
         return !!(
           formData.payroll_cycle && Number.isInteger(payday) && payday >= 1 && payday <= 31 &&
           (uploadedFiles.audited_financials || isDocLocked("audited_financials")) &&
-          (uploadedFiles.bank_statement || isDocLocked("bank_statement")) &&
           (uploadedFiles.proof_of_bank_account || isDocLocked("proof_of_bank_account"))
         );
       }
@@ -926,7 +926,9 @@ const handleRemoveAttachment = async (documentType: string, storagePath: string)
               <div className="flex gap-3">
                 <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-800 dark:text-amber-200 text-left">
-                  <strong>Note:</strong> All KYC documents below are required to complete onboarding.
+                  <strong>Note:</strong> Bank statements are preferred, but you can continue onboarding
+                  if one is not currently available. You may upload transaction history now and provide
+                  the bank statement later.
                 </p>
               </div>
             </div>
@@ -1444,18 +1446,38 @@ const handleRemoveAttachment = async (documentType: string, storagePath: string)
                 <FileUploader
                   label="Bank Statement"
                   description="Last 3 months bank statements"
-                  tooltip="Verifies payroll consistency and your company's funding capability. We look for regular payroll outflows that match your stated employee count."
+                  tooltip="Preferred evidence for payroll consistency and funding capability. If it is not currently available, continue with transaction history and provide the bank statement later."
                   onUpload={(file) => handleFileUpload(file, "bank_statement")}
                   uploadedFile={uploadedFiles.bank_statement}
                   uploading={uploadingFile === "bank_statement"}
                   locked={isDocLocked("bank_statement")}
                   testId="upload-bank-stmt"
-                  required
                   multi
                   additionalFiles={additionalFiles.bank_statement || []}
                   appending={appendingFile === "bank_statement"}
                   onAppend={(file) => handleAppendFile(file, "bank_statement")}
                   onRemoveAttachment={(path) => handleRemoveAttachment("bank_statement", path)}
+                />
+
+                {rejectionNote("transaction_history") && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2">
+                    Rejected: {rejectionNote("transaction_history")}
+                  </p>
+                )}
+                <FileUploader
+                  label="Mobile Money Transaction History"
+                  description="Recent transaction history or statement from your mobile-money provider"
+                  tooltip="Use this when a bank statement is not currently available. It lets you continue onboarding while the bank statement remains an outstanding requirement."
+                  onUpload={(file) => handleFileUpload(file, "transaction_history")}
+                  uploadedFile={uploadedFiles.transaction_history}
+                  uploading={uploadingFile === "transaction_history"}
+                  locked={isDocLocked("transaction_history")}
+                  testId="upload-transaction-history"
+                  multi
+                  additionalFiles={additionalFiles.transaction_history || []}
+                  appending={appendingFile === "transaction_history"}
+                  onAppend={(file) => handleAppendFile(file, "transaction_history")}
+                  onRemoveAttachment={(path) => handleRemoveAttachment("transaction_history", path)}
                 />
 
                 {rejectionNote("proof_of_bank_account") && (

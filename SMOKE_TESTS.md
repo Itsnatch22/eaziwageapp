@@ -21,12 +21,14 @@ Two test files have been added:
 
 To run these tests, ensure the following environment variables are set:
 
-### For Playwright tests (HTTP endpoint):
+### For Playwright tests (HTTP endpoint)
+
 ```bash
 CRON_SECRET=<your-cron-secret>
 ```
 
-### For Vitest integration tests (database):
+### For Vitest integration tests (database)
+
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=<supabase-url>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
@@ -37,26 +39,31 @@ CRON_SECRET=<your-cron-secret>
 ## Running the Tests
 
 ### Playwright smoke test only
+
 ```bash
 npm run test:e2e -- tests/cron-watchdog.spec.ts
 ```
 
 Or run a single test by name:
+
 ```bash
 npx playwright test tests/cron-watchdog.spec.ts -g "endpoint accepts valid cron auth"
 ```
 
 ### Vitest integration tests only
+
 ```bash
 npm run test:unit -- tests/unit/cron-watchdog.test.ts
 ```
 
 Or with watch mode:
+
 ```bash
 npm run test:unit:watch -- tests/unit/cron-watchdog.test.ts
 ```
 
 ### All tests (Playwright + Vitest)
+
 ```bash
 npm run test:unit && npm run test:e2e
 ```
@@ -64,17 +71,20 @@ npm run test:unit && npm run test:e2e
 ## What the Tests Verify
 
 ### 1. Endpoint Authentication (Playwright)
+
 - Unsigned requests are rejected with 401
 - Malformed auth headers are rejected with 401
 - Properly-signed requests with valid CRON_SECRET are accepted with 200
 
 ### 2. Endpoint Behavior (Playwright)
+
 - The endpoint returns a JSON body with the expected fields:
   - `checked`, `mismatches`, `stuckProcessing`
   - `advances`, `walletTopups`, `watchdog` (each with subfields)
 - The watchdog field includes: `checked`, `resolved`, `stuck` (count of unresolved advances)
 
 ### 3. Data Setup & RPC (Vitest)
+
 - Can connect to Supabase and query the schema
 - Can create test data (advance in 'processing' status, stuck for >15 min)
 - Can call `release_employer_reservation` RPC without error
@@ -121,19 +131,23 @@ To test the full reservation release flow:
 
 ## Debugging
 
-### If tests are skipped:
+### If tests are skipped
+
 Check that all required environment variables are set. Tests gracefully skip when env vars are missing to avoid false CI failures.
 
-### If tests fail with 401 Unauthorized:
+### If tests fail with 401 Unauthorized
+
 - Verify CRON_SECRET matches the value expected by `isValidCronAuth()` in `lib/cron-auth.ts`
 - Auth header format must be exactly: `Bearer ${CRON_SECRET}`
 
-### If Vitest integration tests fail to create test data:
+### If Vitest integration tests fail to create test data
+
 - Verify Supabase credentials are correct
 - Check that the target database has the expected schema (advances, employees, employers tables)
 - Look for constraint errors in the logs (e.g., missing foreign key references)
 
-### If the RPC call fails in the integration test:
+### If the RPC call fails in the integration test
+
 - Check that `release_employer_reservation` RPC exists in your Supabase project
 - Verify the RPC's parameter names match: `p_employer_id`, `p_amount`, `p_advance_id`
 - If the RPC doesn't exist, deploy the Supabase migration that creates it
@@ -147,11 +161,13 @@ Check that all required environment variables are set. Tests gracefully skip whe
 ## Notes on Money-Adjacent Changes
 
 The automatic reservation release is a **critical financial operation**:
+
 - It directly affects employer wallet balance
 - A failed release leaves funds permanently locked
 - Errors are logged and the advance remains unresolved (safe fail)
 
 **Before deploying to production:**
+
 1. Run these smoke tests in staging
 2. Create a real test advance and verify the watchdog releases it correctly
 3. Confirm the employer's wallet balance is updated

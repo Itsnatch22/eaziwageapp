@@ -4,8 +4,9 @@ import { Resend }                     from 'resend';
 import { z }                          from 'zod';
 import { getEnv }                     from '@/env';
 import { hashToken, isValidTokenFormat, isTokenExpired } from '@/lib/token';
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { apiLimiter, checkRateLimit, getRateLimitRetryMinutes } from '@/lib/rate-limit';
 import { ResetPasswordEmail }         from '@/lib/emails/ResetPasswordEmail';
+import { logPasswordResetEvent }      from '@/lib/password-reset-log';
 
 const ResetPasswordSchema = z.object({
   token: z
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!rateResult.success) {
     return NextResponse.json(
-      { error: 'Too many requests. Please try again later.', code: 'RATE_LIMITED' },
+      { error: `Too many requests. Please try again in ${getRateLimitRetryMinutes(rateResult.reset)} minutes.`, code: 'RATE_LIMITED' },
       { status: 429, headers: rateResult.headers },
     );
   }
@@ -88,21 +89,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const env          = getEnv();
-  const captchaValid = await verifyRecaptcha(recaptcha_token, env.RECAPTCHA_SECRET_KEY);
-
-  if (!captchaValid) {
-    return NextResponse.json(
-      { error: 'Security check failed. Please refresh and try again.', code: 'CAPTCHA_FAILED' },
-      { status: 400 },
-    );
-  }
-
+  const env      = getEnv();
   const supabase = createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
+
+  const captchaValid = await verifyRecaptcha(recaptcha_token, env.RECAPTCHA_SECRET_KEY);
+
+  if (!captchaValid) {
+    await logPasswordResetEvent({ supabase, stage: 'recaptcha_failed', email: 'unknown', ip });
+    return NextResponse.json(
+      { error: 'Security check failed. Please refresh and try again.', code: 'CAPTCHA_FAILED' },
+      { status: 400 },
+    );
+  }
 
   const tokenHash = await hashToken(token);
 
@@ -113,6 +115,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .single();
 
   if (lookupError || !reset) {
+    await logPasswordResetEvent({ supabase, stage: 'token_invalid', email: 'unknown', ip });
     return NextResponse.json(
       { error: 'Invalid or expired reset link.', code: 'TOKEN_INVALID' },
       { status: 400 },
@@ -120,6 +123,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (reset.used_at) {
+    await logPasswordResetEvent({
+      supabase, stage: 'token_used', email: 'unknown', ip, userId: reset.user_id,
+    });
     return NextResponse.json(
       { error: 'This reset link has already been used.', code: 'TOKEN_INVALID' },
       { status: 400 },
@@ -127,6 +133,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (isTokenExpired(reset.expires_at)) {
+    await logPasswordResetEvent({
+      supabase, stage: 'token_expired', email: 'unknown', ip, userId: reset.user_id,
+      detail: `expires_at=${reset.expires_at}`,
+    });
     return NextResponse.json(
       { error: 'This reset link has expired. Please request a new one.', code: 'TOKEN_EXPIRED' },
       { status: 400 },
@@ -140,11 +150,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (updateError) {
     console.error('[reset-password] Auth update failed:', updateError);
+    await logPasswordResetEvent({
+      supabase, stage: 'error', email: 'unknown', ip, userId: reset.user_id,
+      detail: `auth_update_failed: ${updateError.message ?? String(updateError)}`,
+    });
     return NextResponse.json(
       { error: 'Failed to update password. Please try again.', code: 'SERVER_ERROR' },
       { status: 500 },
     );
   }
+
+  await logPasswordResetEvent({
+    supabase, stage: 'password_updated', email: 'unknown', ip, userId: reset.user_id,
+  });
 
   const { error: markError } = await supabase
     .from('password_resets')
@@ -179,6 +197,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (emailError) {
       console.error('[reset-password] Confirmation email failed:', emailError);
+      await logPasswordResetEvent({
+        supabase, stage: 'confirmation_email_failed', email: profile.email, ip, userId: reset.user_id,
+        detail: emailError.message ?? String(emailError),
+      });
+    } else {
+      await logPasswordResetEvent({
+        supabase, stage: 'confirmation_email_sent', email: profile.email, ip, userId: reset.user_id,
+      });
     }
   }
   await supabase.auth.admin.signOut(reset.user_id, 'global');

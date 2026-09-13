@@ -254,6 +254,7 @@ const EmployeeTopHeader = ({ onMenuClick, user }: TopHeaderProps) => {
               onClick={onMenuClick}
               className="p-2 rounded-xl bg-white dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 lg:hidden transition-all border border-slate-200 dark:border-white/10"
               aria-label="Open navigation menu"
+              title="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>

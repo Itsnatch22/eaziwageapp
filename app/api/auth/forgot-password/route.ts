@@ -5,9 +5,10 @@ import { z }                         from 'zod';
 import { render }                    from '@react-email/render';
 
 import { getEnv }                      from '@/env';
-import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
+import { rateLimiter, checkRateLimit, getRateLimitRetryMinutes } from '@/lib/rate-limit';
 import { createToken }                 from '@/lib/token';
 import PasswordResetEmail              from '@/lib/emails/PasswordResetEmail';
+import { logPasswordResetEvent }       from '@/lib/password-reset-log';
 
 const env    = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
@@ -53,8 +54,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const rate = await checkRateLimit(rateLimiter, `forgot-password:${ip}`);
   if (!rate.success) {
+    await logPasswordResetEvent({ supabase, stage: 'rate_limited', email: 'unknown', ip });
     return NextResponse.json(
-      { error: 'Too many requests. Please wait before trying again.' },
+      { error: `Too many requests. Please try again in ${getRateLimitRetryMinutes(rate.reset)} minutes.` },
       { status: 429, headers: rate.headers },
     );
   }
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   console.log('[forgot-password] reCAPTCHA validation:', { ip, valid: isRecaptchaValid });
   
   if (!isRecaptchaValid) {
+    await logPasswordResetEvent({ supabase, stage: 'recaptcha_failed', email: normalizedEmail, ip });
     return NextResponse.json(
       { error: 'Security check failed. Please refresh and try again.' },
       { status: 403, headers: rate.headers },
@@ -95,6 +98,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!profile) {
     console.log('[forgot-password] No profile found - returning success to prevent enumeration');
+    await logPasswordResetEvent({ supabase, stage: 'profile_not_found', email: normalizedEmail, ip });
     return NextResponse.json(
       { message: 'If an account exists for this email, a reset link has been sent.' },
       { status: 200, headers: rate.headers },
@@ -135,6 +139,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     userId: profile.id, 
     expiresAt: expiresAt.toISOString() 
   });
+  await logPasswordResetEvent({
+    supabase, stage: 'token_created', email: normalizedEmail, ip, userId: profile.id,
+    detail: `expires_at=${expiresAt.toISOString()}`,
+  });
 
   const resetUrl = `${BASE_URL}/reset-password?token=${token}`;
   
@@ -170,7 +178,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       error: emailError,
       userId: profile.id,
     });
-    
+    await logPasswordResetEvent({
+      supabase, stage: 'email_failed', email: normalizedEmail, ip, userId: profile.id,
+      detail: emailError.message ?? String(emailError),
+    });
     return NextResponse.json(
       { error: 'Failed to send reset email. Please try again or contact support.' },
       { status: 500, headers: rate.headers },
@@ -180,6 +191,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   console.log('[forgot-password] Email sent successfully:', {
     userId: profile.id,
     emailId: emailData?.id,
+  });
+  await logPasswordResetEvent({
+    supabase, stage: 'email_sent', email: normalizedEmail, ip, userId: profile.id,
+    detail: `resend_id=${emailData?.id ?? 'unknown'}`,
   });
 
   return NextResponse.json(

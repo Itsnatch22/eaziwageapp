@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
     business_permit,
     audited_financials,
     bank_statement,
+    transaction_history,
     proof_of_address,
     proof_of_bank_account,
     employment_contract_template,

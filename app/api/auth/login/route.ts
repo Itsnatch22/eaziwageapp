@@ -4,7 +4,7 @@ import { createServerClient }        from '@supabase/ssr';
 import { z }                         from 'zod';
 
 import { getEnv }                          from '@/env';
-import { loginLimiter, checkRateLimit }     from '@/lib/rate-limit';
+import { loginLimiter, checkRateLimit, getRateLimitRetryMinutes } from '@/lib/rate-limit';
 import { sendAccountLockedEmail }          from '@/lib/security-alerts';
 import type { LoginContext }               from '@/lib/security-alerts';
 import { createUnlockToken }               from '@/lib/unlock-token';
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!rateResult.success) {
     console.log('[login] BLOCKED: Rate limit exceeded for IP:', ip);
     return NextResponse.json(
-      { error: 'Too many login attempts from this location. Please try again later.' },
+      { error: `Too many login attempts from this location. Please try again in ${getRateLimitRetryMinutes(rateResult.reset)} minutes.` },
       { status: 429, headers: rateResult.headers },
     );
   }

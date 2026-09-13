@@ -62,7 +62,11 @@ export const onboardingSubmitSchema = z.object({
   kra_pin_certificate: z.string().optional().or(z.literal('')),
   business_permit: z.string().optional().or(z.literal('')),
   audited_financials: z.string().optional().or(z.literal('')),
+  // Bank statements remain the preferred evidence, but applicants may submit
+  // transaction history and continue onboarding when a bank statement is not
+  // currently available. The outstanding document can be supplied later.
   bank_statement: z.string().optional().or(z.literal('')),
+  transaction_history: z.string().optional().or(z.literal('')),
   proof_of_address: z.string().optional().or(z.literal('')),
   proof_of_bank_account: z.string().optional().or(z.literal('')),
   employment_contract_template: z.string().optional().or(z.literal('')),
@@ -83,6 +87,7 @@ export const ALLOWED_DOC_TYPES = [
   'business_permit',
   'audited_financials',
   'bank_statement',
+  'transaction_history',
   'proof_of_address',
   'proof_of_bank_account',
   'employment_contract_template',
