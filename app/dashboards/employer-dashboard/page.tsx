@@ -49,6 +49,11 @@ interface EmployerProfile {
   currency: string;
   reviewer_notes: string;
   employee_count: number | null;
+  kycDocuments?: Array<{
+    document_type: string;
+    status: string;
+    reviewer_notes: string | null;
+  }>;
 }
 
 interface PeriodData {
@@ -641,7 +646,15 @@ export default function EmployerDashboard() {
       if (!options?.silent)
         setData((prev) => ({ ...prev, loading: true, error: null }));
       try {
-        const profRes = await fetch("/api/employer-dashboard/profile");
+        const [profRes, currRes, prevRes, creditRes, employeeRes] =
+          await Promise.all([
+            fetch("/api/employer-dashboard/profile"),
+            fetch("/api/employer-dashboard/reports?period=this_month"),
+            fetch("/api/employer-dashboard/reports?period=last_month"),
+            fetch("/api/employer-dashboard/credit"),
+            fetch("/api/employer-dashboard/employees"),
+          ]);
+
         if (profRes.status === 404) {
           setData((prev) => ({
             ...prev,
@@ -661,13 +674,6 @@ export default function EmployerDashboard() {
           router.replace("/dashboards/employer-dashboard/onboarding");
           return;
         }
-
-        const [currRes, prevRes, creditRes, employeeRes] = await Promise.all([
-          fetch("/api/employer-dashboard/reports?period=this_month"),
-          fetch("/api/employer-dashboard/reports?period=last_month"),
-          fetch("/api/employer-dashboard/credit"),
-          fetch("/api/employer-dashboard/employees"),
-        ]);
 
         const updates: Partial<DashboardData> = {
           employer: profile,
@@ -818,7 +824,35 @@ export default function EmployerDashboard() {
   const isPending =
     data.employer?.status === "pending" ||
     data.employer?.status === "submitted" ||
+    data.employer?.status === "under_review" ||
     data.employer?.status === "risk_review_in_progress";
+
+  const requiredKycDocuments = [
+    ["certificate_of_incorporation", "Certificate of Incorporation"],
+    ["business_registration", "Business Registration"],
+    ["tax_compliance_certificate", "Tax Compliance Certificate"],
+    ["cr12_document", "Registered Company/Shareholders"],
+    ["kra_pin_certificate", "KRA PIN Certificate"],
+    ["business_permit", "Business Permit"],
+    ["audited_financials", "Audited Financials"],
+    ["bank_statement", "Bank Statement"],
+    ["proof_of_address", "Proof of Address"],
+    ["proof_of_bank_account", "Proof of Bank Account"],
+    ["employment_contract_template", "Employment Contract Template"],
+  ] as const;
+  const kycDocuments = data.employer?.kycDocuments ?? [];
+  const outstandingKycDocuments = requiredKycDocuments
+    .map(([type, label]) => ({
+      label,
+      document: kycDocuments.find((doc) => doc.document_type === type),
+    }))
+    .filter(({ document }) => !document || document.status === "rejected");
+  const verificationStage =
+    data.employer?.status === "risk_review_in_progress"
+      ? "Awaiting compliance sign-off"
+      : data.employer?.status === "under_review"
+        ? "Under review"
+        : "Documents submitted";
 
   return (
     <EmployerPortalLayout employer={data.employer}>
@@ -871,6 +905,26 @@ export default function EmployerDashboard() {
                   ? "Our compliance team is currently assessing your company risk profile. This usually takes 1–2 business days."
                   : "Your company profile is being reviewed. This usually takes 1–2 business days."}
               </p>
+              <div className="mt-3 space-y-2 text-sm text-amber-900 dark:text-amber-100">
+                <p>
+                  <span className="font-semibold">Current stage:</span> {verificationStage}
+                </p>
+                {outstandingKycDocuments.length > 0 && (
+                  <div>
+                    <p className="font-semibold">Outstanding requirements:</p>
+                    <ul className="mt-1 list-disc pl-5 space-y-0.5">
+                      {outstandingKycDocuments.map(({ label, document }) => (
+                        <li key={label}>
+                          {label}
+                          {document?.status === "rejected" && document.reviewer_notes
+                            ? ` — ${document.reviewer_notes}`
+                            : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
