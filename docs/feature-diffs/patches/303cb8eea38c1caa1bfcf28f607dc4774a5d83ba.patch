@@ -1,0 +1,582 @@
+From 303cb8eea38c1caa1bfcf28f607dc4774a5d83ba Mon Sep 17 00:00:00 2001
+From: Itsnatch <kamaumark996@gmail.com>
+Date: Sat, 4 Jul 2026 11:08:33 +0300
+Subject: [PATCH] fix: payday recoupment was login-triggered only and settled
+ the wrong number
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Investigated a hunch that the "Outstanding Arrears" figure on the employer
+Wallet page should get recouped to the admin's wallet on payday. It should —
+but three separate gaps meant it never would have:
+
+1. No automated trigger. The only thing that ever checked "is today this
+   employer's payday" was a client-side effect that fired when an employer
+   happened to load a dashboard page on that exact date. Miss that day and
+   nothing catches up — there was no cron. Added
+   app/api/cron/payday-recoupment (+ daily GitHub Actions workflow, same
+   05:00 UTC pattern as the existing repayment-overdue check) that iterates
+   every employer and creates a recoupment prompt for whoever's payday is
+   today, notifying both the employer and admin.
+
+2. Wrong number. The recoupment flow computed "amount due" by summing
+   repayment_schedules rows — but employer_wallets.outstanding_liability
+   (what the Wallet page actually displays as arrears, and what's genuinely
+   owed under the deliberate loan-model design in payout-service.ts) is
+   recorded in full at funding time, independent of repayment_schedules,
+   which only exist for advances actually disbursed. An employer could
+   carry real arrears with zero matching schedule rows, in which case the
+   old flow would compute "0 due" and silently do nothing — structurally
+   unable to ever collect it. amount_due now comes from
+   outstanding_liability directly.
+
+3. No way to settle liability not backed by a schedule row.
+   repay_advance_to_admin requires a real advance_id. Added
+   repay_employer_liability_to_admin (new RPC, no advance_id required) and
+   wired applyPaydayRecoupmentCollection to settle real per-advance
+   schedules first (keeps accurate advance-level repayment history), then
+   apply any remainder directly against outstanding_liability.
+
+Verified live end-to-end against the Notion Labs test employer (real
+596,900 KES liability with zero backing repayment_schedules rows — exactly
+the scenario this was blind to): triggered the new cron, confirmed a
+payday_recoupments row was created for the correct amount, then settled it
+and confirmed outstanding_liability went to 0 and the admin wallet gained
+the exact USD-converted equivalent (98,445.55 -> 103,063.61).
+
+Also includes two earlier migrations (max_advance_amount + advance_access_days
+on employers/employer_onboarding) that were applied live during the EWA
+Settings fix but not yet added to the tracked migrations folder.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .github/workflows/payday-recoupment.yml       |  27 ++++
+ app/api/cron/payday-recoupment/route.ts       |  67 ++++++++
+ .../payday-recoupment/route.ts                |  95 +----------
+ lib/services/payday-recoupment-service.ts     | 151 +++++++++++++++++-
+ ...ce_amount_and_access_days_to_employers.sql |   3 +
+ ..._advance_amount_to_employer_onboarding.sql |   2 +
+ ..._repay_employer_liability_to_admin_rpc.sql |  87 ++++++++++
+ 7 files changed, 342 insertions(+), 90 deletions(-)
+ create mode 100644 .github/workflows/payday-recoupment.yml
+ create mode 100644 app/api/cron/payday-recoupment/route.ts
+ create mode 100644 supabase/migrations/20260703222101_add_max_advance_amount_and_access_days_to_employers.sql
+ create mode 100644 supabase/migrations/20260703223729_add_max_advance_amount_to_employer_onboarding.sql
+ create mode 100644 supabase/migrations/20260704072836_add_repay_employer_liability_to_admin_rpc.sql
+
+diff --git a/.github/workflows/payday-recoupment.yml b/.github/workflows/payday-recoupment.yml
+new file mode 100644
+index 0000000..bdd4815
+--- /dev/null
++++ b/.github/workflows/payday-recoupment.yml
+@@ -0,0 +1,27 @@
++name: Payday Recoupment Check
++
++on:
++  schedule:
++    - cron: '0 5 * * *'   # 05:00 UTC = 08:00 EAT daily
++  workflow_dispatch:        # allows manual trigger from GitHub Actions tab
++
++jobs:
++  check:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Check employer paydays and create recoupment prompts
++        run: |
++          RESPONSE=$(curl -s -w "\n%{http_code}" \
++            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
++            https://app.eaziwage.com/api/cron/payday-recoupment)
++
++          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
++          BODY=$(echo "$RESPONSE" | head -n-1)
++
++          echo "Response: $BODY"
++          echo "Status: $HTTP_CODE"
++
++          if [ "$HTTP_CODE" != "200" ]; then
++            echo "Payday recoupment check failed with status $HTTP_CODE"
++            exit 1
++          fi
+diff --git a/app/api/cron/payday-recoupment/route.ts b/app/api/cron/payday-recoupment/route.ts
+new file mode 100644
+index 0000000..77d4672
+--- /dev/null
++++ b/app/api/cron/payday-recoupment/route.ts
+@@ -0,0 +1,67 @@
++import { NextRequest, NextResponse } from 'next/server';
++import { supabaseAdmin } from '@/lib/supabaseAdmin';
++import { checkAndCreatePaydayRecoupment } from '@/lib/services/payday-recoupment-service';
++
++export const runtime = 'nodejs';
++
++// Runs daily. Previously, payday recoupment only ever fired as a side effect of
++// an employer happening to load a dashboard page on their exact payday — if no
++// one from that company logged in that day, the check never ran, and there was
++// no automated way to catch up afterward. This iterates every employer and lets
++// checkAndCreatePaydayRecoupment decide (per-employer) whether today matches
++// their effective payday.
++async function run(): Promise<NextResponse> {
++  try {
++    const { data: employers, error } = await supabaseAdmin
++      .from('employers')
++      .select('id, user_id, company_name, payday_day_of_month')
++      .not('payday_day_of_month', 'is', null);
++
++    if (error) {
++      console.error('[cron/payday-recoupment] employer fetch error:', error);
++      return NextResponse.json({ error: 'Failed to fetch employers' }, { status: 500 });
++    }
++
++    let created = 0;
++    let checked = 0;
++    const failures: Array<{ employer_id: string; error: string }> = [];
++
++    for (const employer of employers ?? []) {
++      checked++;
++      try {
++        const recoupment = await checkAndCreatePaydayRecoupment(
++          employer.id,
++          employer.user_id,
++          employer.company_name,
++          employer.payday_day_of_month,
++        );
++        if (recoupment) created++;
++      } catch (err) {
++        console.error('[cron/payday-recoupment] Failed for employer:', employer.id, err);
++        failures.push({ employer_id: employer.id, error: err instanceof Error ? err.message : String(err) });
++      }
++    }
++
++    console.log(`[cron/payday-recoupment] Checked ${checked} employers, ${created} recoupment(s) due today, ${failures.length} failure(s)`);
++    return NextResponse.json({ checked, created, failures });
++  } catch (err) {
++    console.error('[cron/payday-recoupment] Unexpected error:', err);
++    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
++  }
++}
++
++function authorize(req: NextRequest): boolean {
++  const auth = req.headers.get('authorization') ?? '';
++  return auth === `Bearer ${process.env.CRON_SECRET}`;
++}
++
++// Vercel Cron sends GET; internal callers may POST
++export async function GET(req: NextRequest): Promise<NextResponse> {
++  if (!authorize(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++  return run();
++}
++
++export async function POST(req: NextRequest): Promise<NextResponse> {
++  if (!authorize(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++  return run();
++}
+diff --git a/app/api/employer-dashboard/payday-recoupment/route.ts b/app/api/employer-dashboard/payday-recoupment/route.ts
+index 74b0262..d2c23c6 100644
+--- a/app/api/employer-dashboard/payday-recoupment/route.ts
++++ b/app/api/employer-dashboard/payday-recoupment/route.ts
+@@ -1,28 +1,18 @@
+ import { NextResponse } from 'next/server';
+ import { createRouteHandlerClient } from '@/utils/supabase/server';
+-import { createAdminClient } from '@/lib/supabaseAdmin';
+-import { resolveEffectivePaydayDayOfMonth } from '@/lib/repayment/utils';
++import { checkAndCreatePaydayRecoupment } from '@/lib/services/payday-recoupment-service';
+ 
+ export const runtime = 'nodejs';
+ 
+-// Clamp a target day-of-month to however many days that month actually has —
+-// mirrors lib/services/payout-service.ts's clampDayToMonth so "is today payday"
+-// and "when is the due date" agree on the same effective date.
+-function clampDayToMonth(year: number, monthIndex: number, day: number): number {
+-  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+-  return Math.min(day, lastDay);
+-}
+-
+ export async function GET() {
+   const supabase = await createRouteHandlerClient();
+-  const adminSupabase = createAdminClient();
+ 
+   const { data: { user }, error: authError } = await supabase.auth.getUser();
+   if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ 
+   const { data: employer } = await supabase
+     .from('employers')
+-    .select('id, payday_day_of_month')
++    .select('id, payday_day_of_month, company_name')
+     .eq('user_id', user.id)
+     .maybeSingle();
+ 
+@@ -30,83 +20,14 @@ export async function GET() {
+     return NextResponse.json({ recoupment: null });
+   }
+ 
+-  const paydayDayOfMonth = await resolveEffectivePaydayDayOfMonth(
++  // Past-cycle unresolved rows feed the arrears gate on new advance requests
++  // (see the eligibility check in payout-service.ts).
++  const recoupment = await checkAndCreatePaydayRecoupment(
+     employer.id,
++    user.id,
++    employer.company_name,
+     employer.payday_day_of_month,
+-    adminSupabase,
+   );
+ 
+-  if (!paydayDayOfMonth) {
+-    return NextResponse.json({ recoupment: null });
+-  }
+-
+-  const today = new Date();
+-  const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+-  const effectivePaydayDate = new Date(
+-    todayDateOnly.getFullYear(),
+-    todayDateOnly.getMonth(),
+-    clampDayToMonth(todayDateOnly.getFullYear(), todayDateOnly.getMonth(), paydayDayOfMonth),
+-  );
+-  const isPaydayToday = todayDateOnly.getTime() === effectivePaydayDate.getTime();
+-  const todayStr = todayDateOnly.toISOString().split('T')[0];
+-
+-  // Any not-yet-resolved row (from today or a past cycle) keeps surfacing until
+-  // acted on — an employer shouldn't be able to make a prompt disappear by just
+-  // waiting for the day to pass. Past-cycle unresolved rows feed the arrears
+-  // gate on new advance requests (see the eligibility check in payout-service.ts).
+-  const { data: existing } = await adminSupabase
+-    .from('payday_recoupments')
+-    .select('*')
+-    .eq('employer_id', employer.id)
+-    .in('status', ['pending_response', 'confirmed', 'collecting', 'failed'])
+-    .order('payday_date', { ascending: true })
+-    .limit(1)
+-    .maybeSingle();
+-
+-  if (existing) {
+-    return NextResponse.json({ recoupment: existing });
+-  }
+-
+-  if (!isPaydayToday) {
+-    return NextResponse.json({ recoupment: null });
+-  }
+-
+-  const { data: dueSchedules } = await adminSupabase
+-    .from('repayment_schedules')
+-    .select('repayment_amount, currency')
+-    .eq('employer_id', employer.id)
+-    .in('status', ['pending', 'overdue']);
+-
+-  const amountDue = (dueSchedules ?? []).reduce((sum, s) => sum + Number(s.repayment_amount || 0), 0);
+-  if (amountDue <= 0) {
+-    return NextResponse.json({ recoupment: null });
+-  }
+-
+-  const currency = dueSchedules?.[0]?.currency || 'KES';
+-
+-  const { data: created, error: createError } = await adminSupabase
+-    .from('payday_recoupments')
+-    .insert({
+-      employer_id: employer.id,
+-      payday_date: todayStr,
+-      amount_due: amountDue,
+-      currency,
+-      status: 'pending_response',
+-    })
+-    .select('*')
+-    .single();
+-
+-  if (createError) {
+-    // The (employer_id, payday_date) unique constraint racing with a concurrent
+-    // request/tab is the only expected failure here — re-fetch instead of erroring.
+-    const { data: raced } = await adminSupabase
+-      .from('payday_recoupments')
+-      .select('*')
+-      .eq('employer_id', employer.id)
+-      .eq('payday_date', todayStr)
+-      .maybeSingle();
+-    return NextResponse.json({ recoupment: raced ?? null });
+-  }
+-
+-  return NextResponse.json({ recoupment: created });
++  return NextResponse.json({ recoupment });
+ }
+diff --git a/lib/services/payday-recoupment-service.ts b/lib/services/payday-recoupment-service.ts
+index c3cda4e..2e6b91f 100644
+--- a/lib/services/payday-recoupment-service.ts
++++ b/lib/services/payday-recoupment-service.ts
+@@ -1,11 +1,142 @@
+ import { supabaseAdmin } from '../supabaseAdmin';
+-import { notifyAdmin } from '../notifications';
++import { notifyAdmin, notifyEmployer } from '../notifications';
++import { resolveEffectivePaydayDayOfMonth } from '../repayment/utils';
+ import type { Logger } from '../logger';
+ 
++// Mirrors payout-service.ts's clampDayToMonth so "is today payday" and "when is
++// the due date" agree on the same effective date.
++function clampDayToMonth(year: number, monthIndex: number, day: number): number {
++  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
++  return Math.min(day, lastDay);
++}
++
++interface PaydayRecoupmentRow {
++  id: string;
++  employer_id: string;
++  payday_date: string;
++  amount_due: number;
++  currency: string;
++  status: string;
++}
++
++/**
++ * Checks whether today is the given employer's (effective) payday and, if so,
++ * creates a payday_recoupments row for the full outstanding_liability balance —
++ * not a repayment_schedules sum, which only covers disbursed-and-scheduled
++ * advances and can under-count real liability recorded at funding time (see
++ * applyPaydayRecoupmentCollection above). Returns the existing unresolved row
++ * (from today or a past cycle) if one is already pending, so this is safe to
++ * call repeatedly (per-employer page load, or a daily cron pass over every
++ * employer) without creating duplicates.
++ */
++export async function checkAndCreatePaydayRecoupment(
++  employerId: string,
++  employerUserId: string | null,
++  employerCompanyName: string | null,
++  fallbackPaydayDayOfMonth: number | null,
++): Promise<PaydayRecoupmentRow | null> {
++  const paydayDayOfMonth = await resolveEffectivePaydayDayOfMonth(
++    employerId,
++    fallbackPaydayDayOfMonth,
++    supabaseAdmin,
++  );
++
++  if (!paydayDayOfMonth) return null;
++
++  const today = new Date();
++  const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
++  const effectivePaydayDate = new Date(
++    todayDateOnly.getFullYear(),
++    todayDateOnly.getMonth(),
++    clampDayToMonth(todayDateOnly.getFullYear(), todayDateOnly.getMonth(), paydayDayOfMonth),
++  );
++  const isPaydayToday = todayDateOnly.getTime() === effectivePaydayDate.getTime();
++  const todayStr = todayDateOnly.toISOString().split('T')[0];
++
++  // Any not-yet-resolved row (from today or a past cycle) keeps surfacing until
++  // acted on — an employer shouldn't be able to make a prompt disappear by just
++  // waiting for the day to pass.
++  const { data: existing } = await supabaseAdmin
++    .from('payday_recoupments')
++    .select('*')
++    .eq('employer_id', employerId)
++    .in('status', ['pending_response', 'confirmed', 'collecting', 'failed'])
++    .order('payday_date', { ascending: true })
++    .limit(1)
++    .maybeSingle();
++
++  if (existing) return existing as PaydayRecoupmentRow;
++  if (!isPaydayToday) return null;
++
++  const { data: wallet } = await supabaseAdmin
++    .from('employer_wallets')
++    .select('outstanding_liability, currency')
++    .eq('employer_id', employerId)
++    .maybeSingle();
++
++  const amountDue = Number(wallet?.outstanding_liability ?? 0);
++  if (amountDue <= 0) return null;
++
++  const currency = wallet?.currency || 'KES';
++
++  const { data: created, error: createError } = await supabaseAdmin
++    .from('payday_recoupments')
++    .insert({
++      employer_id: employerId,
++      payday_date: todayStr,
++      amount_due: amountDue,
++      currency,
++      status: 'pending_response',
++    })
++    .select('*')
++    .single();
++
++  if (createError) {
++    // The (employer_id, payday_date) unique constraint racing with a concurrent
++    // request/cron pass is the only expected failure here — re-fetch instead of erroring.
++    const { data: raced } = await supabaseAdmin
++      .from('payday_recoupments')
++      .select('*')
++      .eq('employer_id', employerId)
++      .eq('payday_date', todayStr)
++      .maybeSingle();
++    return (raced as PaydayRecoupmentRow) ?? null;
++  }
++
++  if (employerUserId) {
++    void notifyEmployer({
++      userId: employerUserId,
++      type: 'system',
++      title: 'Payday Recoupment Due',
++      message: `Today is your payday — ${currency} ${amountDue.toLocaleString()} is due for recoupment. Visit Wallet & Funding to confirm.`,
++      metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue },
++    }).catch(() => {});
++  }
++
++  void notifyAdmin({
++    type: 'system_alert',
++    title: `📅 Payday Recoupment Due — ${employerCompanyName ?? employerId}`,
++    message: `${currency} ${amountDue.toLocaleString()} is due for recoupment today.`,
++    metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue },
++  }).catch(() => {});
++
++  return created as PaydayRecoupmentRow;
++}
++
+ // Shared by the DusuPay webhook (automated mobile money collection) and the admin
+ // manual-collect route (bank-transfer fallback when mobile money fails) — both
+-// need to apply a collected amount across an employer's outstanding repayment
+-// schedules the same way and mark the recoupment collected.
++// need to apply a collected amount against an employer's liability the same way
++// and mark the recoupment collected.
++//
++// amount_due (and therefore `amount` here) is sourced from
++// employer_wallets.outstanding_liability, not the repayment_schedules sum —
++// outstanding_liability is recorded in full at funding time (fund_employer_from_admin),
++// so it can exceed what repayment_schedules covers (schedules only exist for
++// advances that have actually been disbursed). Settle real per-advance schedules
++// first (keeps advance-level repayment history/audit trail accurate), then apply
++// any remainder directly against the liability balance via
++// repay_employer_liability_to_admin — that remainder represents funded float with
++// no advance backing it yet, which is still owed under the loan model.
+ export async function applyPaydayRecoupmentCollection(
+   recoupmentId: string,
+   employerId: string,
+@@ -48,6 +179,20 @@ export async function applyPaydayRecoupmentCollection(
+     remaining -= applied;
+   }
+ 
++  if (remaining > 0) {
++    const { error: liabilityErr } = await supabaseAdmin.rpc('repay_employer_liability_to_admin', {
++      p_employer_id: employerId,
++      p_amount: remaining,
++      p_reference: paymentReference,
++    });
++
++    if (liabilityErr) {
++      log.error('repay_employer_liability_to_admin RPC failed during payday recoupment', { err: liabilityErr, employerId, remaining });
++    } else {
++      remaining = 0;
++    }
++  }
++
+   await supabaseAdmin.from('payday_recoupments').update({
+     status: 'collected',
+     collected_at: new Date().toISOString(),
+diff --git a/supabase/migrations/20260703222101_add_max_advance_amount_and_access_days_to_employers.sql b/supabase/migrations/20260703222101_add_max_advance_amount_and_access_days_to_employers.sql
+new file mode 100644
+index 0000000..866ae8a
+--- /dev/null
++++ b/supabase/migrations/20260703222101_add_max_advance_amount_and_access_days_to_employers.sql
+@@ -0,0 +1,3 @@
++ALTER TABLE public.employers
++  ADD COLUMN IF NOT EXISTS max_advance_amount numeric(12,2) NOT NULL DEFAULT 50000,
++  ADD COLUMN IF NOT EXISTS advance_access_days integer[] NOT NULL DEFAULT '{1,25}';
+diff --git a/supabase/migrations/20260703223729_add_max_advance_amount_to_employer_onboarding.sql b/supabase/migrations/20260703223729_add_max_advance_amount_to_employer_onboarding.sql
+new file mode 100644
+index 0000000..0de1cbf
+--- /dev/null
++++ b/supabase/migrations/20260703223729_add_max_advance_amount_to_employer_onboarding.sql
+@@ -0,0 +1,2 @@
++ALTER TABLE public.employer_onboarding
++  ADD COLUMN IF NOT EXISTS max_advance_amount numeric(12,2) NOT NULL DEFAULT 50000;
+diff --git a/supabase/migrations/20260704072836_add_repay_employer_liability_to_admin_rpc.sql b/supabase/migrations/20260704072836_add_repay_employer_liability_to_admin_rpc.sql
+new file mode 100644
+index 0000000..8225c12
+--- /dev/null
++++ b/supabase/migrations/20260704072836_add_repay_employer_liability_to_admin_rpc.sql
+@@ -0,0 +1,87 @@
++-- repay_advance_to_admin settles liability per-advance (requires a real advance_id
++-- with a matching repayment_schedules row). But outstanding_liability is recorded
++-- in full at funding time (fund_employer_from_admin), which can exceed the sum of
++-- repayment_schedules rows when funded float hasn't been fully consumed by
++-- disbursed-and-scheduled advances. This RPC settles that remainder directly
++-- against the employer's liability balance, with no advance_id required.
++CREATE OR REPLACE FUNCTION public.repay_employer_liability_to_admin(
++  p_employer_id uuid,
++  p_amount numeric,
++  p_reference text
++)
++RETURNS void
++LANGUAGE plpgsql
++SECURITY DEFINER
++SET search_path TO 'public'
++AS $$
++DECLARE
++  v_admin_wallet_id uuid;
++  v_currency text;
++  v_rate numeric;
++  v_usd_amount numeric;
++BEGIN
++  SELECT currency INTO v_currency
++  FROM public.employer_wallets
++  WHERE employer_id = p_employer_id
++  FOR UPDATE;
++
++  IF v_currency IS NULL THEN
++    RAISE EXCEPTION 'Employer wallet not found for employer_id: %', p_employer_id;
++  END IF;
++
++  v_currency := UPPER(v_currency);
++
++  IF v_currency = 'USD' THEN
++    v_rate := 1;
++    v_usd_amount := p_amount;
++  ELSE
++    SELECT rate_to_usd INTO v_rate
++    FROM public.exchange_rates
++    WHERE UPPER(currency_code) = v_currency;
++
++    IF v_rate IS NULL OR v_rate <= 0 THEN
++      RAISE EXCEPTION 'No exchange rate found for currency % — cannot safely credit admin wallet', v_currency;
++    END IF;
++
++    v_usd_amount := ROUND(p_amount / v_rate, 6);
++  END IF;
++
++  SELECT id INTO v_admin_wallet_id
++  FROM public.admin_wallets
++  WHERE name = 'Main Stanbic Source'
++  LIMIT 1
++  FOR UPDATE;
++
++  IF v_admin_wallet_id IS NULL THEN
++    RAISE EXCEPTION 'Admin wallet not found';
++  END IF;
++
++  UPDATE public.admin_wallets
++  SET balance = balance + v_usd_amount, updated_at = NOW()
++  WHERE id = v_admin_wallet_id;
++
++  INSERT INTO public.admin_wallet_transactions (
++    admin_wallet_id, amount, type, status, description, metadata
++  )
++  VALUES (
++    v_admin_wallet_id,
++    v_usd_amount,
++    'payout_settlement',
++    'completed',
++    'Payday recoupment liability settlement for employer ' || p_employer_id,
++    jsonb_build_object(
++      'employer_id', p_employer_id,
++      'local_amount', p_amount,
++      'local_currency', v_currency,
++      'rate_to_usd', v_rate,
++      'reference', p_reference
++    )
++  );
++
++  UPDATE public.employer_wallets
++  SET total_repaid = total_repaid + p_amount,
++      outstanding_liability = GREATEST(outstanding_liability - p_amount, 0),
++      updated_at = NOW()
++  WHERE employer_id = p_employer_id;
++END;
++$$;
+-- 
+2.54.0.windows.1
+

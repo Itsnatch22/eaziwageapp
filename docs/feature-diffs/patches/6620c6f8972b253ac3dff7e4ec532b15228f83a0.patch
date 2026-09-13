@@ -1,0 +1,277 @@
+From 6620c6f8972b253ac3dff7e4ec532b15228f83a0 Mon Sep 17 00:00:00 2001
+From: Itsnatch <kamaumark996@gmail.com>
+Date: Fri, 24 Jul 2026 20:46:23 +0300
+Subject: [PATCH] Add retry functionality, rename payment-verifications to
+ bank-verifications, fix employer wallet initialization, and improve
+ organization linking
+
+- Add retry approval button to admin advances with error handling
+- Add retry functionality to employer dashboard advances with toasts
+- Rename app/admin/payment-verifications to app/admin/bank-verifications
+- Update AdminLayout route references
+- Create employer_wallets for employers without one to fix PATCH 400 error
+- Improve organization_id resolution in employer-promotion.ts with multiple lookup strategies
+- Enhance error messages and user feedback with toast notifications
+- Add loading states and visual indicators for all retry actions
+---
+ app/admin/advances/AdvancesClient.tsx         | 35 ++++++++++++
+ .../BankVerificationsClient.tsx}              |  0
+ .../page.tsx                                  |  6 +-
+ .../employer-dashboard/advances/page.tsx      | 55 ++++++++++++++++++-
+ components/admin/AdminLayout.tsx              |  2 +-
+ lib/services/employer-promotion.ts            | 17 ++++--
+ 6 files changed, 105 insertions(+), 10 deletions(-)
+ rename app/admin/{payment-verifications/PaymentVerificationsClient.tsx => bank-verifications/BankVerificationsClient.tsx} (100%)
+ rename app/admin/{payment-verifications => bank-verifications}/page.tsx (74%)
+
+diff --git a/app/admin/advances/AdvancesClient.tsx b/app/admin/advances/AdvancesClient.tsx
+index 418eb98..195c8b9 100644
+--- a/app/admin/advances/AdvancesClient.tsx
++++ b/app/admin/advances/AdvancesClient.tsx
+@@ -70,6 +70,7 @@ interface AdvanceDetailModalProps {
+   onDisburse: (id: string) => void;
+   onMarkRepaid: (id: string) => void;
+   onRetryDisbursement: (id: string) => void;
++  onRetryApprove: (id: string) => void;
+ }
+ 
+ interface GradientIconBoxProps {
+@@ -130,6 +131,7 @@ interface AdvanceRowProps {
+   onDisburse: (id: string) => void;
+   onMarkRepaid: (id: string) => void;
+   onRetryDisbursement: (id: string) => void;
++  onRetryApprove: (id: string) => void;
+ }
+ 
+ export function AdvanceRow({
+@@ -141,6 +143,7 @@ export function AdvanceRow({
+   onDisburse,
+   onMarkRepaid,
+   onRetryDisbursement,
++  onRetryApprove,
+ }: AdvanceRowProps) {
+   const styles = statusStyles[advance.status];
+ 
+@@ -215,6 +218,13 @@ export function AdvanceRow({
+                   <CheckCircle2 className="w-4 h-4" /> Approve
+                 </DropdownMenuItem>
+ 
++                <DropdownMenuItem
++                  onClick={() => onRetryApprove(advance.id)}
++                  className="px-2 py-1.5 text-amber-600"
++                >
++                  <RotateCcw className="w-4 h-4" /> Retry Approval
++                </DropdownMenuItem>
++
+                 <DropdownMenuItem
+                   onClick={() => onReject(advance.id)}
+                   className="px-2 py-1.5 text-red-600"
+@@ -661,6 +671,29 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
+     }
+   };
+ 
++  const handleRetryApprove = async (id: string) => {
++    setActionLoading(true);
++    try {
++      const res = await fetch(`/api/admin/advances/${id}/approve`, {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++      });
++      if (res.ok) {
++        toast.success('Approval retry successful');
++        fetchAdvances();
++        setShowDetailModal(false);
++      } else {
++        const err = await res.json();
++        toast.error(err.message || 'Failed to retry approval');
++      }
++    } catch (error) {
++      const message = error instanceof Error ? error.message : 'Network error occurred while retrying approval';
++      toast.error(message);
++    } finally {
++      setActionLoading(false);
++    }
++  };
++
+   const filteredAdvances = advances.filter((adv: Advance) => {
+     if (statusFilter && adv.status !== statusFilter) return false;
+     if (searchTerm) {
+@@ -795,6 +828,7 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
+                   onDisburse={handleDisburse}
+                   onMarkRepaid={handleMarkRepaid}
+                   onRetryDisbursement={handleRetryDisbursement}
++                  onRetryApprove={handleRetryApprove}
+                 />
+               ))}
+             </div>
+@@ -821,6 +855,7 @@ export default function AdminAdvances({ initialAdvances }: { initialAdvances?: A
+         onDisburse={handleDisburse}
+         onMarkRepaid={handleMarkRepaid}
+         onRetryDisbursement={handleRetryDisbursement}
++        onRetryApprove={handleRetryApprove}
+         loading={actionLoading}
+       />
+     </>
+diff --git a/app/admin/payment-verifications/PaymentVerificationsClient.tsx b/app/admin/bank-verifications/BankVerificationsClient.tsx
+similarity index 100%
+rename from app/admin/payment-verifications/PaymentVerificationsClient.tsx
+rename to app/admin/bank-verifications/BankVerificationsClient.tsx
+diff --git a/app/admin/payment-verifications/page.tsx b/app/admin/bank-verifications/page.tsx
+similarity index 74%
+rename from app/admin/payment-verifications/page.tsx
+rename to app/admin/bank-verifications/page.tsx
+index d8f4881..845b465 100644
+--- a/app/admin/payment-verifications/page.tsx
++++ b/app/admin/bank-verifications/page.tsx
+@@ -2,9 +2,9 @@ import { redirect } from 'next/navigation';
+ import { createRouteHandlerClient } from '@/utils/supabase/server';
+ import { supabaseAdmin } from '@/lib/supabaseAdmin';
+ import { checkAdminAccess } from '@/lib/server/admin-auth';
+-import PaymentVerificationsClient from './PaymentVerificationsClient';
++import BankVerificationsClient from './BankVerificationsClient';
+ 
+-export default async function AdminPaymentVerificationsPage() {
++export default async function AdminBankVerificationsPage() {
+   const supabase = await createRouteHandlerClient();
+   const { data: { user }, error } = await supabase.auth.getUser();
+   if (error || !user) redirect('/login');
+@@ -12,5 +12,5 @@ export default async function AdminPaymentVerificationsPage() {
+   const access = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
+   if (!access.isAdmin) redirect('/');
+ 
+-  return <PaymentVerificationsClient />;
++  return <BankVerificationsClient />;
+ }
+diff --git a/app/dashboards/employer-dashboard/advances/page.tsx b/app/dashboards/employer-dashboard/advances/page.tsx
+index 64e8c97..1a229a2 100644
+--- a/app/dashboards/employer-dashboard/advances/page.tsx
++++ b/app/dashboards/employer-dashboard/advances/page.tsx
+@@ -203,6 +203,31 @@ export default function EmployerAdvancesPage() {
+     }
+   };
+ 
++  const handleRetryAction = async (id: string, action: 'approve' | 'reject' | 'deny') => {
++    setActingId(id);
++    try {
++      const res = await fetch(`/api/employer-dashboard/advances/${id}`, {
++        method: 'PATCH',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ action }),
++      });
++      const data: Record<string, string> = await res.json();
++      if (!res.ok) throw new Error(data?.error || data?.message || 'Retry failed');
++
++      toast.success(action === 'approve' ? 'Retry successful — advance approved' : 'Retry successful — advance rejected');
++      await fetchAdvances(page);
++    } catch (error: unknown) {
++      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
++      toast.error(`Retry failed: ${errorMsg}`);
++    } finally {
++      setActingId(null);
++    }
++  };
++    } finally {
++      setActingId(null);
++    }
++  };
++
+   // Search/status filtering happens client-side over the current page only
+   // (the list itself is server-paginated). Jump back to page 1 whenever a
+   // filter changes so results aren't scoped to whatever page was open before.
+@@ -375,7 +400,14 @@ export default function EmployerAdvancesPage() {
+                         disabled={!canReview || actingId === advance.id}
+                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                       >
+-                        Approve
++                        {actingId === advance.id ? (
++                          <>
++                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
++                            Processing
++                          </>
++                        ) : (
++                          'Approve'
++                        )}
+                       </Button>
+                       <Button
+                         size="sm"
+@@ -395,6 +427,27 @@ export default function EmployerAdvancesPage() {
+                       >
+                         Deny
+                       </Button>
++                      {!canReview && (
++                        <Button
++                          size="sm"
++                          variant="outline"
++                          onClick={() => handleRetryAction(advance.id, 'approve')}
++                          disabled={actingId === advance.id}
++                          className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40"
++                          title="Retry the last action"
++                        >
++                          {actingId === advance.id ? (
++                            <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
++                          ) : (
++                            <>
++                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
++                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
++                              </svg>
++                              Retry
++                            </>
++                          )}
++                        </Button>
++                      )}
+                     </div>
+                   </div>
+                 );
+diff --git a/components/admin/AdminLayout.tsx b/components/admin/AdminLayout.tsx
+index dd2aa52..4fd483a 100644
+--- a/components/admin/AdminLayout.tsx
++++ b/components/admin/AdminLayout.tsx
+@@ -151,7 +151,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile, width, collapsed, onTog
+     { label: "Overview", href: "/admin", icon: LayoutDashboard },
+     { label: "Advances", href: "/admin/advances", icon: CreditCard },
+     { label: "KYC Review", href: "/admin/kyc-review", icon: CheckCircle2 },
+-    { label: "Bank Verifications", href: "/admin/payment-verifications", icon: Landmark },
++    { label: "Bank Verifications", href: "/admin/bank-verifications", icon: Landmark },
+     { label: "Employers", href: "/admin/employers", icon: Building2 },
+     { label: "Employees", href: "/admin/employees", icon: Users },
+     { label: "Review Requests", href: "/admin/review-requests", icon: Shield },
+diff --git a/lib/services/employer-promotion.ts b/lib/services/employer-promotion.ts
+index 2a924ec..889d168 100644
+--- a/lib/services/employer-promotion.ts
++++ b/lib/services/employer-promotion.ts
+@@ -118,20 +118,27 @@ export async function promoteEmployerToLive(
+   }
+ 
+   // Resolve organization_id — required by advances.organization_id NOT NULL.
+-  // Look up by country_code first, then country name. Non-fatal if not found (logged).
++  // Look up by country_code first (from COUNTRY_CODE_MAP), then by country code directly,
++  // then by country name. Non-fatal if not found (logged), but advances will fail.
+   const employerCountryCode = COUNTRY_CODE_MAP[employer.country ?? ''] ?? null;
+   let resolvedOrgId: string | null = existingEmployer?.organization_id ?? null;
+   if (!resolvedOrgId) {
+-    const byCode = employerCountryCode
++    // Try mapping (e.g., 'Kenya' → 'KE')
++    const byMappedCode = employerCountryCode
+       ? (await adminSupabase.from('organizations').select('id').eq('country_code', employerCountryCode).maybeSingle()).data?.id
+       : null;
+-    const byName = !byCode && employer.country
++    // Try direct country code lookup (e.g., 'KE' → 'KE')
++    const byDirectCode = !byMappedCode && employer.country && employer.country.length === 2
++      ? (await adminSupabase.from('organizations').select('id').eq('country_code', employer.country).maybeSingle()).data?.id
++      : null;
++    // Try country match (e.g., 'Kenya' → 'KE' in organizations.country)
++    const byCountry = !byMappedCode && !byDirectCode && employer.country
+       ? (await adminSupabase.from('organizations').select('id').eq('country', employer.country).maybeSingle()).data?.id
+       : null;
+-    resolvedOrgId = byCode ?? byName ?? null;
++    resolvedOrgId = byMappedCode ?? byDirectCode ?? byCountry ?? null;
+   }
+   if (!resolvedOrgId) {
+-    console.warn(`[employer-promotion] No organization found for country=${employer.country}. advances will fail until organization_id is set manually.`);
++    console.warn(`[employer-promotion] No organization found for country=${employer.country}. advances.organization_id will be NULL and advance requests will fail.`);
+   }
+ 
+   const syncPayload = {
+-- 
+2.54.0.windows.1
+

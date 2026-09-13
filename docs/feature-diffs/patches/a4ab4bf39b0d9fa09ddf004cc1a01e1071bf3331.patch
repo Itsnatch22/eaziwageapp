@@ -1,0 +1,235 @@
+From a4ab4bf39b0d9fa09ddf004cc1a01e1071bf3331 Mon Sep 17 00:00:00 2001
+From: Itsnatch <kamaumark996@gmail.com>
+Date: Sat, 25 Jul 2026 14:04:44 +0300
+Subject: [PATCH] feat: bank-primary payday recoupment model
+
+- Update employer settings UI to surface bank_name + masked bank_account as primary
+- Move mobile money fields below as fallback (only used if recoupment_method=mobile_money or bank fails)
+- Update admin payday recoupments page copy to reflect bank as primary, mobile money as fallback
+- Add recoupment_method field to payday_recoupments creation and tracking
+- Update notifications to show preferred recoupment method
+- Add comprehensive documentation for future automated bank collection (pending Stanbic confirmation)
+
+Current behavior: Manual-confirm flow for both bank and mobile money, with bank as preferred default.
+Future: Automated bank collection via Stanbic once direct debit/standing order support is confirmed.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ .../PaydayRecoupmentsClient.tsx               |  2 +-
+ app/api/cron/payday-recoupment/route.ts       |  3 +-
+ .../employer-dashboard/settings/page.tsx      | 80 ++++++++++++++-----
+ lib/services/payday-recoupment-service.ts     | 31 ++++++-
+ 4 files changed, 91 insertions(+), 25 deletions(-)
+
+diff --git a/app/admin/payday-recoupments/PaydayRecoupmentsClient.tsx b/app/admin/payday-recoupments/PaydayRecoupmentsClient.tsx
+index ae9b6c5..ab0eb03 100644
+--- a/app/admin/payday-recoupments/PaydayRecoupmentsClient.tsx
++++ b/app/admin/payday-recoupments/PaydayRecoupmentsClient.tsx
+@@ -76,7 +76,7 @@ export default function PaydayRecoupmentsClient({ recoupments }: { recoupments:
+         <div>
+           <h1 className="text-2xl font-semibold">Payday Recoupments</h1>
+           <p className="text-sm text-muted-foreground mt-1">
+-            Employers whose automated mobile money collection failed. Confirm a bank transfer manually to settle these.
++            Employers requiring manual confirmation or with failed collection attempts. Bank transfers are the primary collection method; mobile money is used as fallback.
+           </p>
+         </div>
+       </div>
+diff --git a/app/api/cron/payday-recoupment/route.ts b/app/api/cron/payday-recoupment/route.ts
+index b78f0b2..43ba9a9 100644
+--- a/app/api/cron/payday-recoupment/route.ts
++++ b/app/api/cron/payday-recoupment/route.ts
+@@ -15,7 +15,7 @@ async function run(): Promise<NextResponse> {
+   try {
+     const { data: employers, error } = await supabaseAdmin
+       .from('employers')
+-      .select('id, user_id, company_name, payday_day_of_month')
++      .select('id, user_id, company_name, payday_day_of_month, recoupment_method')
+       .not('payday_day_of_month', 'is', null);
+ 
+     if (error) {
+@@ -35,6 +35,7 @@ async function run(): Promise<NextResponse> {
+           employer.user_id,
+           employer.company_name,
+           employer.payday_day_of_month,
++          employer.recoupment_method,
+         );
+         if (recoupment) created++;
+       } catch (err) {
+diff --git a/app/dashboards/employer-dashboard/settings/page.tsx b/app/dashboards/employer-dashboard/settings/page.tsx
+index 083c800..b8ba716 100644
+--- a/app/dashboards/employer-dashboard/settings/page.tsx
++++ b/app/dashboards/employer-dashboard/settings/page.tsx
+@@ -1197,8 +1197,8 @@ export default function EmployerSettings() {
+                   </div>
+                 </SettingsCard>
+ 
+-                <SettingsCard icon={CreditCard} title="Payday & Recoupment" description="Used to schedule advance recoupment from your account">
+-                  <div className="grid sm:grid-cols-2 gap-4">
++                <SettingsCard icon={CreditCard} title="Payday & Recoupment" description="Configure how we collect outstanding advances on payday">
++                  <div className="space-y-6">
+                     <div className="space-y-2">
+                       <Label className="text-slate-700 dark:text-slate-300">Payday (day of month)</Label>
+                       <Input
+@@ -1210,26 +1210,66 @@ export default function EmployerSettings() {
+                         onChange={(e) => setProfile((prev) => ({ ...prev, paydayDayOfMonth: e.target.value }))}
+                         data-testid="payday-day-input"
+                       />
+-                      <p className="text-xs text-slate-500">Use 31 for last day of month.</p>
++                      <p className="text-xs text-slate-500">Use 31 for last day of month. On this date, we'll initiate recoupment from your primary account.</p>
+                     </div>
+-                    <div className="space-y-2">
+-                      <Label className="text-slate-700 dark:text-slate-300">Mobile Money Provider</Label>
+-                      <Input
+-                        placeholder="e.g. M-PESA, Airtel Money"
+-                        value={profile.mobileMoneyProvider}
+-                        onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyProvider: e.target.value }))}
+-                        data-testid="payday-provider-input"
+-                      />
++
++                    <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
++                      <div className="flex items-center gap-2 mb-4">
++                        <h4 className="font-semibold text-slate-900 dark:text-white text-sm">Primary: Bank Account</h4>
++                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-full">Recommended</span>
++                      </div>
++                      <div className="grid sm:grid-cols-2 gap-4">
++                        <div className="space-y-2">
++                          <Label className="text-slate-700 dark:text-slate-300">Bank Name</Label>
++                          <Input
++                            value={employer?.bank_name || ''}
++                            readOnly
++                            placeholder="e.g. Stanbic Bank Kenya"
++                            className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
++                            data-testid="bank-name-input"
++                          />
++                          <p className="text-xs text-slate-500">Contact support to change your bank account</p>
++                        </div>
++                        <div className="space-y-2">
++                          <Label className="text-slate-700 dark:text-slate-300">Bank Account Number</Label>
++                          <Input
++                            value={employer?.bank_account_number ? `•••• ${employer.bank_account_number.slice(-4)}` : ''}
++                            readOnly
++                            placeholder="••••••••"
++                            className="bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed"
++                            data-testid="bank-account-input"
++                          />
++                          <p className="text-xs text-slate-500">Your account ending in {employer?.bank_account_number?.slice(-4) || '••••'}</p>
++                        </div>
++                      </div>
+                     </div>
+-                    <div className="space-y-2 sm:col-span-2">
+-                      <Label className="text-slate-700 dark:text-slate-300">Mobile Money Number</Label>
+-                      <Input
+-                        placeholder="07XXXXXXXX"
+-                        value={profile.mobileMoneyNumber}
+-                        onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyNumber: e.target.value }))}
+-                        data-testid="payday-number-input"
+-                      />
+-                      <p className="text-xs text-slate-500">On your payday, we&apos;ll ask to recoup any outstanding advances from this account.</p>
++
++                    <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
++                      <div className="flex items-center gap-2 mb-4">
++                        <h4 className="font-semibold text-slate-900 dark:text-white text-sm">Fallback: Mobile Money</h4>
++                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded-full">Used if bank transfer fails</span>
++                      </div>
++                      <div className="grid sm:grid-cols-2 gap-4">
++                        <div className="space-y-2">
++                          <Label className="text-slate-700 dark:text-slate-300">Mobile Money Provider</Label>
++                          <Input
++                            placeholder="e.g. M-PESA, Airtel Money"
++                            value={profile.mobileMoneyProvider}
++                            onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyProvider: e.target.value }))}
++                            data-testid="payday-provider-input"
++                          />
++                        </div>
++                        <div className="space-y-2">
++                          <Label className="text-slate-700 dark:text-slate-300">Mobile Money Number</Label>
++                          <Input
++                            placeholder="07XXXXXXXX"
++                            value={profile.mobileMoneyNumber}
++                            onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyNumber: e.target.value }))}
++                            data-testid="payday-number-input"
++                          />
++                        </div>
++                      </div>
++                      <p className="text-xs text-slate-500 mt-3">If your bank account is unavailable, we'll attempt to collect from this mobile money account instead.</p>
+                     </div>
+                   </div>
+                 </SettingsCard>
+diff --git a/lib/services/payday-recoupment-service.ts b/lib/services/payday-recoupment-service.ts
+index 6a0eb7b..c8c1615 100644
+--- a/lib/services/payday-recoupment-service.ts
++++ b/lib/services/payday-recoupment-service.ts
+@@ -28,12 +28,33 @@ interface PaydayRecoupmentRow {
+  * (from today or a past cycle) if one is already pending, so this is safe to
+  * call repeatedly (per-employer page load, or a daily cron pass over every
+  * employer) without creating duplicates.
++ *
++ * BANK-PRIMARY RECOUPMENT MODEL (V2)
++ * ==================================
++ * The recoupment_method field on employers now controls the preferred channel:
++ * - 'bank' (default): Bank account is the primary collection method; mobile money
++ *   is fallback if bank transfer fails or is manually declined.
++ * - 'mobile_money': Mobile money is preferred (legacy); bank is fallback.
++ *
++ * FUTURE: Automated Bank Collection
++ * When Stanbic direct debit/standing order support is confirmed:
++ * 1. After inserting payday_recoupments, if preferredMethod === 'bank':
++ *    a. Call Stanbic API to initiate direct debit/standing order (if configured).
++ *    b. Update payday_recoupments.status to 'collecting' (not 'pending_response').
++ *    c. Hook the Stanbic callback webhook into the collection flow.
++ * 2. Update notification copy to indicate bank collection is in progress.
++ * 3. If the bank collection fails (or is declined), fall back to mobile money
++ *    via the existing DusuPay workflow.
++ *
++ * For now, bank collection remains a manual-confirm flow (same UI as today),
++ * with bank as the default expectation instead of mobile money.
+  */
+ export async function checkAndCreatePaydayRecoupment(
+   employerId: string,
+   employerUserId: string | null,
+   employerCompanyName: string | null,
+   fallbackPaydayDayOfMonth: number | null,
++  recoupmentMethod?: string | null,
+ ): Promise<PaydayRecoupmentRow | null> {
+   const paydayDayOfMonth = await resolveEffectivePaydayDayOfMonth(
+     employerId,
+@@ -79,6 +100,9 @@ export async function checkAndCreatePaydayRecoupment(
+ 
+   const currency = wallet?.currency || 'KES';
+ 
++  // Determine preferred recoupment method: 'bank' (primary) or 'mobile_money' (fallback)
++  const preferredMethod = recoupmentMethod === 'mobile_money' ? 'mobile_money' : 'bank';
++
+   const { data: created, error: createError } = await supabaseAdmin
+     .from('payday_recoupments')
+     .insert({
+@@ -87,6 +111,7 @@ export async function checkAndCreatePaydayRecoupment(
+       amount_due: amountDue,
+       currency,
+       status: 'pending_response',
++      recoupment_method: preferredMethod,
+     })
+     .select('*')
+     .single();
+@@ -117,15 +142,15 @@ export async function checkAndCreatePaydayRecoupment(
+       type: 'system',
+       title: 'Payday Recoupment Due',
+       message: `Today is your payday — ${currency} ${amountDue.toLocaleString()} is due for recoupment. Visit Wallet & Funding to confirm.`,
+-      metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue },
++      metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue, recoupment_method: preferredMethod },
+     }).catch(() => {});
+   }
+ 
+   void notifyAdmin({
+     type: 'system_alert',
+     title: `📅 Payday Recoupment Due — ${employerCompanyName ?? employerId}`,
+-    message: `${currency} ${amountDue.toLocaleString()} is due for recoupment today.`,
+-    metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue },
++    message: `${currency} ${amountDue.toLocaleString()} is due for recoupment today (via ${preferredMethod}).`,
++    metadata: { recoupment_id: created.id, employer_id: employerId, amount_due: amountDue, recoupment_method: preferredMethod },
+   }).catch(() => {});
+ 
+   return created as PaydayRecoupmentRow;
+-- 
+2.54.0.windows.1
+

@@ -1,0 +1,1728 @@
+From f89073ba4c20f8f92d6afac6f77a3c9e19086bec Mon Sep 17 00:00:00 2001
+From: Itsnatch <kamaumark996@gmail.com>
+Date: Thu, 2 Jul 2026 13:11:07 +0300
+Subject: [PATCH] feat: automated payday-based debt recoupment with real
+ DusuPay collection
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Employers configure their real payday (or the system derives it from actual
+processed payroll runs once available, which is more reliable than the
+onboarding-time guess) and a mobile money number. On payday, employers get a
+forced Yes/No prompt to recoup outstanding advance repayments back to admin —
+declining or ignoring it blocks their next advance request until resolved.
+
+Confirming triggers a real DusuPay mobile money collection call. Since DusuPay
+has no bank-debit collection method for KES/UGX/TZS/RWF, a failed automated
+collection falls back to a manual admin flow: confirm a bank transfer was
+received into the company's account and apply it the same way the webhook
+would have.
+
+Also fixes a pre-existing bug where the webhook handler routed on
+`event.startsWith('collection.')`, but DusuPay's real webhook events are
+`transaction.completed`/`transaction.failed` — meaning the existing collection
+webhook path (wallet top-ups, manual repayment confirmation) may never have
+fired correctly in production. Routing now keys off merchant_reference prefix
+instead.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../PaydayRecoupmentsClient.tsx               | 156 ++++++++++++++++++
+ app/admin/payday-recoupments/page.tsx         |  58 +++++++
+ .../admin/kyc/employer/[id]/review/route.ts   |   5 +-
+ .../[id]/manual-collect/route.ts              |  73 ++++++++
+ app/api/admin/payday-recoupments/route.ts     |  50 ++++++
+ .../payday-recoupment/[id]/confirm/route.ts   | 119 +++++++++++++
+ .../payday-recoupment/[id]/decline/route.ts   |  59 +++++++
+ .../payday-recoupment/route.ts                | 112 +++++++++++++
+ app/api/employer-dashboard/profile/route.ts   |  23 ++-
+ app/api/webhook/dusupay/route.ts              |  86 +++++++++-
+ .../employer-dashboard/onboarding/page.tsx    |  68 ++++++--
+ .../employer-dashboard/settings/page.tsx      |  62 ++++++-
+ components/admin/AdminLayout.tsx              |   2 +
+ components/employer/EmployerLayout.tsx        |   4 +-
+ components/employer/PaydayRecoupmentModal.tsx | 146 ++++++++++++++++
+ lib/dusupay/client.ts                         |  16 ++
+ lib/dusupay/types.ts                          |  30 +++-
+ lib/repayment/utils.ts                        |  42 +++++
+ lib/services/payday-recoupment-service.ts     |  65 ++++++++
+ lib/services/payout-service.ts                |  90 +++++++---
+ lib/validations/employer-onboarding.ts        |   2 +
+ lib/validations/route-schemas.ts              |   3 +
+ 22 files changed, 1228 insertions(+), 43 deletions(-)
+ create mode 100644 app/admin/payday-recoupments/PaydayRecoupmentsClient.tsx
+ create mode 100644 app/admin/payday-recoupments/page.tsx
+ create mode 100644 app/api/admin/payday-recoupments/[id]/manual-collect/route.ts
+ create mode 100644 app/api/admin/payday-recoupments/route.ts
+ create mode 100644 app/api/employer-dashboard/payday-recoupment/[id]/confirm/route.ts
+ create mode 100644 app/api/employer-dashboard/payday-recoupment/[id]/decline/route.ts
+ create mode 100644 app/api/employer-dashboard/payday-recoupment/route.ts
+ create mode 100644 components/employer/PaydayRecoupmentModal.tsx
+ create mode 100644 lib/services/payday-recoupment-service.ts
+
+diff --git a/app/admin/payday-recoupments/PaydayRecoupmentsClient.tsx b/app/admin/payday-recoupments/PaydayRecoupmentsClient.tsx
+new file mode 100644
+index 0000000..ae9b6c5
+--- /dev/null
++++ b/app/admin/payday-recoupments/PaydayRecoupmentsClient.tsx
+@@ -0,0 +1,156 @@
++'use client';
++
++import { useState } from 'react';
++import { useRouter } from 'next/navigation';
++import { toast } from 'sonner';
++import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
++import { Badge } from '@/components/ui/badge';
++import { Button } from '@/components/ui/button';
++import {
++  Table,
++  TableBody,
++  TableCell,
++  TableHead,
++  TableHeader,
++  TableRow,
++} from '@/components/ui/table';
++import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
++
++export type PaydayRecoupment = {
++  id: string;
++  employer_id: string;
++  payday_date: string;
++  amount_due: number;
++  currency: string;
++  status: 'failed';
++  failure_reason: string | null;
++  merchant_reference: string | null;
++  created_at: string;
++  updated_at: string;
++  company_name: string;
++  bank_name: string | null;
++  bank_account_number: string | null;
++};
++
++function fmt(amount: number, currency: string) {
++  return `${currency} ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
++}
++
++export default function PaydayRecoupmentsClient({ recoupments }: { recoupments: PaydayRecoupment[] }) {
++  const router = useRouter();
++  const [loading, setLoading] = useState<Record<string, boolean>>({});
++  const [collected, setCollected] = useState<Record<string, boolean>>({});
++
++  useRealtimeRefresh(
++    [{ table: 'payday_recoupments', event: '*', filter: 'status=eq.failed' }],
++    () => router.refresh(),
++  );
++
++  const active = recoupments.filter((r) => !collected[r.id]);
++  const totalDue = active.reduce((sum, r) => sum + r.amount_due, 0);
++
++  async function markCollected(r: PaydayRecoupment) {
++    if (!confirm(`Confirm ${fmt(r.amount_due, r.currency)} was received via bank transfer from ${r.company_name}? This will apply it to their outstanding balance.`)) {
++      return;
++    }
++    setLoading((prev) => ({ ...prev, [r.id]: true }));
++    try {
++      const res = await fetch(`/api/admin/payday-recoupments/${r.id}/manual-collect`, { method: 'POST' });
++      const data = await res.json();
++      if (!res.ok) {
++        toast.error(data.error ?? 'Failed to mark as collected');
++        return;
++      }
++      setCollected((prev) => ({ ...prev, [r.id]: true }));
++      toast.success(`Marked ${r.company_name}'s recoupment as collected`);
++    } catch {
++      toast.error('Network error — please try again');
++    } finally {
++      setLoading((prev) => ({ ...prev, [r.id]: false }));
++    }
++  }
++
++  return (
++    <div className="space-y-6 p-6">
++      <div className="flex items-center justify-between">
++        <div>
++          <h1 className="text-2xl font-semibold">Payday Recoupments</h1>
++          <p className="text-sm text-muted-foreground mt-1">
++            Employers whose automated mobile money collection failed. Confirm a bank transfer manually to settle these.
++          </p>
++        </div>
++      </div>
++
++      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
++        <Card>
++          <CardHeader className="pb-2">
++            <CardTitle className="text-sm font-medium text-red-600">Needs Manual Collection</CardTitle>
++          </CardHeader>
++          <CardContent>
++            <div className="text-2xl font-bold text-red-600">{active.length}</div>
++          </CardContent>
++        </Card>
++        <Card>
++          <CardHeader className="pb-2">
++            <CardTitle className="text-sm font-medium text-muted-foreground">Total Outstanding</CardTitle>
++          </CardHeader>
++          <CardContent>
++            <div className="text-2xl font-bold">
++              {active[0] ? fmt(totalDue, active[0].currency) : '—'}
++            </div>
++          </CardContent>
++        </Card>
++      </div>
++
++      <div className="rounded-md border overflow-x-auto">
++        <Table>
++          <TableHeader>
++            <TableRow>
++              <TableHead>Employer</TableHead>
++              <TableHead>Payday</TableHead>
++              <TableHead>Amount Due</TableHead>
++              <TableHead>Bank</TableHead>
++              <TableHead>Account Number</TableHead>
++              <TableHead>Failure Reason</TableHead>
++              <TableHead>Status</TableHead>
++              <TableHead>Actions</TableHead>
++            </TableRow>
++          </TableHeader>
++          <TableBody>
++            {active.length === 0 ? (
++              <TableRow>
++                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
++                  No recoupments need manual collection
++                </TableCell>
++              </TableRow>
++            ) : (
++              active.map((r) => (
++                <TableRow key={r.id}>
++                  <TableCell className="font-medium">{r.company_name}</TableCell>
++                  <TableCell>{r.payday_date}</TableCell>
++                  <TableCell className="font-medium">{fmt(r.amount_due, r.currency)}</TableCell>
++                  <TableCell>{r.bank_name ?? '—'}</TableCell>
++                  <TableCell className="font-mono text-xs">{r.bank_account_number ?? 'Not on file'}</TableCell>
++                  <TableCell className="text-xs text-muted-foreground max-w-xs">{r.failure_reason ?? '—'}</TableCell>
++                  <TableCell>
++                    <Badge className="bg-red-100 text-red-800">failed</Badge>
++                  </TableCell>
++                  <TableCell>
++                    <Button
++                      size="sm"
++                      variant="outline"
++                      disabled={loading[r.id] || !r.bank_account_number}
++                      onClick={() => markCollected(r)}
++                    >
++                      Mark Collected (Bank Transfer)
++                    </Button>
++                  </TableCell>
++                </TableRow>
++              ))
++            )}
++          </TableBody>
++        </Table>
++      </div>
++    </div>
++  );
++}
+diff --git a/app/admin/payday-recoupments/page.tsx b/app/admin/payday-recoupments/page.tsx
+new file mode 100644
+index 0000000..d36712c
+--- /dev/null
++++ b/app/admin/payday-recoupments/page.tsx
+@@ -0,0 +1,58 @@
++import { redirect } from 'next/navigation';
++import { createRouteHandlerClient } from '@/utils/supabase/server';
++import { supabaseAdmin } from '@/lib/supabaseAdmin';
++import { checkAdminAccess } from '@/lib/server/admin-auth';
++import { getEnv } from '@/env';
++import PaydayRecoupmentsClient, { type PaydayRecoupment } from './PaydayRecoupmentsClient';
++
++export default async function AdminPaydayRecoupmentsPage() {
++  const supabase = await createRouteHandlerClient();
++  const { data: { user }, error } = await supabase.auth.getUser();
++  if (error || !user) redirect('/login');
++
++  const access = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
++  if (!access.isAdmin) redirect('/');
++
++  const { data: rows } = await supabaseAdmin
++    .from('payday_recoupments')
++    .select('id, employer_id, payday_date, amount_due, currency, status, failure_reason, merchant_reference, created_at, updated_at')
++    .eq('status', 'failed')
++    .order('payday_date', { ascending: true });
++
++  const { PII_ENCRYPTION_KEY } = getEnv();
++
++  const recoupments: PaydayRecoupment[] = await Promise.all((rows ?? []).map(async (r) => {
++    const { data: employer } = await supabaseAdmin
++      .from('employers')
++      .select('company_name, onboarding_id, bank_name')
++      .eq('id', r.employer_id)
++      .maybeSingle();
++
++    let bankAccountNumber: string | null = null;
++    if (employer?.onboarding_id && PII_ENCRYPTION_KEY) {
++      const { data: dec } = await supabaseAdmin.rpc('admin_get_employer_bank_account', {
++        p_onboarding_id: employer.onboarding_id,
++        p_key: PII_ENCRYPTION_KEY,
++      });
++      bankAccountNumber = dec ?? null;
++    }
++
++    return {
++      id:                   r.id,
++      employer_id:          r.employer_id,
++      payday_date:          r.payday_date,
++      amount_due:           Number(r.amount_due ?? 0),
++      currency:             r.currency ?? 'KES',
++      status:               r.status as PaydayRecoupment['status'],
++      failure_reason:       r.failure_reason,
++      merchant_reference:   r.merchant_reference,
++      created_at:           r.created_at,
++      updated_at:           r.updated_at,
++      company_name:         employer?.company_name ?? 'Unknown',
++      bank_name:            employer?.bank_name ?? null,
++      bank_account_number:  bankAccountNumber,
++    };
++  }));
++
++  return <PaydayRecoupmentsClient recoupments={recoupments} />;
++}
+diff --git a/app/api/admin/kyc/employer/[id]/review/route.ts b/app/api/admin/kyc/employer/[id]/review/route.ts
+index 1b6bc0e..e7b8aa4 100644
+--- a/app/api/admin/kyc/employer/[id]/review/route.ts
++++ b/app/api/admin/kyc/employer/[id]/review/route.ts
+@@ -52,7 +52,7 @@ export async function PATCH(
+       updated_at: new Date().toISOString(),
+     })
+     .select(
+-      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_percentage, cooldown_period'
++      'id, user_id, company_name, company_code, industry, country, registration_number, tax_id, physical_address, contact_person, contact_email, contact_phone, payroll_cycle, risk_score, risk_rating, min_advance_amount, max_advance_percentage, cooldown_period, payday_day_of_month, mobile_money_provider, mobile_money_number'
+     )
+     .eq('id', appId);
+ 
+@@ -160,6 +160,9 @@ export async function PATCH(
+       advance_limit_percent: Number(employer.max_advance_percentage ?? 50),
+       cooldown_days:        Number(employer.cooldown_period ?? 7),
+       min_advance_amount:   Number(employer.min_advance_amount ?? 500),
++      payday_day_of_month: employer.payday_day_of_month ?? null,
++      mobile_money_provider: employer.mobile_money_provider || null,
++      mobile_money_number: employer.mobile_money_number || null,
+       updated_at:          new Date().toISOString(),
+     };
+ 
+diff --git a/app/api/admin/payday-recoupments/[id]/manual-collect/route.ts b/app/api/admin/payday-recoupments/[id]/manual-collect/route.ts
+new file mode 100644
+index 0000000..addca53
+--- /dev/null
++++ b/app/api/admin/payday-recoupments/[id]/manual-collect/route.ts
+@@ -0,0 +1,73 @@
++import { NextRequest, NextResponse } from 'next/server';
++import { requireAdmin } from '@/lib/server/admin-auth';
++import { applyPaydayRecoupmentCollection } from '@/lib/services/payday-recoupment-service';
++import { notifyEmployer } from '@/lib/notifications';
++import { requestLogger } from '@/lib/logger';
++
++export const runtime = 'nodejs';
++
++// Manual bank-transfer fallback for when automated mobile money collection failed
++// (DusuPay has no bank-debit collection method for KES/UGX/TZS/RWF). Admin confirms
++// they've received the transfer into the company's bank account outside DusuPay,
++// then this applies it across outstanding schedules the same way the webhook does.
++export async function POST(
++  req: NextRequest,
++  { params }: IdRouteContext,
++) {
++  const { id } = await params;
++  const log = requestLogger('admin-payday-recoupment-manual-collect', req);
++
++  const auth = await requireAdmin();
++  if (auth instanceof NextResponse) return auth;
++  const { user, adminSupabase } = auth;
++
++  const { data: recoupment, error: fetchError } = await adminSupabase
++    .from('payday_recoupments')
++    .select('id, employer_id, amount_due, status')
++    .eq('id', id)
++    .maybeSingle();
++
++  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
++  if (!recoupment) return NextResponse.json({ error: 'Recoupment not found' }, { status: 404 });
++  if (recoupment.status !== 'failed') {
++    return NextResponse.json({ error: `Cannot manually collect — status is '${recoupment.status}'` }, { status: 409 });
++  }
++
++  const { data: employer } = await adminSupabase
++    .from('employers')
++    .select('user_id, company_name')
++    .eq('id', recoupment.employer_id)
++    .maybeSingle();
++
++  const paymentReference = `MANUAL-BANK-${recoupment.id.slice(0, 8).toUpperCase()}`;
++
++  await applyPaydayRecoupmentCollection(
++    recoupment.id,
++    recoupment.employer_id,
++    Number(recoupment.amount_due),
++    paymentReference,
++    log,
++  );
++
++  void adminSupabase.from('system_audit_logs').insert({
++    admin_id: user.id,
++    admin_name: user.email,
++    target_id: recoupment.id,
++    target_type: 'payday_recoupment',
++    action: 'payday_recoupment_manual_collect',
++    old_value: { status: 'failed' },
++    new_value: { status: 'collected', method: 'manual_bank_transfer', amount: recoupment.amount_due },
++  }).then(({ error }) => { if (error) console.error('[audit] payday_recoupment_manual_collect:', error); });
++
++  if (employer?.user_id) {
++    void notifyEmployer({
++      userId: employer.user_id,
++      type: 'system',
++      title: 'Payday Recoupment Settled',
++      message: `Your bank transfer for ${recoupment.amount_due} has been confirmed and applied to your outstanding balance.`,
++      metadata: { recoupment_id: recoupment.id },
++    }).catch(() => {});
++  }
++
++  return NextResponse.json({ success: true });
++}
+diff --git a/app/api/admin/payday-recoupments/route.ts b/app/api/admin/payday-recoupments/route.ts
+new file mode 100644
+index 0000000..437df0a
+--- /dev/null
++++ b/app/api/admin/payday-recoupments/route.ts
+@@ -0,0 +1,50 @@
++import { NextResponse } from 'next/server';
++import { requireAdmin } from '@/lib/server/admin-auth';
++import { getEnv } from '@/env';
++
++export const runtime = 'nodejs';
++
++// Recoupments that failed automated mobile money collection and need a manual
++// bank-transfer fallback (see the confirm route, which sets 'failed' when
++// DusuPay's collection call errors or the employer has no mobile money on file).
++export async function GET() {
++  const auth = await requireAdmin();
++  if (auth instanceof NextResponse) return auth;
++  const { adminSupabase } = auth;
++
++  const { data: recoupments, error } = await adminSupabase
++    .from('payday_recoupments')
++    .select('id, employer_id, payday_date, amount_due, currency, status, failure_reason, merchant_reference, created_at, updated_at')
++    .eq('status', 'failed')
++    .order('payday_date', { ascending: true });
++
++  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
++
++  const { PII_ENCRYPTION_KEY } = getEnv();
++
++  const enriched = await Promise.all((recoupments ?? []).map(async (r) => {
++    const { data: employer } = await adminSupabase
++      .from('employers')
++      .select('company_name, onboarding_id, bank_name')
++      .eq('id', r.employer_id)
++      .maybeSingle();
++
++    let bankAccountNumber: string | null = null;
++    if (employer?.onboarding_id && PII_ENCRYPTION_KEY) {
++      const { data: dec } = await adminSupabase.rpc('admin_get_employer_bank_account', {
++        p_onboarding_id: employer.onboarding_id,
++        p_key: PII_ENCRYPTION_KEY,
++      });
++      bankAccountNumber = dec ?? null;
++    }
++
++    return {
++      ...r,
++      company_name: employer?.company_name ?? 'Unknown',
++      bank_name: employer?.bank_name ?? null,
++      bank_account_number: bankAccountNumber,
++    };
++  }));
++
++  return NextResponse.json({ recoupments: enriched });
++}
+diff --git a/app/api/employer-dashboard/payday-recoupment/[id]/confirm/route.ts b/app/api/employer-dashboard/payday-recoupment/[id]/confirm/route.ts
+new file mode 100644
+index 0000000..4578f47
+--- /dev/null
++++ b/app/api/employer-dashboard/payday-recoupment/[id]/confirm/route.ts
+@@ -0,0 +1,119 @@
++import { NextRequest, NextResponse } from 'next/server';
++import { createRouteHandlerClient } from '@/utils/supabase/server';
++import { createAdminClient } from '@/lib/supabaseAdmin';
++import { dusupayClient } from '@/lib/dusupay/client';
++import { PayoutMethod, Currency } from '@/lib/dusupay/types';
++import { formatPhoneNumber, resolveProviderCode, COUNTRY_PROVIDER_PREFIXES } from '@/lib/dusupay/utils';
++import { generatePaydayRecoupmentReference } from '@/lib/repayment/utils';
++import { notifyAdmin } from '@/lib/notifications';
++
++export const runtime = 'nodejs';
++
++// Employer clicked "Yes" — actually initiate the DusuPay collection. The row only
++// moves to 'collected' once the webhook confirms it (see app/api/webhook/dusupay/
++// route.ts's EWAPAYDAY handling) — this route just gets the request accepted.
++export async function POST(
++  req: NextRequest,
++  { params }: IdRouteContext,
++) {
++  const { id } = await params;
++  const supabase = await createRouteHandlerClient();
++  const adminSupabase = createAdminClient();
++
++  const { data: { user }, error: authError } = await supabase.auth.getUser();
++  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++  const { data: employer } = await supabase
++    .from('employers')
++    .select('id, country, mobile_money_provider, mobile_money_number, company_name')
++    .eq('user_id', user.id)
++    .maybeSingle();
++
++  if (!employer) return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
++
++  const { data: recoupment, error: fetchError } = await adminSupabase
++    .from('payday_recoupments')
++    .select('*')
++    .eq('id', id)
++    .eq('employer_id', employer.id)
++    .maybeSingle();
++
++  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
++  if (!recoupment) return NextResponse.json({ error: 'Recoupment not found' }, { status: 404 });
++  if (recoupment.status !== 'pending_response') {
++    return NextResponse.json({ error: `Cannot confirm — status is '${recoupment.status}'` }, { status: 409 });
++  }
++
++  if (!employer.mobile_money_number || !employer.mobile_money_provider) {
++    await adminSupabase.from('payday_recoupments').update({
++      status: 'failed',
++      failure_reason: 'No mobile money number on file for this employer',
++      responded_at: new Date().toISOString(),
++      updated_at: new Date().toISOString(),
++    }).eq('id', id);
++
++    await notifyAdmin({
++      type: 'system_alert',
++      title: 'Payday Recoupment Failed — Missing Mobile Money Details',
++      message: `${employer.company_name || employer.id} confirmed a payday recoupment but has no mobile money number on file. Manual collection required.`,
++      metadata: { employer_id: employer.id, recoupment_id: id },
++    });
++
++    return NextResponse.json({ error: 'No mobile money number on file. Set one in Settings first.' }, { status: 422 });
++  }
++
++  const providerCode = resolveProviderCode(employer.country, employer.mobile_money_provider);
++  const dialCode = COUNTRY_PROVIDER_PREFIXES[employer.country ?? ''] ?? '254';
++  const msisdn = formatPhoneNumber(employer.mobile_money_number, dialCode);
++  const merchantReference = generatePaydayRecoupmentReference(employer.id, new Date(recoupment.payday_date));
++
++  let collectionResponse;
++  try {
++    collectionResponse = await dusupayClient.initializeCollection({
++      merchant_reference: merchantReference,
++      transaction_method: PayoutMethod.MOBILE_MONEY,
++      currency: recoupment.currency as Currency,
++      amount: Number(recoupment.amount_due),
++      provider_code: providerCode,
++      msisdn,
++      customer_name: employer.company_name || 'EaziWage Employer',
++      description: 'EaziWage advance recoupment',
++      charge_customer: false,
++      allow_final_status_change: true,
++    });
++  } catch (err: unknown) {
++    const reason = err instanceof Error ? err.message : 'Collection request failed';
++    await adminSupabase.from('payday_recoupments').update({
++      status: 'failed',
++      failure_reason: reason,
++      responded_at: new Date().toISOString(),
++      updated_at: new Date().toISOString(),
++    }).eq('id', id);
++
++    await notifyAdmin({
++      type: 'system_alert',
++      title: 'Payday Recoupment Collection Failed',
++      message: `Collection request for ${employer.company_name || employer.id} failed: ${reason}`,
++      metadata: { employer_id: employer.id, recoupment_id: id },
++    });
++
++    return NextResponse.json({ error: reason }, { status: 502 });
++  }
++
++  const { data: updated, error: updateError } = await adminSupabase
++    .from('payday_recoupments')
++    .update({
++      status: 'collecting',
++      merchant_reference: merchantReference,
++      internal_reference: collectionResponse.data?.internal_reference ?? null,
++      responded_at: new Date().toISOString(),
++      updated_at: new Date().toISOString(),
++    })
++    .eq('id', id)
++    .select('*')
++    .single();
++
++  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
++
++  return NextResponse.json({ success: true, recoupment: updated });
++}
+diff --git a/app/api/employer-dashboard/payday-recoupment/[id]/decline/route.ts b/app/api/employer-dashboard/payday-recoupment/[id]/decline/route.ts
+new file mode 100644
+index 0000000..baef964
+--- /dev/null
++++ b/app/api/employer-dashboard/payday-recoupment/[id]/decline/route.ts
+@@ -0,0 +1,59 @@
++import { NextRequest, NextResponse } from 'next/server';
++import { createRouteHandlerClient } from '@/utils/supabase/server';
++import { createAdminClient } from '@/lib/supabaseAdmin';
++import { notifyAdmin } from '@/lib/notifications';
++
++export const runtime = 'nodejs';
++
++// Employer clicked "No". This doesn't block anything on its own — it leaves the
++// row unresolved, which is what app/api/employee-dashboard/request-advance's
++// eligibility check gates new advance requests on (see checkEmployeeEligibility
++// in lib/services/payout-service.ts).
++export async function POST(
++  req: NextRequest,
++  { params }: IdRouteContext,
++) {
++  const { id } = await params;
++  const supabase = await createRouteHandlerClient();
++  const adminSupabase = createAdminClient();
++
++  const { data: { user }, error: authError } = await supabase.auth.getUser();
++  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++  const { data: employer } = await supabase
++    .from('employers')
++    .select('id, company_name')
++    .eq('user_id', user.id)
++    .maybeSingle();
++
++  if (!employer) return NextResponse.json({ error: 'Employer not found' }, { status: 404 });
++
++  const { data: recoupment, error: fetchError } = await adminSupabase
++    .from('payday_recoupments')
++    .select('id, status')
++    .eq('id', id)
++    .eq('employer_id', employer.id)
++    .maybeSingle();
++
++  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
++  if (!recoupment) return NextResponse.json({ error: 'Recoupment not found' }, { status: 404 });
++  if (recoupment.status !== 'pending_response') {
++    return NextResponse.json({ error: `Cannot decline — status is '${recoupment.status}'` }, { status: 409 });
++  }
++
++  const { error: updateError } = await adminSupabase
++    .from('payday_recoupments')
++    .update({ status: 'declined', responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
++    .eq('id', id);
++
++  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
++
++  await notifyAdmin({
++    type: 'system_alert',
++    title: 'Payday Recoupment Declined',
++    message: `${employer.company_name || employer.id} declined to recoup arrears on payday. Their employees' new advance requests will be blocked until this is resolved.`,
++    metadata: { employer_id: employer.id, recoupment_id: id },
++  });
++
++  return NextResponse.json({ success: true });
++}
+diff --git a/app/api/employer-dashboard/payday-recoupment/route.ts b/app/api/employer-dashboard/payday-recoupment/route.ts
+new file mode 100644
+index 0000000..74b0262
+--- /dev/null
++++ b/app/api/employer-dashboard/payday-recoupment/route.ts
+@@ -0,0 +1,112 @@
++import { NextResponse } from 'next/server';
++import { createRouteHandlerClient } from '@/utils/supabase/server';
++import { createAdminClient } from '@/lib/supabaseAdmin';
++import { resolveEffectivePaydayDayOfMonth } from '@/lib/repayment/utils';
++
++export const runtime = 'nodejs';
++
++// Clamp a target day-of-month to however many days that month actually has —
++// mirrors lib/services/payout-service.ts's clampDayToMonth so "is today payday"
++// and "when is the due date" agree on the same effective date.
++function clampDayToMonth(year: number, monthIndex: number, day: number): number {
++  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
++  return Math.min(day, lastDay);
++}
++
++export async function GET() {
++  const supabase = await createRouteHandlerClient();
++  const adminSupabase = createAdminClient();
++
++  const { data: { user }, error: authError } = await supabase.auth.getUser();
++  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++  const { data: employer } = await supabase
++    .from('employers')
++    .select('id, payday_day_of_month')
++    .eq('user_id', user.id)
++    .maybeSingle();
++
++  if (!employer) {
++    return NextResponse.json({ recoupment: null });
++  }
++
++  const paydayDayOfMonth = await resolveEffectivePaydayDayOfMonth(
++    employer.id,
++    employer.payday_day_of_month,
++    adminSupabase,
++  );
++
++  if (!paydayDayOfMonth) {
++    return NextResponse.json({ recoupment: null });
++  }
++
++  const today = new Date();
++  const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
++  const effectivePaydayDate = new Date(
++    todayDateOnly.getFullYear(),
++    todayDateOnly.getMonth(),
++    clampDayToMonth(todayDateOnly.getFullYear(), todayDateOnly.getMonth(), paydayDayOfMonth),
++  );
++  const isPaydayToday = todayDateOnly.getTime() === effectivePaydayDate.getTime();
++  const todayStr = todayDateOnly.toISOString().split('T')[0];
++
++  // Any not-yet-resolved row (from today or a past cycle) keeps surfacing until
++  // acted on — an employer shouldn't be able to make a prompt disappear by just
++  // waiting for the day to pass. Past-cycle unresolved rows feed the arrears
++  // gate on new advance requests (see the eligibility check in payout-service.ts).
++  const { data: existing } = await adminSupabase
++    .from('payday_recoupments')
++    .select('*')
++    .eq('employer_id', employer.id)
++    .in('status', ['pending_response', 'confirmed', 'collecting', 'failed'])
++    .order('payday_date', { ascending: true })
++    .limit(1)
++    .maybeSingle();
++
++  if (existing) {
++    return NextResponse.json({ recoupment: existing });
++  }
++
++  if (!isPaydayToday) {
++    return NextResponse.json({ recoupment: null });
++  }
++
++  const { data: dueSchedules } = await adminSupabase
++    .from('repayment_schedules')
++    .select('repayment_amount, currency')
++    .eq('employer_id', employer.id)
++    .in('status', ['pending', 'overdue']);
++
++  const amountDue = (dueSchedules ?? []).reduce((sum, s) => sum + Number(s.repayment_amount || 0), 0);
++  if (amountDue <= 0) {
++    return NextResponse.json({ recoupment: null });
++  }
++
++  const currency = dueSchedules?.[0]?.currency || 'KES';
++
++  const { data: created, error: createError } = await adminSupabase
++    .from('payday_recoupments')
++    .insert({
++      employer_id: employer.id,
++      payday_date: todayStr,
++      amount_due: amountDue,
++      currency,
++      status: 'pending_response',
++    })
++    .select('*')
++    .single();
++
++  if (createError) {
++    // The (employer_id, payday_date) unique constraint racing with a concurrent
++    // request/tab is the only expected failure here — re-fetch instead of erroring.
++    const { data: raced } = await adminSupabase
++      .from('payday_recoupments')
++      .select('*')
++      .eq('employer_id', employer.id)
++      .eq('payday_date', todayStr)
++      .maybeSingle();
++    return NextResponse.json({ recoupment: raced ?? null });
++  }
++
++  return NextResponse.json({ recoupment: created });
++}
+diff --git a/app/api/employer-dashboard/profile/route.ts b/app/api/employer-dashboard/profile/route.ts
+index a1b5d95..c095039 100644
+--- a/app/api/employer-dashboard/profile/route.ts
++++ b/app/api/employer-dashboard/profile/route.ts
+@@ -20,7 +20,7 @@ export async function GET() {
+   const { data: onboarding, error: onboardingError } = await supabase
+     .from('employer_onboarding')
+     .select(
+-      'id, user_id, company_name, registration_number, industry, sector, physical_address, city, postal_code, county_region, country, status, current_step, contact_person, contact_email, contact_phone, contact_position, payroll_cycle, risk_rating, risk_score, bank_name, bank_account_number, tax_id, vat_number, certificate_of_incorporation, business_registration, tax_compliance_certificate, cr12_document, kra_pin_certificate, business_permit, audited_financials, bank_statement, proof_of_address, proof_of_bank_account, employment_contract_template, deleted_at',
++      'id, user_id, company_name, registration_number, industry, sector, physical_address, city, postal_code, county_region, country, status, current_step, contact_person, contact_email, contact_phone, contact_position, payroll_cycle, payday_day_of_month, mobile_money_provider, mobile_money_number, risk_rating, risk_score, bank_name, bank_account_number, tax_id, vat_number, certificate_of_incorporation, business_registration, tax_compliance_certificate, cr12_document, kra_pin_certificate, business_permit, audited_financials, bank_statement, proof_of_address, proof_of_bank_account, employment_contract_template, deleted_at',
+     )
+     .eq('user_id', user.id)
+     .is('deleted_at', null)
+@@ -122,12 +122,33 @@ export async function PUT(req: Request) {
+         max_advance_amount: body.maxAdvanceAmount,
+         advance_access_days: body.advanceAccessDays,
+         cooldown_period: body.cooldownPeriod,
++        payday_day_of_month: body.paydayDayOfMonth,
++        mobile_money_provider: body.mobileMoneyProvider,
++        mobile_money_number: body.mobileMoneyNumber,
+         updated_at: new Date().toISOString()
+       })
+       .eq('user_id', user.id);
+ 
+     if (onboardingError) throw onboardingError;
+ 
++    // Already-approved employers operate off the `employers` table, not
++    // employer_onboarding — payday/mobile-money need to land there too so
++    // calculateDueDate() and the payday recoupment flow actually see them.
++    // Only payday/mobile-money fields are synced here; other profile fields
++    // are intentionally onboarding-only (employers is promoted wholesale at
++    // KYC approval, not kept in lockstep afterward).
++    if (body.paydayDayOfMonth !== undefined || body.mobileMoneyProvider !== undefined || body.mobileMoneyNumber !== undefined) {
++      await supabase
++        .from('employers')
++        .update({
++          ...(body.paydayDayOfMonth !== undefined && { payday_day_of_month: body.paydayDayOfMonth }),
++          ...(body.mobileMoneyProvider !== undefined && { mobile_money_provider: body.mobileMoneyProvider }),
++          ...(body.mobileMoneyNumber !== undefined && { mobile_money_number: body.mobileMoneyNumber }),
++          updated_at: new Date().toISOString(),
++        })
++        .eq('user_id', user.id);
++    }
++
+     return NextResponse.json({ success: true });
+   } catch (error: unknown) {
+     const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
+diff --git a/app/api/webhook/dusupay/route.ts b/app/api/webhook/dusupay/route.ts
+index b496a45..743326b 100644
+--- a/app/api/webhook/dusupay/route.ts
++++ b/app/api/webhook/dusupay/route.ts
+@@ -4,6 +4,7 @@ import { PayoutStatus } from '@/lib/dusupay/types';
+ import { supabaseAdmin } from '@/lib/supabaseAdmin';
+ import { notifyEmployee, notifyEmployer, notifyAdmin } from '@/lib/notifications';
+ import { parseRepaymentReference } from '@/lib/repayment/utils';
++import { applyPaydayRecoupmentCollection } from '@/lib/services/payday-recoupment-service';
+ import { requestLogger, type Logger } from '@/lib/logger';
+ 
+ interface DusupayWebhookPayload {
+@@ -79,7 +80,17 @@ export async function POST(req: NextRequest) {
+       raw_payload: body,
+     }, { onConflict: 'merchant_reference,event_type' });
+ 
+-    if (event.startsWith('collection.')) {
++    // DusuPay uses the SAME event names for both directions — "transaction.completed"
++    // /"transaction.failed", never a "collection."-prefixed string (confirmed against
++    // https://developer.dusupay.com/utility-functions/handling-notifications-callbacks/callback-events).
++    // The only reliable signal for which flow a webhook belongs to is our own
++    // merchant_reference prefix, which is what handleCollectionEvent already keys off
++    // internally (DEP-/EWA-REP-/EWAPAYDAY) — route on it here too instead of `event`.
++    const isCollection = merchantReference.startsWith('DEP-')
++      || merchantReference.startsWith('EWA-REP-')
++      || merchantReference.startsWith('EWAPAYDAY');
++
++    if (isCollection) {
+       await handleCollectionEvent(event, payload, merchantReference, internalReference, mlog);
+     } else {
+       await handlePayoutEvent(event, payload, merchantReference, internalReference, mlog);
+@@ -194,6 +205,59 @@ async function handleRepaymentCollection(
+   log.info('Repayment reconciliation complete', { scheduleId: schedule.id, isPaid, amount });
+ }
+ 
++// A payday recoupment is a lump-sum collection covering everything that was
++// pending/overdue for an employer at the moment the prompt was generated — not
++// a single advance like EWA-REP-. Applies the collected amount across each
++// currently pending/overdue schedule via the same repay_advance_to_admin RPC
++// used by manual admin repayment, in order, until it runs out.
++async function handlePaydayRecoupmentCollection(
++  event: string,
++  merchantRef: string,
++  internalRef: string,
++  amount: number,
++  log: Logger,
++): Promise<void> {
++  const { data: recoupment } = await supabaseAdmin
++    .from('payday_recoupments')
++    .select('id, employer_id, amount_due, status')
++    .eq('merchant_reference', merchantRef)
++    .maybeSingle();
++
++  if (!recoupment) {
++    log.error('No payday_recoupments row found for EWA-PAYDAY reference', { merchantRef });
++    return;
++  }
++
++  // Idempotency — never re-apply an already-collected recoupment.
++  if (recoupment.status === 'collected') {
++    log.info('Payday recoupment already collected — skipping', { recoupmentId: recoupment.id });
++    return;
++  }
++
++  if (event === 'transaction.failed' || event === 'request.failed') {
++    await supabaseAdmin.from('payday_recoupments').update({
++      status: 'failed',
++      failure_reason: 'DusuPay collection failed or was declined by the mobile money subscriber',
++      updated_at: new Date().toISOString(),
++    }).eq('id', recoupment.id);
++
++    void notifyAdmin({
++      type: 'system_alert',
++      title: '❌ Payday Recoupment Failed',
++      message: `Payday recoupment collection failed for employer ${recoupment.employer_id}. Reference: ${merchantRef}.`,
++      metadata: { recoupment_id: recoupment.id, employer_id: recoupment.employer_id, reference: merchantRef },
++    }).catch(() => {});
++    return;
++  }
++
++  if (event !== 'transaction.completed') {
++    log.info('Payday recoupment non-terminal event — skipping', { event });
++    return;
++  }
++
++  await applyPaydayRecoupmentCollection(recoupment.id, recoupment.employer_id, amount, internalRef, log);
++}
++
+ async function handleCollectionEvent(
+   event: string,
+   payload: DusupayWebhookPayload,
+@@ -204,7 +268,7 @@ async function handleCollectionEvent(
+   // Repayment collections (employer paying back an advance) are distinct from
+   // wallet top-ups (DEP-). Route them before the DEP- guard.
+   if (merchantRef.startsWith('EWA-REP-')) {
+-    if (event !== 'collection.completed') {
++    if (event !== 'transaction.completed') {
+       log.info('EWA-REP non-completion event — skipping', { event });
+       return;
+     }
+@@ -223,6 +287,22 @@ async function handleCollectionEvent(
+     return; // never fall through to DEP- logic
+   }
+ 
++  if (merchantRef.startsWith('EWAPAYDAY')) {
++    const collectedAmount = Number(payload.transaction_amount);
++    if ((event === 'transaction.completed') && (!Number.isFinite(collectedAmount) || collectedAmount <= 0)) {
++      log.error('EWA-PAYDAY webhook missing or zero transaction_amount — skipping', { merchantRef, payload });
++      void notifyAdmin({
++        type: 'system_alert',
++        title: '❌ Payday Recoupment Webhook Malformed',
++        message: `Payday recoupment webhook for ${merchantRef} had no valid amount (got: ${collectedAmount}). Manual review required.`,
++        metadata: { merchantRef, payload },
++      }).catch(() => {});
++      return;
++    }
++    await handlePaydayRecoupmentCollection(event, merchantRef, internalRef, collectedAmount, log);
++    return; // never fall through to DEP- logic
++  }
++
+   if (!merchantRef.startsWith('DEP-')) return;
+ 
+   // Terminal status guard: skip if wallet_transactions already has a completed row for this reference.
+@@ -265,7 +345,7 @@ async function handleCollectionEvent(
+ 
+   const walletId = wallet?.id || (await supabaseAdmin.from('employer_wallets').select('id').eq('employer_id', employerId).single()).data?.id;
+ 
+-  const status = (event === 'collection.completed' || payload.status === 'COMPLETED') ? 'completed' : 'failed';
++  const status = (event === 'transaction.completed' || payload.status === 'COMPLETED') ? 'completed' : 'failed';
+ 
+   await supabaseAdmin
+     .from('wallet_transactions')
+diff --git a/app/dashboards/employer-dashboard/onboarding/page.tsx b/app/dashboards/employer-dashboard/onboarding/page.tsx
+index c3d8751..5ddb4f6 100644
+--- a/app/dashboards/employer-dashboard/onboarding/page.tsx
++++ b/app/dashboards/employer-dashboard/onboarding/page.tsx
+@@ -412,9 +412,11 @@ export default function EmployerOnboarding() {
+     annual_revenue_range: "",
+     payroll_cycle: "",
+     monthly_payroll_amount: "",
++    payday_day_of_month: "",
+     bank_name: "",
+     bank_account_number: "",
+     mobile_money_provider: "",
++    mobile_money_number: "",
+     contact_person: userFullName,
+     contact_email: userEmail,
+     contact_phone: "",
+@@ -493,9 +495,11 @@ export default function EmployerOnboarding() {
+               annual_revenue_range: profile.annual_revenue_range || "",
+               payroll_cycle: profile.payroll_cycle || "",
+               monthly_payroll_amount: profile.monthly_payroll_amount?.toString() || "",
++              payday_day_of_month: profile.payday_day_of_month?.toString() || "",
+               bank_name: profile.bank_name || "",
+               bank_account_number: profile.bank_account_number || "",
+               mobile_money_provider: profile.mobile_money_provider || "",
++              mobile_money_number: profile.mobile_money_number || "",
+               contact_person: profile.contact_person || userFullName,
+               contact_email: profile.contact_email || userEmail,
+               contact_phone: profile.contact_phone || "",
+@@ -666,7 +670,10 @@ const handleFileUpload = async (file: File, documentType: string) => {
+       case 3: return !!(formData.physical_address && formData.city);
+       case 4: return true;
+       case 5: return !!(formData.industry && formData.sector && formData.employee_count && countriesOfOperation.length > 0);
+-      case 6: return !!formData.payroll_cycle;
++      case 6: {
++        const payday = Number(formData.payday_day_of_month);
++        return !!formData.payroll_cycle && Number.isInteger(payday) && payday >= 1 && payday <= 31;
++      }
+       case 7: return !!(formData.contact_person && formData.contact_email && formData.contact_phone);
+       default: return false;
+     }
+@@ -687,6 +694,7 @@ const handleFileUpload = async (file: File, documentType: string) => {
+       employee_count: parseInt(formData.employee_count) || 0,
+       years_in_operation: parseInt(formData.years_in_operation) || 0,
+       monthly_payroll_amount: parseFloat(formData.monthly_payroll_amount) || 0,
++      payday_day_of_month: parseInt(formData.payday_day_of_month) || null,
+       beneficial_owners: beneficialOwners.filter((o) => o.full_name.trim()),
+       countries_of_operation: countriesOfOperation,
+       ...docPaths,
+@@ -1123,9 +1131,25 @@ const handleFileUpload = async (file: File, documentType: string) => {
+                   </Select>
+                 </div>
+               </div>
+-              <div className="flex flex-col gap-2">
+-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Monthly Payroll Amount (USD)</Label>
+-                <Input type="number" placeholder="e.g. 50000" min="0" value={formData.monthly_payroll_amount} onChange={(e) => updateField("monthly_payroll_amount", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-payroll-amount" />
++              <div className="grid grid-cols-2 gap-4">
++                <div className="flex flex-col gap-2">
++                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Monthly Payroll Amount (USD)</Label>
++                  <Input type="number" placeholder="e.g. 50000" min="0" value={formData.monthly_payroll_amount} onChange={(e) => updateField("monthly_payroll_amount", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-payroll-amount" />
++                </div>
++                <div className="flex flex-col gap-2">
++                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Payday (day of month) *</Label>
++                  <Input
++                    type="number"
++                    placeholder="e.g. 28"
++                    min="1"
++                    max="31"
++                    value={formData.payday_day_of_month}
++                    onChange={(e) => updateField("payday_day_of_month", e.target.value)}
++                    className="h-14 rounded-xl bg-white dark:bg-slate-800/50"
++                    data-testid="employer-payday"
++                  />
++                  <p className="text-xs text-slate-400 ml-1">Used to schedule advance recoupment. Use 31 for last day of month.</p>
++                </div>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="flex flex-col gap-2">
+@@ -1146,18 +1170,30 @@ const handleFileUpload = async (file: File, documentType: string) => {
+                   <Input placeholder="1234567890" value={formData.bank_account_number} onChange={(e) => updateField("bank_account_number", e.target.value)} className="h-14 rounded-xl bg-white dark:bg-slate-800/50" data-testid="employer-account" />
+                 </div>
+               </div>
+-              <div className="flex flex-col gap-2">
+-                <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Mobile Money Provider <span className="text-slate-400 font-normal">(optional)</span></Label>
+-                <Select value={formData.mobile_money_provider} onValueChange={(v) => updateField("mobile_money_provider", v)}>
+-                  <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50">
+-                    <SelectValue placeholder="Select provider..." />
+-                  </SelectTrigger>
+-                  <SelectContent>
+-                    {EAST_AFRICA_MOBILE_MONEY.map((p) => (
+-                      <SelectItem key={p} value={p}>{p}</SelectItem>
+-                    ))}
+-                  </SelectContent>
+-                </Select>
++              <div className="grid grid-cols-2 gap-4">
++                <div className="flex flex-col gap-2">
++                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Mobile Money Provider <span className="text-slate-400 font-normal">(optional)</span></Label>
++                  <Select value={formData.mobile_money_provider} onValueChange={(v) => updateField("mobile_money_provider", v)}>
++                    <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-slate-800/50">
++                      <SelectValue placeholder="Select provider..." />
++                    </SelectTrigger>
++                    <SelectContent>
++                      {EAST_AFRICA_MOBILE_MONEY.map((p) => (
++                        <SelectItem key={p} value={p}>{p}</SelectItem>
++                      ))}
++                    </SelectContent>
++                  </Select>
++                </div>
++                <div className="flex flex-col gap-2">
++                  <Label className="text-slate-700 dark:text-slate-200 text-sm font-medium ml-1">Mobile Money Number <span className="text-slate-400 font-normal">(optional)</span></Label>
++                  <Input
++                    placeholder="07XXXXXXXX"
++                    value={formData.mobile_money_number}
++                    onChange={(e) => updateField("mobile_money_number", e.target.value)}
++                    className="h-14 rounded-xl bg-white dark:bg-slate-800/50"
++                  />
++                  <p className="text-xs text-slate-400 ml-1">Used to recoup advances from your account on payday.</p>
++                </div>
+               </div>
+               <div className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
+                 <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Financial Documents</h4>
+diff --git a/app/dashboards/employer-dashboard/settings/page.tsx b/app/dashboards/employer-dashboard/settings/page.tsx
+index 531952c..24e6e54 100644
+--- a/app/dashboards/employer-dashboard/settings/page.tsx
++++ b/app/dashboards/employer-dashboard/settings/page.tsx
+@@ -36,6 +36,9 @@ interface EmployerProfile {
+   contact_email?: string;
+   contact_phone?: string;
+   payroll_cycle?: string;
++  payday_day_of_month?: number;
++  mobile_money_provider?: string;
++  mobile_money_number?: string;
+   physical_address?: string;
+   city?: string;
+   postal_code?: string;
+@@ -516,6 +519,9 @@ interface Profile {
+   contactEmail: string;
+   contactPhone: string;
+   payrollCycle: string;
++  paydayDayOfMonth: string;
++  mobileMoneyProvider: string;
++  mobileMoneyNumber: string;
+   physicalAddress: string;
+   city: string;
+   postalCode: string;
+@@ -579,6 +585,9 @@ export default function EmployerSettings() {
+     contactEmail: '',
+     contactPhone: '',
+     payrollCycle: 'monthly',
++    paydayDayOfMonth: '',
++    mobileMoneyProvider: '',
++    mobileMoneyNumber: '',
+     physicalAddress: '',
+     city: '',
+     postalCode: '',
+@@ -611,6 +620,9 @@ export default function EmployerSettings() {
+           contactEmail: employerData.contact_email || '',
+           contactPhone: employerData.contact_phone || '',
+           payrollCycle: employerData.payroll_cycle || prev.payrollCycle,
++          paydayDayOfMonth: employerData.payday_day_of_month?.toString() || '',
++          mobileMoneyProvider: employerData.mobile_money_provider || '',
++          mobileMoneyNumber: employerData.mobile_money_number || '',
+           physicalAddress: employerData.physical_address || '',
+           city: employerData.city || '',
+           postalCode: employerData.postal_code || '',
+@@ -862,10 +874,21 @@ export default function EmployerSettings() {
+   const handleSave = async () => {
+     setSaving(true);
+     try {
++      // paydayDayOfMonth is a free-text input in state (so it can be empty) but the
++      // schema expects an integer 1-31 or nothing at all — omit it rather than send
++      // an invalid 0/NaN that would fail validation for the whole save.
++      const parsedPayday = parseInt(profile.paydayDayOfMonth, 10);
++      const payload = {
++        ...profile,
++        paydayDayOfMonth: Number.isInteger(parsedPayday) && parsedPayday >= 1 && parsedPayday <= 31
++          ? parsedPayday
++          : undefined,
++      };
++
+       const res = await fetch("/api/employer-dashboard/profile", {
+         method: "PUT",
+         headers: { "Content-Type": "application/json" },
+-        body: JSON.stringify(profile),
++        body: JSON.stringify(payload),
+       });
+       if (res.ok) {
+         toast.success("Profile saved successfully");
+@@ -1135,6 +1158,43 @@ export default function EmployerSettings() {
+                   </div>
+                 </SettingsCard>
+ 
++                <SettingsCard icon={CreditCard} title="Payday & Recoupment" description="Used to schedule advance recoupment from your account">
++                  <div className="grid sm:grid-cols-2 gap-4">
++                    <div className="space-y-2">
++                      <Label className="text-slate-700 dark:text-slate-300">Payday (day of month)</Label>
++                      <Input
++                        type="number"
++                        min={1}
++                        max={31}
++                        placeholder="e.g. 28"
++                        value={profile.paydayDayOfMonth}
++                        onChange={(e) => setProfile((prev) => ({ ...prev, paydayDayOfMonth: e.target.value }))}
++                        data-testid="payday-day-input"
++                      />
++                      <p className="text-xs text-slate-500">Use 31 for last day of month.</p>
++                    </div>
++                    <div className="space-y-2">
++                      <Label className="text-slate-700 dark:text-slate-300">Mobile Money Provider</Label>
++                      <Input
++                        placeholder="e.g. M-PESA, Airtel Money"
++                        value={profile.mobileMoneyProvider}
++                        onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyProvider: e.target.value }))}
++                        data-testid="payday-provider-input"
++                      />
++                    </div>
++                    <div className="space-y-2 sm:col-span-2">
++                      <Label className="text-slate-700 dark:text-slate-300">Mobile Money Number</Label>
++                      <Input
++                        placeholder="07XXXXXXXX"
++                        value={profile.mobileMoneyNumber}
++                        onChange={(e) => setProfile((prev) => ({ ...prev, mobileMoneyNumber: e.target.value }))}
++                        data-testid="payday-number-input"
++                      />
++                      <p className="text-xs text-slate-500">On your payday, we&apos;ll ask to recoup any outstanding advances from this account.</p>
++                    </div>
++                  </div>
++                </SettingsCard>
++
+                 <SettingsCard icon={MapPin} title="Business Address" description="Your company's physical address">
+                   <div className="space-y-4">
+                     <div className="space-y-2">
+diff --git a/components/admin/AdminLayout.tsx b/components/admin/AdminLayout.tsx
+index 9cf0c26..8dda54e 100644
+--- a/components/admin/AdminLayout.tsx
++++ b/components/admin/AdminLayout.tsx
+@@ -26,6 +26,7 @@ import {
+   ClipboardCheck,
+   Wifi,
+   Landmark,
++  CalendarClock,
+ } from "lucide-react";
+ import { cn } from "@/lib/utils";
+ import { toast } from "sonner";
+@@ -122,6 +123,7 @@ const AdminSidebarNav = ({ isOpen, onClose, userProfile }: SidebarNavProps) => {
+       icon: AlertTriangle,
+     },
+     { label: "Reconciliation", href: "/admin/reconciliation", icon: BarChart3 },
++    { label: "Payday Recoupments", href: "/admin/payday-recoupments", icon: CalendarClock },
+     { label: "Billing & Revenue", href: "/admin/billing", icon: DollarSign },
+     { label: "System Health", href: "/admin/api-health", icon: Wifi },
+     { label: "Settings", href: "/admin/settings", icon: Settings },
+diff --git a/components/employer/EmployerLayout.tsx b/components/employer/EmployerLayout.tsx
+index 29d5569..fa4b150 100644
+--- a/components/employer/EmployerLayout.tsx
++++ b/components/employer/EmployerLayout.tsx
+@@ -19,6 +19,7 @@ import { toast } from 'sonner';
+ import { NotificationDropdown } from '../layout/NotificationDropdown';
+ import { DashboardBreadcrumbs } from '../layout/DashboardBreadcrumbs';
+ import PushClient from '@/components/push/PushClient';
++import { PaydayRecoupmentModal } from './PaydayRecoupmentModal';
+ 
+ 
+ export const EmployerBackground = () => (
+@@ -480,7 +481,8 @@ export const EmployerPortalLayout = ({ children, employer = null }: EmployerPort
+     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300" data-testid="employer-dashboard">
+       <EmployerBackground />
+       <PushClient />
+-      
++      <PaydayRecoupmentModal />
++
+       <SidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+       
+       <div className="lg:ml-72 relative">
+diff --git a/components/employer/PaydayRecoupmentModal.tsx b/components/employer/PaydayRecoupmentModal.tsx
+new file mode 100644
+index 0000000..08d95e1
+--- /dev/null
++++ b/components/employer/PaydayRecoupmentModal.tsx
+@@ -0,0 +1,146 @@
++"use client";
++
++import React, { useState, useEffect, useCallback } from 'react';
++import { usePathname } from 'next/navigation';
++import { Landmark, Loader2, AlertTriangle } from 'lucide-react';
++import { Button } from '@/components/ui/button';
++import { formatCurrency } from '@/lib/utils';
++import { toast } from 'sonner';
++
++interface Recoupment {
++  id: string;
++  amount_due: number;
++  currency: string;
++  status: 'pending_response' | 'confirmed' | 'collecting' | 'collected' | 'failed' | 'declined';
++  payday_date: string;
++  failure_reason: string | null;
++}
++
++// Mounted at the EmployerPortalLayout level so it surfaces on every employer
++// page, not just the dashboard home — matches the intent that this isn't
++// something an employer can just navigate away from.
++export function PaydayRecoupmentModal() {
++  const pathname = usePathname();
++  const [recoupment, setRecoupment] = useState<Recoupment | null>(null);
++  const [acting, setActing] = useState(false);
++
++  const fetchRecoupment = useCallback(async () => {
++    try {
++      const res = await fetch('/api/employer-dashboard/payday-recoupment');
++      if (!res.ok) return;
++      const data = await res.json();
++      setRecoupment(data.recoupment ?? null);
++    } catch {
++      // Silent — this is a background check, not a page-critical fetch.
++    }
++  }, []);
++
++  useEffect(() => {
++    if (pathname === '/dashboards/employer-dashboard/onboarding') return;
++    // eslint-disable-next-line react-hooks/set-state-in-effect
++    void fetchRecoupment();
++  }, [pathname, fetchRecoupment]);
++
++  if (!recoupment || pathname === '/dashboards/employer-dashboard/onboarding') return null;
++
++  const handleConfirm = async () => {
++    setActing(true);
++    try {
++      const res = await fetch(`/api/employer-dashboard/payday-recoupment/${recoupment.id}/confirm`, { method: 'POST' });
++      const data = await res.json();
++      if (res.ok) {
++        toast.success('Recoupment initiated — check your phone to approve the request.');
++        setRecoupment(data.recoupment);
++      } else {
++        toast.error(data?.error || 'Failed to initiate recoupment');
++        await fetchRecoupment();
++      }
++    } catch {
++      toast.error('Failed to initiate recoupment');
++    } finally {
++      setActing(false);
++    }
++  };
++
++  const handleDecline = async () => {
++    setActing(true);
++    try {
++      const res = await fetch(`/api/employer-dashboard/payday-recoupment/${recoupment.id}/decline`, { method: 'POST' });
++      if (res.ok) {
++        toast.info('Recoupment declined. This will need to be resolved before new advances can be requested.');
++        setRecoupment(null);
++      } else {
++        const data = await res.json().catch(() => null);
++        toast.error(data?.error || 'Failed to submit response');
++      }
++    } catch {
++      toast.error('Failed to submit response');
++    } finally {
++      setActing(false);
++    }
++  };
++
++  const amountLabel = formatCurrency(recoupment.amount_due, recoupment.currency);
++
++  return (
++    <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
++      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
++        <div className="bg-linear-to-br from-primary to-emerald-600 p-6 text-white">
++          <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-3">
++            <Landmark className="w-6 h-6" />
++          </div>
++          <h2 className="text-xl font-bold">Your payday is here</h2>
++        </div>
++
++        <div className="p-6 space-y-4">
++          {recoupment.status === 'collecting' ? (
++            <div className="flex flex-col items-center gap-3 py-4 text-center">
++              <Loader2 className="w-8 h-8 text-primary animate-spin" />
++              <p className="text-sm text-slate-600 dark:text-slate-300">
++                Recoupment request sent — approve it on your phone to complete it.
++              </p>
++            </div>
++          ) : recoupment.status === 'failed' ? (
++            <div className="space-y-4">
++              <div className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
++                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
++                <p className="text-sm text-red-700 dark:text-red-300">
++                  {recoupment.failure_reason || 'The recoupment request failed.'}
++                </p>
++              </div>
++              <p className="text-sm text-slate-600 dark:text-slate-300">
++                Do you wish to recoup <strong>{amountLabel}</strong> back to EaziWage now?
++              </p>
++              <div className="flex gap-3">
++                <Button variant="outline" onClick={handleDecline} disabled={acting} className="flex-1">
++                  Not now
++                </Button>
++                <Button onClick={handleConfirm} disabled={acting} className="flex-1 bg-primary text-white">
++                  {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Retry'}
++                </Button>
++              </div>
++            </div>
++          ) : (
++            <div className="space-y-4">
++              <p className="text-sm text-slate-600 dark:text-slate-300">
++                Your employees have <strong>{amountLabel}</strong> in outstanding wage advances due for recoupment.
++                Do you wish to recoup this amount back to EaziWage now?
++              </p>
++              <div className="flex gap-3">
++                <Button variant="outline" onClick={handleDecline} disabled={acting} className="flex-1">
++                  No
++                </Button>
++                <Button onClick={handleConfirm} disabled={acting} className="flex-1 bg-primary text-white">
++                  {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Yes, recoup now'}
++                </Button>
++              </div>
++              <p className="text-xs text-slate-400 text-center">
++                Declining will flag your account until this is resolved — new employee advance requests will be paused.
++              </p>
++            </div>
++          )}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/lib/dusupay/client.ts b/lib/dusupay/client.ts
+index 42e345c..0736762 100644
+--- a/lib/dusupay/client.ts
++++ b/lib/dusupay/client.ts
+@@ -5,6 +5,8 @@ import {
+   ProviderResponse,
+   BankCodesResponse,
+   SendFundsPayload,
++  CollectionRequest,
++  CollectionResponse,
+ } from './types';
+ 
+ export class DusupayClient {
+@@ -118,6 +120,20 @@ export class DusupayClient {
+   async verifyTransaction(merchantReference: string): Promise<PayoutResponse> {
+     return this.request<PayoutResponse>(`/data/transaction/verify/${merchantReference}`);
+   }
++
++  /**
++   * Initiate a collection (pull funds from a customer's mobile money account —
++   * a direct-charge / STK-push-style request). Distinct endpoint and schema
++   * from sendFunds(): uses `msisdn`, not `account_number`. Confirmed live
++   * against sandboxapi.dusupay.com/collections/initialize for airtel_ke and
++   * mpesa_ke (both returned 202 Accepted).
++   */
++  async initializeCollection(collection: CollectionRequest): Promise<CollectionResponse> {
++    return this.request<CollectionResponse>('/collections/initialize', {
++      method: 'POST',
++      body: JSON.stringify(collection),
++    });
++  }
+ }
+ 
+ export const dusupayClient = new DusupayClient();
+diff --git a/lib/dusupay/types.ts b/lib/dusupay/types.ts
+index a1a45d6..7c38aad 100644
+--- a/lib/dusupay/types.ts
++++ b/lib/dusupay/types.ts
+@@ -27,12 +27,40 @@ export interface PayoutRequest {
+   currency: Currency;
+   amount: number;
+   provider_code: string;
+-  account_number: string; 
++  account_number: string;
+   customer_name: string;
+   description: string;
+   bank_code?: string;
+ }
+ 
++// Collections use a distinct endpoint (/collections/initialize, confirmed against
++// https://developer.dusupay.com/funds-collection/mobile-money-collection/mobile-money-direct-charge)
++// with its own schema — notably `msisdn`, which /payout/send-funds explicitly
++// rejects ("property msisdn should not exist").
++export interface CollectionRequest {
++  merchant_reference: string;
++  transaction_method: PayoutMethod;
++  currency: Currency;
++  amount: number;
++  provider_code: string;
++  msisdn: string;
++  customer_name: string;
++  customer_email?: string;
++  description: string;
++  charge_customer?: boolean;
++  allow_final_status_change?: boolean;
++}
++
++export interface CollectionResponse {
++  code: number;
++  status: string;
++  message: string;
++  data?: {
++    internal_reference: string;
++    merchant_reference: string;
++  };
++}
++
+ export interface PayoutResponse {
+   code: number;
+   status: string;
+diff --git a/lib/repayment/utils.ts b/lib/repayment/utils.ts
+index 18ff318..bc1c71b 100644
+--- a/lib/repayment/utils.ts
++++ b/lib/repayment/utils.ts
+@@ -1,3 +1,30 @@
++import type { supabaseAdmin } from '../supabaseAdmin';
++
++// A completed payroll run is a stronger signal of an employer's real payday than
++// the day-of-month they guessed at onboarding — payroll_uploads.processed_at is
++// when they actually paid their staff. Falls back to the onboarding guess when no
++// payroll run has been processed yet.
++export async function resolveEffectivePaydayDayOfMonth(
++  employerId: string,
++  fallbackDayOfMonth: number | null,
++  supabase: typeof supabaseAdmin,
++): Promise<number | null> {
++  const { data: lastPayroll } = await supabase
++    .from('payroll_uploads')
++    .select('processed_at')
++    .eq('employer_live_id', employerId)
++    .eq('status', 'processed')
++    .not('processed_at', 'is', null)
++    .order('processed_at', { ascending: false })
++    .limit(1)
++    .maybeSingle();
++
++  if (lastPayroll?.processed_at) {
++    return new Date(lastPayroll.processed_at as string).getDate();
++  }
++  return fallbackDayOfMonth;
++}
++
+ export function generateRepaymentReference(
+   employerId: string,
+   advanceId: string,
+@@ -9,6 +36,21 @@ export function generateRepaymentReference(
+   return `EWA-REP-${employerPart}-${datePart}-${advancePart}`;
+ }
+ 
++// EWAPAYDAY<employer8><YYYYMMDD> = 9 + 8 + 8 = 25 chars — well under DusuPay's
++// 36-char merchant_reference limit. DusuPay's collection endpoint rejects any
++// non-alphanumeric characters in merchant_reference, so no hyphens here
++// (unlike generateMerchantReference in lib/dusupay/utils.ts, which is only
++// used for payouts and does allow hyphens).
++export function generatePaydayRecoupmentReference(employerId: string, paydayDate: Date): string {
++  const employerPart = employerId.replace(/-/g, '').slice(0, 8).toUpperCase();
++  const datePart = `${paydayDate.getFullYear()}${String(paydayDate.getMonth() + 1).padStart(2, '0')}${String(paydayDate.getDate()).padStart(2, '0')}`;
++  return `EWAPAYDAY${employerPart}${datePart}`;
++}
++
++export function isPaydayRecoupmentReference(reference: string): boolean {
++  return reference.startsWith('EWAPAYDAY');
++}
++
+ export function parseRepaymentReference(reference: string): {
+   isRepayment: boolean;
+   employerPrefix: string | null;
+diff --git a/lib/services/payday-recoupment-service.ts b/lib/services/payday-recoupment-service.ts
+new file mode 100644
+index 0000000..c3cda4e
+--- /dev/null
++++ b/lib/services/payday-recoupment-service.ts
+@@ -0,0 +1,65 @@
++import { supabaseAdmin } from '../supabaseAdmin';
++import { notifyAdmin } from '../notifications';
++import type { Logger } from '../logger';
++
++// Shared by the DusuPay webhook (automated mobile money collection) and the admin
++// manual-collect route (bank-transfer fallback when mobile money fails) — both
++// need to apply a collected amount across an employer's outstanding repayment
++// schedules the same way and mark the recoupment collected.
++export async function applyPaydayRecoupmentCollection(
++  recoupmentId: string,
++  employerId: string,
++  amount: number,
++  paymentReference: string,
++  log: Logger,
++): Promise<void> {
++  const { data: schedules } = await supabaseAdmin
++    .from('repayment_schedules')
++    .select('id, advance_id, repayment_amount')
++    .eq('employer_id', employerId)
++    .in('status', ['pending', 'overdue']);
++
++  let remaining = amount;
++  for (const schedule of schedules ?? []) {
++    if (remaining <= 0) break;
++    const scheduleAmount = Number(schedule.repayment_amount);
++    const applied = Math.min(remaining, scheduleAmount);
++
++    const { error: rpcError } = await supabaseAdmin.rpc('repay_advance_to_admin', {
++      p_advance_id: schedule.advance_id,
++      p_amount: applied,
++    });
++
++    if (rpcError) {
++      // Leave this schedule pending rather than mark it paid without the RPC
++      // having actually run — it'll be picked up by a future recoupment/cron pass.
++      log.error('repay_advance_to_admin RPC failed during payday recoupment', { err: rpcError, scheduleId: schedule.id });
++      continue;
++    }
++
++    await supabaseAdmin.from('repayment_schedules').update({
++      status: 'paid',
++      paid_amount: applied,
++      paid_at: new Date().toISOString(),
++      payment_reference: paymentReference,
++      updated_at: new Date().toISOString(),
++    }).eq('id', schedule.id);
++
++    remaining -= applied;
++  }
++
++  await supabaseAdmin.from('payday_recoupments').update({
++    status: 'collected',
++    collected_at: new Date().toISOString(),
++    updated_at: new Date().toISOString(),
++  }).eq('id', recoupmentId);
++
++  void notifyAdmin({
++    type: 'system_alert',
++    title: '✅ Payday Recoupment Collected',
++    message: `${amount} collected from employer ${employerId}. Reference: ${paymentReference}.`,
++    metadata: { recoupment_id: recoupmentId, employer_id: employerId, amount, reference: paymentReference },
++  }).catch(() => {});
++
++  log.info('Payday recoupment collection complete', { recoupmentId, amount });
++}
+diff --git a/lib/services/payout-service.ts b/lib/services/payout-service.ts
+index f8647dc..1338f18 100644
+--- a/lib/services/payout-service.ts
++++ b/lib/services/payout-service.ts
+@@ -3,7 +3,7 @@ import { dusupayClient } from '../dusupay/client';
+ import { PayoutMethod, Currency } from '../dusupay/types';
+ import { generateMerchantReference, formatPhoneNumber, resolveProviderCode, COUNTRY_PROVIDER_PREFIXES } from '../dusupay/utils';
+ import { runFraudChecks } from '../fraud-engine';
+-import { generateRepaymentReference } from '../repayment/utils';
++import { generateRepaymentReference, resolveEffectivePaydayDayOfMonth } from '../repayment/utils';
+ import { notifyAdmin } from '../notifications';
+ import { getEnv } from '@/env';
+ 
+@@ -18,23 +18,48 @@ type ScheduleAdvanceInput = {
+   organization_id?: string | null;
+ };
+ 
+-function calculateDueDate(disbursedAt: Date, payrollCycle: string | null): Date {
+-  const due = new Date(disbursedAt);
+-  switch (payrollCycle?.toLowerCase()) {
+-    case 'weekly':
+-      due.setDate(due.getDate() + 7);
+-      break;
+-    case 'bi-weekly':
+-    case 'biweekly':
+-      due.setDate(due.getDate() + 14);
+-      break;
+-    case 'monthly':
+-    default:
+-      due.setMonth(due.getMonth() + 1);
+-      due.setDate(1); // first of next month
+-      break;
++// Clamp a target day-of-month to however many days that month actually has
++// (e.g. payday=31 in a 30-day or 28/29-day month lands on the last day instead).
++function clampDayToMonth(year: number, monthIndex: number, day: number): number {
++  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
++  return Math.min(day, lastDay);
++}
++
++function calculateDueDate(disbursedAt: Date, payrollCycle: string | null, paydayDayOfMonth: number | null): Date {
++  const cycle = payrollCycle?.toLowerCase();
++
++  if (cycle === 'weekly') {
++    const due = new Date(disbursedAt);
++    due.setDate(due.getDate() + 7);
++    return due;
++  }
++  if (cycle === 'bi-weekly' || cycle === 'biweekly') {
++    const due = new Date(disbursedAt);
++    due.setDate(due.getDate() + 14);
++    return due;
++  }
++
++  // Monthly (default): use the employer's actual configured payday. Falls back to
++  // "1st of next month" only for employers who haven't set one yet — this used to
++  // be the rule for everyone, which is what caused due dates to never reflect a
++  // company's real payroll date.
++  if (!paydayDayOfMonth) {
++    const due = new Date(disbursedAt);
++    due.setMonth(due.getMonth() + 1);
++    due.setDate(1);
++    return due;
++  }
++
++  const year = disbursedAt.getFullYear();
++  const month = disbursedAt.getMonth();
++  const thisMonthPayday = new Date(year, month, clampDayToMonth(year, month, paydayDayOfMonth));
++
++  // Disbursed before this month's payday already passed — due on that same payday.
++  // Otherwise this month's payroll has already run, so it's due next month instead.
++  if (disbursedAt.getTime() < thisMonthPayday.getTime()) {
++    return thisMonthPayday;
+   }
+-  return due;
++  return new Date(year, month + 1, clampDayToMonth(year, month + 1, paydayDayOfMonth));
+ }
+ 
+ async function createRepaymentSchedule(
+@@ -44,13 +69,18 @@ async function createRepaymentSchedule(
+ ): Promise<void> {
+   const { data: employer } = await supabase
+     .from('employers')
+-    .select('payroll_cycle, id')
++    .select('payroll_cycle, payday_day_of_month, id')
+     .eq('id', advance.employer_id)
+     .single();
+ 
+   if (!employer) throw new Error(`Employer ${advance.employer_id} not found for repayment schedule`);
+ 
+-  const dueDate = calculateDueDate(disbursedAt, employer.payroll_cycle);
++  const effectivePaydayDayOfMonth = await resolveEffectivePaydayDayOfMonth(
++    advance.employer_id,
++    employer.payday_day_of_month,
++    supabase,
++  );
++  const dueDate = calculateDueDate(disbursedAt, employer.payroll_cycle, effectivePaydayDayOfMonth);
+ 
+   const reference = generateRepaymentReference(advance.employer_id, advance.id, dueDate);
+ 
+@@ -244,6 +274,28 @@ export class PayoutService {
+       throw new Error('EWA not enabled for employer');
+     }
+ 
++    // Employer arrears gate: if a past payday's recoupment was declined or never
++    // resolved, new advances are paused for this employer's employees until it's
++    // sorted out. Today's still-open prompt (payday_date === today) doesn't count
++    // yet — the employer gets a same-day chance to act on it via the modal in
++    // components/employer/PaydayRecoupmentModal.tsx before this blocks anything.
++    const todayStr = new Date().toISOString().split('T')[0];
++    const { data: unresolvedRecoupment } = await supabaseAdmin
++      .from('payday_recoupments')
++      .select('id, payday_date, amount_due, currency')
++      .eq('employer_id', advance.employer_id)
++      .in('status', ['pending_response', 'failed', 'declined'])
++      .lt('payday_date', todayStr)
++      .order('payday_date', { ascending: true })
++      .limit(1)
++      .maybeSingle();
++
++    if (unresolvedRecoupment) {
++      const reason = `Employer has not recouped ${unresolvedRecoupment.currency} ${unresolvedRecoupment.amount_due} in arrears from ${unresolvedRecoupment.payday_date}`;
++      await supabaseAdmin.from('advances').update({ status: 'rejected', reason }).eq('id', advanceId);
++      throw new Error(reason);
++    }
++
+     const checkEmployeeEligibility = async (): Promise<EligibilityCheckResult> => {
+       const flags: FraudFlagInput[] = [];
+ 
+diff --git a/lib/validations/employer-onboarding.ts b/lib/validations/employer-onboarding.ts
+index da472cb..e541678 100644
+--- a/lib/validations/employer-onboarding.ts
++++ b/lib/validations/employer-onboarding.ts
+@@ -42,9 +42,11 @@ export const onboardingSubmitSchema = z.object({
+   annual_revenue_range: z.string().optional(),
+   payroll_cycle: nonEmptyString('Payroll cycle'),
+   monthly_payroll_amount: z.number().min(0).optional(),
++  payday_day_of_month: z.number().int().min(1).max(31),
+   bank_name: z.string().optional(),
+   bank_account_number: z.string().optional(),
+   mobile_money_provider: z.string().optional(),
++  mobile_money_number: z.string().optional(),
+ 
+   contact_person: nonEmptyString('Contact person'),
+   contact_email: z.string().email('Invalid email address'),
+diff --git a/lib/validations/route-schemas.ts b/lib/validations/route-schemas.ts
+index 7b704de..8ee8528 100644
+--- a/lib/validations/route-schemas.ts
++++ b/lib/validations/route-schemas.ts
+@@ -142,6 +142,9 @@ export const EmployerProfileUpdateSchema = z.object({
+   advanceAccessDays: z.array(z.number().int().min(1).max(31)).optional(),
+   cooldownPeriod: z.number().int().min(0).max(90).optional(),
+   pushNotifications: z.boolean().optional(),
++  paydayDayOfMonth: z.number().int().min(1).max(31).optional(),
++  mobileMoneyProvider: z.string().max(50).optional(),
++  mobileMoneyNumber: z.string().max(30).optional(),
+ });
+ 
+ // ---------------------------------------------------------------------------
+-- 
+2.54.0.windows.1
+
