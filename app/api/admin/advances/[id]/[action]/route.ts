@@ -3,8 +3,9 @@ import { NextResponse, NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { notifyEmployee, notifyEmployer } from '@/lib/notifications';
+import { notifyEmployee, notifyEmployer, notifyAdmin } from '@/lib/notifications';
 import { dbErrorResponse } from '@/lib/api-errors';
+import { TreasuryValidationError } from '@/lib/services/treasury-service';
 
 export const runtime = 'nodejs';
 
@@ -55,7 +56,7 @@ export async function PATCH(
     if (action === 'approve') {
       newStatus = 'approved';
     } else if (action === 'disburse') {
-      newStatus = 'completed';
+      newStatus = advance.status;
     } else if (action === 'reject') {
       newStatus = 'rejected';
     } else {
@@ -105,18 +106,99 @@ export async function PATCH(
       return NextResponse.json({ error: 'Advance amount falls outside configured EWA limits.' }, { status: 422 });
     }
 
-    const { error: updateError } = await supabase
-      .from('advances')
-      .update({
-        status: newStatus,
-        approved_at: newStatus === 'approved' ? (advance.approved_at || new Date().toISOString()) : advance.approved_at,
-        disbursed_at: newStatus === 'completed' ? (advance.disbursed_at || new Date().toISOString()) : advance.disbursed_at,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
+    if (action === 'disburse') {
+      const { data: employer } = await supabaseAdmin
+        .from('employers')
+        .select('funding_model')
+        .eq('id', advance.employer_id)
+        .maybeSingle();
+      const fundingModel = employer?.funding_model ?? 'prefunded';
 
-    if (updateError) {
-      return dbErrorResponse('admin/advances/[action]', updateError);
+      try {
+        const result = await payoutService.disburseAdvance(id);
+        if (!result.success) {
+          return NextResponse.json(
+            { error: 'Advance held for fraud review' },
+            { status: 409 },
+          );
+        }
+        newStatus = 'completed';
+      } catch (err: unknown) {
+        const isTreasuryError =
+          err instanceof TreasuryValidationError &&
+          err.code === 'insufficient_treasury_balance';
+        const reason = err instanceof Error ? err.message : 'Disbursement failed';
+
+        console.error(`[AdminAdvancesAction] Disbursement failed for ${id}:`, reason);
+
+        await supabaseAdmin
+          .from('advances')
+          .update({ status: 'failed', reason })
+          .eq('id', id)
+          .in('status', ['approved', 'processing']);
+
+        if (fundingModel === 'prefunded') {
+          const { error: releaseError } = await supabaseAdmin.rpc('release_employer_reservation', {
+            p_employer_id: advance.employer_id,
+            p_amount: advance.amount,
+            p_advance_id: id,
+          });
+          if (releaseError) {
+            console.error(`[AdminAdvancesAction] Failed to release reservation for ${id}:`, releaseError.message);
+          }
+        } else {
+          const { data: wallet } = await supabaseAdmin
+            .from('employer_wallets')
+            .select('outstanding_liability')
+            .eq('employer_id', advance.employer_id)
+            .maybeSingle();
+
+          const { error: liabilityError } = await supabaseAdmin
+            .from('employer_wallets')
+            .update({
+              outstanding_liability: Math.max(
+                0,
+                Number(wallet?.outstanding_liability ?? 0) - Number(advance.amount),
+              ),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('employer_id', advance.employer_id);
+          if (liabilityError) {
+            console.error(`[AdminAdvancesAction] Failed to release liability for ${id}:`, liabilityError.message);
+          }
+        }
+
+        void notifyAdmin({
+          type: 'system_alert',
+          title: 'Advance Disbursement Failed',
+          message: `Admin disbursement of advance ${id} failed: ${reason}. Manual intervention required.`,
+          metadata: {
+            advance_id: id,
+            employer_id: advance.employer_id,
+            employee_id: advance.employee_id,
+            reason,
+          },
+        }).catch(() => {});
+
+        return NextResponse.json(
+          { error: isTreasuryError ? 'Treasury temporarily unavailable' : `Disbursement failed: ${reason}` },
+          { status: isTreasuryError ? 503 : 500 },
+        );
+      }
+    } else {
+      const { error: updateError } = await supabase
+        .from('advances')
+        .update({
+          status: newStatus,
+          approved_at: newStatus === 'approved' ? (advance.approved_at || new Date().toISOString()) : advance.approved_at,
+          disbursed_at: newStatus === 'completed' ? (advance.disbursed_at || new Date().toISOString()) : advance.disbursed_at,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        return dbErrorResponse('admin/advances/[action]', updateError);
+      }
     }
 
     // Audit trail — CBK requires every manual status change to have an attributable reviewer
