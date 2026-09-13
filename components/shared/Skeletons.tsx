@@ -86,3 +86,112 @@ export function CardGridSkeleton({ count = 6, className }: { count?: number; cla
     </div>
   );
 }
+
+type DashboardSkeletonVariant =
+  | 'overview'
+  | 'table'
+  | 'reports'
+  | 'wallet'
+  | 'form'
+  | 'cards';
+
+export function DashboardSkeleton({
+  variant = 'overview',
+}: {
+  variant?: DashboardSkeletonVariant;
+}) {
+  if (variant === 'table') {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-4 w-80" />
+        </div>
+        <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/60 p-4">
+          <TableSkeleton rows={7} columns={5} />
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'reports') {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <Skeleton className="h-10 w-36 rounded-xl" />
+        </div>
+        <StatTilesSkeleton count={4} />
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Skeleton className="h-72 rounded-2xl" />
+          <Skeleton className="h-72 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'wallet') {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <StatTilesSkeleton count={3} />
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'form') {
+    return (
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-4 w-80" />
+        </div>
+        <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/60 p-6 space-y-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-11 w-full rounded-xl" />
+            </div>
+          ))}
+          <Skeleton className="h-11 w-36 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === 'cards') {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-52" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <CardGridSkeleton count={6} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-4 w-80" />
+      </div>
+      <StatTilesSkeleton count={4} />
+      <div className="grid lg:grid-cols-3 gap-6">
+        <Skeleton className="h-72 rounded-2xl lg:col-span-2" />
+        <Skeleton className="h-72 rounded-2xl" />
+      </div>
+    </div>
+  );
+}
