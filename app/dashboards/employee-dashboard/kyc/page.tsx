@@ -129,7 +129,16 @@ export default function EmployeeKYC() {
         return DOCUMENT_TYPES.find(d => d.value === type)?.label || type;
     };
 
-    const requiredDocs = ['national_id', 'payslip'];
+    const requiredDocs = [
+      'id_front',
+      'id_back',
+      'address_proof',
+      'tax_certificate',
+      'payslip_1',
+      'payslip_2',
+      'employment_contract',
+      'bank_statement',
+    ];
     const uploadedTypes = documents.map(d => d.document_type);
     const missingDocs = requiredDocs.filter(d => !uploadedTypes.includes(d));
 
@@ -418,17 +427,20 @@ export default function EmployeeKYC() {
             
             <div className="grid sm:grid-cols-2 gap-4">
               {[
-                { type: 'national_id', icon: ScanFace, title: 'ID Verification', desc: 'National ID or Passport copy' },
-                { type: 'payslip', icon: CreditCard, title: 'Income Proof', desc: 'Most recent company payslip' },
+                { types: ['id_front', 'id_back'], icon: ScanFace, title: 'ID Verification', desc: 'Front and back of your identity document' },
+                { types: ['address_proof', 'tax_certificate'], icon: FileText, title: 'Compliance Proof', desc: 'Address and tax compliance documents' },
+                { types: ['payslip_1', 'payslip_2'], icon: CreditCard, title: 'Income Proof', desc: 'Latest and previous payslips' },
+                { types: ['employment_contract', 'bank_statement'], icon: FileText, title: 'Work & Payout', desc: 'Employment contract and bank statement' },
               ].map((item) => {
-                const isUploaded = uploadedTypes.includes(item.type);
-                const doc = documents.find(d => d.document_type === item.type);
+                const isUploaded = item.types.every((type) => uploadedTypes.includes(type));
+                const itemDocs = documents.filter(d => item.types.includes(d.document_type));
+                const isApproved = itemDocs.length === item.types.length && itemDocs.every((doc) => doc.status === 'approved');
                 return (
                   <div 
-                    key={item.type}
+                    key={item.title}
                     className={cn(
                       "p-5 rounded-2xl border-2 transition-all relative overflow-hidden",
-                      isUploaded && doc?.status === 'approved' 
+                      isUploaded && isApproved
                         ? "border-emerald-500/20 bg-emerald-500/5 shadow-emerald-500/5"
                         : isUploaded
                         ? "border-amber-500/20 bg-amber-500/5"
@@ -438,12 +450,12 @@ export default function EmployeeKYC() {
                     <div className="flex items-center justify-between mb-3">
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center",
-                        isUploaded && doc?.status === 'approved' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                        isUploaded && isApproved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
                       )}>
                         <item.icon className="w-5 h-5" />
                       </div>
                       {isUploaded ? (
-                        doc?.status === 'approved' ? (
+                        isApproved ? (
                           <div className="flex items-center gap-1 text-emerald-600">
                             <Check className="w-4 h-4" />
                             <span className="text-[10px] font-black uppercase tracking-widest">Active</span>
