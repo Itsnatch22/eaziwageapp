@@ -168,13 +168,14 @@ export const PAYROLL_CYCLES = [
 ];
 
 export const DOCUMENT_TYPES = [
-  { value: 'national_id', label: 'National ID Card' },
-  { value: 'passport', label: 'Passport' },
+  { value: 'id_front', label: 'National ID (Front)' },
+  { value: 'id_back', label: 'National ID (Back)' },
+  { value: 'address_proof', label: 'Proof of Address' },
   { value: 'tax_certificate', label: 'Tax Compliance Certificate' },
-  { value: 'payslip', label: 'Recent Payslip' },
+  { value: 'payslip_1', label: 'Latest Payslip' },
+  { value: 'payslip_2', label: 'Previous Payslip' },
   { value: 'bank_statement', label: 'Bank Statement' },
   { value: 'employment_contract', label: 'Employment Contract' },
-  { value: 'utility_bill', label: 'Utility Bill (Proof of Address)' },
 ];
 
 export function getRiskRatingColor(rating: string) {
