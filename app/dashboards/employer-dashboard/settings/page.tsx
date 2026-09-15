@@ -1077,6 +1077,7 @@ export default function EmployerSettings() {
     { key: 'business_permit', label: 'Business Permit' },
     { key: 'audited_financials', label: 'Audited Financials' },
     { key: 'bank_statement', label: 'Bank Statement' },
+    { key: 'transaction_history', label: 'Transaction History' },
     { key: 'proof_of_address', label: 'Proof of Address' },
     { key: 'proof_of_bank_account', label: 'Proof of Bank Account' },
     { key: 'employment_contract_template', label: 'Employment Contract Template' },
