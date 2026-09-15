@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { getDocumentLabel } from '@/lib/document-labels'
 
 export type { ClassValue }
 
@@ -168,15 +169,15 @@ export const PAYROLL_CYCLES = [
 ];
 
 export const DOCUMENT_TYPES = [
-  { value: 'id_front', label: 'National ID (Front)' },
-  { value: 'id_back', label: 'National ID (Back)' },
-  { value: 'address_proof', label: 'Proof of Address' },
-  { value: 'tax_certificate', label: 'Tax Compliance Certificate' },
-  { value: 'payslip_1', label: 'Latest Payslip' },
-  { value: 'payslip_2', label: 'Previous Payslip' },
-  { value: 'bank_statement', label: 'Bank Statement' },
-  { value: 'employment_contract', label: 'Employment Contract' },
-];
+  'id_front',
+  'id_back',
+  'address_proof',
+  'tax_certificate',
+  'payslip_1',
+  'payslip_2',
+  'bank_statement',
+  'employment_contract',
+].map((value) => ({ value, label: getDocumentLabel(value) }));
 
 export function getRiskRatingColor(rating: string) {
   switch (rating?.toUpperCase()) {

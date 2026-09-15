@@ -22,7 +22,7 @@ import { formatCurrency, formatDateTime, cn, convertToUSD } from '@/lib/utils';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { toast }                   from 'sonner';
 import { CopyButton } from '@/components/shared/CopyButton';
-import { DOCUMENT_TYPE_LABELS } from '@/lib/validations/kyc-validation';
+import { getDocumentLabel } from '@/lib/document-labels';
 
 type EmployeeStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'suspended';
 
@@ -81,7 +81,7 @@ export interface Employee {
 
 interface KycDocument {
   id: string;
-  document_type: keyof typeof DOCUMENT_TYPE_LABELS | string;
+  document_type: string;
   document_url: string;
   document_number?: string | null;
   status: 'pending' | 'approved' | 'rejected';
@@ -311,9 +311,6 @@ const FilterButton: React.FC<FilterButtonProps> = ({ active, onClick, children }
     {children}
   </button>
 );
-
-const getDocumentLabel = (documentType: string) =>
-  DOCUMENT_TYPE_LABELS[documentType as keyof typeof DOCUMENT_TYPE_LABELS] || documentType.replace(/_/g, ' ');
 
 interface EmployeeRowProps {
   employee:       Employee;

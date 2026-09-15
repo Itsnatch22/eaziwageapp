@@ -194,17 +194,6 @@ export const ApiErrorResponseSchema = z.object({
 
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
 
-export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
-  id_front: 'National ID (Front)',
-  id_back: 'National ID (Back)',
-  address_proof: 'Proof of Address',
-  tax_certificate: 'Tax Compliance Certificate',
-  payslip_1: 'Payslip (Month 1)',
-  payslip_2: 'Payslip (Month 2)',
-  bank_statement: 'Bank Statement',
-  employment_contract: 'Employment Contract',
-};
-
 export const STATUS_CONFIG = {
   pending: {
     label: 'Pending',

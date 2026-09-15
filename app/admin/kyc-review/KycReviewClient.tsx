@@ -28,10 +28,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { CardGridSkeleton } from '@/components/shared/Skeletons';
+import { getDocumentLabel } from '@/lib/document-labels';
 import {
   KYCDocument,
   DocumentStatus,
-  DOCUMENT_TYPE_LABELS,
 } from '@/lib/validations/kyc-validation';
 
 interface KycAttachment {
@@ -50,19 +50,20 @@ interface EmployerKycDocRow {
   additional_files?: KycAttachment[] | null;
 }
 
-const EMPLOYER_DOC_LABELS: Record<string, string> = {
-  certificate_of_incorporation: 'Certificate of Incorporation',
-  business_registration: 'Business Registration',
-  tax_compliance_certificate: 'Tax Compliance Certificate',
-  cr12_document: 'Registered Company/Shareholders',
-  kra_pin_certificate: 'KRA PIN Certificate',
-  business_permit: 'Business Permit',
-  audited_financials: 'Audited Financials',
-  bank_statement: 'Bank Statement',
-  proof_of_address: 'Proof of Address',
-  proof_of_bank_account: 'Proof of Bank Account',
-  employment_contract_template: 'Employment Contract Template',
-};
+const EMPLOYER_DOCUMENT_TYPES = [
+  'certificate_of_incorporation',
+  'business_registration',
+  'tax_compliance_certificate',
+  'cr12_document',
+  'kra_pin_certificate',
+  'business_permit',
+  'audited_financials',
+  'bank_statement',
+  'transaction_history',
+  'proof_of_address',
+  'proof_of_bank_account',
+  'employment_contract_template',
+];
 
 interface EmployerApplication {
   id: string;
@@ -225,7 +226,7 @@ const DocumentCard = ({
       <StatusBadge status={doc.status} />
     </div>
     <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">
-      {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}
+      {getDocumentLabel(doc.document_type)}
     </h3>
     <p className="text-sm text-slate-500 mb-2">{getEmployeeName(doc.user_id)}</p>
     <div className="flex items-center gap-2 text-[10px] text-slate-400">
@@ -372,7 +373,7 @@ export default function KYCReviewPage() {
     ? employeeDocuments.filter(d => {
         if (!searchTerm) return true;
         const name = getUserName(d.user_id).toLowerCase();
-        const type = (DOCUMENT_TYPE_LABELS[d.document_type] || d.document_type).toLowerCase();
+        const type = getDocumentLabel(d.document_type).toLowerCase();
         return name.includes(searchTerm.toLowerCase()) || type.includes(searchTerm.toLowerCase());
       })
     : [
@@ -384,7 +385,7 @@ export default function KYCReviewPage() {
         ...employerStandaloneDocs.filter(d => {
           if (!searchTerm) return true;
           const name = getUserName(d.user_id).toLowerCase();
-          const type = (DOCUMENT_TYPE_LABELS[d.document_type] || d.document_type).toLowerCase();
+          const type = getDocumentLabel(d.document_type).toLowerCase();
           return name.includes(searchTerm.toLowerCase()) || type.includes(searchTerm.toLowerCase());
         })
       ];
@@ -563,7 +564,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
               <p className="text-white/80 text-sm">
                 {isEmployerApp 
                   ? employer.company_name 
-                  : `${usersById[selectedDoc.user_id]?.full_name || 'User'} — ${DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type}`}
+                  : `${usersById[selectedDoc.user_id]?.full_name || 'User'} — ${getDocumentLabel(selectedDoc.document_type)}`}
               </p>
             </div>
           </div>
@@ -601,10 +602,10 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Verification Documents</h4>
                 <p className="text-xs text-slate-400 -mt-2">Approve or reject each document individually — rejecting one doesn&apos;t affect the others.</p>
                 <div className="grid gap-3">
-                  {Object.entries(EMPLOYER_DOC_LABELS).map(([docType, label]) => (
+                  {EMPLOYER_DOCUMENT_TYPES.map((docType) => (
                     <EmployerDocRow
                       key={docType}
-                      label={label}
+                      label={getDocumentLabel(docType)}
                       doc={employer.kycDocuments?.find((d) => d.document_type === docType)}
                       onReview={onReviewEmployerDocument}
                       loading={loading}
@@ -622,7 +623,7 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
                 <section>
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Document Info</h4>
                   <div className="space-y-3">
-                    <InfoRow icon={FileText} label="Type" value={DOCUMENT_TYPE_LABELS[selectedDoc.document_type] || selectedDoc.document_type} />
+                    <InfoRow icon={FileText} label="Type" value={getDocumentLabel(selectedDoc.document_type)} />
                     {isIdentityDocument(selectedDoc.document_type) && (
                       <>
                         <InfoRow icon={CreditCard} label="ID Type" value={getIdTypeLabel(selectedDoc.id_type)} />
@@ -722,7 +723,7 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 px-4 py-3">
         <div className="min-w-0">
           <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-            {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}
+            {getDocumentLabel(doc.document_type)}
           </p>
           {isIdentityDocument(doc.document_type) && (
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -750,14 +751,14 @@ const DocumentPreview = ({ doc }: { doc: KYCReviewDocument }) => {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={doc.document_url!}
-              alt={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}
+              alt={`${getDocumentLabel(doc.document_type)} preview`}
               className="h-full w-full object-contain"
               onError={() => setImgError(true)}
             />
           </>
         ) : (
           <iframe
-            title={`${DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} preview`}
+            title={`${getDocumentLabel(doc.document_type)} preview`}
             src={doc.document_url!}
             className="h-full w-full border-0 bg-white"
           />

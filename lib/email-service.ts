@@ -5,7 +5,8 @@ import {
   DocumentRejectedEmail,
   DocumentSubmittedEmail,
 } from '@/lib/emails/AdminKYCNotification';
-import { DocumentType, DocumentStatus, DOCUMENT_TYPE_LABELS } from '@/lib/validations/kyc-validation';
+import { getDocumentLabel } from '@/lib/document-labels';
+import { DocumentType, DocumentStatus } from '@/lib/validations/kyc-validation';
 
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_key_for_test');
@@ -48,13 +49,6 @@ export async function sendEmail(options: EmailOptions) {
     console.error('[sendEmail] Exception:', error);
     throw error;
   }
-}
-
-/**
- * Get document type label for human-readable text
- */
-function getDocumentLabel(documentType: DocumentType): string {
-  return DOCUMENT_TYPE_LABELS[documentType] || documentType;
 }
 
 /**

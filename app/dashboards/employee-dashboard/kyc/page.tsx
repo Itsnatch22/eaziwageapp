@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { formatDateTime, DOCUMENT_TYPES, cn } from '@/lib/utils';
+import { getDocumentLabel } from '@/lib/document-labels';
 import { toast } from 'sonner';
 
 interface Document {
@@ -123,10 +124,6 @@ export default function EmployeeKYC() {
       } finally {
           setUploading(false);
       }
-    };
-
-    const getDocumentLabel = (type: string) => {
-        return DOCUMENT_TYPES.find(d => d.value === type)?.label || type;
     };
 
     const requiredDocs = [

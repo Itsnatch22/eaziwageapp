@@ -22,6 +22,7 @@ import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { DeleteAccountModal } from '@/components/employee/DeleteAccountModal';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { MfaSection } from '@/components/security/MfaSection';
+import { getDocumentLabel } from '@/lib/document-labels';
 
 type ActivityLog = {
   action?: string;
@@ -795,24 +796,12 @@ export default function EmployeeSettings() {
               <SettingsCard icon={Shield} title="KYC Compliance" description="Your identity verification status">
                 <div className="space-y-3">
                   {profile?.kycDocuments && profile.kycDocuments.length > 0 ? (
-                    profile.kycDocuments.map((doc) => {
-                      const labelMap: Record<string, string> = {
-                        face_id: 'Biometric Face Scan',
-                        national_id: 'National ID (Front)',
-                        passport: 'Passport (Bio Page)',
-                        utility_bill: 'Proof of Address',
-                        tax_certificate: 'Tax Certificate',
-                        payslip: 'Latest Payslip',
-                        bank_statement: 'Bank Statement',
-                        employment_contract: 'Employment Contract'
-                      };
-                      
-                      return (
+                    profile.kycDocuments.map((doc) => (
                         <div key={doc.document_type} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800">
                           <div className="flex items-center gap-4">
                             {doc.status === 'approved' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Clock className="w-5 h-5 text-amber-500" />}
                             <div>
-                              <p className="text-sm font-medium text-slate-900 dark:text-white">{labelMap[doc.document_type] || doc.document_type}</p>
+                              <p className="text-sm font-medium text-slate-900 dark:text-white">{getDocumentLabel(doc.document_type)}</p>
                               {doc.reviewer_notes && <p className="text-[10px] text-red-500 mt-0.5">{doc.reviewer_notes}</p>}
                             </div>
                           </div>
@@ -824,8 +813,7 @@ export default function EmployeeSettings() {
                             {doc.status}
                           </span>
                         </div>
-                      );
-                    })
+                    ))
                   ) : (
                     <div className="text-center py-8">
                       <p className="text-sm text-slate-500">No documents submitted yet.</p>
