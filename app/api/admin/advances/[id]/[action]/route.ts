@@ -5,6 +5,7 @@ import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyEmployee, notifyEmployer, notifyAdmin } from '@/lib/notifications';
 import { dbErrorResponse } from '@/lib/api-errors';
+import { payoutService } from '@/lib/services/payout-service';
 import { TreasuryValidationError } from '@/lib/services/treasury-service';
 
 export const runtime = 'nodejs';
