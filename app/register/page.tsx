@@ -9,6 +9,7 @@ import {
   Building2, Search, X, Phone, AlertTriangle, ChevronDown,
   Sparkles, AlertCircle, Wallet, Quote
 } from 'lucide-react';
+import { PasswordStrengthMeter, isPasswordAcceptable } from '@/components/security/PasswordStrengthMeter';
 
 const testimonials = [
   {
@@ -353,7 +354,9 @@ function RegisterForm() {
   const [companyCode,   setCompanyCode]    = useState('');
   const [companyName,   setCompanyName]    = useState('');
   const [password,      setPassword]       = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword,  setShowPassword]   = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms]  = useState(false);
 
   const [selectedCompany,   setSelectedCompany]   = useState<Company | null>(null);
@@ -447,7 +450,7 @@ function RegisterForm() {
   const handleSubmit = useCallback(async () => {
     setError('');
 
-    if (!fullName.trim() || !email.trim() || !password || !mobileNumber.trim()) {
+    if (!fullName.trim() || !email.trim() || !password || !confirmPassword || !mobileNumber.trim()) {
       setError('Please fill in all required fields');
       return;
     }
@@ -466,8 +469,12 @@ function RegisterForm() {
         return;
       }
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (!isPasswordAcceptable(password)) {
+      setError('Use a stronger password before creating your account');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
     if (!agreedToTerms) {
@@ -521,7 +528,7 @@ function RegisterForm() {
       setIsLoading(false);
     }
   }, [
-    fullName, email, password, mobileNumber, dialCode, accountType,
+    fullName, email, password, confirmPassword, mobileNumber, dialCode, accountType,
     companyCode, companyName, noCompanyFound,
     referralName, referralEmail, referralPhone, referralDialCode,
     agreedToTerms, getReCaptchaToken, router,
@@ -767,6 +774,40 @@ function RegisterForm() {
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
+                  <PasswordStrengthMeter password={password} />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-slate-700 dark:text-slate-300 text-sm font-medium ml-1">Confirm Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Re-enter your password"
+                      className={cn(
+                        "h-12 pl-4 pr-12 rounded-xl bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-green-600 focus:ring-2 focus:ring-green-600/20",
+                        confirmPassword && password !== confirmPassword && "border-red-300 focus:border-red-500 focus:ring-red-500/20"
+                      )}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-green-600 transition-colors"
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {confirmPassword && (
+                    <p className={cn(
+                      "text-xs font-medium ml-1",
+                      password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                    )}>
+                      {password === confirmPassword ? 'Passwords match' : 'Passwords do not match'}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-start gap-3 py-1">
