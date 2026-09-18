@@ -73,6 +73,7 @@ const PaymentMethods = () => {
 
   const [providers, setProviders] = useState<PayoutProvider[]>([]);
   const [providersLoading, setProvidersLoading] = useState(true);
+  const [providersError, setProvidersError] = useState<string | null>(null);
 
   const fetchMethods = async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -122,6 +123,7 @@ const PaymentMethods = () => {
   };
 
   const fetchProviders = async () => {
+    setProvidersError(null);
     try {
       const res = await fetch('/api/employee-dashboard/payout-providers');
       if (res.ok) {
@@ -130,9 +132,23 @@ const PaymentMethods = () => {
         if (data.country_code) {
           setNewMethod(prev => ({ ...prev, country_code: data.country_code }));
         }
+      } else {
+        const data = await res.json().catch(() => null) as { error?: string } | null;
+        setProviders([]);
+        if (res.status === 404) {
+          setProvidersError('Your employee record is not available yet. Your onboarding may still be pending or under review.');
+        } else if (res.status === 401) {
+          setProvidersError('You are not authenticated. Please sign in again to load payout providers.');
+        } else if (res.status === 422) {
+          setProvidersError(data?.error || 'Payout providers are not available for your country.');
+        } else {
+          setProvidersError('We could not load payout providers right now. Please try again later.');
+        }
       }
     } catch (e) {
       console.error(e);
+      setProviders([]);
+      setProvidersError('We could not connect to load payout providers. Please check your connection and try again.');
     } finally {
       setProvidersLoading(false);
     }
@@ -534,7 +550,10 @@ const PaymentMethods = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    {!providersLoading && availableProviders.length === 0 && (
+                    {!providersLoading && providersError && (
+                      <p className="text-xs text-red-600">{providersError}</p>
+                    )}
+                    {!providersLoading && !providersError && availableProviders.length === 0 && (
                       <p className="text-xs text-amber-600">No {newMethod.method_type === 'mobile_money' ? 'mobile money providers' : 'banks'} are currently available for your country. Contact support.</p>
                     )}
                   </div>

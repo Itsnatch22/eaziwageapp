@@ -337,6 +337,41 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dest, req.url));
     }
 
+    const employeeOnboardingPath = "/dashboards/employee-dashboard/onboarding";
+    const employeePendingPath = "/dashboards/employee-onboarding-status";
+    const isEmployeeDashboardRoute =
+      pathname.startsWith("/dashboards/employee-dashboard") &&
+      pathname !== employeeOnboardingPath;
+
+    if (role === "employee" && isEmployeeDashboardRoute) {
+      const [{ data: liveEmployee, error: liveEmployeeError }, { data: employeeOnboarding, error: employeeOnboardingError }] =
+        await Promise.all([
+          supabase
+            .from("employees")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle<{ id: string }>(),
+          supabase
+            .from("employee_onboarding")
+            .select("status")
+            .eq("user_id", user.id)
+            .maybeSingle<{ status: string }>(),
+        ]);
+
+      if (liveEmployeeError || employeeOnboardingError) {
+        console.error("[proxy] employee dashboard status lookup failed:", {
+          liveEmployeeError,
+          employeeOnboardingError,
+          userId: user.id,
+        });
+        return NextResponse.redirect(new URL(employeePendingPath, req.url));
+      }
+
+      if (!liveEmployee || employeeOnboarding?.status !== "approved") {
+        return NextResponse.redirect(new URL(employeePendingPath, req.url));
+      }
+    }
+
     // API path role enforcement — mirrors the page-level redirects above.
     // Returns JSON 403 instead of redirecting because API clients don't follow HTML redirects.
     // Individual route handlers (requireAdmin etc.) remain the primary auth gate.
