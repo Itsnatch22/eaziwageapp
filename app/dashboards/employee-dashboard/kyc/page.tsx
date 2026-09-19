@@ -16,6 +16,7 @@ import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { formatDateTime, DOCUMENT_TYPES, cn } from '@/lib/utils';
 import { getDocumentLabel } from '@/lib/document-labels';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 interface Document {
     id: string;
@@ -77,6 +78,8 @@ export default function EmployeeKYC() {
         }, 0);
         return () => window.clearTimeout(timeoutId);
     }, [fetchDocuments]);
+
+    useRealtimeRefresh([{ table: 'employee_kyc_documents' }], () => { void fetchDocuments(); });
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle2,
   Info, ChevronRight, FileCheck, Building2, Users, DollarSign,
@@ -12,6 +12,7 @@ import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { GradientIconBox } from '@/components/employer/SharedComponents';
 import { cn, getRiskRatingLabel, calculateFeePercentage } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 
 
@@ -540,25 +541,31 @@ export default function RiskInsightsPage() {
   const [data, setData] = useState<RiskInsightsData | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch('/api/employer-dashboard/risk-insights');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to fetch risk insights');
+      }
+      const json = (await res.json()) as RiskInsightsData;
+      setData(json);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err) || 'Failed to load risk insights');
+      console.error('[risk-insights]', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/employer-dashboard/risk-insights');
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to fetch risk insights');
-        }
-        const json = (await res.json()) as RiskInsightsData;
-        setData(json);
-      } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err) || 'Failed to load risk insights');
-        console.error('[risk-insights]', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+    Promise.resolve().then(() => fetchData());
+  }, [fetchData]);
+
+  useRealtimeRefresh(
+    [{ table: 'employer_risk_factors' }, { table: 'risk_review_requests' }],
+    () => { void fetchData(); },
+  );
 
   if (loading) {
     return (

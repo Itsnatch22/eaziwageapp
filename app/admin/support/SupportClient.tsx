@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,6 +138,8 @@ export default function AdminSupportPage() {
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, []);
+
+  useRealtimeRefresh([{ table: "support_tickets" }], () => { void fetchTickets(); });
 
   const openThread = async (ticket: Ticket) => {
     setSelected(ticket);

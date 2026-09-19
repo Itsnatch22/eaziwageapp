@@ -10,6 +10,7 @@ import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
@@ -198,6 +199,7 @@ export default function AdminReports() {
     return () => window.clearTimeout(timeoutId);
   }, [fetchReports]);
 
+  useRealtimeRefresh([{ table: "admin_reports" }], () => { void fetchReports(); });
 
   const closeNewReportModal = () => {
     setShowNewReportModal(false);

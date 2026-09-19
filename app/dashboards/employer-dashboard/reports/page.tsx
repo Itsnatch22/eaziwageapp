@@ -12,6 +12,7 @@ import {
 import { EmployerPortalLayout } from '@/components/employer/EmployerLayout';
 import { formatCurrency, cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { toast } from 'sonner';
 
 
@@ -260,6 +261,11 @@ export default function EmployerReports() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchReports(selectedPeriod, selectedMonth, { silent: true });
   }, [selectedPeriod, selectedMonth, fetchReports]);
+
+  useRealtimeRefresh(
+    [{ table: "advances" }],
+    () => { void fetchReports(selectedPeriod, selectedMonth, { silent: true }); },
+  );
 
 
 
@@ -616,4 +622,3 @@ export default function EmployerReports() {
     </EmployerPortalLayout>
   );
 }
-

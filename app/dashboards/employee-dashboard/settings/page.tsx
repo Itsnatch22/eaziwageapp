@@ -318,7 +318,17 @@ export default function EmployeeSettings() {
             const data = await res.json();
             setActivityLogs(data.logs || []);
             setLogTotal(data.total ?? 0);
+          } else {
+            const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+            toast.error(payload?.error || payload?.message || 'Failed to load activity logs');
+            setActivityLogs([]);
+            setLogTotal(0);
           }
+        } catch (error) {
+          console.error('Failed to fetch activity logs:', error);
+          toast.error('Failed to load activity logs');
+          setActivityLogs([]);
+          setLogTotal(0);
         } finally {
           setLogsLoading(false);
         }
@@ -336,7 +346,15 @@ export default function EmployeeSettings() {
           if (res.ok) {
             const data = await res.json();
             setPaymentMethods(data.methods || []);
+          } else {
+            const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+            toast.error(payload?.error || payload?.message || 'Failed to load payment methods');
+            setPaymentMethods([]);
           }
+        } catch (error) {
+          console.error('Failed to fetch payment methods:', error);
+          toast.error('Failed to load payment methods');
+          setPaymentMethods([]);
         } finally {
           setPaymentMethodsLoading(false);
         }
@@ -356,9 +374,13 @@ export default function EmployeeSettings() {
               emailAlerts: data.emailAlerts,
               pushNotifications: data.pushNotifications
             });
+          } else {
+            const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+            toast.error(payload?.error || payload?.message || 'Failed to load notification preferences');
           }
         } catch (error) {
           console.error('Failed to fetch notification preferences:', error);
+          toast.error('Failed to load notification preferences');
         }
       }
     }
@@ -375,9 +397,15 @@ export default function EmployeeSettings() {
         if (res.ok) {
           const data = await res.json();
           setProfile(data.profile);
+        } else {
+          const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+          toast.error(payload?.error || payload?.message || 'Failed to load profile');
+          setProfile(null);
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
+        toast.error('Failed to load profile');
+        setProfile(null);
       } finally {
         setLoading(false);
       }
@@ -420,6 +448,9 @@ export default function EmployeeSettings() {
         if (profileRes.ok) {
           const profileData = await profileRes.json();
           setProfile(profileData.profile);
+        } else {
+          const payload = await profileRes.json().catch(() => null) as { error?: string; message?: string } | null;
+          toast.error(payload?.error || payload?.message || 'Could not refresh profile after linking employer');
         }
       } else {
         toast.error(data.error || 'Failed to link employer');

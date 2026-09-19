@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { AlertCircle, Wallet, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { cn } from '@/lib/utils';
 
 type RiskRating = 'A' | 'B' | 'C' | 'D';
@@ -108,6 +109,25 @@ export default function TopUpRequestsClient({
   const [rejecting, setRejecting] = useState<Record<string, boolean>>({});
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchRequests = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/wallet/topup-requests');
+      const payload = await res.json().catch(() => ({ requests: [] }));
+      if (!res.ok) {
+        throw new Error(payload?.error || 'Failed to load wallet top-up requests');
+      }
+      setRequests((payload?.requests as TopUpRequest[]) ?? []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load wallet top-up requests');
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(() => fetchRequests());
+  }, [fetchRequests]);
+
+  useRealtimeRefresh([{ table: 'wallet_transactions' }], () => { void fetchRequests(); });
 
   const handleApprove = useCallback(async (request: TopUpRequest) => {
     setApproving(prev => ({ ...prev, [request.id]: true }));

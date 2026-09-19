@@ -113,10 +113,16 @@ const PaymentMethods = () => {
           verification_notes: m.verification_notes || null,
         }));
         setMethods(adapted);
+      } else {
+        const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+        const message = payload?.error || payload?.message || 'Failed to load payment methods';
+        toast.error(message);
+        setMethods([]);
       }
     } catch (e) {
       console.error(e);
       toast.error('Failed to load payment methods');
+      setMethods([]);
     } finally {
       setLoading(false);
     }

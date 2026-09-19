@@ -267,9 +267,15 @@ export default function RequestAdvance() {
               setDisbursementMethod(def.method_type === 'bank_account' ? 'bank_transfer' : 'mobile_money');
             }
           }
+        } else {
+          const payload = await pmRes.json().catch(() => null) as { error?: string; message?: string } | null;
+          toast.error(payload?.error || payload?.message || 'Failed to load payment methods');
+          setPaymentMethods([]);
         }
       } catch (e) {
         console.error('Failed to load payment methods', e);
+        setPaymentMethods([]);
+        toast.error('Failed to load payment methods');
       }
     } catch {
       toast.error("Connection error");

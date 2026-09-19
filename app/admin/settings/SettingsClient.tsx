@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { MfaSection } from '@/components/security/MfaSection';
 import { createClient } from '@/lib/supabase/client';
@@ -620,6 +621,10 @@ const EmployerConfigTab = React.forwardRef<SettingsSaveHandle, EmployerConfigTab
     return () => window.clearTimeout(timeoutId);
   }, [fetchEmployers]);
 
+  useRealtimeRefresh([{ table: "employers" }, { table: "employees" }], () => {
+    void fetchEmployers();
+  });
+
   useEffect(() => {
     onSaveAvailabilityChange(Boolean(selectedEmployer && employerSettings));
   }, [employerSettings, onSaveAvailabilityChange, selectedEmployer]);
@@ -1007,6 +1012,10 @@ const EmployeeConfigTab = React.forwardRef<SettingsSaveHandle, EmployeeConfigTab
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [fetchEmployees]);
+
+  useRealtimeRefresh([{ table: "employers" }, { table: "employees" }], () => {
+    void fetchEmployees();
+  });
 
   useEffect(() => {
     onSaveAvailabilityChange(Boolean(selectedEmployee && employeeSettings));
@@ -1639,6 +1648,8 @@ const BlackoutPeriodsTab: React.FC<BlackoutPeriodsTabProps> = ({ token }) => {
     return () => window.clearTimeout(timeoutId);
   }, [fetchBlackouts]);
 
+  useRealtimeRefresh([{ table: "blackout_periods" }], () => { void fetchBlackouts(); });
+
   const saveBlackout = async () => {
     if (!newBlackout.name || !newBlackout.start_date || !newBlackout.end_date) {
       toast.error('Please fill in all required fields');
@@ -1907,6 +1918,8 @@ const LegalDocumentsTab: React.FC<LegalDocumentsTabProps> = ({ token }) => {
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [fetchDocuments]);
+
+  useRealtimeRefresh([{ table: "legal_documents" }], () => { void fetchDocuments(); });
 
   const selectDocument = async (docType: LegalDocument['document_type']) => {
     try {

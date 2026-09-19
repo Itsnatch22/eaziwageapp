@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   HelpCircle, MessageCircle, History, ExternalLink,
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { formatDateTime, cn } from '@/lib/utils';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 const FAQS = [
   {
@@ -48,31 +49,39 @@ const SupportPage = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const [newTicket, setNewTicket] = useState({ subject: '', message: '', category: 'General' });
+  const cancelledRef = useRef(false);
+
+  const fetchTickets = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const res = await fetch('/api/employee-dashboard/support');
+      if (res.ok) {
+        const data = await res.json();
+        if (!cancelledRef.current) setTickets(data.tickets || []);
+      } else {
+        const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+        if (!cancelledRef.current) {
+          toast.error(payload?.error || payload?.message || 'Failed to load support history');
+          setTickets([]);
+        }
+      }
+    } catch {
+      if (!cancelledRef.current) toast.error('Failed to load support history');
+    } finally {
+      if (!cancelledRef.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function fetchTickets(options?: { silent?: boolean }) {
-      if (!options?.silent) setLoading(true);
-      try {
-        const res = await fetch('/api/employee-dashboard/support');
-        if (res.ok) {
-          const data = await res.json();
-          if (!cancelled) setTickets(data.tickets || []);
-        }
-      } catch {
-        if (!cancelled) toast.error('Failed to load support history');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void fetchTickets({ silent: true });
+    cancelledRef.current = false;
+    Promise.resolve().then(() => fetchTickets({ silent: true }));
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
-  }, []);
+  }, [fetchTickets]);
+
+  useRealtimeRefresh([{ table: 'support_tickets' }], () => { void fetchTickets({ silent: true }); });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +101,13 @@ const SupportPage = () => {
         if (refreshRes.ok) {
           const data = await refreshRes.json();
           setTickets(data.tickets || []);
+        } else {
+          const payload = await refreshRes.json().catch(() => null) as { error?: string; message?: string } | null;
+          toast.error(payload?.error || payload?.message || 'Could not refresh support history');
         }
+      } else {
+        const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+        toast.error(payload?.error || payload?.message || 'Failed to send ticket');
       }
     } catch {
       toast.error('Failed to send ticket');

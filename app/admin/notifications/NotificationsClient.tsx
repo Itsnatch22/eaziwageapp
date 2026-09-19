@@ -13,6 +13,7 @@ import { formatDateTime, cn }      from '@/lib/utils';
 import { toast }                   from 'sonner';
 import Link from 'next/link';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Pagination } from '@/components/shared/Pagination';
 
 const PAGE_SIZE = 10;
@@ -176,6 +177,8 @@ export default function AdminNotificationsPage() {
   useEffect(() => {
     Promise.resolve().then(() => fetchHealth());
   }, [fetchHealth]);
+
+  useRealtimeRefresh([{ table: 'admin_notifications' }], () => { void fetchNotifications(); });
 
   const markAsRead = async (ids: string[]) => {
     try {

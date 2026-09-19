@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { createClient } from '@supabase/supabase-js';
 import type { RealtimeChannel } from '@supabase/realtime-js';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type APIStatus = 'healthy' | 'degraded' | 'down';
 type APIMetadataValue = string | number | boolean | null | object;
@@ -252,6 +253,8 @@ export default function AdminAPIHealth() {
     const t = window.setTimeout(fetchData, 0);
     return () => window.clearTimeout(t);
   }, [fetchData]);
+
+  useRealtimeRefresh([{ table: "api_health" }], () => { void fetchData(); });
 
   useEffect(() => {
     type S = { channel: (n: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };

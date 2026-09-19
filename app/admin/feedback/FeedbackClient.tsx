@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -97,6 +98,11 @@ export default function FeedbackClient() {
     const timeoutId = window.setTimeout(() => void fetchFeedback(), 0);
     return () => window.clearTimeout(timeoutId);
   }, [fetchFeedback]);
+
+  useRealtimeRefresh(
+    [{ table: "onboarding_feedback" }, { table: "beta_disbursement_feedback" }],
+    () => { void fetchFeedback(); },
+  );
 
   const filteredFeedback = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();

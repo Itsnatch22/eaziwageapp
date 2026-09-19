@@ -96,9 +96,14 @@ export default function Transactions() {
       if (txRes.ok) {
         const txData = await txRes.json();
         setAdvances(Array.isArray(txData) ? txData : []);
+      } else {
+        const payload = await txRes.json().catch(() => null) as { error?: string; message?: string } | null;
+        toast.error(payload?.error || payload?.message || 'Failed to load transactions');
+        setAdvances([]);
       }
     } catch {
       toast.error('Failed to sync transactions');
+      setAdvances([]);
     } finally {
       setLoading(false);
     }

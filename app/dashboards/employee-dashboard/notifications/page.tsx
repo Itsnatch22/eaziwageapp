@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Pagination } from '@/components/shared/Pagination';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 const PAGE_SIZE = 10;
 
@@ -45,10 +46,16 @@ export default function EmployeeNotificationsPage() {
             if (res.ok) {
                 const data = await res.json();
                 setNotifications(data.notifications || []);
+            } else {
+                const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+                const message = payload?.error || payload?.message || 'Could not load notifications';
+                toast.error(message);
+                setNotifications([]);
             }
         } catch (error) {
             console.error('Failed to fetch notifications:', error);
             toast.error('Could not load notifications');
+            setNotifications([]);
         } finally {
             setLoading(false);
         }
@@ -113,6 +120,8 @@ export default function EmployeeNotificationsPage() {
         };
     }, [user?.id, fetchNotifications]);
 
+    useRealtimeRefresh([{ table: 'notifications' }], () => { void fetchNotifications(); });
+
     const markAsRead = async (id?: string) => {
         try {
             const res = await fetch('/api/employee-dashboard/notifications', {
@@ -122,6 +131,9 @@ export default function EmployeeNotificationsPage() {
             if (res.ok) {
                 setNotifications(prev => prev.map(n => (id && n.id !== id) ? n : { ...n, read: true }));
                 if (!id) toast.success('All marked as read');
+            } else {
+                const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+                toast.error(payload?.error || payload?.message || 'Failed to update notifications');
             }
         } catch {
             toast.error('Failed to update notifications');
@@ -137,6 +149,9 @@ export default function EmployeeNotificationsPage() {
             if (res.ok) {
                 setNotifications(prev => prev.filter(n => n.id !== id));
                 toast.success('Deleted');
+            } else {
+                const payload = await res.json().catch(() => null) as { error?: string; message?: string } | null;
+                toast.error(payload?.error || payload?.message || 'Failed to delete notification');
             }
         } catch {
             toast.error('Error');

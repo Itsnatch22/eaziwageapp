@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { CopyButton } from '@/components/shared/CopyButton';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export interface ErrorLog {
   id: string;
@@ -137,6 +138,11 @@ export default function LogsClient({ initialLogs, stats, initialTotal }: Props) 
     setPage(nextPage);
     startTransition(() => fetchFiltered(filterRole, filterStatus, search, nextPage));
   };
+
+  useRealtimeRefresh(
+    [{ table: "error_logs" }],
+    () => { void fetchFiltered(filterRole, filterStatus, search, page); },
+  );
 
   const handleResolve = async (id: string) => {
     setResolvingIds((prev) => new Set(prev).add(id));
