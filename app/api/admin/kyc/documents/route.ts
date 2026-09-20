@@ -267,6 +267,11 @@ export async function GET(req: NextRequest) {
 
     if (status) employeeOnboardingQuery = employeeOnboardingQuery.eq('status', status);
     const { data: employeeApps } = await employeeOnboardingQuery;
+    const payrollByUserId = Object.fromEntries(
+      (employeeApps ?? [])
+        .filter((row) => row.user_id)
+        .map((row) => [row.user_id, row.payroll_number ?? null]),
+    );
 
     const { data: unlinkedProfiles } = await adminSupabase
       .from('profiles')
@@ -299,6 +304,7 @@ export async function GET(req: NextRequest) {
         documents: normalizedDocuments,
         employerApplications: normalizedEmployerApps,
         employeeApplications: employeeApps ?? [],
+        payrollByUserId,
         unlinkedEmployees: unlinkedProfiles ?? [],
         usersById: userMap,
       },

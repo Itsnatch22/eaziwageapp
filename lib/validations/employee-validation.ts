@@ -56,6 +56,7 @@ export const employeeListQuerySchema = z.object({
 export const employeeOnboardingSchema = z.object({
   employer_id: z.string().uuid('Invalid employer ID').optional(),
   employee_code: z.string().optional(),
+  payroll_number: z.string().trim().optional(),
   company_code: z.string().trim().min(1).optional(),
   national_id: z.string().min(1, 'National ID is required'),
   id_type: z.enum(['national_id', 'passport']),

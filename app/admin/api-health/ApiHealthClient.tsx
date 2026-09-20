@@ -8,8 +8,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { createClient } from '@supabase/supabase-js';
-import type { RealtimeChannel } from '@supabase/realtime-js';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type APIStatus = 'healthy' | 'degraded' | 'down';
@@ -232,11 +230,6 @@ export default function AdminAPIHealth() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-  );
-
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/check-api-health');
@@ -255,15 +248,6 @@ export default function AdminAPIHealth() {
   }, [fetchData]);
 
   useRealtimeRefresh([{ table: "api_health" }], () => { void fetchData(); });
-
-  useEffect(() => {
-    type S = { channel: (n: string) => RealtimeChannel; removeChannel: (c: RealtimeChannel) => void };
-    const ch = (supabase as unknown as S)
-      .channel('api-health-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'api_health' }, fetchData)
-      .subscribe();
-    return () => (supabase as unknown as S).removeChannel(ch);
-  }, [fetchData, supabase]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

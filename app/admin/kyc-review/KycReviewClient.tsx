@@ -263,6 +263,7 @@ export default function KYCReviewPage() {
   const [usersById, setUsersById] = useState<
     Record<string, { full_name: string; role: string }>
   >({});
+  const [payrollByUserId, setPayrollByUserId] = useState<Record<string, string | null>>({});
   
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -283,6 +284,7 @@ export default function KYCReviewPage() {
         setDocuments(data.documents || []);
         setEmployerApplications(data.employerApplications || []);
         setUsersById(data.usersById || {});
+        setPayrollByUserId(data.payrollByUserId || {});
       } else {
         toast.error('Failed to load KYC data');
       }
@@ -503,6 +505,7 @@ export default function KYCReviewPage() {
         doc={selectedDoc} 
         employer={selectedEmployer}
         usersById={usersById}
+        payrollByUserId={payrollByUserId}
         isOpen={showReviewModal} 
         onClose={() => setShowReviewModal(false)}
         onReviewEmployee={handleReviewEmployee}
@@ -518,6 +521,7 @@ interface ReviewModalProps {
   doc: KYCReviewDocument | null;
   employer: EmployerApplication | null;
   usersById: Record<string, { full_name: string; role: string }>;
+  payrollByUserId: Record<string, string | null>;
   isOpen: boolean;
   onClose: () => void;
   onReviewEmployee: (docId: string, status: 'approved' | 'rejected', notes: string) => void;
@@ -526,7 +530,7 @@ interface ReviewModalProps {
   loading: boolean;
 }
 
-const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmployee, onReviewEmployer, onReviewEmployerDocument, loading }: ReviewModalProps) => {
+const ReviewModal = ({ doc, employer, usersById, payrollByUserId, isOpen, onClose, onReviewEmployee, onReviewEmployer, onReviewEmployerDocument, loading }: ReviewModalProps) => {
   const [notes, setNotes] = useState(() => doc?.reviewer_notes || employer?.reviewer_notes || '');
 
   if (!isOpen) return null;
@@ -631,6 +635,13 @@ const ReviewModal = ({ doc, employer, usersById, isOpen, onClose, onReviewEmploy
                       </>
                     )}
                     <InfoRow icon={Calendar} label="Submitted" value={formatDateTime(selectedDoc.created_at)} />
+                    {!isEmployerDoc && (
+                      <InfoRow
+                        icon={Briefcase}
+                        label="Payroll number (self-reported)"
+                        value={payrollByUserId[selectedDoc.user_id] || 'Not provided'}
+                      />
+                    )}
                   </div>
                 </section>
                 {selectedDoc.additional_files && selectedDoc.additional_files.length > 0 && (

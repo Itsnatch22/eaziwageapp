@@ -337,13 +337,19 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dest, req.url));
     }
 
-    const employeeOnboardingPath = "/dashboards/employee-dashboard/onboarding";
     const employeePendingPath = "/dashboards/employee-onboarding-status";
-    const isEmployeeDashboardRoute =
-      pathname.startsWith("/dashboards/employee-dashboard") &&
-      pathname !== employeeOnboardingPath;
+    const restrictedUntilApprovedPaths = [
+      "/dashboards/employee-dashboard/request-advance",
+      "/dashboards/employee-dashboard/transactions",
+      "/api/employee-dashboard/request-advance",
+      "/api/employee-dashboard/transactions",
+    ];
+    const isRestrictedUntilApproved = restrictedUntilApprovedPaths.some(
+      (p) => pathname === p || pathname.startsWith(p + "/")
+    );
 
-    if (role === "employee" && isEmployeeDashboardRoute) {
+    if (role === "employee" && isRestrictedUntilApproved) {
+      const isApiRequest = pathname.startsWith("/api/");
       const [{ data: liveEmployee, error: liveEmployeeError }, { data: employeeOnboarding, error: employeeOnboardingError }] =
         await Promise.all([
           supabase
@@ -364,11 +370,15 @@ export async function proxy(req: NextRequest) {
           employeeOnboardingError,
           userId: user.id,
         });
-        return NextResponse.redirect(new URL(employeePendingPath, req.url));
+        return isApiRequest
+          ? NextResponse.json({ error: "Forbidden", code: "EMPLOYEE_NOT_APPROVED" }, { status: 403 })
+          : NextResponse.redirect(new URL(employeePendingPath, req.url));
       }
 
       if (!liveEmployee || employeeOnboarding?.status !== "approved") {
-        return NextResponse.redirect(new URL(employeePendingPath, req.url));
+        return isApiRequest
+          ? NextResponse.json({ error: "Forbidden", code: "EMPLOYEE_NOT_APPROVED" }, { status: 403 })
+          : NextResponse.redirect(new URL(employeePendingPath, req.url));
       }
     }
 

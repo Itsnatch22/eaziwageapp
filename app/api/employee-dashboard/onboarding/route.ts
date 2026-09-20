@@ -202,6 +202,7 @@ const { data: existing } = await adminSupabase
 
    const {
      employee_code,
+     payroll_number,
      national_id,
      id_type,
      nationality,
@@ -246,6 +247,7 @@ const { data: existing } = await adminSupabase
      user_id: user.id,
      employer_id: employerId,
      employee_code: generatedEmployeeCode,
+     payroll_number: payroll_number || null,
      full_name: employeeName,
      email: user.email,
      id_type,
@@ -316,6 +318,7 @@ const { data: existing } = await adminSupabase
          user_id: user.id,
          employer_id: liveEmployerId,
          employee_code: generatedEmployeeCode,
+         payroll_number: payroll_number || null,
          full_name: employeeName,
          email: user.email,
          phone: user.user_metadata?.phone || null,

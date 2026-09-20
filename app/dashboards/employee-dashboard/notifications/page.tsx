@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Pagination } from '@/components/shared/Pagination';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 const PAGE_SIZE = 10;
 
@@ -119,8 +118,6 @@ export default function EmployeeNotificationsPage() {
             supabase.removeChannel(channel);
         };
     }, [user?.id, fetchNotifications]);
-
-    useRealtimeRefresh([{ table: 'notifications' }], () => { void fetchNotifications(); });
 
     const markAsRead = async (id?: string) => {
         try {

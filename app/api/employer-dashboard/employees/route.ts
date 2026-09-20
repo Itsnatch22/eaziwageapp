@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   const { data: employer, error: employerError } = await supabase
     .from('employers')
-    .select('id')
+    .select('id, onboarding_id')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       id,
       user_id,
       employee_code,
+      payroll_number,
       full_name,
       email,
       phone,
@@ -118,6 +119,7 @@ export async function GET(req: NextRequest) {
       id: e.id ?? '',
       user_id: e.user_id ?? '',
       employee_code: e.employee_code ?? '',
+      payroll_number: e.payroll_number ?? '',
       full_name,
       email: e.email ?? null,
       national_id: '',
@@ -145,9 +147,46 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  const stats = buildStats(allEmployees, thirtyDaysAgo);
+  const liveUserIds = new Set((rawEmployees ?? []).map((e) => e.user_id).filter(Boolean));
+  const { data: onboardingRows, error: onboardingError } = await supabase
+    .from('employee_onboarding')
+    .select('id, user_id, full_name, full_name_placeholder, email, email_placeholder, employee_code, payroll_number, job_title, department, status, created_at')
+    .eq('employer_id', employer.onboarding_id)
+    .order('created_at', { ascending: false });
 
-  const filtered = allEmployees.filter((e: { status: string; department: string; country: string; full_name: string; employee_code: string; job_title: string; }) => {
+  if (onboardingError) {
+    return dbErrorResponse('employer-dashboard/employees', onboardingError);
+  }
+
+  const pendingEmployees = (onboardingRows ?? [])
+    .filter((row) => !row.user_id || !liveUserIds.has(row.user_id))
+    .map((row) => ({
+      id: row.id ?? '',
+      user_id: row.user_id ?? '',
+      employee_code: row.employee_code ?? '',
+      payroll_number: row.payroll_number ?? '',
+      full_name: row.full_name ?? row.full_name_placeholder ?? 'Employee',
+      email: row.email ?? row.email_placeholder ?? null,
+      national_id: '',
+      job_title: row.job_title ?? '',
+      department: row.department ?? '',
+      employment_type: '',
+      start_date: null,
+      monthly_salary: 0,
+      country: '',
+      city: '',
+      kyc_status: row.status === 'approved' ? 'approved' : row.status === 'rejected' ? 'rejected' : 'pending',
+      status: row.status === 'rejected' ? 'rejected' : 'pending',
+      tenure_months: 0,
+      submitted_at: row.created_at ?? '',
+      created_at: row.created_at ?? '',
+      ewa_settings: null,
+    }));
+
+  const combinedEmployees = [...allEmployees, ...pendingEmployees];
+  const stats = buildStats(combinedEmployees, thirtyDaysAgo);
+
+  const filtered = combinedEmployees.filter((e: { status: string; department: string; country: string; full_name: string; employee_code: string; payroll_number: string; job_title: string; }) => {
     if (statusFilter && e.status !== statusFilter) return false;
     if (departmentFilter && e.department !== departmentFilter) return false;
     if (countryFilter && e.country !== countryFilter) return false;
@@ -156,6 +195,7 @@ export async function GET(req: NextRequest) {
       if (
         !e.full_name?.toLowerCase().includes(s) &&
         !e.employee_code?.toLowerCase().includes(s) &&
+        !e.payroll_number?.toLowerCase().includes(s) &&
         !e.job_title?.toLowerCase().includes(s) &&
         !e.department?.toLowerCase().includes(s)
       ) {
@@ -172,6 +212,7 @@ interface Employee {
   id: string;
   user_id: string;
   employee_code: string;
+  payroll_number?: string;
   full_name: string;
   national_id: string;
   job_title: string;

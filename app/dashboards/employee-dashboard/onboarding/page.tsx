@@ -287,6 +287,7 @@ type UploadedFilesState = Record<OnboardingDocKey, UploadedDocument | null>;
 interface OnboardingFormData {
   employer_id: string;
   employee_code: string;
+  payroll_number: string;
   company_code: string;
   national_id: string;
   id_type: IdType;
@@ -712,6 +713,7 @@ export default function Onboarding() {
   const [formData, setFormData] = useState<OnboardingFormData>({
     employer_id: "",
     employee_code: "",
+    payroll_number: "",
     company_code: "",
     national_id: "",
     id_type: "national_id",
@@ -775,6 +777,7 @@ export default function Onboarding() {
               ...prev,
               employer_id: profile.employer_id || "",
               employee_code: profile.employee_code || "",
+              payroll_number: profile.payroll_number || "",
               national_id: profile.national_id || "",
               id_type: profile.id_type || "national_id",
               nationality: profile.nationality || "",
@@ -1212,6 +1215,7 @@ export default function Onboarding() {
         employer_id: formData.employer_id || undefined,
         company_code: formData.company_code || undefined,
         employee_code: formData.employee_code || undefined,
+        payroll_number: formData.payroll_number || undefined,
         national_id: formData.national_id,
         id_type: formData.id_type,
         nationality: formData.nationality,
@@ -2015,6 +2019,18 @@ export default function Onboarding() {
                     placeholder="e.g. Operations"
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  Payroll number (optional)
+                </Label>
+                <Input
+                  value={formData.payroll_number}
+                  onChange={(e) => updateField("payroll_number", e.target.value)}
+                  aria-label="Your payroll number (optional)"
+                  className="h-12 rounded-xl bg-white/50 dark:bg-slate-900/50"
+                  placeholder="Enter your payroll number"
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-[11px] font-black uppercase tracking-wider text-slate-400">

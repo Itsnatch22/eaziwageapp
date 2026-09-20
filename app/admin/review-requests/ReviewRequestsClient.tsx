@@ -17,7 +17,6 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
 import { ListSkeleton } from '@/components/shared/Skeletons';
-import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type IconType = React.ComponentType<{ className?: string }>;
 
@@ -571,11 +570,6 @@ export default function ReviewRequests() {
       supabase.removeChannel(channel);
     };
   }, []);
-
-  useRealtimeRefresh(
-    [{ table: 'risk_review_requests' }, { table: 'employee_kyc_documents' }, { table: 'bank_change_requests' }],
-    () => { void fetchRequests(); },
-  );
 
   const handleSubmitResponse = async (requestId: string, payload: ResponsePayload) => {
     try {

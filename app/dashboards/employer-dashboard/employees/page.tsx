@@ -92,6 +92,7 @@ interface Employee {
   full_name?: string;
   name?: string;
   employee_code?: string;
+  payroll_number?: string;
   job_title?: string;
   department?: string;
   monthly_salary?: number;
@@ -845,6 +846,9 @@ const EmployeeViewModal: React.FC<{
               <p className="text-white/60 text-xs mt-1">
                 ID: {employee.employee_code}
               </p>
+              <p className="text-white/60 text-xs">
+                Payroll: {employee.payroll_number || "Not provided"}
+              </p>
             </div>
           </div>
         </div>
@@ -1144,6 +1148,7 @@ const EmployerEmployees: React.FC = () => {
       return (
         e.full_name?.toLowerCase().includes(s) ||
         e.employee_code?.toLowerCase().includes(s) ||
+        e.payroll_number?.toLowerCase().includes(s) ||
         e.job_title?.toLowerCase().includes(s) ||
         e.department?.toLowerCase().includes(s)
       );
@@ -1461,6 +1466,7 @@ const EmployerEmployees: React.FC = () => {
               headers={[
                 "Name",
                 "Code",
+                "Payroll Number",
                 "Job Title",
                 "Department",
                 "Salary",
@@ -1471,6 +1477,7 @@ const EmployerEmployees: React.FC = () => {
               mapping={(e: Employee) => [
                 e.full_name ?? "",
                 e.employee_code ?? "",
+                e.payroll_number ?? "",
                 e.job_title ?? "",
                 e.department ?? "",
                 e.monthly_salary ?? 0,
