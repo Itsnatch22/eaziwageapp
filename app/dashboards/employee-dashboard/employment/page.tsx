@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import {
   Building2, Briefcase, Calendar, DollarSign, Shield,
-  BadgeCheck, Info, Loader2, Landmark
+  BadgeCheck, Info, Landmark
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { formatCurrency, cn, calculateFeePercentage, formatStatusLabel } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
+import { DashboardSkeleton } from '@/components/shared/Skeletons';
 
 function AvatarWithFallback({ avatarUrl, fullName }: { avatarUrl: string | null; fullName: string }) {
   const [imgError, setImgError] = useState(false);
@@ -166,10 +167,7 @@ const EmploymentDetails = () => {
   if (loading) {
     return (
       <EmployeePortalLayout>
-        <div className="flex flex-col items-center justify-center py-40 gap-4">
-          <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Fetching contract details...</p>
-        </div>
+        <DashboardSkeleton variant="form" />
       </EmployeePortalLayout>
     );
   }

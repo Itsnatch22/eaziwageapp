@@ -20,7 +20,7 @@ import { UserOnboardingGuide } from '@/components/onboarding-guide/UserOnboardin
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
-import { StatTilesSkeleton } from '@/components/shared/Skeletons';
+import { DashboardSkeleton } from '@/components/shared/Skeletons';
 
 
 
@@ -287,9 +287,7 @@ export default function EmployeeDashboardPage() {
 
   if (loading) return (
     <EmployeePortalLayout>
-      <div className="max-w-5xl mx-auto space-y-6">
-        <StatTilesSkeleton count={4} />
-      </div>
+      <DashboardSkeleton variant="overview" />
     </EmployeePortalLayout>
   );
 

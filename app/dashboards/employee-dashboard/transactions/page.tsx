@@ -306,7 +306,7 @@ export default function Transactions() {
         
         <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 overflow-hidden min-h-64">
           {loading ? (
-            <ListSkeleton rows={5} />
+            <ListSkeleton rows={7} />
           ) : filteredItems.length === 0 ? (
             <EmptyState
               icon={History}

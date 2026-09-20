@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { DashboardSkeleton } from '@/components/shared/Skeletons';
 import { useRouter } from 'next/navigation';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
@@ -581,9 +582,7 @@ export default function EmployeeSettings() {
   if (loading) {
     return (
       <EmployeePageLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-        </div>
+        <DashboardSkeleton variant="form" />
       </EmployeePageLayout>
     );
   }

@@ -4,12 +4,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Calculator, ArrowLeft, ArrowRight, TrendingUp, Calendar,
-  AlertCircle, CheckCircle2, Clock, Loader2, Info,
+  AlertCircle, CheckCircle2, Clock, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { toast } from 'sonner';
+import { DashboardSkeleton } from '@/components/shared/Skeletons';
 
 // ── Currency formatting ──────────────────────────────────────────────────────
 
@@ -115,10 +116,7 @@ export default function AdvanceCalculatorPage() {
 
   if (loading) return (
     <EmployeePortalLayout>
-      <div className="flex flex-col items-center justify-center py-40 gap-4">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Loading your data…</p>
-      </div>
+      <DashboardSkeleton variant="form" />
     </EmployeePortalLayout>
   );
 

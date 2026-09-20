@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Bell, CreditCard, Shield, AlertTriangle, 
   Trash2, CheckCircle2, MoreHorizontal, Settings, 
-  RefreshCw, Check, Loader2, Info
+  RefreshCw, Check, Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
 import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
+import { ListSkeleton } from '@/components/shared/Skeletons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -238,10 +239,7 @@ export default function EmployeeNotificationsPage() {
                 
                 <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-sm min-h-100">
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center py-24 space-y-4">
-                            <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Syncing inbox...</p>
-                        </div>
+                        <ListSkeleton rows={6} />
                     ) : notifications.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-24 text-center">
                             <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-700/50">

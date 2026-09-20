@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   HelpCircle, MessageCircle, History, ExternalLink,
-  ChevronDown, Loader2
+  ChevronDown
 } from 'lucide-react';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { DashboardSkeleton } from '@/components/shared/Skeletons';
 import { formatDateTime, cn } from '@/lib/utils';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
@@ -184,7 +185,7 @@ const SupportPage = () => {
            
            <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 overflow-hidden">
               {loading ? (
-                <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-emerald-500" /></div>
+                <DashboardSkeleton variant="form" />
               ) : tickets.length === 0 ? (
                 <div className="py-16 text-center">
                    <p className="text-slate-500 text-sm font-medium">No tickets found.</p>

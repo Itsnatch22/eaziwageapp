@@ -1,5 +1,5 @@
-import { DashboardSkeleton } from '@/components/shared/Skeletons';
+import { StatTilesSkeleton } from '@/components/shared/Skeletons';
 
 export default function Loading() {
-  return <DashboardSkeleton variant="form" />;
+  return <StatTilesSkeleton count={3} />;
 }

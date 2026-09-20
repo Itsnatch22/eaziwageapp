@@ -17,6 +17,7 @@ import { formatDateTime, DOCUMENT_TYPES, cn } from '@/lib/utils';
 import { getDocumentLabel } from '@/lib/document-labels';
 import { toast } from 'sonner';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { DashboardSkeleton } from '@/components/shared/Skeletons';
 
 interface Document {
     id: string;
@@ -351,10 +352,7 @@ export default function EmployeeKYC() {
 
               <div className="p-6 flex-1">
                 {loading ? (
-                  <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Encrypting access...</p>
-                  </div>
+                  <DashboardSkeleton variant="form" />
                 ) : documents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-center">
                     <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-4">
