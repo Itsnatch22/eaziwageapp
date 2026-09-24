@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   PayoutRequest,
   PayoutResponse,

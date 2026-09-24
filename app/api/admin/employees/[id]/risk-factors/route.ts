@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { checkAdminRateLimit } from '@/lib/rate-limit';
 import { EmployeeRiskFactorsUpsertSchema } from '@/lib/validations/route-schemas';

@@ -11,7 +11,6 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { DashboardSkeleton } from '@/components/shared/Skeletons';
 import { formatDateTime, cn } from '@/lib/utils';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
@@ -185,7 +184,7 @@ const SupportPage = () => {
            
            <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 overflow-hidden">
               {loading ? (
-                <DashboardSkeleton variant="form" />
+                <div className="space-y-6 animate-pulse"><div className="h-8 w-56 rounded-md bg-slate-200 dark:bg-slate-800" /><div className="rounded-2xl border p-6 space-y-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 rounded-lg bg-slate-200 dark:bg-slate-800" />)}</div></div>
               ) : tickets.length === 0 ? (
                 <div className="py-16 text-center">
                    <p className="text-slate-500 text-sm font-medium">No tickets found.</p>

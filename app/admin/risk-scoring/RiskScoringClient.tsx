@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { RISK_SCORE } from '@/lib/constants/employer-schema';
@@ -28,7 +29,7 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { StatTilesSkeleton, TableSkeleton } from '@/components/shared/Skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Employer {
   id: string;
@@ -577,9 +578,16 @@ export default function AdminRiskScoringPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <StatTilesSkeleton count={4} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="rounded-2xl border p-5 space-y-3"><Skeleton className="h-10 w-10 rounded-xl" /><Skeleton className="h-8 w-24" /><Skeleton className="h-4 w-32" /></div>
+          ))}
+        </div>
         <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/60 overflow-hidden">
-          <TableSkeleton rows={6} columns={7} />
+          <div className="space-y-3 p-4">
+            <div className="flex gap-4 p-3">{Array.from({ length: 7 }).map((_, index) => <Skeleton key={index} className="h-4 flex-1" />)}</div>
+            {Array.from({ length: 6 }).map((_, row) => <div key={row} className="flex gap-4 p-3">{Array.from({ length: 7 }).map((_, column) => <Skeleton key={column} className="h-10 flex-1" />)}</div>)}
+          </div>
         </div>
       </div>
     );

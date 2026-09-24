@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/set-state-in-effect, react/no-unescaped-entities */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';

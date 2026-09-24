@@ -16,7 +16,6 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { DashboardSkeleton } from '@/components/shared/Skeletons';
 import { useRouter } from 'next/navigation';
 import { EmployeePageLayout, EmployeeHeader } from '@/components/employee/EmployeeLayout';
 import { AvatarUpload } from '@/components/ui/AvatarUpload';
@@ -582,7 +581,7 @@ export default function EmployeeSettings() {
   if (loading) {
     return (
       <EmployeePageLayout>
-        <DashboardSkeleton variant="form" />
+        <div className="space-y-6 animate-pulse"><div className="h-8 w-56 rounded-md bg-slate-200 dark:bg-slate-800" /><div className="rounded-2xl border p-6 space-y-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 rounded-lg bg-slate-200 dark:bg-slate-800" />)}</div></div>
       </EmployeePageLayout>
     );
   }

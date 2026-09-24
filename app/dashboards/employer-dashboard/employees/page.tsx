@@ -42,7 +42,6 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { createClient } from '@/lib/supabase/client';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
-import { StatTilesSkeleton, ListSkeleton } from '@/components/shared/Skeletons';
 import type { RealtimeChannel } from '@supabase/realtime-js';
 import {
   GradientIconBox,
@@ -1220,7 +1219,7 @@ const EmployerEmployees: React.FC = () => {
 
         
         {loading ? (
-          <StatTilesSkeleton count={4} />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-32 rounded-2xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
@@ -1403,7 +1402,7 @@ const EmployerEmployees: React.FC = () => {
         
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden">
           {loading ? (
-            <ListSkeleton rows={6} />
+            <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
           ) : filteredEmployees.length === 0 ? (
             <div className="text-center py-16 px-4">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">

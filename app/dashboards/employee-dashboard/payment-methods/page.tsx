@@ -14,7 +14,6 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Banner } from '@/components/Banner';
-import { DashboardSkeleton } from '@/components/shared/Skeletons';
 
 type BankVerificationStatus = 'unverified' | 'pending_review' | 'approved' | 'rejected';
 
@@ -395,7 +394,7 @@ const PaymentMethods = () => {
 
         <div className="grid gap-4">
           {loading ? (
-            <DashboardSkeleton variant="form" />
+            <div className="space-y-6 animate-pulse"><div className="h-8 w-56 rounded-md bg-slate-200 dark:bg-slate-800" /><div className="rounded-2xl border p-6 space-y-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 rounded-lg bg-slate-200 dark:bg-slate-800" />)}</div></div>
           ) : methods.length === 0 ? (
             <div className="bg-white/50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-white/10 rounded-[2rem] p-12 text-center">
               <div className="w-16 h-16 bg-slate-100 dark:bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-4">

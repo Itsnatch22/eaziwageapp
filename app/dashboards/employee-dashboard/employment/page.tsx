@@ -11,7 +11,6 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
-import { DashboardSkeleton } from '@/components/shared/Skeletons';
 
 function AvatarWithFallback({ avatarUrl, fullName }: { avatarUrl: string | null; fullName: string }) {
   const [imgError, setImgError] = useState(false);
@@ -167,7 +166,7 @@ const EmploymentDetails = () => {
   if (loading) {
     return (
       <EmployeePortalLayout>
-        <DashboardSkeleton variant="form" />
+        <div className="space-y-6 animate-pulse"><div className="h-8 w-56 rounded-md bg-slate-200 dark:bg-slate-800" /><div className="rounded-2xl border p-6 space-y-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 rounded-lg bg-slate-200 dark:bg-slate-800" />)}</div></div>
       </EmployeePortalLayout>
     );
   }

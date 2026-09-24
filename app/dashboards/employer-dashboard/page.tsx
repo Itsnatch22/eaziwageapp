@@ -29,7 +29,6 @@ import { EmployerPortalLayout } from "@/components/employer/EmployerLayout";
 import { formatCurrency, cn } from "@/lib/utils";
 import { GradientIconBox } from "@/components/employer/SharedComponents";
 import { CopyButton } from "@/components/shared/CopyButton";
-import { StatTilesSkeleton } from "@/components/shared/Skeletons";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -790,8 +789,8 @@ export default function EmployerDashboard() {
     return (
       <EmployerPortalLayout>
         <div className="max-w-7xl mx-auto space-y-6">
-          <StatTilesSkeleton count={4} />
-          <StatTilesSkeleton count={4} />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-32 rounded-2xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-32 rounded-2xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
         </div>
       </EmployerPortalLayout>
     );

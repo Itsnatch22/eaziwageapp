@@ -419,7 +419,7 @@ async function checkStuckProcessingAdvances(log: (msg: string) => void): Promise
   }
 
   const advances = (stuckRows ?? []) as AdvanceRow[];
-  let checked = advances.length;
+  const checked = advances.length;
   let resolved = 0;
   const unresolvedStuck: string[] = [];
 
@@ -429,7 +429,7 @@ async function checkStuckProcessingAdvances(log: (msg: string) => void): Promise
         const result = await dusupay.checkPayoutStatus(adv.reference);
         const mapped = mapDusupayStatus(result.status);
         if (mapped === 'completed') {
-          const { data: updated, error: updateError } = await supabaseAdmin
+          const { error: updateError } = await supabaseAdmin
             .from('advances')
             .update({ status: 'completed', disbursed_at: new Date().toISOString() })
             .eq('id', adv.id);
@@ -442,7 +442,7 @@ async function checkStuckProcessingAdvances(log: (msg: string) => void): Promise
           resolved++;
           continue;
         } else if (mapped === 'failed') {
-          const { data: updated, error: updateError } = await supabaseAdmin
+          const { error: updateError } = await supabaseAdmin
             .from('advances')
             .update({ status: 'failed', reason: 'DusuPay payout marked failed in reconciliation' })
             .eq('id', adv.id);

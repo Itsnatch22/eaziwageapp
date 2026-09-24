@@ -17,7 +17,6 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { createClient } from '@/lib/supabase/client';
 import { DISBURSED_STATUSES, getAdvanceStatusLabel } from '@/lib/constants/advance-status';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
-import { ListSkeleton } from '@/components/shared/Skeletons';
 
 type AdvanceStatus = 'pending' | 'processing' | 'approved' | 'disbursed' | 'completed' | 'repaid' | 'failed' | 'rejected' | 'fraud_review' | string;
 type DisbursementMethod = 'mobile_money' | 'bank_transfer' | string;
@@ -306,7 +305,7 @@ export default function Transactions() {
         
         <div className="bg-white/50 dark:bg-white/3 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-white/10 overflow-hidden min-h-64">
           {loading ? (
-            <ListSkeleton rows={7} />
+            <div className="space-y-3">{Array.from({ length: 7 }).map((_, i) => <div key={i} className="h-16 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
           ) : filteredItems.length === 0 ? (
             <EmptyState
               icon={History}

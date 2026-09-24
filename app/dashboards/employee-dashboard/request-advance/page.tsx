@@ -30,7 +30,6 @@ import { EmployeePortalLayout } from "@/components/employee/EmployeeLayout";
 import { sessionFetch } from "@/lib/client/session-fetch";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/SubmitButton";
-import { StatTilesSkeleton } from "@/components/shared/Skeletons";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { createClient } from "@/lib/supabase/client";
@@ -372,7 +371,7 @@ export default function RequestAdvance() {
     return (
       <EmployeePortalLayout>
         <div className="max-w-3xl mx-auto space-y-6">
-          <StatTilesSkeleton count={3} />
+          <div className="grid sm:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-32 rounded-2xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
         </div>
       </EmployeePortalLayout>
     );

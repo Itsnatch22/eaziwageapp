@@ -27,7 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { CardGridSkeleton } from '@/components/shared/Skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getDocumentLabel } from '@/lib/document-labels';
 import {
   KYCDocument,
@@ -465,7 +465,15 @@ export default function KYCReviewPage() {
 
         
         {loading ? (
-          <CardGridSkeleton count={8} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="rounded-2xl border p-5 space-y-4">
+                <div className="flex gap-3"><Skeleton className="h-12 w-12 rounded-xl" /><div className="flex-1 space-y-2"><Skeleton className="h-5 w-40" /><Skeleton className="h-4 w-24" /></div></div>
+                <Skeleton className="h-28 w-full rounded-xl" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            ))}
+          </div>
         ) : filteredItems.length === 0 ? (
           <div className="py-20 text-center bg-white/40 dark:bg-slate-900/40 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">

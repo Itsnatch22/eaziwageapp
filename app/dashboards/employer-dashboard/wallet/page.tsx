@@ -15,7 +15,6 @@ import { GradientIconBox } from '@/components/employer/SharedComponents';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { notifyEligibleMoment } from '@/lib/stores/satisfaction-prompt-trigger';
 import { CopyButton } from '@/components/shared/CopyButton';
-import { TableSkeleton } from '@/components/shared/Skeletons';
 
 interface Transaction {
   id: string;
@@ -222,7 +221,7 @@ const WalletPage = () => {
           </div>
 
           {loading ? (
-            <TableSkeleton rows={6} columns={6} />
+            <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
           ) : transactions.length === 0 ? (
             <div className="py-20 text-center">
               <p className="text-slate-500">No transactions recorded yet.</p>

@@ -13,7 +13,6 @@ import { useAuthStore } from '@/lib/stores/auth';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { Button } from '@/components/ui/button';
 import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js';
-import { ListSkeleton } from '@/components/shared/Skeletons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -239,7 +238,7 @@ export default function EmployeeNotificationsPage() {
                 
                 <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-slate-200/50 dark:border-slate-700/30 overflow-hidden shadow-sm min-h-100">
                     {loading ? (
-                        <ListSkeleton rows={6} />
+                        <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
                     ) : notifications.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-24 text-center">
                             <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-700/50">

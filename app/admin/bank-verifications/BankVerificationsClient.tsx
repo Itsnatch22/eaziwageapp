@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDateTime, cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { CardGridSkeleton } from '@/components/shared/Skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface VerificationMetadata {
   filename?: string | null;
@@ -304,7 +304,17 @@ export default function PaymentVerificationsClient() {
       : 'All submitted bank accounts have been reviewed.';
 
     if (loadingState) {
-      return <CardGridSkeleton count={4} />;
+      return (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="rounded-2xl border p-5 space-y-4">
+              <div className="flex gap-3"><Skeleton className="h-12 w-12 rounded-xl" /><div className="flex-1 space-y-2"><Skeleton className="h-5 w-40" /><Skeleton className="h-4 w-28" /></div></div>
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <div className="flex gap-2"><Skeleton className="h-9 flex-1" /><Skeleton className="h-9 flex-1" /></div>
+            </div>
+          ))}
+        </div>
+      );
     }
 
     if (items.length === 0) {

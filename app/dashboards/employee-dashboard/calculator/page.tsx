@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { EmployeePortalLayout } from '@/components/employee/EmployeeLayout';
 import { toast } from 'sonner';
-import { DashboardSkeleton } from '@/components/shared/Skeletons';
 
 // ── Currency formatting ──────────────────────────────────────────────────────
 
@@ -116,7 +115,7 @@ export default function AdvanceCalculatorPage() {
 
   if (loading) return (
     <EmployeePortalLayout>
-      <DashboardSkeleton variant="form" />
+      <div className="space-y-6 animate-pulse"><div className="h-8 w-56 rounded-md bg-slate-200 dark:bg-slate-800" /><div className="rounded-2xl border p-6 space-y-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 rounded-lg bg-slate-200 dark:bg-slate-800" />)}</div></div>
     </EmployeePortalLayout>
   );
 
