@@ -1,0 +1,5 @@
+import { Skeleton } from '@/components/ui/skeleton';
+
+export default function Loading() {
+  return <div className="space-y-8"><div className="flex justify-between"><div className="space-y-2"><Skeleton className="h-8 w-52 rounded-md" /><Skeleton className="h-4 w-80 rounded-md" /></div><div className="flex gap-2"><Skeleton className="h-10 w-24 rounded-lg" /><Skeleton className="h-10 w-24 rounded-lg" /></div></div><div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="rounded-2xl border p-5 space-y-3"><Skeleton className="h-8 w-24 rounded-md" /><Skeleton className="h-4 w-32 rounded-md" /></div>)}</div><div className="rounded-2xl border p-5 space-y-3"><Skeleton className="h-5 w-52 rounded-md" /><Skeleton className="h-4 w-full rounded-md" /><Skeleton className="h-4 w-3/4 rounded-md" /></div><Skeleton className="h-10 w-full max-w-md rounded-lg" /><div className="rounded-2xl border p-4 space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div></div>;
+}
