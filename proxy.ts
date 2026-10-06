@@ -238,40 +238,61 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dest, req.url));
     }
 
-    if (role !== 'admin' && isDashboard) {
-      const isActive = profileRow?.is_active ?? false;
-      const employerOnboardingPath = '/dashboards/employer-dashboard/onboarding';
-      const employeeOnboardingPath = '/dashboards/employee-dashboard/onboarding';
-      
-      // Both employers and employees who have submitted their onboarding can reach the
-      // dashboard even before admin approval. Only redirect if they haven't submitted yet.
-      let submittedOnboarding = false;
-      if (!isActive) {
-        if (role === 'employer') {
-          const { data: eoRow } = await supabase
-            .from('employer_onboarding')
-            .select('status')
-            .eq('user_id', user.id)
-            .limit(1)
-            .maybeSingle<{ status: string }>();
-          submittedOnboarding = !!eoRow?.status && eoRow.status !== 'draft';
-        } else if (role === 'employee') {
-          const { data: empRow } = await supabase
-            .from('employee_onboarding')
-            .select('status')
-            .eq('user_id', user.id)
-            .limit(1)
-            .maybeSingle<{ status: string }>();
-          // 'pending' = submitted awaiting approval, 'approved' = approved (is_active may lag)
-          submittedOnboarding = !!empRow?.status && empRow.status !== 'draft';
+    const isEmployerDashboardApi = pathname.startsWith('/api/employer-dashboard/');
+    if (role !== 'admin' && (isDashboard || (role === 'employer' && isEmployerDashboardApi))) {
+      const terminatedPath = '/dashboards/employer-dashboard/terminated';
+      const restorePath = '/api/employer-dashboard/termination/restore';
+
+      if (role === 'employer') {
+        const { data: eoRow } = await supabase
+          .from('employer_onboarding')
+          .select('deleted_at')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle<{ deleted_at: string | null }>();
+
+        if (eoRow?.deleted_at && pathname !== terminatedPath && pathname !== restorePath) {
+          return isEmployerDashboardApi
+            ? NextResponse.json({ error: 'Forbidden', code: 'EMPLOYER_TERMINATED' }, { status: 403 })
+            : NextResponse.redirect(new URL(terminatedPath, req.url));
         }
       }
 
-      if (!isActive && !submittedOnboarding) {
-        const targetOnboardingPath = role === 'employer' ? employerOnboardingPath : employeeOnboardingPath;
-        if (pathname !== targetOnboardingPath) {
-          console.log(`[middleware] Redirecting inactive ${role} ${user.id} to ${targetOnboardingPath}`);
-          return NextResponse.redirect(new URL(targetOnboardingPath, req.url));
+      if (isDashboard) {
+        const isActive = profileRow?.is_active ?? false;
+        const employerOnboardingPath = '/dashboards/employer-dashboard/onboarding';
+        const employeeOnboardingPath = '/dashboards/employee-dashboard/onboarding';
+
+        // Both employers and employees who have submitted their onboarding can reach the
+        // dashboard even before admin approval. Only redirect if they haven't submitted yet.
+        let submittedOnboarding = false;
+        if (!isActive) {
+          if (role === 'employer') {
+            const { data: eoRow } = await supabase
+              .from('employer_onboarding')
+              .select('status')
+              .eq('user_id', user.id)
+              .limit(1)
+              .maybeSingle<{ status: string }>();
+            submittedOnboarding = !!eoRow?.status && eoRow.status !== 'draft';
+          } else if (role === 'employee') {
+            const { data: empRow } = await supabase
+              .from('employee_onboarding')
+              .select('status')
+              .eq('user_id', user.id)
+              .limit(1)
+              .maybeSingle<{ status: string }>();
+            // 'pending' = submitted awaiting approval, 'approved' = approved (is_active may lag)
+            submittedOnboarding = !!empRow?.status && empRow.status !== 'draft';
+          }
+        }
+
+        if (!isActive && !submittedOnboarding && pathname !== terminatedPath) {
+          const targetOnboardingPath = role === 'employer' ? employerOnboardingPath : employeeOnboardingPath;
+          if (pathname !== targetOnboardingPath) {
+            console.log(`[middleware] Redirecting inactive ${role} ${user.id} to ${targetOnboardingPath}`);
+            return NextResponse.redirect(new URL(targetOnboardingPath, req.url));
+          }
         }
       }
     }

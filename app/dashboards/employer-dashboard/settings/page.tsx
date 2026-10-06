@@ -26,6 +26,14 @@ import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { createClient } from '@/lib/supabase/client';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { CopyButton } from '@/components/shared/CopyButton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface EmployerProfile {
   id: string;
@@ -552,6 +560,8 @@ export default function EmployerSettings() {
   const [employer, setEmployer] = useState<EmployerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showTerminationDialog, setShowTerminationDialog] = useState(false);
+  const [terminationConfirmation, setTerminationConfirmation] = useState('');
   const [activeTab, setActiveTab] = useState('account');
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
   const [showBankModal, setShowBankModal] = useState(false);
@@ -987,22 +997,22 @@ export default function EmployerSettings() {
   };
 
   const handleTerminateAccount = async () => {
-    const confirmed = window.confirm(
-      "Are you absolutely sure? This will disable all employee access and hide your organization data. You will have 30 days to restore it."
-    );
-    if (!confirmed) return;
+    const confirmation = terminationConfirmation.trim().toLowerCase();
+    const companyName = employer?.company_name.trim().toLowerCase();
+    if (confirmation !== 'delete' && (!companyName || confirmation !== companyName)) return;
 
     setSaving(true);
     try {
       const res = await fetch('/api/employer-dashboard/termination/terminate', { method: 'POST' });
       if (res.ok) {
         toast.success("Your account has been terminated.");
-        
+        setShowTerminationDialog(false);
+        setTerminationConfirmation('');
 
         await logout();
         router.push('/login');
       } else {
-        toast.error("Failed to terminate account");
+        toast.error(await getResponseErrorMessage(res, "Failed to terminate account"));
       }
     } catch {
       toast.error("Failed to terminate account");
@@ -1927,7 +1937,10 @@ export default function EmployerSettings() {
                       </p>
                     </div>
                     <Button
-                      onClick={handleTerminateAccount}
+                      onClick={() => {
+                        setTerminationConfirmation('');
+                        setShowTerminationDialog(true);
+                      }}
                       disabled={saving}
                       className="bg-red-600 hover:bg-red-700 text-white h-12 px-8 rounded-xl font-bold shadow-xl shadow-red-600/20"
                     >
@@ -1941,6 +1954,58 @@ export default function EmployerSettings() {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={showTerminationDialog}
+        onOpenChange={(open) => {
+          if (!saving) {
+            setShowTerminationDialog(open);
+            if (!open) setTerminationConfirmation('');
+          }
+        }}
+      >
+        <DialogContent showCloseButton={!saving} className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Terminate company account?</DialogTitle>
+            <DialogDescription>
+              This will deactivate every employee at your company and hide your organization data.
+              You can restore the account within 30 days; after that, eligible account data may be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="termination-confirmation">
+              Type <span className="font-semibold">{employer?.company_name || 'DELETE'}</span> or DELETE to confirm.
+            </Label>
+            <Input
+              id="termination-confirmation"
+              value={terminationConfirmation}
+              onChange={(event) => setTerminationConfirmation(event.target.value)}
+              disabled={saving}
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowTerminationDialog(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleTerminateAccount}
+              disabled={saving || !(
+                terminationConfirmation.trim().toLowerCase() === 'delete' ||
+                (!!employer?.company_name &&
+                  terminationConfirmation.trim().toLowerCase() === employer.company_name.trim().toLowerCase())
+              )}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {saving ? 'Terminating...' : 'Terminate account'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BankChangeModal
         isOpen={showBankModal}

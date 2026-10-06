@@ -1,0 +1,24 @@
+name: Purge Terminated Employers
+
+on:
+  schedule:
+    - cron: '30 5 * * *'   # 05:30 UTC = 08:30 EAT daily, after the overdue-repayment check
+  workflow_dispatch:
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Purge eligible terminated employer accounts
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://app.eaziwage.com/api/cron/purge-terminated-employers)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          echo "Response: $BODY"
+          echo "Status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Purge job failed with status $HTTP_CODE"
+            exit 1
+          fi

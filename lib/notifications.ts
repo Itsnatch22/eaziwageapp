@@ -60,7 +60,8 @@ export type AdminNotificationType =
   | 'flagged_advance'
   | 'bank_change'
   | 'review_request'
-  | 'system_alert';
+  | 'system_alert'
+  | 'termination_purge_blocked';
 
 export type EmployerNotificationType =
   | 'employee_linked'
@@ -124,6 +125,26 @@ function buildAdminEmailElement(
   const adminDashboard = `${APP_URL}/admin`;
 
   switch (type) {
+    case 'termination_purge_blocked':
+    case 'system_alert':
+      if (m.error_log_id) {
+        return React.createElement(ErrorAlertEmail, {
+          role: m.role === 'employer' ? 'employer' : 'employee',
+          url: m.url ?? null,
+          message: m.message ?? null,
+          digest: m.digest ?? null,
+          errorLogId: String(m.error_log_id),
+          severity: m.severity === 'critical' ? 'critical' : m.severity === 'high' ? 'high' : 'low',
+          logsUrl: `${adminDashboard}/logs`,
+        });
+      }
+      return React.createElement(AdminSystemAlertEmail, {
+        title,
+        message,
+        metadata: metadata as Record<string, unknown>,
+        dashboardUrl: adminDashboard,
+      });
+
     case 'new_employer':
       return React.createElement(NewEmployerRegistrationEmail, {
         companyName: m.companyName ?? title,
@@ -588,12 +609,13 @@ export async function notifyAdmin(params: {
     const ns = globalSettings?.notification_settings || {};
 
     const emailEnabledByType: Record<AdminNotificationType, boolean> = {
-      new_employer:    ns.email_new_employer  !== false,
-      employer_kyc:    ns.email_new_employer  !== false,
-      flagged_advance: ns.email_fraud_alert   !== false,
-      system_alert:    ns.email_fraud_alert   !== false,
-      review_request:  ns.email_large_advance !== false,
-      bank_change:     ns.email_fraud_alert   !== false,
+      new_employer:            ns.email_new_employer  !== false,
+      employer_kyc:            ns.email_new_employer  !== false,
+      flagged_advance:         ns.email_fraud_alert   !== false,
+      system_alert:            ns.email_fraud_alert   !== false,
+      review_request:          ns.email_large_advance !== false,
+      bank_change:             ns.email_fraud_alert   !== false,
+      termination_purge_blocked: ns.email_fraud_alert   !== false,
     };
 
     if (emailEnabledByType[params.type]) {
@@ -613,9 +635,10 @@ export async function notifyAdmin(params: {
     // SMS toggles — narrower than the email ones (no SMS equivalent of
     // new_employer/employer_kyc/bank_change), gated separately per type.
     const smsEnabledByType: Partial<Record<AdminNotificationType, boolean>> = {
-      flagged_advance: ns.sms_fraud_alert === true,
-      system_alert:    ns.sms_system_alert === true,
-      review_request:  ns.sms_large_transaction === true,
+      flagged_advance:         ns.sms_fraud_alert === true,
+      system_alert:            ns.sms_system_alert === true,
+      review_request:          ns.sms_large_transaction === true,
+      termination_purge_blocked: ns.sms_system_alert === true,
     };
 
     const smsNumbers = ((ns.admin_sms_numbers as string) || '')

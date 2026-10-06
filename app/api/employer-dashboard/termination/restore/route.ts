@@ -22,6 +22,35 @@ export async function POST() {
       return NextResponse.json({ error: 'Employer record not found' }, { status: 404 });
     }
 
+    const { data: onboardingRow, error: onboardingError } = await adminSupabase
+      .from('employer_onboarding')
+      .select('deleted_at')
+      .eq('id', employer.onboarding_id)
+      .maybeSingle<{ deleted_at: string | null }>();
+
+    if (onboardingError) {
+      console.error('[Restore API Error] employer onboarding lookup failed:', onboardingError);
+      return NextResponse.json({ error: 'Failed to verify account status' }, { status: 500 });
+    }
+
+    if (!onboardingRow?.deleted_at) {
+      return NextResponse.json({ error: 'Account is not terminated.' }, { status: 400 });
+    }
+
+    const daysSinceTermination =
+      (Date.now() - new Date(onboardingRow.deleted_at).getTime()) / (1000 * 60 * 60 * 24);
+
+    if (!Number.isFinite(daysSinceTermination)) {
+      return NextResponse.json({ error: 'Failed to verify termination date' }, { status: 500 });
+    }
+
+    if (daysSinceTermination > 30) {
+      return NextResponse.json(
+        { error: 'The 30-day restoration window has expired. Contact support.' },
+        { status: 410 },
+      );
+    }
+
     const { error: restoreEmployerError } = await adminSupabase
       .from('employer_onboarding')
       .update({ deleted_at: null })

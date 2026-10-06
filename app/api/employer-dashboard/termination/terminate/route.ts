@@ -39,12 +39,6 @@ export async function POST() {
 
     if (deleteEmployerError) throw deleteEmployerError;
 
-    // Reject all pending employee KYC applications
-    await adminSupabase
-      .from('employee_onboarding')
-      .update({ status: 'rejected' })
-      .eq('employer_id', employer.onboarding_id);
-
     // Soft-delete all employees
     await adminSupabase
       .from('employees')

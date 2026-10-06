@@ -101,6 +101,26 @@ export async function PATCH(
       return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
     }
 
+    if ((status === 'approved' || status === 'active') && onboardingRecord?.employer_id) {
+      const { data: employerRow, error: employerFetchError } = await adminSupabase
+        .from('employer_onboarding')
+        .select('deleted_at')
+        .eq('id', onboardingRecord.employer_id)
+        .maybeSingle<{ deleted_at: string | null }>();
+
+      if (employerFetchError) {
+        console.error('[PATCH status] employer termination lookup error:', employerFetchError);
+        return NextResponse.json({ error: 'Failed to verify employer status' }, { status: 500 });
+      }
+
+      if (employerRow?.deleted_at) {
+        return NextResponse.json(
+          { error: 'Cannot approve: the associated employer account is currently terminated.' },
+          { status: 409 },
+        );
+      }
+    }
+
     const liveStatus = toLiveEmployeeStatus(status);
     const normalizedEmploymentType =
       typeof onboardingRecord?.employment_type === 'string'
