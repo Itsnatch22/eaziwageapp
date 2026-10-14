@@ -5,7 +5,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAppRole, resolveRoleFromTables } from "@/lib/server/resolve-user-role";
 import type { AppRole } from "@/lib/server/resolve-user-role";
 import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie, DEVICE_TRUST_COOKIE, verifyDeviceTrustCookie } from "@/lib/mfa-handler";
-import { getEmployerMfaEnrollmentRedirect, isEmployerMfaSetupApiAllowed } from "@/lib/server/employer-mfa-enforcement";
+import {
+  getAdminMfaEnrollmentRedirect,
+  getEmployerMfaEnrollmentRedirect,
+  isAdminMfaSetupApiAllowed,
+  isEmployerMfaSetupApiAllowed,
+} from "@/lib/server/mfa-enforcement";
 
 function hasValidBackupCodeCookie(req: NextRequest, userId: string): boolean {
   return verifyMfaBackupCookie(req.cookies.get(MFA_BACKUP_COOKIE)?.value, userId);
@@ -239,6 +244,9 @@ export async function proxy(req: NextRequest) {
     }
 
     const isEmployerDashboardApi = pathname.startsWith('/api/employer-dashboard/');
+    const isAdminProtectedApi = isProtectedApi
+      && !pathname.startsWith('/api/employer-dashboard/')
+      && !pathname.startsWith('/api/employee-dashboard/');
     const employerMfaEnforced = role === 'employer'
       && !isPlaywrightTestBypass
       && process.env.REQUIRE_EMPLOYER_MFA?.toLowerCase() !== 'false';
@@ -254,6 +262,25 @@ export async function proxy(req: NextRequest) {
         }
       } else if (pathname.startsWith('/dashboards/employer-dashboard')) {
         const redirectPath = getEmployerMfaEnrollmentRedirect(pathname, req.nextUrl.searchParams.get('tab'));
+        if (redirectPath) return NextResponse.redirect(new URL(redirectPath, req.url));
+      }
+    }
+
+    const adminMfaEnforced = role === 'admin'
+      && !isPlaywrightTestBypass
+      && process.env.REQUIRE_ADMIN_MFA?.toLowerCase() !== 'false';
+    const adminNeedsMfaEnrollment = adminMfaEnforced && aalData?.nextLevel !== 'aal2';
+
+    if (adminNeedsMfaEnrollment) {
+      if (isAdminProtectedApi) {
+        if (!isAdminMfaSetupApiAllowed(pathname)) {
+          return NextResponse.json(
+            { error: 'Multi-factor authentication enrollment is required.', code: 'MFA_ENROLLMENT_REQUIRED' },
+            { status: 403 },
+          );
+        }
+      } else if (pathname.startsWith('/admin') || isConsole) {
+        const redirectPath = getAdminMfaEnrollmentRedirect(pathname, req.nextUrl.searchParams.get('tab'));
         if (redirectPath) return NextResponse.redirect(new URL(redirectPath, req.url));
       }
     }

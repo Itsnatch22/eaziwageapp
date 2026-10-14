@@ -47,6 +47,7 @@ Tests
 - Security boundary expectations
   - Many protections (auth/authorization) are enforced by DB-level RLS and Supabase service-role separation. Do not rely solely on application-layer checks for sensitive DB access—verify RLS policies when changing access logic.
   - Employer dashboard MFA enrollment is required by default at the proxy; `REQUIRE_EMPLOYER_MFA=false` is the explicit opt-out. Sensitive employer/employee actions require a recent TOTP step-up.
+  - Admin MFA enrollment is required by default at the proxy; `REQUIRE_ADMIN_MFA=false` is the explicit opt-out. Admin password changes require the current password, and MFA disable requires recent TOTP step-up and sends an email alert.
 
 - Zod everywhere
   - Most API routes and actions validate inputs with Zod schemas under lib/validations. Keep runtime and compile-time shapes consistent.

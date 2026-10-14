@@ -2678,6 +2678,7 @@ const AdminProfileTab = React.forwardRef<SettingsSaveHandle, AdminProfileTabProp
 AdminProfileTab.displayName = 'AdminProfileTab';
 
 const PasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   if (!isOpen) return null;
@@ -2690,20 +2691,36 @@ const PasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
+            <Label>Current Password</Label>
+            <Input
+              value={currentPassword}
+              type="password"
+              autoComplete="current-password"
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
             <Label>New Password</Label>
-            <Input value={newPassword} type="password" onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 8 characters" />
+            <Input
+              value={newPassword}
+              type="password"
+              autoComplete="new-password"
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 8 characters"
+            />
           </div>
           <div className="flex gap-3">
             <button onClick={onClose} className="flex-1 inline-flex items-center justify-center rounded-xl border border-input bg-background h-10 px-4 py-2 text-sm">Cancel</button>
             <button
               onClick={async () => {
+                if (!currentPassword) { toast.error('Enter your current password'); return; }
                 if (!newPassword || newPassword.length < 8) { toast.error('Password must be at least 8 characters'); return; }
                 setSubmitting(true);
                 try {
                   const res = await fetch('/api/admin/security/password', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ newPassword })
+                    body: JSON.stringify({ currentPassword, newPassword })
                   });
                   const json = await res.json();
                   if (res.ok && json.success) {
@@ -2730,11 +2747,11 @@ const PasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 };
 
 
-const AdminSettings: React.FC = () => {
+const AdminSettings: React.FC<{ initialTab: TabId | 'account' }> = ({ initialTab }) => {
   const [token] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<TabId | 'account'>('account');
+  const [activeTab, setActiveTab] = useState<TabId | 'account'>(initialTab);
   const [hasChanges, setHasChanges] = useState<boolean>(false);
   const employerConfigRef = useRef<SettingsSaveHandle>(null);
   const employeeConfigRef = useRef<SettingsSaveHandle>(null);

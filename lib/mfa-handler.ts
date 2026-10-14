@@ -181,7 +181,7 @@ export async function handleMfaPost(
         { headers: actionHeaders }
       );
 
-    } else if (action === 'step_up' && keyPrefix !== '') {
+    } else if (action === 'step_up') {
       const verifyRate = await checkRateLimit(mfaVerifyLimiter, `mfa-step-up${keyPrefix}:${user.id}`);
       const verifyHeaders = buildRateLimitHeaders(verifyRate);
       if (!verifyRate.success) {
@@ -220,10 +220,8 @@ export async function handleMfaPost(
       const actionHeaders = buildRateLimitHeaders(actionRate);
       if (!actionRate.success) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: actionHeaders });
 
-      if (keyPrefix !== '') {
-        const stepUpResponse = await requireRecentMfa(supabase, user.id);
-        if (stepUpResponse) return stepUpResponse;
-      }
+      const stepUpResponse = await requireRecentMfa(supabase, user.id);
+      if (stepUpResponse) return stepUpResponse;
 
       const factorId = typeof body?.factorId === 'string' ? body.factorId : null;
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
@@ -259,7 +257,7 @@ export async function handleMfaPost(
         console.error('[MFA][disable] audit insert failed:', auditErr);
       }
 
-      if (keyPrefix !== '' && user.email) {
+      if (user.email) {
         const fullName = typeof user.user_metadata?.full_name === 'string'
           ? user.user_metadata.full_name
           : user.email;

@@ -5,7 +5,9 @@ import { hasRecentTotpVerification, requireRecentMfa } from '@/lib/server/recent
 import {
   getEmployerMfaEnrollmentRedirect,
   isEmployerMfaSetupApiAllowed,
-} from '@/lib/server/employer-mfa-enforcement';
+  getAdminMfaEnrollmentRedirect,
+  isAdminMfaSetupApiAllowed,
+} from '@/lib/server/mfa-enforcement';
 
 const mocks = vi.hoisted(() => ({
   supabase: {
@@ -41,6 +43,13 @@ vi.mock('@/lib/api-errors', () => ({
 
 import { PUT as employerPasswordPut } from '@/app/api/employer-dashboard/security/password/route';
 import { PUT as employeePasswordPut } from '@/app/api/employee-dashboard/security/password/route';
+import { PUT as adminPasswordPut } from '@/app/api/admin/security/password/route';
+import { GET as adminMfaGet, POST as adminMfaPost } from '@/app/api/admin/security/mfa/route';
+
+vi.mock('@/lib/mfa-handler', () => ({
+  handleMfaGet: vi.fn(() => Response.json({ enabled: false })),
+  handleMfaPost: vi.fn(() => Response.json({ success: true })),
+}));
 
 describe('recent TOTP verification helper', () => {
   const now = 1_800_000_000_000;
@@ -105,11 +114,22 @@ describe('employer MFA enrollment routing', () => {
     expect(isEmployerMfaSetupApiAllowed('/api/employer-dashboard/security/sessions')).toBe(true);
     expect(isEmployerMfaSetupApiAllowed('/api/employer-dashboard/settings')).toBe(false);
   });
+
+  it('keeps only admin MFA setup settings accessible before enrollment', () => {
+    expect(getAdminMfaEnrollmentRedirect('/admin', null)).toBe('/admin/settings?tab=security');
+    expect(getAdminMfaEnrollmentRedirect('/admin/users', null)).toBe('/admin/settings?tab=security');
+    expect(getAdminMfaEnrollmentRedirect('/console', null)).toBe('/admin/settings?tab=security');
+    expect(getAdminMfaEnrollmentRedirect('/admin/settings', 'security')).toBeNull();
+    expect(getAdminMfaEnrollmentRedirect('/api/admin/security/mfa', null)).toBeNull();
+    expect(isAdminMfaSetupApiAllowed('/api/admin/security/mfa')).toBe(true);
+    expect(isAdminMfaSetupApiAllowed('/api/admin/settings/platform')).toBe(false);
+  });
 });
 
 describe.each([
   ['employer', employerPasswordPut],
   ['employee', employeePasswordPut],
+  ['admin', adminPasswordPut],
 ])('%s password-change route', (_role, handler) => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -154,5 +174,23 @@ describe.each([
     expect(mocks.verifyCurrentPassword).toHaveBeenCalledWith('person@example.com', 'current-pass');
     expect(mocks.supabase.auth.updateUser).toHaveBeenCalledWith({ password: 'correct horse battery' });
     expect(mocks.finishPasswordChange).toHaveBeenCalledOnce();
+  });
+});
+
+describe('admin MFA route', () => {
+  it('uses the admin-specific rate-limit namespace and settings URL', async () => {
+    const { handleMfaGet, handleMfaPost } = await import('@/lib/mfa-handler');
+    const request = new NextRequest('http://localhost/api/admin/security/mfa');
+
+    await adminMfaGet(request);
+    await adminMfaPost(request);
+
+    expect(handleMfaGet).toHaveBeenCalledWith(request, '-admin');
+    expect(handleMfaPost).toHaveBeenCalledWith(
+      request,
+      '-admin',
+      'EaziWage Admin Authenticator',
+      expect.stringMatching(/\/admin\/settings\?tab=security$/),
+    );
   });
 });

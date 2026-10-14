@@ -16,6 +16,20 @@ request or use production financial data while validating step-up enforcement.
 - With `PLAYWRIGHT_TEST=1` outside production, the existing Playwright bypass
   still works.
 
+## Admin MFA enforcement
+
+- With no verified TOTP factor and `REQUIRE_ADMIN_MFA` unset, opening an admin
+  dashboard or founder console route redirects to `/admin/settings?tab=security`.
+- The admin security tab remains accessible, enrollment completes, and the
+  user is not redirected away during setup.
+- Admin-protected APIs other than `/api/admin/security/mfa` return `403` with
+  code `MFA_ENROLLMENT_REQUIRED` until enrollment is complete.
+- With `REQUIRE_ADMIN_MFA=false`, admins without MFA retain normal access.
+- Admin password changes reject missing or incorrect current passwords; a
+  successful change revokes other sessions, emails the account, and records
+  a `password_changed` audit event.
+- Disabling admin MFA requires recent TOTP step-up and sends an email alert.
+
 ## Password and sessions
 
 - Both employer and employee password forms require the current password.

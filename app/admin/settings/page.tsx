@@ -4,7 +4,12 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { checkAdminAccess } from '@/lib/server/admin-auth';
 import SettingsClient from './SettingsClient';
 
-export default async function AdminPage() {
+interface AdminPageProps {
+  searchParams: Promise<{ tab?: string | string[] }>;
+}
+
+export default async function AdminPage({ searchParams }: AdminPageProps) {
+  const { tab } = await searchParams;
   const supabase = await createRouteHandlerClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) redirect('/login');
@@ -12,5 +17,5 @@ export default async function AdminPage() {
   const access = await checkAdminAccess({ user, adminSupabase: supabaseAdmin });
   if (!access.isAdmin) redirect('/');
 
-  return <SettingsClient />;
+  return <SettingsClient initialTab={tab === 'security' ? 'security' : 'account'} />;
 }
