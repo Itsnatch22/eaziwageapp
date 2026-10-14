@@ -22,9 +22,11 @@ import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { DeleteAccountModal } from '@/components/employee/DeleteAccountModal';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { MfaSection } from '@/components/security/MfaSection';
+import { SessionsSection } from '@/components/security/SessionsSection';
 import { getDocumentLabel } from '@/lib/document-labels';
 
 type ActivityLog = {
+  id?: string;
   action?: string;
   created_at?: string;
   metadata?: { 
@@ -297,7 +299,7 @@ export default function EmployeeSettings() {
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState({ emailAlerts: true, pushNotifications: true });
   const [notificationLoading, setNotificationLoading] = useState(false);
@@ -523,12 +525,20 @@ export default function EmployeeSettings() {
       const res = await fetch('/api/employee-dashboard/security/password', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword: passwordData.newPassword }),
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
       });
       
       if (res.ok) {
-        toast.success('Password updated successfully');
-        setPasswordData({ newPassword: '', confirmPassword: '' });
+        const result = await res.json() as { otherSessionsRevoked?: boolean; auditLogged?: boolean };
+        if (result.otherSessionsRevoked === false || result.auditLogged === false) {
+          toast.error('Password changed, but some security follow-up actions failed. Please contact support.');
+        } else {
+          toast.success('Password updated successfully');
+        }
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       } else {
         const error = await res.json();
         toast.error(error.error || 'Failed to update password');
@@ -906,7 +916,7 @@ export default function EmployeeSettings() {
                       <>
                         <div className="divide-y divide-slate-100 dark:divide-white/5">
                           {activityLogs.map((log, idx) => (
-                            <div key={idx} className="py-3 flex items-center justify-between">
+                            <div key={log.id ?? `${log.created_at}-${idx}`} className="py-3 flex items-center justify-between">
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">{(log.action || 'activity').replace('_', ' ')}</p>
                                 <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">{log.created_at ? new Date(log.created_at).toLocaleString() : 'Recent'}</p>
@@ -958,8 +968,22 @@ export default function EmployeeSettings() {
                   </div>
                 </SettingsCard>
 
+                <SettingsCard icon={Smartphone} title="Sessions" description="Review trusted devices and end other active sessions">
+                  <SessionsSection apiBase="/api/employee-dashboard/security/sessions" />
+                </SettingsCard>
+
                 <SettingsCard icon={Lock} title="Password" description="Update your security credentials">
                   <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Current Password</Label>
+                      <Input
+                        autoComplete="current-password"
+                        type="password"
+                        placeholder="Enter current password"
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                      />
+                    </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>New Password</Label>
@@ -983,7 +1007,7 @@ export default function EmployeeSettings() {
                     <Button 
                       className="bg-primary text-white" 
                       onClick={handlePasswordUpdate}
-                      disabled={passwordLoading || !passwordData.newPassword || !passwordData.confirmPassword}
+                      disabled={passwordLoading || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
                     >
                       {passwordLoading ? (
                         <div className="flex items-center gap-2">

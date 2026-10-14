@@ -8,7 +8,7 @@ import { loginLimiter, checkRateLimit, getRateLimitRetryMinutes } from '@/lib/ra
 import { sendAccountLockedEmail }          from '@/lib/security-alerts';
 import type { LoginContext }               from '@/lib/security-alerts';
 import { createUnlockToken }               from '@/lib/unlock-token';
-import { handleLoginSecurity }             from '@/lib/security-service';
+import { handleFailedLoginSecurity, handleLoginSecurity } from '@/lib/security-service';
 import { normalizeAppRole, resolveRoleFromTables } from '@/lib/server/resolve-user-role';
 
 
@@ -75,6 +75,35 @@ function getUserAgent(req: NextRequest): string {
     }
   }
   return ua;
+}
+
+function getRequestLocation(req: NextRequest): string | undefined {
+  const parts = [
+    req.headers.get('x-vercel-ip-city') ?? req.headers.get('cf-ipcity'),
+    req.headers.get('x-vercel-ip-country-region') ?? req.headers.get('cf-region'),
+    req.headers.get('x-vercel-ip-country') ?? req.headers.get('cf-ipcountry'),
+  ]
+    .map((part) => part?.trim().slice(0, 100))
+    .filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? parts.join(', ') : undefined;
+}
+
+function getSessionId(accessToken: string): string | null {
+  const encodedPayload = accessToken.split('.')[1];
+  if (!encodedPayload) return null;
+
+  try {
+    const payload: unknown = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+    if (typeof payload === 'object' && payload !== null && 'session_id' in payload) {
+      const sessionId = (payload as { session_id?: unknown }).session_id;
+      return typeof sessionId === 'string' ? sessionId : null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 async function verifyRecaptcha(token: string, remoteip: string): Promise<boolean> {
@@ -331,6 +360,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ip,
       userAgent,
       timestamp: new Date(),
+      location: getRequestLocation(req),
       fingerprintVisitorId: input.fingerprint_visitor_id,
     };
     const recordId   = isAdmin ? adminRecord?.id   : profileRecord?.id;
@@ -339,6 +369,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (recordId) {
       console.log('[login] Recording failed attempt for:', recordId);
       await recordFailedAttempt(recordId, recordName, input.email, isAdmin, loginCtx);
+      handleFailedLoginSecurity(recordId, input.email, loginCtx).catch(
+        (err) => console.error('[security] Failed login history write failed:', err)
+      );
     } else {
       console.log('[login] No record ID found, cannot track failed attempts');
     }
@@ -391,7 +424,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ip,
       userAgent,
       timestamp: new Date(),
+      location: getRequestLocation(req),
       fingerprintVisitorId: input.fingerprint_visitor_id,
+      sessionId: getSessionId(authData.session.access_token),
     };
     
     handleLoginSecurity(successId, input.email, successName, loginCtx).catch(

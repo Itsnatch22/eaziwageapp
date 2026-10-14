@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { notifyAdmin } from '@/lib/notifications';
 import { getEnv } from '@/env';
 import { z } from 'zod';
+import { requireRecentMfa } from '@/lib/server/recent-mfa';
 
 const bankChangeSchema = z.object({
   bank_name: z.string().min(2, 'Bank name is required'),
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest) {
     if (!profile || profile.role !== 'employer') {
       return NextResponse.json({ error: 'Forbidden. Employer access required.' }, { status: 403 });
     }
+
+    const stepUpResponse = await requireRecentMfa(supabase, user.id);
+    if (stepUpResponse) return stepUpResponse;
 
     const { data: employer, error: employerError } = await supabase
       .from('employers')

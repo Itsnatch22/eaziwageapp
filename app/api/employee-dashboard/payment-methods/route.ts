@@ -18,6 +18,7 @@ import { dbErrorResponse } from '@/lib/api-errors';
 import { notifyAdmin } from '@/lib/notifications';
 import { EmployeePaymentMethodChangeRequestSchema } from '@/lib/validations/route-schemas';
 import { normalizeCountryCode } from '@/lib/utils';
+import { requireRecentMfa } from '@/lib/server/recent-mfa';
 
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -78,6 +79,9 @@ export async function POST(req: NextRequest) {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const stepUpResponse = await requireRecentMfa(supabase, user.id);
+    if (stepUpResponse) return stepUpResponse;
 
     const employee = await resolveEmployeeId(adminSupabase, user.id);
     if (!employee) return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
@@ -344,6 +348,9 @@ export async function DELETE(req: NextRequest) {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const stepUpResponse = await requireRecentMfa(supabase, user.id);
+    if (stepUpResponse) return stepUpResponse;
 
     const employee = await resolveEmployeeId(adminSupabase, user.id);
     if (!employee) return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });

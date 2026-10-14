@@ -4,6 +4,8 @@ import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
 import { apiLimiter, mfaActionLimiter, mfaVerifyLimiter, checkRateLimit, type RateLimitResult } from '@/lib/rate-limit';
 import { getEnv } from '@/env';
+import { requireRecentMfa } from '@/lib/server/recent-mfa';
+import { sendMfaDisabledEmail } from '@/lib/security-alerts';
 
 // Backup codes aren't a real Supabase MFA factor, so verifying one can't elevate
 // the session to Supabase's own aal2 the way challengeAndVerify does. Instead we
@@ -145,7 +147,8 @@ export async function handleMfaGet(req: NextRequest, keyPrefix: string): Promise
 export async function handleMfaPost(
   req: NextRequest,
   keyPrefix: string,
-  defaultFriendlyName: string
+  defaultFriendlyName: string,
+  securityUrl = 'https://app.eaziwage.com/security',
 ): Promise<NextResponse> {
   const ip = getMfaClientIp(req);
   const apiRate = await checkRateLimit(apiLimiter, `mfa-api${keyPrefix}:${ip}`);
@@ -178,10 +181,49 @@ export async function handleMfaPost(
         { headers: actionHeaders }
       );
 
+    } else if (action === 'step_up' && keyPrefix !== '') {
+      const verifyRate = await checkRateLimit(mfaVerifyLimiter, `mfa-step-up${keyPrefix}:${user.id}`);
+      const verifyHeaders = buildRateLimitHeaders(verifyRate);
+      if (!verifyRate.success) {
+        return NextResponse.json({ error: 'Too many verification attempts' }, { status: 429, headers: verifyHeaders });
+      }
+
+      const code = typeof body?.code === 'string' ? body.code.trim() : '';
+      if (!/^\d{6}$/.test(code)) {
+        return NextResponse.json({ error: 'Enter a valid 6-digit authenticator code.' }, { status: 400, headers: verifyHeaders });
+      }
+
+      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+      if (factorsError) {
+        console.error('[MFA][step-up] listFactors error:', { userId: user.id, ip, error: factorsError });
+        return NextResponse.json({ error: 'Failed to verify authenticator' }, { status: 500, headers: verifyHeaders });
+      }
+
+      const factor = factors?.all?.find((item) => item.factor_type === 'totp' && item.status === 'verified');
+      if (!factor) {
+        return NextResponse.json({ error: 'No verified authenticator is available.' }, { status: 403, headers: verifyHeaders });
+      }
+
+      const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+        factorId: factor.id,
+        code,
+      });
+      if (verifyError) {
+        console.error('[MFA][step-up] verification failed:', { userId: user.id, ip, error: verifyError });
+        return NextResponse.json({ error: 'Invalid verification code' }, { status: 400, headers: verifyHeaders });
+      }
+
+      return NextResponse.json({ success: true }, { headers: verifyHeaders });
+
     } else if (action === 'disable') {
       const actionRate = await checkRateLimit(mfaActionLimiter, actionKey);
       const actionHeaders = buildRateLimitHeaders(actionRate);
       if (!actionRate.success) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: actionHeaders });
+
+      if (keyPrefix !== '') {
+        const stepUpResponse = await requireRecentMfa(supabase, user.id);
+        if (stepUpResponse) return stepUpResponse;
+      }
 
       const factorId = typeof body?.factorId === 'string' ? body.factorId : null;
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
@@ -215,6 +257,15 @@ export async function handleMfaPost(
         });
       } catch (auditErr) {
         console.error('[MFA][disable] audit insert failed:', auditErr);
+      }
+
+      if (keyPrefix !== '' && user.email) {
+        const fullName = typeof user.user_metadata?.full_name === 'string'
+          ? user.user_metadata.full_name
+          : user.email;
+        void sendMfaDisabledEmail(user.email, fullName, securityUrl).catch((emailError: unknown) => {
+          console.error('[MFA][disable] notification failed:', { userId: user.id, error: emailError });
+        });
       }
 
       return NextResponse.json({ success: true, message: 'MFA disabled successfully' }, { headers: actionHeaders });

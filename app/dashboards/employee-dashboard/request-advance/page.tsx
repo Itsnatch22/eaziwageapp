@@ -33,6 +33,8 @@ import { SubmitButton } from "@/components/ui/SubmitButton";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { createClient } from "@/lib/supabase/client";
+import { useStepUpPrompt } from "@/hooks/useStepUpPrompt";
+import { isStepUpRequiredResponse } from "@/lib/client/step-up";
 
 interface EmployeeProfile {
   id?: string;
@@ -189,6 +191,7 @@ interface PaymentMethod {
 }
 
 export default function RequestAdvance() {
+  const { requireStepUp, stepUpPrompt } = useStepUpPrompt('/api/employee-dashboard/security/mfa');
   const { currency } = useCurrency();
   const router = useRouter();
   const [employee, setEmployee] = useState<EmployeeProfile | null>(null);
@@ -347,7 +350,11 @@ export default function RequestAdvance() {
           }),
         });
       if (res.status === 401) return;
-      if (res.ok) {
+        if (await isStepUpRequiredResponse(res)) {
+          requireStepUp(() => handleSubmit());
+          return;
+        }
+        if (res.ok) {
         toast.success("Funds requested successfully!");
         router.push("/dashboards/employee-dashboard/transactions");
       } else {
@@ -370,6 +377,7 @@ export default function RequestAdvance() {
   if (loading)
     return (
       <EmployeePortalLayout>
+        {stepUpPrompt}
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="grid sm:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-32 rounded-2xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />)}</div>
         </div>
@@ -380,6 +388,7 @@ export default function RequestAdvance() {
   if (!isVerified)
     return (
       <EmployeePortalLayout>
+        {stepUpPrompt}
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="grid sm:grid-cols-3 gap-4">
             <MetricCard
@@ -450,6 +459,7 @@ export default function RequestAdvance() {
 
   return (
     <EmployeePortalLayout>
+      {stepUpPrompt}
       <div className="max-w-5xl mx-auto space-y-6">
         
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

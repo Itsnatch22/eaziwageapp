@@ -14,6 +14,7 @@ import { requestLogger } from '@/lib/logger';
 import { decryptAndMaskRow } from '@/lib/paymentMethodsService';
 import { tryAutoApproveAdvance } from '@/lib/services/advance-approval';
 import { isConnectionExhaustionError } from '@/lib/api-errors';
+import { requireRecentMfa } from '@/lib/server/recent-mfa';
 
 export const runtime = 'nodejs';
 
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest) {
     }
     userId = user.id;
     log.info('Request started', { userId });
+
+    const stepUpResponse = await requireRecentMfa(supabase, user.id);
+    if (stepUpResponse) return stepUpResponse;
 
     const rateLimit = await checkRateLimit(advanceLimiter, `advance:${user.id}`);
     if (!rateLimit.success) {

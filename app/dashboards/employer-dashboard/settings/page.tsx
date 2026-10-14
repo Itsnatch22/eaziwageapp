@@ -1,6 +1,6 @@
 "use client"
 /* eslint-disable react/no-unescaped-entities */
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import {
   Building2, Users, CreditCard, Bell,
   Shield, Clock, Save, AlertCircle, CheckCircle2,
@@ -26,6 +26,8 @@ import { AvatarUpload } from '@/components/ui/AvatarUpload';
 import { createClient } from '@/lib/supabase/client';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { CopyButton } from '@/components/shared/CopyButton';
+import { SessionsSection } from '@/components/security/SessionsSection';
+import { StepUpPrompt } from '@/components/security/StepUpPrompt';
 import {
   Dialog,
   DialogContent,
@@ -89,6 +91,7 @@ interface MFAFactor {
 }
 
 interface ActivityLog {
+  id?: string;
   action: string;
   created_at: string;
   metadata?: {
@@ -576,10 +579,13 @@ export default function EmployerSettings() {
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [logPage, setLogPage] = useState(1);
-  const LOGS_PER_PAGE = 5;
+  const [logPage, setLogPage] = useState(0);
+  const [logTotal, setLogTotal] = useState(0);
+  const LOGS_PER_PAGE = 10;
   const [updatingPassword, setUpdatingPassword] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [showStepUp, setShowStepUp] = useState(false);
+  const pendingStepUpAction = useRef<(() => Promise<void>) | null>(null);
 
   const [settings, setSettings] = useState<Settings>({
     maxAdvancePercentage: 50,
@@ -615,6 +621,12 @@ export default function EmployerSettings() {
     countyRegion: '',
     country: 'KE',
   });
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('tab') === 'security') {
+      Promise.resolve().then(() => setActiveTab('security'));
+    }
+  }, []);
 
 
   const fetchData = async (options?: { silent?: boolean }) => {
@@ -723,14 +735,14 @@ export default function EmployerSettings() {
       setLogsLoading(true);
       try {
         const [logsRes, mfaRes] = await Promise.all([
-          fetch('/api/auth/activity-logs'),
+          fetch(`/api/auth/activity-logs?page=${logPage}`),
           fetch('/api/employer-dashboard/security/mfa')
         ]);
         
         if (logsRes.ok) {
           const data = await logsRes.json();
           setActivityLogs(data.logs || []);
-          setLogPage(1);
+          setLogTotal(data.total ?? 0);
         }
         
         if (mfaRes.ok) {
@@ -746,7 +758,7 @@ export default function EmployerSettings() {
     };
     
     void fetchSecurityData();
-  }, [activeTab]);
+  }, [activeTab, logPage]);
 
 
 
@@ -782,6 +794,13 @@ export default function EmployerSettings() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'disable' }),
         });
+        const payload = await res.clone().json().catch(() => null) as { code?: string } | null;
+        if (res.status === 403 && payload?.code === 'STEP_UP_REQUIRED') {
+          setMfaStatus(prev => ({ ...prev, loading: false }));
+          pendingStepUpAction.current = () => handleMfaToggle(false);
+          setShowStepUp(true);
+          return;
+        }
         
         if (res.ok) {
           setMfaStatus({ enabled: false, loading: false, showSetup: false, qrCode: '', factorId: '' });
@@ -839,8 +858,14 @@ export default function EmployerSettings() {
       const res = await fetch('/api/employer-dashboard/security/mfa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'disable', factorId }),
+      body: JSON.stringify({ action: 'disable', factorId }),
       });
+      const payload = await res.clone().json().catch(() => null) as { code?: string } | null;
+      if (res.status === 403 && payload?.code === 'STEP_UP_REQUIRED') {
+       pendingStepUpAction.current = () => handleDisableFactor(factorId);
+       setShowStepUp(true);
+       return;
+      }
       if (res.ok) {
         toast.success('Authenticator removed');
         const statusRes = await fetch('/api/employer-dashboard/security/mfa');
@@ -952,6 +977,12 @@ export default function EmployerSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      const payload = await res.clone().json().catch(() => null) as { code?: string } | null;
+      if (res.status === 403 && payload?.code === 'STEP_UP_REQUIRED') {
+        pendingStepUpAction.current = () => handleBankChangeRequest(data);
+        setShowStepUp(true);
+        return;
+      }
       if (res.ok) {
         toast.success("Bank change request sent successfully");
         setShowBankModal(false);
@@ -980,11 +1011,19 @@ export default function EmployerSettings() {
       const res = await fetch("/api/employer-dashboard/security/password", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword: passwordForm.newPassword }),
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
       });
       if (res.ok) {
-        toast.success("Password updated successfully");
-        setPasswordForm({ newPassword: '', confirmPassword: '' });
+        const result = await res.json() as { otherSessionsRevoked?: boolean; auditLogged?: boolean };
+        if (result.otherSessionsRevoked === false || result.auditLogged === false) {
+          toast.error("Password changed, but some security follow-up actions failed. Please contact support.");
+        } else {
+          toast.success("Password updated successfully");
+        }
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       } else {
         toast.error(await getResponseErrorMessage(res, "Failed to update password"));
       }
@@ -1004,6 +1043,12 @@ export default function EmployerSettings() {
     setSaving(true);
     try {
       const res = await fetch('/api/employer-dashboard/termination/terminate', { method: 'POST' });
+      const payload = await res.clone().json().catch(() => null) as { code?: string } | null;
+      if (res.status === 403 && payload?.code === 'STEP_UP_REQUIRED') {
+        pendingStepUpAction.current = () => handleTerminateAccount();
+        setShowStepUp(true);
+        return;
+      }
       if (res.ok) {
         toast.success("Your account has been terminated.");
         setShowTerminationDialog(false);
@@ -1019,6 +1064,13 @@ export default function EmployerSettings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const completeStepUp = async () => {
+    setShowStepUp(false);
+    const retry = pendingStepUpAction.current;
+    pendingStepUpAction.current = null;
+    await retry?.();
   };
 
   const handleNotificationUpdate = async (
@@ -1826,14 +1878,13 @@ export default function EmployerSettings() {
                   ) : activityLogs.length === 0 ? (
                     <p className="text-xs text-slate-500 text-center py-4">No recent security events.</p>
                   ) : (() => {
-                    const totalPages = Math.ceil(activityLogs.length / LOGS_PER_PAGE);
-                    const pageStart = (logPage - 1) * LOGS_PER_PAGE;
-                    const pageLogs = activityLogs.slice(pageStart, pageStart + LOGS_PER_PAGE);
+                    const totalPages = Math.ceil(logTotal / LOGS_PER_PAGE);
+                    const pageLogs = activityLogs;
                     return (
                       <>
                         <div className="divide-y divide-slate-100 dark:divide-white/5">
                           {pageLogs.map((log, idx) => (
-                            <div key={idx} className="py-3 flex items-center justify-between">
+                            <div key={log.id ?? `${log.created_at}-${idx}`} className="py-3 flex items-center justify-between">
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-slate-900 dark:text-white capitalize">
                                   {log.action.replace(/_/g, ' ')}
@@ -1858,18 +1909,18 @@ export default function EmployerSettings() {
                         {totalPages > 1 && (
                           <div className="flex items-center justify-between pt-4 mt-2 border-t border-slate-100 dark:border-white/5">
                             <button
-                              onClick={() => setLogPage((p) => Math.max(1, p - 1))}
-                              disabled={logPage === 1}
+                              onClick={() => setLogPage((p) => Math.max(0, p - 1))}
+                              disabled={logPage === 0}
                               className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
                               <ChevronLeft className="w-4 h-4" /> Previous
                             </button>
                             <span className="text-xs text-slate-500 dark:text-slate-400">
-                              Page {logPage} of {totalPages}
+                              Page {logPage + 1} of {totalPages}
                             </span>
                             <button
-                              onClick={() => setLogPage((p) => Math.min(totalPages, p + 1))}
-                              disabled={logPage === totalPages}
+                              onClick={() => setLogPage((p) => Math.min(totalPages - 1, p + 1))}
+                              disabled={logPage + 1 >= totalPages}
                               className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
                               Next <ChevronRight className="w-4 h-4" />
@@ -1881,6 +1932,10 @@ export default function EmployerSettings() {
                   })()}
                 </SettingsCard>
 
+                <SettingsCard icon={Smartphone} title="Sessions" description="Review trusted devices and end other active sessions">
+                  <SessionsSection apiBase="/api/employer-dashboard/security/sessions" />
+                </SettingsCard>
+
                 <SettingsCard icon={Lock} title="Password" description="Update your account password">
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -1890,6 +1945,8 @@ export default function EmployerSettings() {
                         placeholder="Enter current password"
                         className="bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
                         data-testid="current-password"
+                        value={passwordForm.currentPassword}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
                       />
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
@@ -1918,7 +1975,7 @@ export default function EmployerSettings() {
                     </div>
                     <Button
                       onClick={handlePasswordUpdate}
-                      disabled={updatingPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
+                      disabled={updatingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
                       className="bg-primary text-white"
                       data-testid="update-password-btn"
                     >
@@ -2013,6 +2070,17 @@ export default function EmployerSettings() {
         onSubmit={handleBankChangeRequest}
         isSubmitting={saving}
       />
+
+      {showStepUp && (
+        <StepUpPrompt
+          apiBase="/api/employer-dashboard/security/mfa"
+          onCancel={() => {
+            setShowStepUp(false);
+            pendingStepUpAction.current = null;
+          }}
+          onVerified={completeStepUp}
+        />
+      )}
 
       
       {showMfaModal && (

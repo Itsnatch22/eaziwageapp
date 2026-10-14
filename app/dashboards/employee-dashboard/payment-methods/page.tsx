@@ -14,6 +14,8 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Banner } from '@/components/Banner';
+import { useStepUpPrompt } from '@/hooks/useStepUpPrompt';
+import { isStepUpRequiredResponse } from '@/lib/client/step-up';
 
 type BankVerificationStatus = 'unverified' | 'pending_review' | 'approved' | 'rejected';
 
@@ -40,6 +42,7 @@ interface PayoutProvider {
 }
 
 const PaymentMethods = () => {
+  const { requireStepUp, stepUpPrompt } = useStepUpPrompt('/api/employee-dashboard/security/mfa');
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -173,8 +176,8 @@ const PaymentMethods = () => {
     newMethod.method_type === 'mobile_money' ? p.method_type === 'mobile_money' : p.method_type === 'bank_transfer'
   );
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAdd = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setAdding(true);
     try {
       const payload = {
@@ -192,6 +195,10 @@ const PaymentMethods = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      if (await isStepUpRequiredResponse(res)) {
+        requireStepUp(() => handleAdd());
+        return;
+      }
       if (res.ok) {
         toast.success('Payment method added. Verify it to enable withdrawals.');
         setShowAddModal(false);
@@ -210,10 +217,14 @@ const PaymentMethods = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this payment method?')) return;
+  const handleDelete = async (id: string, confirmed = false) => {
+    if (!confirmed && !confirm('Are you sure you want to remove this payment method?')) return;
     try {
       const res = await fetch(`/api/employee-dashboard/payment-methods?id=${id}`, { method: 'DELETE' });
+      if (await isStepUpRequiredResponse(res)) {
+        requireStepUp(() => handleDelete(id, true));
+        return;
+      }
       if (res.ok) {
         toast.success('Method removed');
         fetchMethods();
@@ -235,6 +246,10 @@ const PaymentMethods = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'request_verification', id }),
       });
+      if (await isStepUpRequiredResponse(res)) {
+        requireStepUp(() => requestVerification(id));
+        return;
+      }
       if (res.ok) {
         toast.success('Verification code sent. Check your phone.');
         setOtpInput('');
@@ -261,6 +276,10 @@ const PaymentMethods = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'confirm_verification', id: verifyingMethodId, otp: otpInput }),
       });
+      if (await isStepUpRequiredResponse(res)) {
+        requireStepUp(() => submitOtp());
+        return;
+      }
       const json = await res.json().catch(() => null);
       if (res.ok) {
         toast.success('Payment method verified');
@@ -293,11 +312,20 @@ const PaymentMethods = () => {
     const formData = new FormData();
     formData.append('file', file);
 
+    await handleDocumentUpload(formData, id);
+  };
+
+  const handleDocumentUpload = async (formData: FormData, id: string) => {
+    setUploadingDocForId(id);
     try {
       const res = await fetch(`/api/employee-dashboard/payment-methods/${id}/document`, {
         method: 'POST',
         body: formData,
       });
+      if (await isStepUpRequiredResponse(res)) {
+        requireStepUp(() => handleDocumentUpload(formData, id));
+        return;
+      }
       const json = await res.json().catch(() => null);
       if (res.ok) {
         toast.success('Document submitted. An admin will review it shortly.');
@@ -350,6 +378,10 @@ const PaymentMethods = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if (await isStepUpRequiredResponse(res)) {
+        requireStepUp(() => submitChangeRequest());
+        return;
+      }
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || 'Failed to submit change request');
       toast.success(json?.message || 'Change request submitted');
@@ -369,6 +401,7 @@ const PaymentMethods = () => {
 
   return (
     <EmployeePortalLayout>
+      {stepUpPrompt}
       <input
         ref={fileInputRef}
         type="file"

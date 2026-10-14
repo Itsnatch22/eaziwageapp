@@ -40,16 +40,22 @@ export async function handleLoginSecurity(
   const { ip, userAgent } = ctx;
 
   try {
-    await supabaseAdmin.from("login_history").insert({
+    const deviceFingerprint = buildDeviceFingerprint(ctx);
+    const { error: historyError } = await supabaseAdmin.from("login_history").insert({
       user_id: userId,
       email: email.toLowerCase(),
       ip_address: ip,
       user_agent: userAgent,
+      location: ctx.location ?? null,
+      device_fingerprint: deviceFingerprint,
+      session_id: ctx.sessionId ?? null,
       success: true,
       logged_in_at: new Date().toISOString(),
     });
+    if (historyError) {
+      console.error('[security-service] Successful login history insert failed:', { userId, error: historyError });
+    }
 
-    const deviceFingerprint = buildDeviceFingerprint(ctx);
     const { data: trustedDevice, error: fetchError } = await supabaseAdmin
       .from("trusted_devices")
       .select("id")
@@ -94,3 +100,23 @@ export async function handleLoginSecurity(
   }
 }
 
+export async function handleFailedLoginSecurity(
+  userId: string,
+  email: string,
+  ctx: LoginContext,
+): Promise<void> {
+  const { error } = await supabaseAdmin.from('login_history').insert({
+    user_id: userId,
+    email: email.toLowerCase(),
+    ip_address: ctx.ip,
+    user_agent: ctx.userAgent,
+    location: ctx.location ?? null,
+    device_fingerprint: buildDeviceFingerprint(ctx),
+    session_id: null,
+    success: false,
+    logged_in_at: ctx.timestamp.toISOString(),
+  });
+  if (error) {
+    console.error('[security-service] Failed login history insert failed:', { userId, error });
+  }
+}

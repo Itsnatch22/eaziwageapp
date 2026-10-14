@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAppRole, resolveRoleFromTables } from "@/lib/server/resolve-user-role";
 import type { AppRole } from "@/lib/server/resolve-user-role";
 import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie, DEVICE_TRUST_COOKIE, verifyDeviceTrustCookie } from "@/lib/mfa-handler";
+import { getEmployerMfaEnrollmentRedirect, isEmployerMfaSetupApiAllowed } from "@/lib/server/employer-mfa-enforcement";
 
 function hasValidBackupCodeCookie(req: NextRequest, userId: string): boolean {
   return verifyMfaBackupCookie(req.cookies.get(MFA_BACKUP_COOKIE)?.value, userId);
@@ -202,10 +203,9 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL("/", req.url));
     }
 
-    // MFA enforcement: Supabase's nextLevel is only 'aal2' for users who have an
-    // actually-verified TOTP factor, so this never affects users who haven't
-    // opted into MFA. Users who have must complete a challenge (TOTP or backup
-    // code) each fresh session before reaching any dashboard/API route — unless
+    // MFA enforcement: users with a verified factor must complete a challenge
+    // (TOTP or backup code) each fresh session before reaching dashboard/API
+    // routes — unless
     // this device already completed one within the last 30 days
     // (hasValidDeviceTrustCookie), matching standard practice of only
     // re-challenging on first login, a new/unrecognized device, or sensitive
@@ -239,6 +239,25 @@ export async function proxy(req: NextRequest) {
     }
 
     const isEmployerDashboardApi = pathname.startsWith('/api/employer-dashboard/');
+    const employerMfaEnforced = role === 'employer'
+      && !isPlaywrightTestBypass
+      && process.env.REQUIRE_EMPLOYER_MFA?.toLowerCase() !== 'false';
+    const employerNeedsMfaEnrollment = employerMfaEnforced && aalData?.nextLevel !== 'aal2';
+
+    if (employerNeedsMfaEnrollment) {
+      if (isEmployerDashboardApi) {
+        if (!isEmployerMfaSetupApiAllowed(pathname)) {
+          return NextResponse.json(
+            { error: 'Multi-factor authentication enrollment is required.', code: 'MFA_ENROLLMENT_REQUIRED' },
+            { status: 403 },
+          );
+        }
+      } else if (pathname.startsWith('/dashboards/employer-dashboard')) {
+        const redirectPath = getEmployerMfaEnrollmentRedirect(pathname, req.nextUrl.searchParams.get('tab'));
+        if (redirectPath) return NextResponse.redirect(new URL(redirectPath, req.url));
+      }
+    }
+
     if (role !== 'admin' && (isDashboard || (role === 'employer' && isEmployerDashboardApi))) {
       const terminatedPath = '/dashboards/employer-dashboard/terminated';
       const restorePath = '/api/employer-dashboard/termination/restore';

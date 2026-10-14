@@ -4,6 +4,7 @@ import { getEnv } from "../env";
 import { AccountLockedEmail } from "./emails/security/AccountLockedEmail";
 import { LoginNotificationEmail } from "./emails/security/LoginNotificationEmail";
 import { PasswordChangedEmail } from "./emails/security/PasswordChangedEmail";
+import { MfaDisabledEmail } from "./emails/security/MfaDisabledEmail";
 
 const env = getEnv();
 const resend = new Resend(env.RESEND_API_KEY);
@@ -21,6 +22,7 @@ export interface LoginContext {
   timestamp: Date;
   location?: string;
   fingerprintVisitorId?: string;
+  sessionId?: string | null;
 }
 
 /**
@@ -173,6 +175,40 @@ export async function sendPasswordChangedEmail(
     return { success: true };
   } catch (err) {
     console.error("Error sending password changed email:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+export async function sendMfaDisabledEmail(
+  email: string,
+  fullName: string,
+  securityUrl = `${BASE_URL}/security`,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const html = await render(MfaDisabledEmail({ fullName, securityUrl }));
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email,
+      subject: "Security alert: MFA was disabled on your EaziWage account",
+      html,
+      tags: [
+        { name: "category", value: "security" },
+        { name: "type", value: "mfa-disabled" },
+      ],
+    });
+
+    if (error) {
+      console.error("Failed to send MFA-disabled email:", error);
+      return { success: false, error: error.message };
+    }
+
+    console.log(`MFA-disabled email sent to ${email}, ID: ${data?.id}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Error sending MFA-disabled email:", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Unknown error",

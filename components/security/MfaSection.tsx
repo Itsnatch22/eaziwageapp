@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { downloadBackupCodesCsv } from '@/lib/utils';
 import { CopyButton } from '@/components/shared/CopyButton';
+import { StepUpPrompt } from '@/components/security/StepUpPrompt';
 
 interface MfaFactor {
   id: string;
@@ -48,6 +49,7 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
   const [showManage, setShowManage] = useState(false);
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [stepUpFactorId, setStepUpFactorId] = useState<string | null>(null);
 
   const refreshStatus = async () => {
     try {
@@ -129,7 +131,7 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
     }
   };
 
-  const disableFactor = async (id: string) => {
+  const disableFactor = async (id: string, afterStepUp = false) => {
     try {
       const res = await fetch(apiBase, {
         method: 'POST',
@@ -137,8 +139,13 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
         body: JSON.stringify({ action: 'disable', factorId: id }),
       });
       const data = await res.json();
+      if (res.status === 403 && data.code === 'STEP_UP_REQUIRED' && !afterStepUp) {
+        setStepUpFactorId(id);
+        return;
+      }
       if (res.ok && (data.success ?? true)) {
         toast.success('MFA factor removed');
+        setStepUpFactorId(null);
         await refreshStatus();
       } else {
         toast.error(data.error || 'Failed to remove factor');
@@ -312,6 +319,13 @@ export function MfaSection({ apiBase, friendlyName = 'EaziWage Authenticator' }:
           </div>
         </div>,
         document.body
+      )}
+      {stepUpFactorId && (
+        <StepUpPrompt
+          apiBase={apiBase}
+          onCancel={() => setStepUpFactorId(null)}
+          onVerified={() => disableFactor(stepUpFactorId, true)}
+        />
       )}
     </div>
   );

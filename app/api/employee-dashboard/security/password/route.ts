@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/utils/supabase/server";
 import { mfaActionLimiter, checkRateLimit } from "@/lib/rate-limit";
-import { PasswordChangeSchema } from "@/lib/validations/route-schemas";
+import { CurrentPasswordChangeSchema } from "@/lib/validations/route-schemas";
 import { dbErrorResponse } from "@/lib/api-errors";
+import { finishPasswordChange, verifyCurrentPassword } from "@/lib/security-password";
 
 export const runtime = "nodejs";
 
@@ -20,16 +21,25 @@ export async function PUT(req: NextRequest) {
     }
 
     const rate = await checkRateLimit(mfaActionLimiter, `password-change:${user.id}`);
-    if (!rate.success) return NextResponse.json({ error: "Too many password change attempts. Please wait." }, { status: 429 });
+    if (!rate.success) {
+      return NextResponse.json(
+        { error: "Too many password change attempts. Please wait." },
+        { status: 429, headers: rate.headers },
+      );
+    }
 
-    const pwParsed = PasswordChangeSchema.safeParse(await req.json().catch(() => null));
+    const pwParsed = CurrentPasswordChangeSchema.safeParse(await req.json().catch(() => null));
     if (!pwParsed.success) {
       return NextResponse.json(
         { error: 'Validation failed', issues: pwParsed.error.issues },
         { status: 422 },
       );
     }
-    const { newPassword } = pwParsed.data;
+    const { currentPassword, newPassword } = pwParsed.data;
+
+    if (!user.email || !(await verifyCurrentPassword(user.email, currentPassword))) {
+      return NextResponse.json({ error: "Current password is incorrect." }, { status: 400 });
+    }
 
     const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword
@@ -40,7 +50,12 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "Failed to update password" }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, message: "Password updated successfully" });
+    const followUp = await finishPasswordChange(supabase, user);
+    return NextResponse.json({
+      success: true,
+      message: "Password updated successfully",
+      ...followUp,
+    });
 
   } catch (error: unknown) {
     return dbErrorResponse('employee-dashboard/security/password', error);

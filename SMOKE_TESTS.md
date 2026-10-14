@@ -1,3 +1,51 @@
+# Smoke Tests — Account Security Hardening
+
+Run these checks in staging with test accounts. Do not submit a real advance
+request or use production financial data while validating step-up enforcement.
+
+## Employer MFA enforcement
+
+- With no verified TOTP factor and `REQUIRE_EMPLOYER_MFA` unset, opening an
+  employer dashboard route redirects to
+  `/dashboards/employer-dashboard/settings?tab=security`.
+- The security settings page remains accessible, the MFA enrollment flow can
+  complete, and the user is not redirected away while enrolling.
+- An employer dashboard API other than the MFA or sessions endpoints returns
+  `403` with code `MFA_ENROLLMENT_REQUIRED` until enrollment is complete.
+- With `REQUIRE_EMPLOYER_MFA=false`, employers without MFA retain normal access.
+- With `PLAYWRIGHT_TEST=1` outside production, the existing Playwright bypass
+  still works.
+
+## Password and sessions
+
+- Both employer and employee password forms require the current password.
+  An incorrect current password does not update the account; a correct one
+  changes it, signs out other sessions, emails the account, and adds a
+  `password_changed` audit event.
+- The activity feed shows successful and failed login events, MFA/password
+  audit events, and paginates consistently on both settings pages.
+- The sessions section lists only the signed-in user's trusted devices.
+  Removing a device does not log it out; its next login is reported as a new
+  device. “Sign out all other sessions” leaves the current session active.
+
+## Step-up verification
+
+- A sensitive action after a TOTP verification older than 10 minutes prompts
+  for a 6-digit authenticator code and retries the original action only after
+  successful verification.
+- Exercise this flow for employer bank-change requests and termination, plus
+  employee payment-method changes and advance requests, using staging test
+  data only.
+- Disabling MFA requires recent TOTP verification and sends an email alert.
+
+## Running automated security tests
+
+```bash
+npm run test:unit -- tests/unit/security-hardening.test.ts
+npx tsc --noEmit
+npm run lint
+```
+
 # Smoke Tests — Reconcile DusuPay Watchdog
 
 This document describes the smoke tests for the automatic reservation release feature in the reconcile-dusupay cron job.

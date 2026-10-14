@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseAdmin';
+import { requireRecentMfa } from '@/lib/server/recent-mfa';
 
 export async function POST() {
   try {
@@ -11,6 +12,9 @@ export async function POST() {
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const stepUpResponse = await requireRecentMfa(supabase, user.id);
+    if (stepUpResponse) return stepUpResponse;
 
     const { data: employer, error: employerError } = await adminSupabase
       .from('employers')

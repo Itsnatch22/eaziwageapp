@@ -5,6 +5,7 @@ import { getSafeFileExtension, isDocumentFile } from '@/lib/upload-file-types';
 import { MAX_FILE_SIZE } from '@/lib/validations/kyc-validation';
 import { notifyAdmin } from '@/lib/notifications';
 import { dbErrorResponse } from '@/lib/api-errors';
+import { requireRecentMfa } from '@/lib/server/recent-mfa';
 
 export const runtime = 'nodejs';
 
@@ -28,6 +29,9 @@ export async function POST(
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const stepUpResponse = await requireRecentMfa(supabase, user.id);
+    if (stepUpResponse) return stepUpResponse;
 
     const { data: employee } = await adminSupabase
       .from('employees')

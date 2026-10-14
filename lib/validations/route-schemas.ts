@@ -149,6 +149,19 @@ export const AdminNotificationsMarkReadSchema = z.object({
 
 export const PasswordChangeSchema = z.object({
   newPassword: PasswordField,
+  currentPassword: PasswordField.optional(),
+});
+
+export const CurrentPasswordChangeSchema = PasswordChangeSchema.extend({
+  currentPassword: PasswordField,
+});
+
+export const SecuritySessionDeleteSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export const ActivityLogsQuerySchema = z.object({
+  page: z.coerce.number().int().min(0).max(1000).default(0),
 });
 
 // ---------------------------------------------------------------------------
