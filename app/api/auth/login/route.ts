@@ -386,22 +386,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   console.log('[login] Auth SUCCESS for user:', user.id);
 
   if (!isAdmin && profileRecord && !profileRecord.email_verified) {
-    const authEmailVerified = Boolean(user.email_confirmed_at);
-    if (authEmailVerified) {
-      const { error: verifySyncError } = await supabaseAdmin
-        .from('profiles')
-        .update({ email_verified: true })
-        .eq('id', profileRecord.id);
-
-      if (verifySyncError) {
-        console.error('[login] failed to sync email_verified from auth user:', verifySyncError);
-      } else {
-        profileRecord.email_verified = true;
-      }
-    }
-  }
-
-  if (!isAdmin && profileRecord && !profileRecord.email_verified) {
     console.log('[login] BLOCKED: Email not verified, userId:', user.id);
     return NextResponse.json(
       {

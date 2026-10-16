@@ -70,27 +70,22 @@ export async function POST(req: NextRequest) {
     const mlog = log.child({ event, merchantRef: merchantReference });
 
     // Idempotency: check stored state BEFORE upserting so we read the pre-existing status.
-    const { data: existingTx } = await supabaseAdmin
+    const { data: existingTx, error: existingTxError } = await supabaseAdmin
       .from('dusupay_transactions')
       .select('status')
       .eq('merchant_reference', merchantReference)
       .eq('event_type', event)
       .maybeSingle();
 
+    if (existingTxError) {
+      mlog.error('Failed to check webhook idempotency state', { err: existingTxError });
+      return NextResponse.json({ error: 'Failed to check webhook state' }, { status: 500 });
+    }
+
     if (existingTx?.status === 'COMPLETED') {
       mlog.info('Already processed — skipping');
       return NextResponse.json({ received: true }, { status: 200 });
     }
-
-    await supabaseAdmin.from('dusupay_transactions').upsert({
-      merchant_reference: merchantReference,
-      internal_reference: internalReference,
-      event_type: event,
-      status: transactionStatus,
-      amount: amount,
-      currency: currency,
-      raw_payload: body,
-    }, { onConflict: 'merchant_reference,event_type' });
 
     // DusuPay uses the SAME event names for both directions — "transaction.completed"
     // /"transaction.failed", never a "collection."-prefixed string (confirmed against
@@ -110,6 +105,21 @@ export async function POST(req: NextRequest) {
       await handleEmployerFundingPayout(event, payload, merchantReference, internalReference, mlog);
     } else {
       await handlePayoutEvent(event, payload, merchantReference, internalReference, mlog);
+    }
+
+    const { error: transactionUpsertError } = await supabaseAdmin.from('dusupay_transactions').upsert({
+      merchant_reference: merchantReference,
+      internal_reference: internalReference,
+      event_type: event,
+      status: transactionStatus,
+      amount,
+      currency,
+      raw_payload: body,
+    }, { onConflict: 'merchant_reference,event_type' });
+
+    if (transactionUpsertError) {
+      mlog.error('Failed to persist processed webhook state', { err: transactionUpsertError });
+      return NextResponse.json({ error: 'Failed to persist webhook state' }, { status: 500 });
     }
 
     return NextResponse.json({ received: true }, { status: 200 });
@@ -600,7 +610,7 @@ async function handlePayoutEvent(
   const isCompleted = event === 'transaction.completed' || (payload.status as string) === PayoutStatus.COMPLETED;
   const isFailed = ['transaction.failed', 'request.failed'].includes(event) ||
                    [PayoutStatus.FAILED, PayoutStatus.CANCELLED].map(s => s as string).includes(payload.status || '');
-  const newStatus = isCompleted ? 'completed' : isFailed ? 'failed' : 'processing';
+  const newStatus = isCompleted ? 'disbursed_pending_ledger' : isFailed ? 'failed' : 'processing';
 
   const { data: advanceData, error: advanceError } = await supabaseAdmin
     .from('advances')
@@ -610,13 +620,14 @@ async function handlePayoutEvent(
 
   if (advanceError) {
     log.error('Failed to fetch advance', { err: advanceError });
+    throw new Error(`Failed to fetch advance for DusuPay webhook: ${advanceError.message}`);
   }
 
   const advance = advanceData as AdvancePayoutRow | null;
 
   if (!advance) {
     log.error('No advance found for reference');
-    return;
+    throw new Error(`No advance found for DusuPay reference ${merchantRef}`);
   }
 
   if (['completed', 'failed', 'repaid'].includes(advance.status)) {
@@ -624,11 +635,16 @@ async function handlePayoutEvent(
     return;
   }
 
-  await supabaseAdmin.from('advances').update({
+  const { error: updateError } = await supabaseAdmin.from('advances').update({
     status: newStatus,
     internal_reference: internalRef,
     ...(isCompleted && { disbursed_at: new Date().toISOString() })
   }).eq('id', advance.id);
+
+  if (updateError) {
+    log.error('Failed to update advance status', { err: updateError, advanceId: advance.id });
+    throw new Error(`Failed to update advance ${advance.id} from DusuPay webhook: ${updateError.message}`);
+  }
 
   log.info('Advance status updated', { advanceId: advance.id, newStatus });
 

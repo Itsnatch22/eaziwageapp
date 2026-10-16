@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { dusupay } from '@/lib/dusupay';
 import { notifyAdmin } from '@/lib/notifications';
 import { isValidCronAuth } from '@/lib/cron-auth';
+import { ensureRepaymentSchedule } from '@/lib/services/payout-service';
 
 export const runtime = 'nodejs';
 
@@ -209,7 +210,7 @@ async function run(): Promise<NextResponse> {
   async function processDisbursedPendingLedger(log: (msg: string) => void): Promise<{ checked: number; resolved: number; unresolved: number }> {
     const { data: rows2, error: fetchError } = await supabaseAdmin
       .from('advances')
-      .select('id, reference, amount, currency, employer_id, internal_reference')
+      .select('id, reference, amount, currency, employer_id, employee_id, organization_id, internal_reference, disbursed_at')
       .eq('status', 'disbursed_pending_ledger')
       .gte('updated_at', since)
       .limit(MAX_PER_RUN);
@@ -219,7 +220,17 @@ async function run(): Promise<NextResponse> {
       return { checked: 0, resolved: 0, unresolved: 0 };
     }
 
-    const advances = (rows2 ?? []) as Array<{ id: string; reference?: string | null; amount?: number | null; currency?: string | null; employer_id?: string | null; internal_reference?: string | null }>;
+    const advances = (rows2 ?? []) as Array<{
+      id: string;
+      reference?: string | null;
+      amount?: number | null;
+      currency?: string | null;
+      employer_id?: string | null;
+      employee_id?: string | null;
+      organization_id?: string | null;
+      internal_reference?: string | null;
+      disbursed_at?: string | null;
+    }>;
     let checked2 = 0;
     let resolved2 = 0;
     let unresolved2 = 0;
@@ -233,7 +244,7 @@ async function run(): Promise<NextResponse> {
           p_amount: adv.amount ?? 0,
           p_country_code: null,
           p_currency: adv.currency ?? null,
-          p_reference: adv.reference ?? null,
+          p_reference: adv.reference ? `DISB-${adv.reference}` : null,
           p_internal_reference: adv.internal_reference ?? null,
         });
 
@@ -242,6 +253,19 @@ async function run(): Promise<NextResponse> {
           unresolved2++;
           continue;
         }
+
+        if (!adv.employer_id || !adv.employee_id || typeof adv.amount !== 'number') {
+          throw new Error('Advance is missing repayment schedule fields');
+        }
+
+        await ensureRepaymentSchedule({
+          id: adv.id,
+          employer_id: adv.employer_id,
+          employee_id: adv.employee_id,
+          amount: adv.amount,
+          currency: adv.currency,
+          organization_id: adv.organization_id,
+        }, adv.disbursed_at ? new Date(adv.disbursed_at) : new Date(), supabaseAdmin);
 
         // Mark advance completed now that treasury RPC succeeded
         const { error: updateError } = await supabaseAdmin

@@ -74,44 +74,29 @@ export async function POST(req: NextRequest) {
 
     const { bank_name, bank_account_number, reason } = parsed.data;
 
-    // Insert the request row without raw account numbers — PII written via RPC below
-    const { data: requestRecord, error: requestError } = await supabase
-      .from('bank_change_requests')
-      .insert({
-        employer_id:      employer.onboarding_id,
-        employer_live_id: employer.id,
-        user_id:          user.id,
-        old_bank_name:    onboarding?.bank_name,
-        new_bank_name:    bank_name,
-        reason:           reason || 'Not provided',
-        status:           'pending',
-      })
-      .select('id')
-      .single();
-
-    if (requestError) {
-      console.error('[bank-change-request] DB error:', requestError);
-      return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
-    }
-
-    // Encrypt old/new account numbers — row must exist before this is called
     const { PII_ENCRYPTION_KEY } = getEnv();
     if (!PII_ENCRYPTION_KEY) {
       return NextResponse.json({ error: 'Encryption not configured' }, { status: 500 });
     }
 
-    const { error: piiError } = await supabase.rpc('insert_bank_change_request_pii', {
-      p_request_id:  requestRecord.id,
-      p_old_account: onboarding?.bank_account_number ?? null,
-      p_new_account: bank_account_number,
-      p_key:         PII_ENCRYPTION_KEY,
+    const { data: requestId, error: rpcError } = await supabase.rpc('submit_bank_change_request', {
+      p_new_bank_name: bank_name,
+      p_new_account_number: bank_account_number,
+      p_reason: reason ?? '',
+      p_key: PII_ENCRYPTION_KEY,
     });
 
-    if (piiError) {
-      console.error('[bank-change-request] PII error:', piiError);
-      return NextResponse.json({ error: 'Failed to save secure fields' }, { status: 500 });
+    if (rpcError) {
+      console.error('[bank-change-request] RPC error:', rpcError);
+      const pending = rpcError.message?.includes('already pending');
+      return NextResponse.json(
+        { error: pending ? 'You already have a pending bank change request.' : 'Failed to submit request' },
+        { status: pending ? 409 : 500 },
+      );
     }
 
+    // Request is durable now. Notification is best-effort, so don't fail the user over it.
+    const maskAccount = (account: string) => `****${account.slice(-4)}`;
     const { success: notifSuccess, error: notifError } = await notifyAdmin({
       type: 'bank_change',
       title: 'Bank Details Change Request',
@@ -120,24 +105,17 @@ export async function POST(req: NextRequest) {
         employer_id: employer.onboarding_id,
         company_name: employer.company_name,
         current_bank: onboarding?.bank_name,
-        current_account: onboarding?.bank_account_number,
         requested_bank: bank_name,
-        requested_account: bank_account_number,
+        requested_account_masked: maskAccount(bank_account_number),
         reason: reason || 'Not provided',
         request_type: 'bank_change',
-        request_id: requestRecord?.id
+        request_id: requestId,
       },
     });
 
-    if (!notifSuccess) {
-      console.error('[bank-change-request] Notification error:', notifError);
-      return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
-    }
+    if (!notifSuccess) console.error('[bank-change-request] Notification error:', notifError);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Bank change request submitted successfully. Our team will review it shortly.' 
-    });
+    return NextResponse.json({ success: true, message: 'Bank change request submitted successfully. Our team will review it shortly.' });
 
   } catch (error) {
     console.error('[POST /api/employer-dashboard/settings/bank-change-request] Unexpected error:', error);

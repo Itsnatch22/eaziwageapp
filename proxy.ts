@@ -239,7 +239,11 @@ export async function proxy(req: NextRequest) {
         return NextResponse.json({ error: 'MFA verification required', code: 'MFA_REQUIRED' }, { status: 403 });
       }
     } else if (pathname === '/mfa-challenge') {
-      const dest = role === 'admin' ? '/admin' : role === 'employer' ? '/dashboards/employer-dashboard' : '/dashboards/employee-dashboard';
+      const dest =
+        role === 'admin' ? '/admin' :
+        role === 'employer' ? '/dashboards/employer-dashboard' :
+        role === 'employee' ? '/dashboards/employee-dashboard' :
+        '/';
       return NextResponse.redirect(new URL(dest, req.url));
     }
 
@@ -364,12 +368,14 @@ export async function proxy(req: NextRequest) {
     if (pathname.startsWith("/admin") && role !== "admin") {
       const dest = role === "employer"
         ? "/dashboards/employer-dashboard"
-        : "/dashboards/employee-dashboard";
+        : role === "employee"
+          ? "/dashboards/employee-dashboard"
+          : "/";
       return NextResponse.redirect(new URL(dest, req.url));
     }
 
     if (isConsole && role !== "admin") {
-      const dest = role === "employer" ? "/dashboards/employer-dashboard" : "/dashboards/employee-dashboard";
+      const dest = role === "employer" ? "/dashboards/employer-dashboard" : role === "employee" ? "/dashboards/employee-dashboard" : "/";
       return NextResponse.redirect(new URL(dest, req.url));
     }
 

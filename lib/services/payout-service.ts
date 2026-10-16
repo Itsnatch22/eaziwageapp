@@ -119,7 +119,7 @@ async function checkVolumeAlerts(
 
 // ─── Repayment schedule helpers ──────────────────────────────────────────────
 
-type ScheduleAdvanceInput = {
+export type ScheduleAdvanceInput = {
   id: string;
   employer_id: string;
   employee_id: string;
@@ -172,7 +172,7 @@ function calculateDueDate(disbursedAt: Date, payrollCycle: string | null, payday
   return new Date(year, month + 1, clampDayToMonth(year, month + 1, paydayDayOfMonth));
 }
 
-async function createRepaymentSchedule(
+export async function ensureRepaymentSchedule(
   advance: ScheduleAdvanceInput,
   disbursedAt: Date,
   supabase: typeof supabaseAdmin,
@@ -210,7 +210,8 @@ async function createRepaymentSchedule(
     insertPayload.organization_id = advance.organization_id;
   }
 
-  const { error } = await supabase.from('repayment_schedules').insert(insertPayload);
+  const { error } = await supabase.from('repayment_schedules')
+  .upsert(insertPayload, { onConflict: 'advance_id', ignoreDuplicates: true });
   if (error) throw new Error(`Failed to create repayment schedule: ${error.message}`);
 }
 
@@ -836,6 +837,47 @@ export class PayoutService {
       }
     }
 
+    const providerStatus = payoutResponse.data?.transaction_status;
+    if (providerStatus !== PayoutStatus.COMPLETED) {
+      const failureReason = `DusuPay payout was not confirmed as completed (status: ${providerStatus ?? 'missing'})`;
+
+      if (providerStatus === PayoutStatus.FAILED || providerStatus === PayoutStatus.CANCELLED) {
+        const { error: statusError } = await supabaseAdmin
+          .from('advances')
+          .update({ status: 'failed', reason: failureReason })
+          .eq('id', advanceId);
+
+        if (statusError) {
+          throw new Error(`DusuPay reported payout failure, but advance status could not be updated: ${statusError.message}`);
+        }
+
+        const { error: releaseError } = await supabaseAdmin.rpc('release_employer_reservation', {
+          p_employer_id: advance.employer_id,
+          p_amount: advanceAmount,
+          p_advance_id: advanceId,
+        });
+        if (releaseError) {
+          throw new Error(`DusuPay reported payout failure, but the employer reservation could not be released: ${releaseError.message}`);
+        }
+      } else {
+        const { error: statusError } = await supabaseAdmin
+          .from('advances')
+          .update({
+            status: 'processing_unknown',
+            reason: failureReason,
+            reference: merchantReference,
+            internal_reference: payoutResponse.data?.internal_reference ?? null,
+          })
+          .eq('id', advanceId);
+
+        if (statusError) {
+          throw new Error(`DusuPay payout status is unresolved and the advance could not be updated: ${statusError.message}`);
+        }
+      }
+
+      throw new Error(failureReason);
+    }
+
     await supabaseAdmin.from('dusupay_transactions').upsert({
       merchant_reference: merchantReference,
       internal_reference: payoutResponse.data?.internal_reference,
@@ -903,7 +945,7 @@ export class PayoutService {
     // Create repayment schedule — non-blocking. Advance is already disbursed; a
     // schedule creation failure must never roll back or fail the disbursement.
     try {
-      await createRepaymentSchedule(advance as ScheduleAdvanceInput, disbursedAt, supabaseAdmin);
+      await ensureRepaymentSchedule(advance as ScheduleAdvanceInput, disbursedAt, supabaseAdmin);
     } catch (scheduleErr) {
       console.error('[disburseAdvance] Repayment schedule creation failed:', scheduleErr);
 
