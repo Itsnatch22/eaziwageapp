@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   failedAttempts: 0,
   profileFound: true,
   updatePayloads: [] as Record<string, unknown>[],
+  deletedTables: [] as string[],
+  employerInsertError: null as { code: string; message: string } | null,
   createToken: vi.fn(),
   checkRateLimit: vi.fn(),
   validateEmail: vi.fn(),
@@ -115,20 +117,30 @@ function queryFor(table: string) {
     data: table === 'system_admins' ? null : mocks.profile,
     error: null,
   }));
-  query.single = vi.fn(async () => ({
-    data: table === 'profiles' && selectedColumns.includes('failed_login_attempts')
-      ? { failed_login_attempts: mocks.failedAttempts }
-      : table === 'profiles' && mocks.profileFound
-        ? mocks.profile
-        : null,
-    error: null,
-  }));
+  query.single = vi.fn(async () => {
+    if (table === 'profiles' && selectedColumns.includes('failed_login_attempts')) {
+      return { data: { failed_login_attempts: mocks.failedAttempts }, error: null };
+    }
+    if (table === 'profiles' && mocks.profileFound) return { data: mocks.profile, error: null };
+    if (table === 'employer_onboarding') return { data: { id: 'onboarding-1' }, error: null };
+    return { data: null, error: null };
+  });
   query.update = vi.fn((payload: Record<string, unknown>) => {
     mocks.updatePayloads.push(payload);
     result = { data: null, error: null };
     return query;
   });
-  query.insert = vi.fn(() => query);
+  query.insert = vi.fn(() => {
+    result = table === 'employers' && mocks.employerInsertError
+      ? { data: null, error: mocks.employerInsertError }
+      : { data: null, error: null };
+    return query;
+  });
+  query.delete = vi.fn(() => {
+    mocks.deletedTables.push(table);
+    result = { data: null, error: null };
+    return query;
+  });
   query.upsert = vi.fn(() => query);
   query.is = vi.fn(() => query);
   query.then = (resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) =>
@@ -156,12 +168,15 @@ beforeEach(() => {
   mocks.failedAttempts = 0;
   mocks.profileFound = true;
   mocks.updatePayloads.length = 0;
+  mocks.deletedTables.length = 0;
+  mocks.employerInsertError = null;
   mocks.checkRateLimit.mockResolvedValue({ success: true, headers: {} });
   mocks.validateEmail.mockResolvedValue({ valid: true });
   mocks.handleFailedLoginSecurity.mockResolvedValue(undefined);
   mocks.handleLoginSecurity.mockResolvedValue(undefined);
   mocks.createUnlockToken.mockResolvedValue('unlock-token');
   mocks.createToken.mockResolvedValue({ token: 'verification-token', tokenHash: 'hashed-token' });
+  mocks.admin.auth.admin.deleteUser.mockResolvedValue({ error: null });
   mocks.admin.from.mockImplementation((table: string) => queryFor(table));
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     json: async () => ({ success: true, score: 0.9 }),
@@ -268,6 +283,39 @@ describe('register route duplicate email handling', () => {
     expect(mocks.admin.auth.admin.createUser).toHaveBeenCalledWith(expect.objectContaining({
       email_confirm: false,
     }));
+  });
+
+  it('does not replace an employer when a company-code unique constraint conflicts', async () => {
+    mocks.admin.auth.admin.createUser.mockResolvedValue({
+      data: { user: { id: 'new-employer' } },
+      error: null,
+    });
+    mocks.employerInsertError = { code: '23505', message: 'duplicate company_code' };
+
+    const request = new NextRequest('http://localhost/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name: 'Test User',
+        email: 'employer@example.com',
+        phone: '+254700000000',
+        phone_country_code: 'KE',
+        password: 'Password1',
+        role: 'employer',
+        company_code: '',
+        company_name: 'Example Company',
+        recaptcha_token: 'valid-test-token',
+      }),
+    });
+
+    const response = await registerPost(request);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'A company code conflict occurred. Please try again.',
+    });
+    expect(mocks.deletedTables).toEqual(['employer_onboarding']);
+    expect(mocks.admin.auth.admin.deleteUser).toHaveBeenCalledWith('new-employer');
   });
 });
 

@@ -349,7 +349,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { error: employerError } = await supabase
       .from('employers')
-      .upsert({
+      .insert({
         company_code: generatedEmployerCode,
         company_name: input.company_name || '',
         email:        input.email,
@@ -360,15 +360,40 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         status:       'pending',
         onboarding_id: employerOnboardingId,
         created_at:   new Date().toISOString(),
-      }, { onConflict: 'company_code' });
+      });
 
     if (employerError) {
-      await supabase.from('employer_onboarding').delete().eq('id', employerOnboardingId);
-      await supabase.auth.admin.deleteUser(userId);
       console.error('[db] employer insert error:', employerError);
+
+      const { error: onboardingCleanupError } = await supabase
+        .from('employer_onboarding')
+        .delete()
+        .eq('id', employerOnboardingId);
+
+      if (onboardingCleanupError) {
+        console.error('[db] employer registration onboarding rollback failed:', onboardingCleanupError);
+        return NextResponse.json(
+          { error: 'Employer setup failed and could not be fully rolled back. Please contact support.' },
+          { status: 500, headers: rateResult.headers },
+        );
+      }
+
+      const { error: authCleanupError } = await supabase.auth.admin.deleteUser(userId);
+      if (authCleanupError) {
+        console.error('[auth] employer registration rollback failed:', authCleanupError);
+        return NextResponse.json(
+          { error: 'Employer setup failed and account cleanup is incomplete. Please contact support.' },
+          { status: 500, headers: rateResult.headers },
+        );
+      }
+
       return NextResponse.json(
-        { error: 'Failed to create employer account. Please try again.' },
-        { status: 500, headers: rateResult.headers },
+        {
+          error: employerError.code === '23505'
+            ? 'A company code conflict occurred. Please try again.'
+            : 'Failed to create employer account. Please try again.',
+        },
+        { status: employerError.code === '23505' ? 409 : 500, headers: rateResult.headers },
       );
     }
   } else if (input.role === 'employee') {
@@ -420,8 +445,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (profileError) {
     if (input.role === 'employer' && employerOnboardingId) {
-      await supabase.from('employers').delete().eq('onboarding_id', employerOnboardingId);
-      await supabase.from('employer_onboarding').delete().eq('id', employerOnboardingId);
+      const { error: employerCleanupError } = await supabase
+        .from('employers')
+        .delete()
+        .eq('onboarding_id', employerOnboardingId);
+
+      if (employerCleanupError) {
+        console.error('[db] employer registration rollback failed:', employerCleanupError);
+        return NextResponse.json(
+          { error: 'Account setup failed; linked employer data prevented rollback. Please contact support.' },
+          { status: 500, headers: rateResult.headers },
+        );
+      }
+
+      const { error: onboardingCleanupError } = await supabase
+        .from('employer_onboarding')
+        .delete()
+        .eq('id', employerOnboardingId);
+
+      if (onboardingCleanupError) {
+        console.error('[db] employer onboarding rollback failed:', onboardingCleanupError);
+        return NextResponse.json(
+          { error: 'Account setup failed; linked onboarding data prevented rollback. Please contact support.' },
+          { status: 500, headers: rateResult.headers },
+        );
+      }
     } else if (input.role === 'employee') {
       await supabase.from('employee_onboarding').delete().eq('user_id', userId);
     }
