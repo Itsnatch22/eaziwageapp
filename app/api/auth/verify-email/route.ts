@@ -88,14 +88,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { error: tokenUpdateError } = await supabase
-    .from('email_verifications')
-    .update({ used_at: new Date().toISOString() })
-    .eq('id', record.id)
-    .is('used_at', null); 
+  const { error: authUpdateError } = await supabase.auth.admin.updateUserById(record.user_id, {
+    email_confirm: true,
+  });
 
-  if (tokenUpdateError) {
-    console.error('[verify-email] Token update error:', tokenUpdateError);
+  if (authUpdateError) {
+    console.error('[verify-email] Auth email confirmation error:', authUpdateError);
     return NextResponse.json(
       { error: 'Failed to verify email. Please try again.' },
       { status: 500, headers: rate.headers },
@@ -117,9 +115,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  await supabase.auth.admin.updateUserById(record.user_id, {
-    email_confirm: true,
-  });
+  const { error: tokenUpdateError } = await supabase
+    .from('email_verifications')
+    .update({ used_at: new Date().toISOString() })
+    .eq('id', record.id)
+    .is('used_at', null);
+
+  if (tokenUpdateError) {
+    console.error('[verify-email] Token update error:', tokenUpdateError);
+    return NextResponse.json(
+      { error: 'Failed to verify email. Please try again.' },
+      { status: 500, headers: rate.headers },
+    );
+  }
 
   return NextResponse.json(
     { message: 'Email verified successfully.', role: profile.role_normalized || profile.role },

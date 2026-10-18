@@ -88,83 +88,83 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, full_name, email, role, email_verified')
-    .eq('email', email)
-    .single<{ id: string; full_name: string; email: string; role: string; email_verified: boolean }>();
-
-  if (!profile) {
-    return NextResponse.json(
-      { message: 'If an unverified account exists for this email, a new verification link has been sent.' },
-      { status: 200 },
-    );
-  }
-
-  if (profile.email_verified) {
-    return NextResponse.json(
-      { message: 'If an unverified account exists for this email, a new verification link has been sent.' },
-      { status: 200 },
-    );
-  }
-
-  await supabase
-    .from('email_verifications')
-    .update({ used_at: new Date().toISOString() })
-    .eq('user_id', profile.id)
-    .is('used_at', null);
-
-  const { token, tokenHash } = await createToken();
-  const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
-
-  const { error: insertError } = await supabase
-    .from('email_verifications')
-    .insert({
-      user_id:    profile.id,
-      token_hash: tokenHash,
-      expires_at: expiresAt.toISOString(),
-      created_at: new Date().toISOString(),
-    });
-
-  if (insertError) {
-    console.error('[verify-email/resend] Token insert error:', insertError);
-    return NextResponse.json(
-      { error: 'Failed to generate a new verification link. Please try again.' },
-      { status: 500 },
-    );
-  }
-
-  const verificationUrl = `${BASE_URL}/verify-email?token=${token}`;
-  const role = profile.role as 'employee' | 'employer';
-
-  const html = await render(
-    WelcomeEmail({
-      fullName:        profile.full_name,
-      email:           profile.email,
-      role,
-      verificationUrl,
-    }),
-  );
-
-  const { error: emailError } = await resend.emails.send({
-    from:    FROM_EMAIL,
-    to:      profile.email,
-    subject: 'Verify your EaziWage email address',
-    html,
-    tags: [
-      { name: 'category', value: 'email-verification' },
-      { name: 'type',     value: 'resend'             },
-    ],
-  });
-
-  if (emailError) {
-    console.error('[verify-email/resend] Email error:', emailError);
-  }
-
-  return NextResponse.json(
+  const genericResponse = () => NextResponse.json(
     { message: 'If an unverified account exists for this email, a new verification link has been sent.' },
     { status: 200 },
   );
+
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role, email_verified')
+      .eq('email', email)
+      .single<{ id: string; full_name: string; email: string; role: string; email_verified: boolean }>();
+
+    if (profileError) {
+      console.error('[verify-email/resend] Profile lookup error:', profileError);
+    }
+
+    if (!profile || profile.email_verified) return genericResponse();
+
+    const { error: invalidateError } = await supabase
+      .from('email_verifications')
+      .update({ used_at: new Date().toISOString() })
+      .eq('user_id', profile.id)
+      .is('used_at', null);
+
+    if (invalidateError) {
+      console.error('[verify-email/resend] Existing token invalidation error:', invalidateError);
+      return genericResponse();
+    }
+
+    const { token, tokenHash } = await createToken();
+    const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
+
+    const { error: insertError } = await supabase
+      .from('email_verifications')
+      .insert({
+        user_id:    profile.id,
+        token_hash: tokenHash,
+        expires_at: expiresAt.toISOString(),
+        created_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      console.error('[verify-email/resend] Token insert error:', insertError);
+      return genericResponse();
+    }
+
+    const verificationUrl = `${BASE_URL}/verify-email?token=${token}`;
+    const role = profile.role as 'employee' | 'employer';
+
+    const html = await render(
+      WelcomeEmail({
+        fullName:        profile.full_name,
+        email:           profile.email,
+        role,
+        verificationUrl,
+      }),
+    );
+
+    const { error: emailError } = await resend.emails.send({
+      from:    FROM_EMAIL,
+      to:      profile.email,
+      subject: 'Verify your EaziWage email address',
+      html,
+      tags: [
+        { name: 'category', value: 'email-verification' },
+        { name: 'type',     value: 'resend'             },
+      ],
+    });
+
+    if (emailError) {
+      console.error('[verify-email/resend] Email error:', emailError);
+    }
+  } catch (error) {
+    console.error('[verify-email/resend] Unexpected resend error:', error);
+  }
+
+  return genericResponse();
 }
 
 export async function GET()    { return NextResponse.json({ error: 'Method not allowed' }, { status: 405 }); }

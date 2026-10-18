@@ -205,12 +205,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const ip        = getClientIp(req);
   const userAgent = getUserAgent(req);
 
-  console.log('[login] === LOGIN ATTEMPT START ===');
-  console.log('[login] IP:', ip, 'User-Agent:', userAgent.substring(0, 50));
-
   const rateResult = await checkRateLimit(loginLimiter, `login:${ip}`);
   if (!rateResult.success) {
-    console.log('[login] BLOCKED: Rate limit exceeded for IP:', ip);
     return NextResponse.json(
       { error: `Too many login attempts from this location. Please try again in ${getRateLimitRetryMinutes(rateResult.reset)} minutes.` },
       { status: 429, headers: rateResult.headers },
@@ -237,7 +233,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const captchaOk = await verifyRecaptcha(input.recaptcha_token, ip);
   if (!captchaOk) {
-    console.log('[login] BLOCKED: reCAPTCHA failed, IP:', ip);
     return NextResponse.json(
       { error: 'Security check failed. Please refresh and try again.' },
       { status: 403, headers: rateResult.headers },
@@ -282,9 +277,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (isAdmin) {
     adminRecord = adminLookup;
-    console.log('[login] Admin found in system_admins:', adminRecord?.id);
   } else {
-    console.log('[login] Querying profiles table');
     const { data, error } = await supabaseAdmin
       .from('profiles')
       .select('id, full_name, role, role_normalized, email_verified, locked_until, failed_login_attempts, is_admin')
@@ -295,7 +288,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.error('[login] profiles query error:', error);
     }
     profileRecord = data ?? null;
-    console.log('[login] profiles result:', profileRecord ? 'Found' : 'Not found', profileRecord?.id);
   }
 
   const lockedUntilStr = isAdmin ? adminRecord?.locked_until : profileRecord?.locked_until;
@@ -303,7 +295,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const lockExpiry = new Date(lockedUntilStr);
     if (lockExpiry > new Date()) {
       const minutesLeft = Math.ceil((lockExpiry.getTime() - Date.now()) / 60_000);
-      console.log('[login] BLOCKED: Account locked for', minutesLeft, 'minutes');
       return NextResponse.json(
         {
           error: `Your account is temporarily locked due to too many failed attempts. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''} or check your email to unlock it.`,
@@ -326,7 +317,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  console.log('[login] Attempting Supabase auth, IP:', ip);
   const res = NextResponse.next();
   const supabaseAuth = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -348,14 +338,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     password: input.password,
   });
 
+  if (authError?.code === 'email_not_confirmed') {
+    return NextResponse.json(
+      {
+        error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
+        code: 'EMAIL_NOT_VERIFIED',
+      },
+      { status: 403, headers: rateResult.headers },
+    );
+  }
+
   if (authError || !authData.session) {
-    console.log('[login] Auth FAILED:', authError?.message || 'No session');
-    console.log('[login] Auth error details:', {
-      code: authError?.code,
-      status: authError?.status,
-      message: authError?.message
-    });
-    
     const loginCtx: LoginContext = {
       ip,
       userAgent,
@@ -367,13 +360,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const recordName = isAdmin ? (adminRecord?.full_name ?? input.email) : (profileRecord?.full_name ?? input.email);
 
     if (recordId) {
-      console.log('[login] Recording failed attempt for:', recordId);
       await recordFailedAttempt(recordId, recordName, input.email, isAdmin, loginCtx);
       handleFailedLoginSecurity(recordId, input.email, loginCtx).catch(
         (err) => console.error('[security] Failed login history write failed:', err)
       );
-    } else {
-      console.log('[login] No record ID found, cannot track failed attempts');
     }
 
     return NextResponse.json(
@@ -383,10 +373,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { user } = authData;
-  console.log('[login] Auth SUCCESS for user:', user.id);
 
   if (!isAdmin && profileRecord && !profileRecord.email_verified) {
-    console.log('[login] BLOCKED: Email not verified, userId:', user.id);
     return NextResponse.json(
       {
         error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
@@ -398,7 +386,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const successId = isAdmin ? (adminRecord?.id ?? user.id) : profileRecord?.id;
   if (successId) {
-    console.log('[login] Clearing failed attempts for:', successId);
     await clearFailedAttempts(successId, isAdmin);
   }
 
@@ -422,7 +409,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (isAdmin) {
     responseRole = 'admin';
-    console.log('[login] Role set to: admin (env admin)');
   } else if (profileRecord) {
     const normalizedRole = profileRecord.is_admin
       ? 'admin'
@@ -436,16 +422,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         normalizeAppRole(user.user_metadata?.role) ??
         'employee';
     }
-    console.log('[login] Role set to:', responseRole);
   } else {
-    console.warn('[login] No profile found for authenticated user, userId:', user.id);
     responseRole =
       await resolveRoleFromTables(supabaseAdmin, user.id) ??
       normalizeAppRole(user.user_metadata?.role) ??
       'employee';
-    console.log('[login] Role fallback to:', responseRole);
   }
-  console.log('[login] === LOGIN SUCCESS ===');
   const successResponse = NextResponse.json(
     {
       message: 'Signed in successfully.',

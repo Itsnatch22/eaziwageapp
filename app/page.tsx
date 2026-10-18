@@ -166,6 +166,9 @@ export default function LoginPage() {
   const [password,       setPassword]       = useState('');
   const [showPassword,   setShowPassword]   = useState(false);
   const [error,          setError]          = useState('');
+  const [verificationNeeded, setVerificationNeeded] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
+  const [isResending, setIsResending] = useState(false);
   const [isLoading,      setIsLoading]      = useState(false);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
 
@@ -209,6 +212,8 @@ export default function LoginPage() {
 
   const handleSubmit = useCallback(async () => {
     setError('');
+    setVerificationNeeded(false);
+    setResendMessage('');
 
     if (!email.trim() || !password) {
       setError('Please enter your email and password');
@@ -233,6 +238,9 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.code === 'EMAIL_NOT_VERIFIED') {
+          setVerificationNeeded(true);
+        }
         setError(data.error ?? 'Login failed. Please check your credentials.');
         return;
       }
@@ -256,6 +264,32 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   }, [email, password, getReCaptchaToken, router, safeNext]);
+
+  const handleResendVerification = useCallback(async () => {
+    setResendMessage('');
+    setIsResending(true);
+    try {
+      const recaptchaToken = await getReCaptchaToken('resend_verification');
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          recaptcha_token: recaptchaToken,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setResendMessage(data.error ?? 'Could not resend the verification email. Please try again.');
+        return;
+      }
+      setResendMessage(data.message ?? 'If an unverified account exists for this email, a new verification link has been sent.');
+    } catch {
+      setResendMessage('Could not resend the verification email. Please try again.');
+    } finally {
+      setIsResending(false);
+    }
+  }, [email, getReCaptchaToken]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit(); };
 
@@ -318,10 +352,34 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <Alert className="mb-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 rounded-xl">
+              <Alert className={`mb-4 rounded-xl ${
+                verificationNeeded
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+              }`}>
                 <AlertCircle className="h-4 w-4 text-red-500" />
-                <AlertDescription className="text-red-600 dark:text-red-400">{error}</AlertDescription>
+                <AlertDescription className={verificationNeeded ? 'text-amber-700 dark:text-amber-300' : 'text-red-600 dark:text-red-400'}>
+                  {error}
+                </AlertDescription>
               </Alert>
+            )}
+
+            {verificationNeeded && (
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={isResending || !recaptchaReady || !email.trim()}
+                  className="text-sm font-semibold text-green-700 dark:text-green-400 hover:underline disabled:opacity-60"
+                >
+                  {isResending ? 'Sending verification email…' : 'Resend verification email'}
+                </button>
+                {resendMessage && (
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" role="status">
+                    {resendMessage}
+                  </p>
+                )}
+              </div>
             )}
 
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-5 shadow-xl shadow-slate-900/5">

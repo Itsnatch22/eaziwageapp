@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   ArrowRight, Eye, EyeOff, Lock, Check, User, Mail,
   Building2, Search, X, Phone, AlertTriangle, ChevronDown,
@@ -343,7 +343,6 @@ function CompanySearchModal({ employers, onSelect, onNotFound, onClose }: Compan
 
 
 function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   
   const [accountType,   setAccountType]   = useState<AccountType>('employee');
@@ -371,6 +370,7 @@ function RegisterForm() {
 
   const [error,              setError]              = useState('');
   const [isLoading,          setIsLoading]          = useState(false);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
   const [recaptchaReady,     setRecaptchaReady]     = useState(false);
 
   const handleSocialLogin = async (provider: 'google' | 'apple') => {
@@ -517,11 +517,7 @@ function RegisterForm() {
         return;
       }
 
-      const destination =
-        data.role === 'employer'
-          ? '/dashboards/employer-dashboard'
-          : '/dashboards/employee-dashboard';
-      router.replace(destination);
+      setRegistrationComplete(true);
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -531,10 +527,34 @@ function RegisterForm() {
     fullName, email, password, confirmPassword, mobileNumber, dialCode, accountType,
     companyCode, companyName, noCompanyFound,
     referralName, referralEmail, referralPhone, referralDialCode,
-    agreedToTerms, getReCaptchaToken, router,
+    agreedToTerms, getReCaptchaToken,
   ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit(); };
+
+  if (registrationComplete) {
+    return (
+      <>
+        <Script
+          src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
+          strategy="lazyOnload"
+          onReady={() => setRecaptchaReady(true)}
+        />
+        <main className="min-h-screen bg-white dark:bg-slate-950 flex items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center shadow-xl">
+            <Mail className="mx-auto mb-4 h-12 w-12 text-green-600" aria-hidden="true" />
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Check your email</h1>
+            <p className="mt-3 text-slate-600 dark:text-slate-300">
+              We sent a verification link to <strong>{email}</strong>. Verify your email address before signing in.
+            </p>
+            <Link href="/" className="mt-6 inline-flex font-semibold text-green-600 hover:underline">
+              Return to sign in
+            </Link>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>

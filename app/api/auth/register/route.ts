@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient }               from '@supabase/supabase-js';
-import { createServerClient }         from '@supabase/ssr';
 import { Resend }                    from 'resend';
 import { z }                         from 'zod';
 import { render }                    from '@react-email/render';
@@ -303,7 +302,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   if (authError) {
-    if (authError.message.toLowerCase().includes('already registered') || authError.status === 422) {
+    if (authError.code === 'email_exists') {
       return NextResponse.json(
         { error: 'An account with this email address already exists.' },
         { status: 409, headers: rateResult.headers },
@@ -469,49 +468,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  const authRes = NextResponse.next();
-  const authClient = createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            authRes.cookies.set(name, value, options);
-          });
-        },
-      },
-    },
-  );
-
-  const { error: signInError } = await authClient.auth.signInWithPassword({
-    email: input.email,
-    password: input.password,
-  });
-
-  if (signInError) {
-    console.error('[auth] auto-signin error:', signInError);
-    return NextResponse.json(
-      { error: 'Account created, but automatic sign-in failed. Please sign in manually.' },
-      { status: 500, headers: rateResult.headers },
-    );
-  }
-
   const successResponse = NextResponse.json(
     {
-      message: 'Account created successfully.',
+      message: 'Account created. Please check your email to verify your address.',
       userId,
       role: input.role,
     },
     { status: 201, headers: rateResult.headers },
   );
-
-  authRes.cookies.getAll().forEach(({ name, value, ...options }) => {
-    successResponse.cookies.set(name, value, options);
-  });
 
   try {
     await notifyAdmin({
