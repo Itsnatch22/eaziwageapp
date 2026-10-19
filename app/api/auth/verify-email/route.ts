@@ -5,6 +5,7 @@ import { z }                         from 'zod';
 import { getEnv }                      from '@/env';
 import { rateLimiter, checkRateLimit } from '@/lib/rate-limit';
 import { hashToken, isValidTokenFormat, isTokenExpired } from '@/lib/token';
+import { normalizeAppRole, resolveRoleFromTables } from '@/lib/server/resolve-user-role';
 
 const env = getEnv();
 
@@ -17,6 +18,25 @@ const supabase = createClient(
 const VerifySchema = z.object({
   token: z.string().min(1, 'Token is required'),
 });
+
+async function getUserRole(userId: string): Promise<string | null> {
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('role_normalized, role')
+    .eq('id', userId)
+    .maybeSingle<{ role_normalized: string | null; role: string | null }>();
+
+  if (error) {
+    console.error('[verify-email] Profile role lookup error:', error);
+    return null;
+  }
+
+  return (
+    normalizeAppRole(profile?.role_normalized) ??
+    normalizeAppRole(profile?.role) ??
+    await resolveRoleFromTables(supabase, userId)
+  );
+}
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -65,9 +85,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .from('email_verifications')
     .select('id, user_id, expires_at, used_at')
     .eq('token_hash', tokenHash)
-    .single<{ id: string; user_id: string; expires_at: string; used_at: string | null }>();
+    .maybeSingle<{ id: string; user_id: string; expires_at: string; used_at: string | null }>();
 
-  if (lookupError || !record) {
+  if (lookupError) {
+    console.error('[verify-email] Verification token lookup error:', lookupError);
+    return NextResponse.json(
+      { error: 'Unable to verify this link right now. Please try again.' },
+      { status: 500, headers: rate.headers },
+    );
+  }
+
+  if (!record) {
     return NextResponse.json(
       { error: 'This verification link is invalid or has already been used.', code: 'TOKEN_INVALID' },
       { status: 400, headers: rate.headers },
@@ -75,9 +103,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (record.used_at) {
+    const role = await getUserRole(record.user_id);
+    if (!role) {
+      return NextResponse.json(
+        { error: 'Failed to resolve account role. Please contact support.' },
+        { status: 500, headers: rate.headers },
+      );
+    }
+
     return NextResponse.json(
-      { error: 'This verification link has already been used.', code: 'TOKEN_INVALID' },
-      { status: 400, headers: rate.headers },
+      { message: 'Email verified successfully.', role },
+      { status: 200, headers: rate.headers },
     );
   }
 
@@ -104,8 +140,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .from('profiles')
     .update({ email_verified: true })
     .eq('id', record.user_id)
-    .select('role_normalized, role, full_name, email')
-    .single<{ role_normalized: string; role: string; full_name: string; email: string }>();
+    .select('role_normalized, role')
+    .maybeSingle<{ role_normalized: string | null; role: string | null }>();
     
   if (profileError || !profile) {
     console.error('[verify-email] Profile update error:', profileError);
@@ -129,8 +165,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const role =
+    normalizeAppRole(profile.role_normalized) ??
+    normalizeAppRole(profile.role) ??
+    await resolveRoleFromTables(supabase, record.user_id);
+
+  if (!role) {
+    console.error('[verify-email] Unable to resolve account role:', record.user_id);
+    return NextResponse.json(
+      { error: 'Failed to resolve account role. Please contact support.' },
+      { status: 500, headers: rate.headers },
+    );
+  }
+
   return NextResponse.json(
-    { message: 'Email verified successfully.', role: profile.role_normalized || profile.role },
+    { message: 'Email verified successfully.', role },
     { status: 200, headers: rate.headers },
   );
 }

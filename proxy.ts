@@ -127,7 +127,9 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/api/employees");
 
   if (!user && isDashboard) {
-    return NextResponse.redirect(new URL("/", req.url));
+    const loginUrl = new URL("/", req.url);
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   // Defense-in-depth: stop anonymous requests to protected API paths at the edge.
