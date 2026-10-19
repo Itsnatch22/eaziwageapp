@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAppRole, resolveRoleFromTables } from "@/lib/server/resolve-user-role";
 import type { AppRole } from "@/lib/server/resolve-user-role";
+import { hasSubmittedOnboarding } from "@/lib/server/onboarding-submitted";
 import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie, DEVICE_TRUST_COOKIE, verifyDeviceTrustCookie } from "@/lib/mfa-handler";
 import {
   getAdminMfaEnrollmentRedirect,
@@ -330,12 +331,11 @@ export async function proxy(req: NextRequest) {
           } else if (role === 'employee') {
             const { data: empRow } = await supabase
               .from('employee_onboarding')
-              .select('status')
+              .select('status, submitted_at')
               .eq('user_id', user.id)
               .limit(1)
-              .maybeSingle<{ status: string }>();
-            // 'pending' = submitted awaiting approval, 'approved' = approved (is_active may lag)
-            submittedOnboarding = !!empRow?.status && empRow.status !== 'draft';
+              .maybeSingle<{ status: string | null; submitted_at: string | null }>();
+            submittedOnboarding = hasSubmittedOnboarding(empRow);
           }
         }
 
