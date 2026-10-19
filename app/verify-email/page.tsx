@@ -142,10 +142,7 @@ export default function VerifyEmailPage() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleResend(); };
 
-  const dashboardUrl =
-    userRole === 'employer'
-      ? '/dashboards/employer-dashboard'
-      : '/dashboards/employee-dashboard';
+  const loginUrl = '/?verified=1';
 
 
   const renderContent = () => {
@@ -184,23 +181,23 @@ export default function VerifyEmailPage() {
               Email verified!
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
-              Your EaziWage account is now fully active. you&apos;re being redirected in{' '}
-              <Countdown seconds={AUTO_REDIRECT_SECS} onComplete={() => router.replace(dashboardUrl)} />.
+              Your EaziWage account is now active. Sign in to continue. Redirecting to sign in in{' '}
+              <Countdown seconds={AUTO_REDIRECT_SECS} onComplete={() => router.replace(loginUrl)} />.
             </p>
             <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
-              {userRole === 'employer' ? 'Head to your employer dashboard to onboard your team.' : 'Head to your dashboard to access your earned wages.'}
+              {userRole === 'employer' ? 'After signing in, you can onboard your team.' : 'After signing in, you can access your account.'}
             </p>
 
             <button
               type="button"
-              onClick={() => router.replace(dashboardUrl)}
+              onClick={() => router.replace(loginUrl)}
               className={cn(
                 "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2",
                 "w-full h-12 rounded-xl bg-linear-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-600/25 transition-all"
               )}
             >
               <span className="flex items-center gap-2">
-                Go to Dashboard
+                Continue to sign in
                 <ArrowRight className="w-4 h-4" />
               </span>
             </button>

@@ -887,7 +887,7 @@ export default function EmployeeSettings() {
                   />
                   {pushStatus === 'denied' && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 pl-1">
-                      Push notifications are blocked in your browser settings. Enable them there, or we&apos;ll continue sending you email alerts as a fallback.
+                      Push notifications are blocked in your browser settings. Enable them there, or we&apos;ll continue sending you email alerts.
                     </p>
                   )}
                   {pushStatus === 'unsupported' && (

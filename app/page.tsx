@@ -157,6 +157,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get('next');
+  const emailVerified = searchParams.get('verified') === '1';
   const safeNext =
     nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
       ? nextParam
@@ -350,6 +351,15 @@ export default function LoginPage() {
                 Access your earnings, anytime, anywhere.
               </p>
             </div>
+
+            {emailVerified && (
+              <Alert className="mb-4 rounded-xl bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                <Mail className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-700 dark:text-green-300">
+                  Email verified successfully. Sign in to continue.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {error && (
               <Alert className={`mb-4 rounded-xl ${
