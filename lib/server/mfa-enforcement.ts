@@ -81,6 +81,11 @@ export function getAdminMfaEnrollmentRedirect(pathname: string, tab: string | nu
   return `${ADMIN_SECURITY_SETTINGS_PATH}?tab=security`;
 }
 
+const ADMIN_MFA_SETUP_API_PATHS = new Set([
+  '/api/admin/me', 
+  '/api/admin/security/mfa',
+]);
+
 export function isAdminMfaSetupApiAllowed(pathname: string): boolean {
-  return pathname === '/api/admin/security/mfa';
+  return ADMIN_MFA_SETUP_API_PATHS.has(pathname);
 }

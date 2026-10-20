@@ -65,6 +65,7 @@ node_modules/
 # local-only project notes for Claude Code
 CLAUDE.md
 .claude
+.agents/
 
 #bruno tests
 bruno-tests/
