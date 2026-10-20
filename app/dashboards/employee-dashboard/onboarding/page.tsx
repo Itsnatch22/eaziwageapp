@@ -840,10 +840,9 @@ export default function Onboarding() {
         const res = await fetch("/api/employee-dashboard/profile");
         if (res.ok) {
           const data = await res.json();
-          const status = String(
-            data?.profile?.employee?.kyc_status || "",
-          ).toLowerCase();
-          if (status === "approved") {
+          const employeeProfile = data?.profile?.employee;
+          const status = String(employeeProfile?.kyc_status || "").toLowerCase();
+          if (status === "approved" && employeeProfile?.submitted_at != null) {
             router.replace("/dashboards/employee-dashboard");
           }
           setIdentity({

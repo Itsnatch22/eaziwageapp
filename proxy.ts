@@ -250,14 +250,14 @@ export async function proxy(req: NextRequest) {
     }
 
     const isEmployerDashboardApi = pathname.startsWith('/api/employer-dashboard/');
-    let employerOnboardingRow: { deleted_at: string | null; status: string | null } | null = null;
+    let employerOnboardingRow: { deleted_at: string | null; status: string | null; submitted_at: string | null } | null = null;
     if (role === 'employer' && (isDashboard || isEmployerDashboardApi)) {
       const { data } = await supabase
         .from('employer_onboarding')
-        .select('deleted_at, status')
+        .select('deleted_at, status, submitted_at')
         .eq('user_id', user.id)
         .limit(1)
-        .maybeSingle<{ deleted_at: string | null; status: string | null }>();
+        .maybeSingle<{ deleted_at: string | null; status: string | null; submitted_at: string | null }>();
       employerOnboardingRow = data;
     }
 
@@ -269,11 +269,14 @@ export async function proxy(req: NextRequest) {
       && process.env.REQUIRE_EMPLOYER_MFA?.toLowerCase() !== 'false';
     const employerNeedsMfaEnrollment = employerMfaEnforced && aalData?.nextLevel !== 'aal2';
 
-    if (role === 'employer' && (isEmployerDashboardApi || pathname.startsWith('/dashboards/employer-dashboard'))) {
+    if (
+      role === 'employer'
+      && !employerOnboardingRow?.deleted_at
+      && (isEmployerDashboardApi || pathname.startsWith('/dashboards/employer-dashboard'))
+    ) {
       const isActive = profileRow?.is_active ?? false;
-      const onboardingPending = !employerOnboardingRow?.deleted_at
-        && !isActive
-        && (!employerOnboardingRow || employerOnboardingRow.status === 'draft');
+      const submittedOnboarding = hasSubmittedOnboarding(employerOnboardingRow);
+      const onboardingPending = !isActive && !submittedOnboarding;
       const decision = getEmployerRouteDecision(
         pathname,
         req.nextUrl.searchParams.get('tab'),
@@ -334,10 +337,10 @@ export async function proxy(req: NextRequest) {
           if (role === 'employee') {
             const { data: empRow } = await supabase
               .from('employee_onboarding')
-              .select('status, submitted_at')
+              .select('submitted_at')
               .eq('user_id', user.id)
               .limit(1)
-              .maybeSingle<{ status: string | null; submitted_at: string | null }>();
+              .maybeSingle<{ submitted_at: string | null }>();
             submittedOnboarding = hasSubmittedOnboarding(empRow);
           }
         }

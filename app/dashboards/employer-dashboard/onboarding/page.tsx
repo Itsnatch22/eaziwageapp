@@ -23,6 +23,7 @@ import { DOCUMENT_ACCEPT, isDocumentFile } from "@/lib/upload-file-types";
 import { DocTooltip } from "@/components/shared/DocTooltip";
 import type { KycAdditionalFile } from "@/lib/constants/kyc-multi-file";
 import { AFRICAN_NATIONALITIES } from "@/lib/constants/nationalities";
+import { shouldRedirectEmployerFromOnboarding } from "@/lib/server/onboarding-submitted";
 
 const COUNTRIES = [
   { code: "KE", name: "Kenya" },
@@ -577,18 +578,20 @@ export default function EmployerOnboarding() {
           const data = await res.json();
           const profile = data?.profile;
 
-          // 'pending'/'submitted'/'approved' are the KYC-document rollup
-          // (employer_onboarding.status); risk_review_in_progress/suspended
-          // are the separate admin account_status — both mean "don't show
-          // the wizard again."
-          const ALREADY_SUBMITTED = ['pending', 'submitted', 'approved'];
-          const accountOnHold = profile?.account_status === 'risk_review_in_progress' || profile?.account_status === 'suspended';
-          if (profile && (ALREADY_SUBMITTED.includes(profile.status) || accountOnHold)) {
+          if (profile && shouldRedirectEmployerFromOnboarding(
+            profile.status,
+            profile.submitted_at,
+            profile.account_status,
+          )) {
             router.replace('/dashboards/employer-dashboard');
             return;
           }
 
-          if (profile && (profile.status === 'rejected' || profile.status === 'draft')) {
+          if (profile && (
+            profile.status === 'rejected'
+            || profile.status === 'draft'
+            || (profile.status === 'pending' && profile.submitted_at == null)
+          )) {
             setFormData(prev => ({
               ...prev,
               company_name: profile.company_name || "",
