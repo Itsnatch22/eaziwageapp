@@ -37,7 +37,7 @@ const testimonials = [
 function TestimonialsPanel() {
   const [active, setActive] = useState(0);
   const [stats, setStats] = useState({
-    employeesServed: '10K+',
+    settlementTime: '-3s',
     satisfactionRate: '98%',
     interestRate: '0%'
   });
@@ -52,7 +52,7 @@ function TestimonialsPanel() {
       .then(res => res.json())
       .then(data => {
         setStats({
-          employeesServed: data.employeesServed,
+          settlementTime: data.settlementTime,
           satisfactionRate: data.satisfactionRate,
           interestRate: data.interestRate
         });
@@ -128,7 +128,7 @@ function TestimonialsPanel() {
       
       <div className="relative z-10 grid grid-cols-3 gap-4">
         {[
-          { value: stats.employeesServed, label: 'Active Users' },
+          { value: stats.settlementTime, label: 'Settlement Time' },
           { value: stats.satisfactionRate, label: 'Satisfaction Rate' },
           { value: stats.interestRate, label: 'Interest Rate' },
         ].map((stat) => (
