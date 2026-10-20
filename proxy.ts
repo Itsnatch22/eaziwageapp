@@ -7,10 +7,9 @@ import type { AppRole } from "@/lib/server/resolve-user-role";
 import { hasSubmittedOnboarding } from "@/lib/server/onboarding-submitted";
 import { MFA_BACKUP_COOKIE, verifyMfaBackupCookie, DEVICE_TRUST_COOKIE, verifyDeviceTrustCookie } from "@/lib/mfa-handler";
 import {
+  getEmployerRouteDecision,
   getAdminMfaEnrollmentRedirect,
-  getEmployerMfaEnrollmentRedirect,
   isAdminMfaSetupApiAllowed,
-  isEmployerMfaSetupApiAllowed,
 } from "@/lib/server/mfa-enforcement";
 
 function hasValidBackupCodeCookie(req: NextRequest, userId: string): boolean {
@@ -251,6 +250,17 @@ export async function proxy(req: NextRequest) {
     }
 
     const isEmployerDashboardApi = pathname.startsWith('/api/employer-dashboard/');
+    let employerOnboardingRow: { deleted_at: string | null; status: string | null } | null = null;
+    if (role === 'employer' && (isDashboard || isEmployerDashboardApi)) {
+      const { data } = await supabase
+        .from('employer_onboarding')
+        .select('deleted_at, status')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle<{ deleted_at: string | null; status: string | null }>();
+      employerOnboardingRow = data;
+    }
+
     const isAdminProtectedApi = isProtectedApi
       && !pathname.startsWith('/api/employer-dashboard/')
       && !pathname.startsWith('/api/employee-dashboard/');
@@ -259,17 +269,27 @@ export async function proxy(req: NextRequest) {
       && process.env.REQUIRE_EMPLOYER_MFA?.toLowerCase() !== 'false';
     const employerNeedsMfaEnrollment = employerMfaEnforced && aalData?.nextLevel !== 'aal2';
 
-    if (employerNeedsMfaEnrollment) {
-      if (isEmployerDashboardApi) {
-        if (!isEmployerMfaSetupApiAllowed(pathname)) {
-          return NextResponse.json(
-            { error: 'Multi-factor authentication enrollment is required.', code: 'MFA_ENROLLMENT_REQUIRED' },
-            { status: 403 },
-          );
-        }
-      } else if (pathname.startsWith('/dashboards/employer-dashboard')) {
-        const redirectPath = getEmployerMfaEnrollmentRedirect(pathname, req.nextUrl.searchParams.get('tab'));
-        if (redirectPath) return NextResponse.redirect(new URL(redirectPath, req.url));
+    if (role === 'employer' && (isEmployerDashboardApi || pathname.startsWith('/dashboards/employer-dashboard'))) {
+      const isActive = profileRow?.is_active ?? false;
+      const onboardingPending = !employerOnboardingRow?.deleted_at
+        && !isActive
+        && (!employerOnboardingRow || employerOnboardingRow.status === 'draft');
+      const decision = getEmployerRouteDecision(
+        pathname,
+        req.nextUrl.searchParams.get('tab'),
+        isEmployerDashboardApi,
+        onboardingPending,
+        employerNeedsMfaEnrollment,
+      );
+
+      if (decision.type === 'redirect') {
+        return NextResponse.redirect(new URL(decision.to, req.url));
+      }
+      if (decision.type === 'forbid') {
+        return NextResponse.json(
+          { error: 'Multi-factor authentication enrollment is required.', code: 'MFA_ENROLLMENT_REQUIRED' },
+          { status: 403 },
+        );
       }
     }
 
@@ -297,14 +317,7 @@ export async function proxy(req: NextRequest) {
       const restorePath = '/api/employer-dashboard/termination/restore';
 
       if (role === 'employer') {
-        const { data: eoRow } = await supabase
-          .from('employer_onboarding')
-          .select('deleted_at')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle<{ deleted_at: string | null }>();
-
-        if (eoRow?.deleted_at && pathname !== terminatedPath && pathname !== restorePath) {
+        if (employerOnboardingRow?.deleted_at && pathname !== terminatedPath && pathname !== restorePath) {
           return isEmployerDashboardApi
             ? NextResponse.json({ error: 'Forbidden', code: 'EMPLOYER_TERMINATED' }, { status: 403 })
             : NextResponse.redirect(new URL(terminatedPath, req.url));
@@ -313,22 +326,12 @@ export async function proxy(req: NextRequest) {
 
       if (isDashboard) {
         const isActive = profileRow?.is_active ?? false;
-        const employerOnboardingPath = '/dashboards/employer-dashboard/onboarding';
         const employeeOnboardingPath = '/dashboards/employee-dashboard/onboarding';
 
-        // Both employers and employees who have submitted their onboarding can reach the
-        // dashboard even before admin approval. Only redirect if they haven't submitted yet.
+        // Employees who have submitted onboarding can reach the dashboard before approval.
         let submittedOnboarding = false;
         if (!isActive) {
-          if (role === 'employer') {
-            const { data: eoRow } = await supabase
-              .from('employer_onboarding')
-              .select('status')
-              .eq('user_id', user.id)
-              .limit(1)
-              .maybeSingle<{ status: string }>();
-            submittedOnboarding = !!eoRow?.status && eoRow.status !== 'draft';
-          } else if (role === 'employee') {
+          if (role === 'employee') {
             const { data: empRow } = await supabase
               .from('employee_onboarding')
               .select('status, submitted_at')
@@ -339,11 +342,10 @@ export async function proxy(req: NextRequest) {
           }
         }
 
-        if (!isActive && !submittedOnboarding && pathname !== terminatedPath) {
-          const targetOnboardingPath = role === 'employer' ? employerOnboardingPath : employeeOnboardingPath;
-          if (pathname !== targetOnboardingPath) {
-            console.log(`[middleware] Redirecting inactive ${role} ${user.id} to ${targetOnboardingPath}`);
-            return NextResponse.redirect(new URL(targetOnboardingPath, req.url));
+        if (role === 'employee' && !isActive && !submittedOnboarding && pathname !== terminatedPath) {
+          if (pathname !== employeeOnboardingPath) {
+            console.log(`[middleware] Redirecting inactive ${role} ${user.id} to ${employeeOnboardingPath}`);
+            return NextResponse.redirect(new URL(employeeOnboardingPath, req.url));
           }
         }
       }
