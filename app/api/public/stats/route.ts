@@ -78,7 +78,7 @@ export async function GET() {
   } catch (error) {
     console.error('[public-stats] Error fetching stats:', error);
     return NextResponse.json({
-      employeesServed: '2.5K+',
+      settlementTime: '-3s',
       satisfactionRate: '99%',
       interestRate: '0%'
     });
