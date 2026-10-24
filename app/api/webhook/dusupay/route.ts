@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dusupay } from '@/lib/dusupay';
-import { PayoutStatus } from '@/lib/dusupay/types';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { notifyEmployee, notifyEmployer, notifyAdmin } from '@/lib/notifications';
 import { parseRepaymentReference } from '@/lib/repayment/utils';
 import { applyPaydayRecoupmentCollection } from '@/lib/services/payday-recoupment-service';
 import { requestLogger, type Logger } from '@/lib/logger';
+import { normalizeDusuPayStatus } from '@/lib/dusupay/webhook-status';
 
 interface DusupayWebhookPayload {
   merchant_reference?: string;
@@ -20,22 +20,80 @@ interface DusupayWebhookPayload {
   charges?: number | string;
 }
 
+async function acquireWebhookClaim(
+  merchantRef: string,
+  event: string,
+  internalRef: string,
+  rawPayload: Record<string, unknown>,
+): Promise<{ claimed: boolean; reason: string; claimToken?: string }> {
+  const { data, error } = await supabaseAdmin.rpc('acquire_dusupay_webhook_claim', {
+    p_merchant_reference: merchantRef,
+    p_event_type: event,
+    p_internal_reference: internalRef || null,
+    p_payload: rawPayload,
+  });
+
+  if (error) throw new Error(`Failed to acquire DusuPay webhook claim: ${error.message}`);
+  if (!data || typeof data !== 'object' || !('claimed' in data)) {
+    throw new Error('DusuPay webhook claim RPC returned an invalid response');
+  }
+
+  const result = data as { claimed?: unknown; reason?: unknown; claim_token?: unknown };
+  if (typeof result.claimed !== 'boolean') {
+    throw new Error('DusuPay webhook claim RPC omitted the claimed result');
+  }
+  if (!result.claimed) {
+    return { claimed: false, reason: String(result.reason ?? 'already_claimed') };
+  }
+  if (typeof result.claim_token !== 'string' || !result.claim_token) {
+    throw new Error('DusuPay webhook claim RPC omitted its fencing token');
+  }
+
+  return {
+    claimed: true,
+    reason: String(result.reason ?? 'rpc'),
+    claimToken: result.claim_token,
+  };
+}
+
+async function finishWebhookClaim(
+  merchantRef: string,
+  event: string,
+  claimToken: string,
+  outcome: 'completed' | 'failed',
+): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc('finish_dusupay_webhook_claim', {
+    p_merchant_reference: merchantRef,
+    p_event_type: event,
+    p_claim_token: claimToken,
+    p_outcome: outcome,
+  });
+  if (error) throw new Error(`Failed to ${outcome} DusuPay webhook claim: ${error.message}`);
+  if (data !== true) throw new Error(`DusuPay webhook claim could not be marked ${outcome}`);
+}
+
 export async function POST(req: NextRequest) {
   const ip = (req.headers.get('x-real-ip')?.trim() || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()) ?? 'unknown';
   const log = requestLogger('webhook-dusupay', req).child({ ip });
+  let activeClaim: { merchantReference: string; event: string; claimToken: string } | null = null;
 
   log.info('Webhook received');
 
-  // Optional IP allowlist: DUSUPAY_ALLOWED_IPS can be a comma-separated list of allowed IPs.
+  // Fail closed: a webhook without an allowlist is not trusted to move funds.
   try {
     const allowedIps = (process.env.DUSUPAY_ALLOWED_IPS || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (allowedIps.length > 0 && !allowedIps.includes(ip)) {
+    if (allowedIps.length === 0) {
+      log.warn('DUSUPAY_ALLOWED_IPS not configured; webhook rejected', { ip });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!allowedIps.includes(ip)) {
       log.warn('Webhook IP not in allowed list', { ip });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   } catch (e) {
-    // fail closed? Log and continue to signature verification as a fallback
-    log.warn('Failed to parse DUSUPAY_ALLOWED_IPS; continuing without allowlist', { err: e });
+    log.warn('Failed to parse DUSUPAY_ALLOWED_IPS; rejecting webhook', { err: e, ip });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
@@ -52,9 +110,14 @@ export async function POST(req: NextRequest) {
 
     const merchantReference = payload.merchant_reference || payload.transaction_id;
     const internalReference = payload.internal_reference || payload.dusupay_reference || '';
-    const transactionStatus = payload.transaction_status || payload.status;
+    const normalizedStatus = normalizeDusuPayStatus(event, payload);
     const amount = Number(payload.transaction_amount);
     const currency = payload.transaction_currency;
+
+    if (normalizedStatus === 'REJECTED') {
+      log.warn('Rejected contradictory DusuPay status payload', { event, merchantRef: merchantReference, payload });
+      return NextResponse.json({ error: 'Contradictory webhook status' }, { status: 400 });
+    }
 
     if (!Number.isFinite(amount)) {
       log.error('Webhook payload missing or invalid transaction_amount', { payload });
@@ -69,23 +132,19 @@ export async function POST(req: NextRequest) {
     // Narrow context — every log line below includes event + merchantRef for easy correlation.
     const mlog = log.child({ event, merchantRef: merchantReference });
 
-    // Idempotency: check stored state BEFORE upserting so we read the pre-existing status.
-    const { data: existingTx, error: existingTxError } = await supabaseAdmin
-      .from('dusupay_transactions')
-      .select('status')
-      .eq('merchant_reference', merchantReference)
-      .eq('event_type', event)
-      .maybeSingle();
-
-    if (existingTxError) {
-      mlog.error('Failed to check webhook idempotency state', { err: existingTxError });
-      return NextResponse.json({ error: 'Failed to check webhook state' }, { status: 500 });
-    }
-
-    if (existingTx?.status === 'COMPLETED') {
-      mlog.info('Already processed — skipping');
+    const claim = await acquireWebhookClaim(merchantReference, event, internalReference, body);
+    if (!claim.claimed) {
+      mlog.info('Webhook already claimed by another worker — skipping', { reason: claim.reason });
+      if (claim.reason !== 'already_completed') {
+        return NextResponse.json(
+          { error: 'Webhook processing is already in progress; retry later' },
+          { status: 503, headers: { 'Retry-After': '30' } },
+        );
+      }
       return NextResponse.json({ received: true }, { status: 200 });
     }
+    if (!claim.claimToken) throw new Error('Claim token was not returned for an acquired DusuPay webhook');
+    activeClaim = { merchantReference, event, claimToken: claim.claimToken };
 
     // DusuPay uses the SAME event names for both directions — "transaction.completed"
     // /"transaction.failed", never a "collection."-prefixed string (confirmed against
@@ -98,20 +157,20 @@ export async function POST(req: NextRequest) {
       || merchantReference.startsWith('EWAPAYDAY');
 
     if (isCollection) {
-      await handleCollectionEvent(event, payload, merchantReference, internalReference, mlog);
+      await handleCollectionEvent(event, payload, merchantReference, internalReference, normalizedStatus, mlog);
     } else if (merchantReference.startsWith('EWA-FUND-')) {
       // Employer wallet funding payout (debit_order/invoice employers) — has
       // its own handler since handlePayoutEvent only knows about `advances`.
-      await handleEmployerFundingPayout(event, payload, merchantReference, internalReference, mlog);
+      await handleEmployerFundingPayout(event, payload, merchantReference, internalReference, normalizedStatus, mlog);
     } else {
-      await handlePayoutEvent(event, payload, merchantReference, internalReference, mlog);
+      await handlePayoutEvent(event, payload, merchantReference, internalReference, normalizedStatus, mlog);
     }
 
     const { error: transactionUpsertError } = await supabaseAdmin.from('dusupay_transactions').upsert({
       merchant_reference: merchantReference,
       internal_reference: internalReference,
       event_type: event,
-      status: transactionStatus,
+      status: normalizedStatus,
       amount,
       currency,
       raw_payload: body,
@@ -119,13 +178,22 @@ export async function POST(req: NextRequest) {
 
     if (transactionUpsertError) {
       mlog.error('Failed to persist processed webhook state', { err: transactionUpsertError });
-      return NextResponse.json({ error: 'Failed to persist webhook state' }, { status: 500 });
+      throw new Error(`Failed to persist processed webhook state: ${transactionUpsertError.message}`);
     }
 
+    await finishWebhookClaim(merchantReference, event, claim.claimToken, 'completed');
+    activeClaim = null;
     return NextResponse.json({ received: true }, { status: 200 });
 
   } catch (error: unknown) {
     log.error('Fatal error', { err: error });
+    if (activeClaim) {
+      try {
+        await finishWebhookClaim(activeClaim.merchantReference, activeClaim.event, activeClaim.claimToken, 'failed');
+      } catch (claimError) {
+        log.error('Failed to release DusuPay webhook claim for retry', { err: claimError, merchantRef: activeClaim.merchantReference });
+      }
+    }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -137,22 +205,29 @@ async function handleRepaymentCollection(
   log: Logger,
 ): Promise<void> {
   const parsed = parseRepaymentReference(merchantRef);
-  if (!parsed.isRepayment) return;
+  if (!parsed.isRepayment) throw new Error(`Invalid EWA-REP reference ${merchantRef}`);
 
-  const { data: schedule } = await supabaseAdmin
+  const { data: schedule, error: scheduleError } = await supabaseAdmin
     .from('repayment_schedules')
-    .select('id, advance_id, employer_id, repayment_amount, status')
+    .select('id, advance_id, employer_id, repayment_amount, paid_amount, payment_reference, status')
     .eq('repayment_reference', merchantRef)
     .maybeSingle();
 
+  if (scheduleError) {
+    throw new Error(`Failed to load repayment schedule: ${scheduleError.message}`);
+  }
   if (!schedule) {
     log.error('No repayment schedule found for EWA-REP reference', { merchantRef });
-    return;
+    throw new Error(`No repayment schedule found for EWA-REP reference ${merchantRef}`);
   }
 
   // Idempotency — never call repay_advance_to_admin for an already-paid schedule
   if (schedule.status === 'paid') {
     log.info('Repayment schedule already paid — skipping', { scheduleId: schedule.id });
+    return;
+  }
+  if (internalRef && schedule.payment_reference === internalRef) {
+    log.info('Repayment callback already applied to schedule — skipping', { scheduleId: schedule.id });
     return;
   }
 
@@ -176,17 +251,17 @@ async function handleRepaymentCollection(
         error:       rpcError.message,
       },
     }).catch(() => {});
-    // Do NOT update schedule — leave it pending so the next webhook retry can reprocess
-    return;
+    throw new Error(`repay_advance_to_admin failed: ${rpcError.message}`);
   }
 
-  const isPaid = amount >= Number(schedule.repayment_amount);
+  const cumulativePaid = Number(schedule.paid_amount ?? 0) + amount;
+  const isPaid = cumulativePaid >= Number(schedule.repayment_amount);
 
   const { error: scheduleUpdateError } = await supabaseAdmin
     .from('repayment_schedules')
     .update({
       status:            isPaid ? 'paid' : 'partial',
-      paid_amount:       amount,
+      paid_amount:       Math.min(Number(schedule.repayment_amount), cumulativePaid),
       paid_at:           new Date().toISOString(),
       payment_reference: internalRef,
       updated_at:        new Date().toISOString(),
@@ -194,8 +269,8 @@ async function handleRepaymentCollection(
     .eq('id', schedule.id);
 
   if (scheduleUpdateError) {
-    // RPC already ran — financial state is correct. Log for reconciliation.
     log.error('Schedule update failed after successful RPC', { err: scheduleUpdateError, scheduleId: schedule.id });
+    throw new Error(`Repayment ledger succeeded but schedule update failed: ${scheduleUpdateError.message}`);
   }
 
   void notifyAdmin({
@@ -237,21 +312,22 @@ async function handleRepaymentCollection(
 // currently pending/overdue schedule via the same repay_advance_to_admin RPC
 // used by manual admin repayment, in order, until it runs out.
 async function handlePaydayRecoupmentCollection(
-  event: string,
+  status: 'COMPLETED' | 'FAILED' | 'PENDING',
   merchantRef: string,
   internalRef: string,
   amount: number,
   log: Logger,
 ): Promise<void> {
-  const { data: recoupment } = await supabaseAdmin
+  const { data: recoupment, error: recoupmentError } = await supabaseAdmin
     .from('payday_recoupments')
-    .select('id, employer_id, amount_due, status')
+    .select('id, employer_id, amount_due, status, failure_reason')
     .eq('merchant_reference', merchantRef)
     .maybeSingle();
 
+  if (recoupmentError) throw new Error(`Failed to load payday recoupment: ${recoupmentError.message}`);
   if (!recoupment) {
     log.error('No payday_recoupments row found for EWA-PAYDAY reference', { merchantRef });
-    return;
+    throw new Error(`No payday recoupment found for ${merchantRef}`);
   }
 
   // Idempotency — never re-apply an already-collected recoupment.
@@ -259,13 +335,25 @@ async function handlePaydayRecoupmentCollection(
     log.info('Payday recoupment already collected — skipping', { recoupmentId: recoupment.id });
     return;
   }
+  if (
+    recoupment.status === 'failed'
+    && (recoupment.failure_reason?.startsWith('Webhook processing failed:')
+      || recoupment.failure_reason === 'RPC execution error during collection application')
+  ) {
+    log.error('Payday recoupment requires manual ledger reconciliation; refusing automatic replay', {
+      recoupmentId: recoupment.id,
+      merchantRef,
+    });
+    return;
+  }
 
-  if (event === 'transaction.failed' || event === 'request.failed') {
-    await supabaseAdmin.from('payday_recoupments').update({
+  if (status === 'FAILED') {
+    const { error } = await supabaseAdmin.from('payday_recoupments').update({
       status: 'failed',
       failure_reason: 'DusuPay collection failed or was declined by the mobile money subscriber',
       updated_at: new Date().toISOString(),
     }).eq('id', recoupment.id);
+    if (error) throw new Error(`Failed to persist failed payday recoupment: ${error.message}`);
 
     void notifyAdmin({
       type: 'system_alert',
@@ -276,8 +364,8 @@ async function handlePaydayRecoupmentCollection(
     return;
   }
 
-  if (event !== 'transaction.completed') {
-    log.info('Payday recoupment non-terminal event — skipping', { event });
+  if (status !== 'COMPLETED') {
+    log.info('Payday recoupment pending event — skipping');
     return;
   }
 
@@ -289,13 +377,14 @@ async function handleCollectionEvent(
   payload: DusupayWebhookPayload,
   merchantRef: string,
   internalRef: string,
+  normalizedStatus: 'COMPLETED' | 'FAILED' | 'PENDING',
   log: Logger,
 ) {
   // Repayment collections (employer paying back an advance) are distinct from
   // wallet top-ups (DEP-). Route them before the DEP- guard.
   if (merchantRef.startsWith('EWA-REP-')) {
-    if (event !== 'transaction.completed') {
-      log.info('EWA-REP non-completion event — skipping', { event });
+    if (normalizedStatus !== 'COMPLETED') {
+      log.info('EWA-REP non-completion event — skipping', { event, status: normalizedStatus });
       return;
     }
     const repaymentAmount = Number(payload.transaction_amount);
@@ -307,7 +396,7 @@ async function handleCollectionEvent(
         message: `Repayment webhook for ${merchantRef} had no valid amount (got: ${repaymentAmount}). Manual review required.`,
         metadata: { merchantRef, payload },
       }).catch(() => {});
-      return;
+      throw new Error(`Invalid amount for EWA-REP callback ${merchantRef}`);
     }
     await handleRepaymentCollection(merchantRef, internalRef, repaymentAmount, log);
     return; // never fall through to DEP- logic
@@ -315,7 +404,7 @@ async function handleCollectionEvent(
 
   if (merchantRef.startsWith('EWAPAYDAY')) {
     const collectedAmount = Number(payload.transaction_amount);
-    if ((event === 'transaction.completed') && (!Number.isFinite(collectedAmount) || collectedAmount <= 0)) {
+    if (normalizedStatus === 'COMPLETED' && (!Number.isFinite(collectedAmount) || collectedAmount <= 0)) {
       log.error('EWA-PAYDAY webhook missing or zero transaction_amount — skipping', { merchantRef, payload });
       void notifyAdmin({
         type: 'system_alert',
@@ -323,21 +412,22 @@ async function handleCollectionEvent(
         message: `Payday recoupment webhook for ${merchantRef} had no valid amount (got: ${collectedAmount}). Manual review required.`,
         metadata: { merchantRef, payload },
       }).catch(() => {});
-      return;
+      throw new Error(`Invalid amount for payday recoupment callback ${merchantRef}`);
     }
-    await handlePaydayRecoupmentCollection(event, merchantRef, internalRef, collectedAmount, log);
+    await handlePaydayRecoupmentCollection(normalizedStatus, merchantRef, internalRef, collectedAmount, log);
     return; // never fall through to DEP- logic
   }
 
   if (!merchantRef.startsWith('DEP-')) return;
 
   // Terminal status guard: skip if wallet_transactions already has a completed row for this reference.
-  const { data: existingWalletTx } = await supabaseAdmin
+  const { data: existingWalletTx, error: existingWalletTxError } = await supabaseAdmin
     .from('wallet_transactions')
     .select('id, status')
     .eq('reference', merchantRef)
     .maybeSingle();
 
+  if (existingWalletTxError) throw new Error(`Failed to load wallet transaction: ${existingWalletTxError.message}`);
   if (existingWalletTx?.status === 'completed') {
     log.info('Wallet transaction already completed — skipping');
     return;
@@ -350,34 +440,57 @@ async function handleCollectionEvent(
   const employerId = depMatch?.[1];
   const amount = Number(payload.transaction_amount);
 
-  if (!Number.isFinite(amount)) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     log.error('DEP- webhook missing valid transaction_amount', { merchantRef, payload });
-    return;
+    throw new Error(`Invalid DEP- callback amount for ${merchantRef}`);
   }
 
   if (!employerId) {
     log.error('DEP- webhook reference did not match expected format', { merchantRef });
-    return;
+    throw new Error(`Malformed DEP- callback reference ${merchantRef}`);
   }
 
-  const { data: wallet } = await supabaseAdmin
+  const { data: wallet, error: walletError } = await supabaseAdmin
     .from('employer_wallets')
     .select('id')
     .eq('employer_id', employerId)
     .maybeSingle();
 
+  if (walletError) throw new Error(`Failed to load employer wallet: ${walletError.message}`);
+  let walletId = wallet?.id;
   if (!wallet) {
-    const { data: newWallet } = await supabaseAdmin
+    const { data: newWallet, error: createWalletError } = await supabaseAdmin
       .from('employer_wallets')
       .insert({ employer_id: employerId, total_advanced: 0, outstanding_liability: 0, total_repaid: 0, currency: 'KES', updated_at: new Date().toISOString() })
       .select('id')
       .single();
-    if (!newWallet) return;
+    if (createWalletError || !newWallet) {
+      throw new Error(`Failed to create employer wallet: ${createWalletError?.message ?? 'no row returned'}`);
+    }
+    walletId = newWallet.id;
   }
 
-  const walletId = wallet?.id || (await supabaseAdmin.from('employer_wallets').select('id').eq('employer_id', employerId).single()).data?.id;
-
-  const status = (event === 'transaction.completed' || payload.status === 'COMPLETED') ? 'completed' : 'failed';
+  const transactionStatus = normalizedStatus === 'COMPLETED'
+    ? 'pending'
+    : normalizedStatus === 'FAILED' ? 'failed' : 'pending';
+  const { data: walletTx, error: walletTxError } = await supabaseAdmin
+    .from('wallet_transactions')
+    .upsert({
+      ...(existingWalletTx?.id ? { id: existingWalletTx.id } : {}),
+      wallet_id: walletId,
+      amount,
+      type: 'deposit',
+      status: transactionStatus,
+      reference: merchantRef,
+      internal_reference: internalRef,
+      description: 'Wallet Funding via Dusupay',
+      metadata: payload,
+    }, { onConflict: 'reference' })
+    .select('id')
+    .single();
+  if (walletTxError || !walletTx) {
+    throw new Error(`Failed to persist wallet transaction: ${walletTxError?.message ?? 'no row returned'}`);
+  }
 
   // Credit the employer's actual available balance BEFORE the upsert below —
   // credit_employer_wallet_prefunded() itself flips this row to 'completed'
@@ -386,37 +499,23 @@ async function handleCollectionEvent(
   // Only total_advanced increases here — this is the employer's own money
   // collected via DusuPay, not an admin-fronted loan, so outstanding_liability
   // and admin_wallets are correctly left untouched (see the RPC definition).
-  if (status === 'completed') {
-    if (existingWalletTx?.id) {
-      const { error: creditError } = await supabaseAdmin.rpc('credit_employer_wallet_prefunded', {
-        p_employer_id: employerId,
-        p_amount: amount,
-        p_wallet_transaction_id: existingWalletTx.id,
-      });
-      if (creditError) {
-        log.error('credit_employer_wallet_prefunded RPC failed', { err: creditError, employerId, amount });
-        void notifyAdmin({
-          type: 'system_alert',
-          title: 'Employer Wallet Credit Failed',
-          message: `DusuPay confirmed a wallet top-up collection for employer ${employerId} but crediting the wallet failed. Manual intervention required. Reference: ${merchantRef}.`,
-          metadata: { employerId, amount, merchantRef, error: creditError.message },
-        }).catch(() => {});
-      }
+  if (normalizedStatus === 'COMPLETED') {
+    const { error: creditError } = await supabaseAdmin.rpc('credit_employer_wallet_prefunded', {
+      p_employer_id: employerId,
+      p_amount: amount,
+      p_wallet_transaction_id: walletTx.id,
+    });
+    if (creditError) {
+      log.error('credit_employer_wallet_prefunded RPC failed', { err: creditError, employerId, amount });
+      void notifyAdmin({
+        type: 'system_alert',
+        title: 'Employer Wallet Credit Failed',
+        message: `DusuPay confirmed a wallet top-up collection for employer ${employerId} but crediting the wallet failed. Manual intervention required. Reference: ${merchantRef}.`,
+        metadata: { employerId, amount, merchantRef, error: creditError.message },
+      }).catch(() => {});
+      throw new Error(`Employer wallet credit failed: ${creditError.message}`);
     }
   }
-
-  await supabaseAdmin
-    .from('wallet_transactions')
-    .upsert({
-      wallet_id: walletId,
-      amount: amount,
-      type: 'deposit',
-      status: status,
-      reference: merchantRef,
-      internal_reference: internalRef,
-      description: 'Wallet Funding via Dusupay',
-      metadata: payload
-    }, { onConflict: 'reference' });
 
   try {
     const { data: employer } = await supabaseAdmin
@@ -429,18 +528,20 @@ async function handleCollectionEvent(
       await notifyEmployer({
         userId: employer.user_id,
         type: 'system',
-        title: status === 'completed' ? 'Wallet Funded' : 'Funding Failed',
-        message: status === 'completed'
+        title: normalizedStatus === 'COMPLETED' ? 'Wallet Funded' : normalizedStatus === 'FAILED' ? 'Funding Failed' : 'Funding Pending',
+        message: normalizedStatus === 'COMPLETED'
           ? `Your wallet has been successfully funded with ${amount}. You can now disburse advances.`
-          : `We couldn't process your wallet funding of ${amount}. Please check your payment details.`,
-        metadata: { amount, status, reference: merchantRef }
+          : normalizedStatus === 'FAILED'
+            ? `We couldn't process your wallet funding of ${amount}. Please check your payment details.`
+            : `Your wallet funding of ${amount} is still being processed.`,
+        metadata: { amount, status: normalizedStatus.toLowerCase(), reference: merchantRef }
       });
     }
   } catch (notifyErr) {
     log.error('Employer notification failed', { err: notifyErr, employerId });
   }
 
-  log.info('Wallet funding processed', { employerId, amount, status });
+  log.info('Wallet funding processed', { employerId, amount, status: normalizedStatus });
 }
 
 // Employer wallet funding payout (debit_order/invoice employers) — EaziWage
@@ -454,24 +555,26 @@ async function handleEmployerFundingPayout(
   payload: DusupayWebhookPayload,
   merchantRef: string,
   internalRef: string,
+  normalizedStatus: 'COMPLETED' | 'FAILED' | 'PENDING',
   log: Logger,
 ) {
   const match = merchantRef.match(/^EWA-FUND-(.+)-(\d+)$/);
   const employerId = match?.[1];
   if (!employerId) {
     log.error('EWA-FUND- webhook reference did not match expected format', { merchantRef });
-    return;
+    throw new Error(`Malformed EWA-FUND reference ${merchantRef}`);
   }
 
-  const { data: tx } = await supabaseAdmin
+  const { data: tx, error: txError } = await supabaseAdmin
     .from('wallet_transactions')
     .select('id, status, amount, usd_amount, local_currency, description, metadata')
     .eq('reference', merchantRef)
     .maybeSingle();
 
+  if (txError) throw new Error(`Failed to load employer funding transaction: ${txError.message}`);
   if (!tx) {
     log.error('No wallet_transactions row found for EWA-FUND- reference', { merchantRef });
-    return;
+    throw new Error(`No wallet transaction found for ${merchantRef}`);
   }
 
   if (['completed', 'failed'].includes(tx.status)) {
@@ -479,19 +582,20 @@ async function handleEmployerFundingPayout(
     return;
   }
 
-  const isCompleted = event === 'transaction.completed' || payload.status === 'COMPLETED';
-  const isFailed = ['transaction.failed', 'request.failed'].includes(event);
+  const isCompleted = normalizedStatus === 'COMPLETED';
+  const isFailed = normalizedStatus === 'FAILED';
 
   if (!isCompleted && !isFailed) {
-    log.info('Non-terminal event for employer funding payout — skipping', { event, merchantRef });
+    log.info('Non-terminal event for employer funding payout — skipping', { event, merchantRef, status: normalizedStatus });
     return;
   }
 
   if (isFailed) {
-    await supabaseAdmin.from('wallet_transactions').update({
+    const { error: updateError } = await supabaseAdmin.from('wallet_transactions').update({
       status: 'failed',
       metadata: Object.assign({}, tx.metadata ?? {}, { failure_reason: 'DusuPay reported the payout as failed', webhook_event: event }),
     }).eq('id', tx.id);
+    if (updateError) throw new Error(`Failed to record failed employer funding payout: ${updateError.message}`);
 
     void notifyAdmin({
       type: 'system_alert',
@@ -504,12 +608,13 @@ async function handleEmployerFundingPayout(
     return;
   }
 
-  const { data: adminWallet } = await supabaseAdmin
+  const { data: adminWallet, error: adminWalletError } = await supabaseAdmin
     .from('admin_wallets')
     .select('id')
     .eq('name', 'Main Stanbic Source')
     .maybeSingle();
 
+  if (adminWalletError) throw new Error(`Failed to load admin wallet: ${adminWalletError.message}`);
   if (!adminWallet) {
     log.error('Admin wallet not found — cannot fund employer', { merchantRef, employerId });
     void notifyAdmin({
@@ -518,7 +623,7 @@ async function handleEmployerFundingPayout(
       message: `DusuPay confirmed a wallet funding payout for employer ${employerId} (reference ${merchantRef}) but the admin wallet could not be found. Manual intervention required.`,
       metadata: { employerId, merchantRef, amount: tx.amount },
     }).catch(() => {});
-    return;
+    throw new Error(`Admin wallet not found for confirmed funding payout ${merchantRef}`);
   }
 
   // Defensive: the approve route already refuses to initiate a payout with a
@@ -533,7 +638,7 @@ async function handleEmployerFundingPayout(
       message: `DusuPay confirmed a wallet funding payout for employer ${employerId} (reference ${merchantRef}) but the wallet_transactions row has no usd_amount. Real money has moved but the ledger was NOT updated — resolve manually.`,
       metadata: { employerId, merchantRef, amount: tx.amount },
     }).catch(() => {});
-    return;
+    throw new Error(`USD amount missing for confirmed funding payout ${merchantRef}`);
   }
 
   const approvedBy = (tx.metadata as Record<string, unknown> | null)?.approved_by;
@@ -557,7 +662,7 @@ async function handleEmployerFundingPayout(
       message: `DusuPay confirmed a wallet funding payout for employer ${employerId} (reference ${merchantRef}) but crediting the ledger failed. Manual intervention required — real money has moved.`,
       metadata: { employerId, merchantRef, amount: tx.amount, error: rpcError.message },
     }).catch(() => {});
-    return;
+    throw new Error(`fund_employer_from_admin failed: ${rpcError.message}`);
   }
 
   try {
@@ -605,11 +710,11 @@ async function handlePayoutEvent(
   payload: DusupayWebhookPayload,
   merchantRef: string,
   internalRef: string,
+  normalizedStatus: 'COMPLETED' | 'FAILED' | 'PENDING',
   log: Logger,
 ) {
-  const isCompleted = event === 'transaction.completed' || (payload.status as string) === PayoutStatus.COMPLETED;
-  const isFailed = ['transaction.failed', 'request.failed'].includes(event) ||
-                   [PayoutStatus.FAILED, PayoutStatus.CANCELLED].map(s => s as string).includes(payload.status || '');
+  const isCompleted = normalizedStatus === 'COMPLETED';
+  const isFailed = normalizedStatus === 'FAILED';
   const newStatus = isCompleted ? 'disbursed_pending_ledger' : isFailed ? 'failed' : 'processing';
 
   const { data: advanceData, error: advanceError } = await supabaseAdmin
@@ -632,6 +737,10 @@ async function handlePayoutEvent(
 
   if (['completed', 'failed', 'repaid'].includes(advance.status)) {
     log.info('Advance already in terminal status — skipping', { advanceId: advance.id, currentStatus: advance.status });
+    return;
+  }
+  if (advance.status === 'disbursed_pending_ledger' && !isCompleted) {
+    log.info('Ignoring non-completion callback after DusuPay completion', { advanceId: advance.id, event, normalizedStatus });
     return;
   }
 
@@ -683,14 +792,16 @@ async function handlePayoutEvent(
   }
 
   if (isCompleted && advance.employer_id) {
-    const { data: wallet } = await supabaseAdmin
+    const { data: wallet, error: walletError } = await supabaseAdmin
       .from('employer_wallets')
       .select('id')
       .eq('employer_id', advance.employer_id)
       .single();
 
-    if (wallet) {
-      await supabaseAdmin.from('wallet_transactions').upsert({
+    if (walletError || !wallet) {
+      throw new Error(`Employer wallet not found after confirmed payout: ${walletError?.message ?? advance.employer_id}`);
+    }
+    const { error: payoutLedgerError } = await supabaseAdmin.from('wallet_transactions').upsert({
         wallet_id: wallet.id,
         amount: -Number(advance.amount),
         type: 'payout',
@@ -700,6 +811,8 @@ async function handlePayoutEvent(
         description: `Disbursement for Advance #${advance.id}`,
         metadata: { advance_id: advance.id }
       }, { onConflict: 'reference' });
+    if (payoutLedgerError) {
+      throw new Error(`Failed to persist confirmed payout ledger entry: ${payoutLedgerError.message}`);
     }
   }
 }

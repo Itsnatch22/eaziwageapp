@@ -41,6 +41,9 @@ Tests
 - Environment validation
   - env.ts throws on missing/invalid env vars (server start will fail). Copilot suggestions that modify startup or deployment must account for env.ts stricter validation.
 
+- Payment-method PII secret
+  - After `supabase/migrations/20261024170000_harden_webhook_claims_and_pii_vault.sql` is applied, `get_payment_method_pii` and `upsert_payment_method_pii` read the key from Supabase Vault secret `PII_ENCRYPTION_KEY`. Store the exact existing encryption-key value there; do not put the secret in a migration or rotate it without re-encrypting existing ciphertext.
+
 - Webhooks & idempotency
   - DusuPay callbacks are signed and must be verified. Payouts use merchant_reference for idempotency. When adding or changing webhook handlers, preserve signature verification and idempotency keys.
 

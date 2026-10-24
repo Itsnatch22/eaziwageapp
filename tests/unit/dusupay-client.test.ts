@@ -1,6 +1,7 @@
 import { test, expect } from 'vitest';
 import { createHmac } from 'crypto';
 import { verifyWebhookSignature } from '../../lib/dusupay/client';
+import { normalizeDusuPayStatus } from '../../lib/dusupay/webhook-status';
 
 function buildSignature(rawBody: string, secret: string) {
   const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -16,8 +17,34 @@ test('verifyWebhookSignature returns true for a valid signature', () => {
   expect(verifyWebhookSignature(body, sig)).toBe(true);
 });
 
+test('verifyWebhookSignature rejects a signature without a timestamp', () => {
+  process.env.DUSUPAY_WEBHOOK_SECRET = 'test-dusupay-secret';
+  const body = JSON.stringify({ event: 'TEST', payload: { ok: true } });
+  const hmac = createHmac('sha256', 'test-dusupay-secret').update(`${body}`).digest('hex');
+  expect(verifyWebhookSignature(body, `s=${hmac}`)).toBe(false);
+});
+
 test('verifyWebhookSignature returns false for an invalid signature', () => {
   process.env.DUSUPAY_WEBHOOK_SECRET = 'test-dusupay-secret';
   const body = JSON.stringify({ event: 'TEST', payload: { ok: true } });
   expect(verifyWebhookSignature(body, 'invalid-signature')).toBe(false);
+});
+
+test('normalizeDusuPayStatus rejects contradictory success and failure signals', () => {
+  expect(normalizeDusuPayStatus('transaction.completed', {
+    status: 'FAILED',
+    transaction_status: 'COMPLETED',
+  })).toBe('REJECTED');
+});
+
+test('normalizeDusuPayStatus accepts canonical completion', () => {
+  expect(normalizeDusuPayStatus('transaction.completed', {
+    transaction_status: 'COMPLETED',
+  })).toBe('COMPLETED');
+});
+
+test('normalizeDusuPayStatus preserves pending callback states', () => {
+  expect(normalizeDusuPayStatus('transaction.pending', {
+    transaction_status: 'PROCESSING',
+  })).toBe('PENDING');
 });

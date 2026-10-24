@@ -23,11 +23,8 @@ export class DusupayWebhookHandler {
     const configured = (process.env.DUSUPAY_ALLOWED_IPS || '').split(',').map(s => s.trim()).filter(Boolean);
     if (configured.length > 0) return configured.includes(ip);
 
-    // Fallback static lists (kept for historical parity)
-    const fallback = process.env.DUSUPAY_ENVIRONMENT === 'production'
-      ? ['161.35.164.139']
-      : ['165.227.128.244'];
-    return fallback.includes(ip);
+    // Fail closed unless the allowlist is explicitly configured.
+    return false;
   }
 
   /**

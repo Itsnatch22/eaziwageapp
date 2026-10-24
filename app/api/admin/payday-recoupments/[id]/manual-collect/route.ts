@@ -24,12 +24,21 @@ export async function POST(
 
   const { data: recoupment, error: fetchError } = await adminSupabase
     .from('payday_recoupments')
-    .select('id, employer_id, amount_due, status')
+    .select('id, employer_id, amount_due, status, failure_reason')
     .eq('id', id)
     .maybeSingle();
 
   if (fetchError) return dbErrorResponse('admin/payday-recoupments/manual-collect', fetchError);
   if (!recoupment) return NextResponse.json({ error: 'Recoupment not found' }, { status: 404 });
+  if (
+    recoupment.failure_reason?.startsWith('Webhook processing failed:')
+    || recoupment.failure_reason === 'RPC execution error during collection application'
+  ) {
+    return NextResponse.json(
+      { error: 'This recoupment requires ledger reconciliation before another collection can be applied' },
+      { status: 409 },
+    );
+  }
   const allowedStatuses = ['failed', 'pending_response', 'partially_collected', 'confirmed'];
   if (!allowedStatuses.includes(recoupment.status)) {
     return NextResponse.json({ error: `Cannot manually collect — status is '${recoupment.status}'` }, { status: 409 });

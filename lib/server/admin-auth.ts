@@ -121,7 +121,6 @@ export async function checkAdminAccess(params: {
   const roleCandidates = [
     profile?.role,
     user.app_metadata?.role,
-    user.user_metadata?.role,
   ]
     .filter((role): role is string => typeof role === 'string' && role.length > 0)
     .map((role) => role.toLowerCase());

@@ -188,10 +188,8 @@ export async function POST(req: NextRequest) {
       if (insertError) return dbErrorResponse('payment-methods/request_verification', insertError);
 
       // Decrypt PII server-side — plaintext columns are always null post-trigger
-      const { PII_ENCRYPTION_KEY } = getEnv();
       const { data: piiRows, error: piiError } = await adminSupabase.rpc('get_payment_method_pii', {
         p_payment_method_id: id,
-        p_key: PII_ENCRYPTION_KEY,
       });
 
       if (piiError || !piiRows?.[0]) {

@@ -228,32 +228,28 @@ export function verifyWebhookSignature(rawBody: string, signatureHeader: string)
   const timestampPart = headerParts.find((part) => part.startsWith('t='));
   const signaturePart = headerParts.find((part) => part.startsWith('s='));
   const timestamp = timestampPart?.split('=')[1];
-  const signature = signaturePart?.split('=')[1] ?? signatureHeader;
+  const signature = signaturePart?.split('=')[1];
 
-  if (timestamp && signature) {
-    const parsedTimestamp = Number(timestamp);
-    const now = Date.now();
-    const timestampMs = Number.isFinite(parsedTimestamp)
-      ? parsedTimestamp * (timestamp.length <= 10 ? 1000 : 1)
-      : Date.parse(timestamp);
-
-    if (!Number.isFinite(timestampMs) || Math.abs(now - timestampMs) > 5 * 60 * 1000) {
-      return false;
-    }
-
-    const expected = createHmac('sha256', webhookSecret).update(`${timestamp}.${rawBody}`).digest('hex');
-
-    try {
-      return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex'));
-    } catch {
-      return false;
-    }
+  // Fail closed: a DusuPay callback without a signed timestamp is considered
+  // replay-prone and must be rejected rather than accepted as a raw-body HMAC.
+  if (!timestamp || !signature) {
+    return false;
   }
 
-  const expected = createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+  const parsedTimestamp = Number(timestamp);
+  const now = Date.now();
+  const timestampMs = Number.isFinite(parsedTimestamp)
+    ? parsedTimestamp * (timestamp.length <= 10 ? 1000 : 1)
+    : Date.parse(timestamp);
+
+  if (!Number.isFinite(timestampMs) || Math.abs(now - timestampMs) > 5 * 60 * 1000) {
+    return false;
+  }
+
+  const expected = createHmac('sha256', webhookSecret).update(`${timestamp}.${rawBody}`).digest('hex');
 
   try {
-    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signatureHeader, 'hex'));
+    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex'));
   } catch {
     return false;
   }

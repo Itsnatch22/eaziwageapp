@@ -5,7 +5,6 @@ import { generateMerchantReference, formatPhoneNumber, resolveProviderCode, COUN
 import { runFraudChecks } from '../fraud-engine';
 import { generateRepaymentReference, resolveEffectivePaydayDayOfMonth } from '../repayment/utils';
 import { notifyAdmin } from '../notifications';
-import { getEnv } from '@/env';
 import { convertFromUSD, convertToUSD, getCurrencyFromCountry, normalizeCountryCode } from '../utils';
 import { normalizeAdvanceTerminalStatus } from '../constants/advance-status';
 import { validateTreasuryBalance, TreasuryValidationError } from './treasury-service';
@@ -689,12 +688,10 @@ export class PayoutService {
 
     // account_number/phone_number on payment_methods are always null post-insert —
     // a DB trigger nulls the plaintext columns and stores ciphertext in
-    // account_number_encrypted/phone_number_encrypted. Must decrypt via RPC, same
-    // as lib/paymentMethodsService.ts's listPaymentMethods().
-    const { PII_ENCRYPTION_KEY } = getEnv();
+    // account_number_encrypted/phone_number_encrypted. Must decrypt via server-side
+    // RPC without passing the raw key as a function argument.
     const { data: piiRows, error: piiError } = await supabaseAdmin.rpc('get_payment_method_pii', {
       p_payment_method_id: pm.id,
-      p_key: PII_ENCRYPTION_KEY,
     });
 
     if (piiError || !piiRows?.[0]) {

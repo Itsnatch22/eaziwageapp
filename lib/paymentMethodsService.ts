@@ -1,5 +1,4 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { getEnv } from '@/env';
 import type { PaymentMethodCreate, PaymentMethod } from './paymentTypes';
 
 function maskPii(value: string | null | undefined): string | null {
@@ -15,10 +14,8 @@ export async function decryptAndMaskRow(
   supabaseClient: SupabaseClient,
   row: Record<string, unknown>,
 ): Promise<PaymentMethod> {
-  const { PII_ENCRYPTION_KEY } = getEnv();
   const { data: piiRows } = await supabaseClient.rpc('get_payment_method_pii', {
     p_payment_method_id: row.id,
-    p_key: PII_ENCRYPTION_KEY,
   });
   const pii = piiRows?.[0];
   const { account_number_encrypted: _ae, phone_number_encrypted: _pe, ...safeRow } = row;
@@ -83,12 +80,10 @@ export async function createPaymentMethod(supabaseClient: SupabaseClient, employ
 
   // Explicitly encrypt PII via RPC — the trigger will also do this on INSERT, but we call
   // the RPC directly so the write path is self-documenting and matches employer onboarding.
-  const { PII_ENCRYPTION_KEY } = getEnv();
   const { error: piiError } = await supabaseClient.rpc('upsert_payment_method_pii', {
     p_payment_method_id: data.id,
     p_account_number: payload.account_number ?? null,
     p_phone_number: payload.phone_number ?? null,
-    p_key: PII_ENCRYPTION_KEY,
   });
   if (piiError) {
     console.error('[createPaymentMethod] PII encryption RPC failed:', piiError.message);
@@ -122,14 +117,11 @@ export async function listPaymentMethods(supabaseClient: SupabaseClient, employe
     throw new Error('Payment method operation failed');
   }
 
-  const { PII_ENCRYPTION_KEY } = getEnv();
-
   // Decrypt each row via RPC, then mask before returning — never expose raw PII to the client
   const methods = await Promise.all(
     (data ?? []).map(async (pm) => {
       const { data: piiRows } = await supabaseClient.rpc('get_payment_method_pii', {
         p_payment_method_id: pm.id,
-        p_key: PII_ENCRYPTION_KEY,
       });
       const pii = piiRows?.[0];
       return {
