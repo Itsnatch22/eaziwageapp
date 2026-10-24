@@ -1,9 +1,11 @@
+import { createRouteHandlerClient as createClient } from "@/utils/supabase/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { NextRequest, NextResponse } from "next/server";
+import { uploadPayrollSchema } from "@/lib/validations/payroll-validation";
+import { calculatePayrollRepayment } from "@/lib/payroll-repayment";
+import { loadEmployeeOutstandingRepayments } from "@/lib/services/payroll-repayment-service";
 
-import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
-import { uploadPayrollSchema } from '@/lib/validations/payroll-validation';
-
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 
 const MAX_SALARY_MULTIPLIER = 3;
 const MIN_DAYS_WORKED = 1;
@@ -12,84 +14,176 @@ const MAX_DAYS_WORKED = 31;
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
   if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { data: employer } = await supabase
-    .from('employers')
-    .select('id, onboarding_id')
-    .eq('user_id', user.id)
+    .from("employers")
+    .select("id, onboarding_id")
+    .eq("user_id", user.id)
     .maybeSingle();
 
   if (!employer) {
-    return NextResponse.json({ error: 'Employer profile not found.' }, { status: 403 });
+    return NextResponse.json(
+      { error: "Employer profile not found." },
+      { status: 403 },
+    );
   }
 
   const raw = await req.json().catch(() => null);
-  if (!raw) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  if (!raw)
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
   const parsed = uploadPayrollSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: 'Validation failed', detail: parsed.error.issues.map(e => ({ field: e.path.join('.'), msg: e.message })) },
+      {
+        error: "Validation failed",
+        detail: parsed.error.issues.map((e) => ({
+          field: e.path.join("."),
+          msg: e.message,
+        })),
+      },
       { status: 422 },
     );
   }
 
   const { month, employees: rows, file_name, file_size_bytes } = parsed.data;
 
-const { data: upload, error: uploadErr } = await supabase
-     .from('payroll_uploads')
-     .upsert(
-       {
-         employer_id:     employer.onboarding_id,
-         employer_live_id: employer.id,
-         month,
-         source:          'manual',
-         status:          'processing',
-         file_name:       file_name ?? null,
-         file_size_bytes: file_size_bytes ?? null,
-         total_rows:      rows.length,
-         uploaded_by:     user.id,
-         uploaded_at:     new Date().toISOString(),
-       },
-       { onConflict: 'employer_id,month,source' },
-     )
-     .select('id')
-     .single();
+  const { data: upload, error: uploadErr } = await supabase
+    .from("payroll_uploads")
+    .upsert(
+      {
+        employer_id: employer.onboarding_id,
+        employer_live_id: employer.id,
+        month,
+        source: "manual",
+        status: "processing",
+        ewa_reviewed_at: null,
+        file_name: file_name ?? null,
+        file_size_bytes: file_size_bytes ?? null,
+        total_rows: rows.length,
+        uploaded_by: user.id,
+        uploaded_at: new Date().toISOString(),
+      },
+      { onConflict: "employer_id,month,source" },
+    )
+    .select("id")
+    .single();
 
   if (uploadErr || !upload) {
-    console.error('[payroll/upload] upsert upload:', uploadErr);
-    return NextResponse.json({ error: 'Failed to create upload record. Please try again.' }, { status: 500 });
+    console.error("[payroll/upload] upsert upload:", uploadErr);
+    return NextResponse.json(
+      { error: "Failed to create upload record. Please try again." },
+      { status: 500 },
+    );
   }
 
   const uploadId = upload.id;
 
-const { data: knownEmployees } = await supabase
-     .from('employee_onboarding')
-     .select('id, employee_code, monthly_salary, status')
-     .eq('live_employer_id', employer.id);
+  const { data: knownEmployees, error: knownEmployeesError } = await supabase
+    .from("employee_onboarding")
+    .select("id, employee_code, monthly_salary, status, user_id, currency")
+    .eq("live_employer_id", employer.id);
+
+  if (knownEmployeesError) {
+    console.error(
+      "[payroll/upload] employee lookup failed:",
+      knownEmployeesError.message,
+    );
+    await supabase
+      .from("payroll_uploads")
+      .update({
+        status: "failed",
+        error_summary: [
+          {
+            row: 0,
+            field: "employee_lookup",
+            message: "Failed to load employees for payroll processing.",
+          },
+        ],
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", uploadId);
+    return NextResponse.json(
+      { error: "Failed to load employees for payroll processing" },
+      { status: 500 },
+    );
+  }
 
   const employeeMap = new Map(
-    (knownEmployees ?? []).map(e => [e.employee_code, e])
+    (knownEmployees ?? []).map((e) => [e.employee_code, e]),
   );
+  const knownEmployeeCodeCounts = new Map<string, number>();
+  for (const employee of knownEmployees ?? []) {
+    if (employee.employee_code) {
+      knownEmployeeCodeCounts.set(
+        employee.employee_code,
+        (knownEmployeeCodeCounts.get(employee.employee_code) ?? 0) + 1,
+      );
+    }
+  }
+  const repaymentBalances = await loadEmployeeOutstandingRepayments(
+    supabaseAdmin,
+    employer.id,
+    knownEmployees ?? [],
+  ).catch((error: unknown) => {
+    console.error("[payroll/upload] repayment balance lookup failed:", error);
+    return null;
+  });
+
+  if (!repaymentBalances) {
+    const { error: statusError } = await supabase
+      .from("payroll_uploads")
+      .update({
+        status: "failed",
+        error_summary: [
+          {
+            row: 0,
+            field: "ewa_deduction",
+            message:
+              "Repayment balances could not be calculated; payroll rows were not processed.",
+          },
+        ],
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", uploadId);
+    if (statusError) {
+      console.error(
+        "[payroll/upload] failed to mark upload failed:",
+        statusError.message,
+      );
+    }
+    return NextResponse.json(
+      {
+        error:
+          "Failed to calculate employee repayment balances. Payroll was not processed.",
+      },
+      { status: 500 },
+    );
+  }
 
   type RowResult = {
-    upload_id:        string;
-    employer_id:      string | null;
+    upload_id: string;
+    employer_id: string | null;
     employer_live_id: string;
-    employee_code:    string;
-    employee_id:    string | null;
-    days_worked:    number | null;
-    gross_salary:   number;
-    deductions:     number;
-    net_salary:     number;
-    row_status:     'valid' | 'invalid' | 'warning';
-    row_errors:     { field: string; message: string }[];
-    row_warnings:   { field: string; message: string }[];
-    source_row:     number;
+    employee_code: string;
+    employee_id: string | null;
+    days_worked: number | null;
+    gross_salary: number;
+    uploaded_deductions: number;
+    ewa_deduction: number;
+    deductions: number;
+    net_salary: number;
+    row_status: "valid" | "invalid" | "warning";
+    row_errors: { field: string; message: string }[];
+    row_warnings: { field: string; message: string }[];
+    source_row: number;
   };
 
   const rowResults: RowResult[] = [];
@@ -98,6 +192,13 @@ const { data: knownEmployees } = await supabase
 
   const errorSummary: { row: number; field: string; message: string }[] = [];
   const warningSummary: { row: number; field: string; message: string }[] = [];
+  const employeeCodeCounts = new Map<string, number>();
+  for (const row of rows) {
+    employeeCodeCounts.set(
+      row.employee_code,
+      (employeeCodeCounts.get(row.employee_code) ?? 0) + 1,
+    );
+  }
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -106,134 +207,216 @@ const { data: knownEmployees } = await supabase
     const warnings: { field: string; message: string }[] = [];
 
     const known = employeeMap.get(row.employee_code);
+    const duplicateEmployeeCode =
+      (employeeCodeCounts.get(row.employee_code) ?? 0) > 1;
+
+    if (duplicateEmployeeCode) {
+      errors.push({
+        field: "employee_code",
+        message: "Employee code appears more than once in this payroll file",
+      });
+    }
+    if ((knownEmployeeCodeCounts.get(row.employee_code) ?? 0) > 1) {
+      errors.push({
+        field: "employee_code",
+        message:
+          "Employee code is not unique in your workforce; repayment was not calculated",
+      });
+    }
 
     if (!known) {
-      errors.push({ field: 'employee_code', message: `Employee code '${row.employee_code}' not found in your workforce` });
-    } else if (known.status !== 'approved') {
-      errors.push({ field: 'employee_code', message: `Employee '${row.employee_code}' is not yet KYC-approved` });
+      errors.push({
+        field: "employee_code",
+        message: `Employee code '${row.employee_code}' not found in your workforce`,
+      });
+    } else if (known.status !== "approved") {
+      errors.push({
+        field: "employee_code",
+        message: `Employee '${row.employee_code}' is not yet KYC-approved`,
+      });
     }
 
     if (row.days_worked !== undefined) {
       if (row.days_worked < MIN_DAYS_WORKED) {
-        errors.push({ field: 'days_worked', message: `days_worked must be ≥ ${MIN_DAYS_WORKED}` });
+        errors.push({
+          field: "days_worked",
+          message: `days_worked must be ≥ ${MIN_DAYS_WORKED}`,
+        });
       }
       if (row.days_worked > MAX_DAYS_WORKED) {
-        errors.push({ field: 'days_worked', message: `days_worked cannot exceed ${MAX_DAYS_WORKED}` });
+        errors.push({
+          field: "days_worked",
+          message: `days_worked cannot exceed ${MAX_DAYS_WORKED}`,
+        });
       }
     }
 
     if (row.gross_salary <= 0) {
-      errors.push({ field: 'gross_salary', message: 'gross_salary must be greater than 0' });
+      errors.push({
+        field: "gross_salary",
+        message: "gross_salary must be greater than 0",
+      });
     }
 
     if (row.deductions < 0) {
-      errors.push({ field: 'deductions', message: 'deductions cannot be negative' });
+      errors.push({
+        field: "deductions",
+        message: "deductions cannot be negative",
+      });
     }
 
     if (row.deductions > row.gross_salary) {
-      errors.push({ field: 'deductions', message: 'deductions cannot exceed gross_salary' });
+      errors.push({
+        field: "deductions",
+        message: "deductions cannot exceed gross_salary",
+      });
     }
 
-    if (known && row.gross_salary > (known.monthly_salary ?? 0) * MAX_SALARY_MULTIPLIER) {
+    if (
+      known &&
+      row.gross_salary > (known.monthly_salary ?? 0) * MAX_SALARY_MULTIPLIER
+    ) {
       warnings.push({
-        field: 'gross_salary',
+        field: "gross_salary",
         message: `gross_salary (${row.gross_salary}) is ${MAX_SALARY_MULTIPLIER}× higher than the expected salary on file — please verify`,
       });
     }
 
     if (known && row.gross_salary < (known.monthly_salary ?? 0) * 0.5) {
       warnings.push({
-        field: 'gross_salary',
+        field: "gross_salary",
         message: `gross_salary is less than half the expected salary — possible data entry error`,
       });
     }
 
-    const rowStatus: 'valid' | 'invalid' | 'warning' =
-      errors.length > 0 ? 'invalid' : warnings.length > 0 ? 'warning' : 'valid';
+    const repayment = known
+      ? repaymentBalances.get(row.employee_code)
+      : undefined;
+    let ewaDeduction = 0;
+    let totalDeductions = row.deductions;
 
-    if (rowStatus === 'invalid') {
-      failedCount++;
-      errors.forEach(e => errorSummary.push({ row: rowNum, ...e }));
-    } else {
-      processedCount++;
-      warnings.forEach(w => warningSummary.push({ row: rowNum, ...w }));
+    if (repayment?.issues.length) {
+      warnings.push({
+        field: "ewa_deduction",
+        message: `${repayment.issues.join("; ")}. No automatic EWA deduction was calculated for this employee.`,
+      });
+    } else if (repayment && errors.length === 0) {
+      const calculation = calculatePayrollRepayment(
+        repayment.amount,
+        row.gross_salary,
+        row.deductions,
+      );
+      ewaDeduction = calculation.ewaDeduction;
+      totalDeductions = calculation.totalDeductions;
+
+      if (calculation.remainingBalance > 0) {
+        warnings.push({
+          field: "ewa_deduction",
+          message: `EWA repayment was capped by available pay; ${calculation.remainingBalance} remains outstanding and carries forward until actual repayment is reconciled.`,
+        });
+      }
     }
 
-    const net = Math.max(0, row.gross_salary - row.deductions);
+    const rowStatus: "valid" | "invalid" | "warning" =
+      errors.length > 0 ? "invalid" : warnings.length > 0 ? "warning" : "valid";
 
-rowResults.push({
-       upload_id:        uploadId,
-       employer_id:      employer.onboarding_id,
-       employer_live_id: employer.id,
-       employee_code:    row.employee_code,
-       employee_id:   known?.id ?? null,
-       days_worked:   row.days_worked ?? null,
-       gross_salary:  row.gross_salary,
-       deductions:    row.deductions,
-       net_salary:    net,
-       row_status:    rowStatus,
-       row_errors:    errors,
-       row_warnings:  warnings,
-       source_row:    rowNum,
-     });
+    if (rowStatus === "invalid") {
+      failedCount++;
+      errors.forEach((e) => errorSummary.push({ row: rowNum, ...e }));
+    } else {
+      processedCount++;
+      warnings.forEach((w) => warningSummary.push({ row: rowNum, ...w }));
+    }
+
+    const net = Math.max(0, row.gross_salary - totalDeductions);
+
+    rowResults.push({
+      upload_id: uploadId,
+      employer_id: employer.onboarding_id,
+      employer_live_id: employer.id,
+      employee_code: row.employee_code,
+      employee_id: known?.id ?? null,
+      days_worked: row.days_worked ?? null,
+      gross_salary: row.gross_salary,
+      uploaded_deductions: row.deductions,
+      ewa_deduction: ewaDeduction,
+      deductions: totalDeductions,
+      net_salary: net,
+      row_status: rowStatus,
+      row_errors: errors,
+      row_warnings: warnings,
+      source_row: rowNum,
+    });
   }
 
-  const { error: deleteErr } = await supabase.from('payroll_upload_rows').delete().eq('upload_id', uploadId);
+  const { error: deleteErr } = await supabase
+    .from("payroll_upload_rows")
+    .delete()
+    .eq("upload_id", uploadId);
   if (deleteErr) {
-    console.error('[payroll/upload] delete rows:', deleteErr.message);
-    return NextResponse.json({ error: 'Failed to reset upload rows' }, { status: 500 });
+    console.error("[payroll/upload] delete rows:", deleteErr.message);
+    return NextResponse.json(
+      { error: "Failed to reset upload rows" },
+      { status: 500 },
+    );
   }
 
   if (rowResults.length > 0) {
     const { error: rowsErr } = await supabase
-      .from('payroll_upload_rows')
+      .from("payroll_upload_rows")
       .insert(rowResults);
 
     if (rowsErr) {
-      console.error('[payroll/upload] insert rows:', rowsErr.message);
-      return NextResponse.json({ error: 'Failed to save payroll rows' }, { status: 500 });
+      console.error("[payroll/upload] insert rows:", rowsErr.message);
+      return NextResponse.json(
+        { error: "Failed to save payroll rows" },
+        { status: 500 },
+      );
     }
   }
 
-  const validRows = rowResults.filter(r => r.row_status !== 'invalid');
+  const validRows = rowResults.filter((r) => r.row_status !== "invalid");
   const totalGross = validRows.reduce((s, r) => s + r.gross_salary, 0);
-  const totalNet   = validRows.reduce((s, r) => s + r.net_salary, 0);
-  const totalDed   = validRows.reduce((s, r) => s + r.deductions, 0);
+  const totalNet = validRows.reduce((s, r) => s + r.net_salary, 0);
+  const totalDed = validRows.reduce((s, r) => s + r.deductions, 0);
+  const totalEwa = validRows.reduce((s, r) => s + r.ewa_deduction, 0);
 
-  const finalStatus = failedCount === rows.length
-    ? 'failed'
-    : failedCount > 0
-    ? 'partial'
-    : 'processed';
+  const finalStatus =
+    failedCount === rows.length
+      ? "failed"
+      : failedCount > 0
+        ? "partial"
+        : "processed";
 
   await supabase
-    .from('payroll_uploads')
+    .from("payroll_uploads")
     .update({
-      status:          finalStatus,
-      processed_rows:  processedCount,
-      failed_rows:     failedCount,
-      total_gross:     totalGross,
-      total_net:       totalNet,
+      status: finalStatus,
+      processed_rows: processedCount,
+      failed_rows: failedCount,
+      total_gross: totalGross,
+      total_net: totalNet,
       total_deductions: totalDed,
-      error_summary:   errorSummary,
+      error_summary: errorSummary,
       warning_summary: warningSummary,
-      processed_at:    new Date().toISOString(),
+      processed_at: new Date().toISOString(),
     })
-    .eq('id', uploadId);
+    .eq("id", uploadId);
 
   return NextResponse.json(
     {
-      upload_id:       uploadId,
-      status:          finalStatus,
-      total_rows:      rows.length,
-      processed_rows:  processedCount,
-      failed_rows:     failedCount,
-      error_summary:   errorSummary,
+      upload_id: uploadId,
+      status: finalStatus,
+      total_rows: rows.length,
+      processed_rows: processedCount,
+      failed_rows: failedCount,
+      error_summary: errorSummary,
       warning_summary: warningSummary,
       totals: {
-        gross:      totalGross,
-        net:        totalNet,
+        gross: totalGross,
+        net: totalNet,
         deductions: totalDed,
+        ewa: totalEwa,
       },
     },
     { status: 201 },

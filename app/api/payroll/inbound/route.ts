@@ -1,13 +1,12 @@
+import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
+import { calculatePayrollRepayment } from "@/lib/payroll-repayment";
+import { loadEmployeeOutstandingRepayments } from "@/lib/services/payroll-repayment-service";
 
-import { createClient } from '@supabase/supabase-js';
-import { NextRequest, NextResponse } from 'next/server';
-import { createHmac, timingSafeEqual } from 'crypto';
+export const runtime = "nodejs";
 
-export const runtime = 'nodejs';
-
-
-
-type SyncStatus = 'success' | 'failed' | 'partial';
+type SyncStatus = "success" | "failed" | "partial";
 
 interface InboundEmployee {
   employee_code: string;
@@ -18,9 +17,9 @@ interface InboundEmployee {
 }
 
 interface InboundPayload {
-  month: string;                     // "YYYY-MM"
+  month: string; // "YYYY-MM"
   employees: InboundEmployee[];
-  provider_ref?: string;             // optional external reference
+  provider_ref?: string; // optional external reference
 }
 
 interface EmployeeOnboardingRow {
@@ -28,6 +27,8 @@ interface EmployeeOnboardingRow {
   employee_code: string | null;
   monthly_salary: number | null;
   status: string;
+  user_id: string | null;
+  currency: string | null;
 }
 
 interface UploadRow {
@@ -50,128 +51,141 @@ interface RowResult {
   employee_id: string | null;
   days_worked: number | null;
   gross_salary: number;
+  uploaded_deductions: number;
+  ewa_deduction: number;
   deductions: number;
   net_salary: number;
-  row_status: 'valid' | 'invalid' | 'warning';
+  row_status: "valid" | "invalid" | "warning";
   row_errors: { field: string; message: string }[];
   row_warnings: { field: string; message: string }[];
   source_row: number;
 }
-
-
 
 function verifyHmacSignature(
   rawBody: string,
   secret: string,
   receivedSignature: string,
 ): boolean {
-  const expected = createHmac('sha256', secret)
-    .update(rawBody, 'utf8')
-    .digest('hex');
+  const expected = createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("hex");
 
-  const expectedBuffer = Buffer.from(`sha256=${expected}`, 'utf8');
-  const receivedBuffer = Buffer.from(receivedSignature, 'utf8');
+  const expectedBuffer = Buffer.from(`sha256=${expected}`, "utf8");
+  const receivedBuffer = Buffer.from(receivedSignature, "utf8");
 
   if (expectedBuffer.length !== receivedBuffer.length) return false;
 
   return timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
-
-
 function isValidMonth(month: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
 }
 
-
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const syncStart = Date.now();
 
-
-
-  const authHeader = req.headers.get('authorization') ?? '';
-  const integrationCode = authHeader.startsWith('Bearer ')
+  const authHeader = req.headers.get("authorization") ?? "";
+  const integrationCode = authHeader.startsWith("Bearer ")
     ? authHeader.slice(7).trim()
     : null;
 
   if (!integrationCode) {
     return NextResponse.json(
-      { error: 'Missing or malformed Authorization header. Expected: Bearer <integration_code>' },
+      {
+        error:
+          "Missing or malformed Authorization header. Expected: Bearer <integration_code>",
+      },
       { status: 401 },
     );
   }
 
-
   const rawBody = await req.text();
 
-
-
-  const receivedSignature = req.headers.get('x-ewa-signature') ?? '';
-
+  const receivedSignature = req.headers.get("x-ewa-signature") ?? "";
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('[payroll/inbound] Missing Supabase env vars');
-    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    console.error("[payroll/inbound] Missing Supabase env vars");
+    return NextResponse.json(
+      { error: "Server misconfiguration" },
+      { status: 500 },
+    );
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-
   const { data: integration, error: intgErr } = await supabase
-    .from('payroll_integrations')
-    .select('id, employer_id, employer_live_id, webhook_secret, status')
-    .eq('integration_code', integrationCode)
+    .from("payroll_integrations")
+    .select("id, employer_id, employer_live_id, webhook_secret, status")
+    .eq("integration_code", integrationCode)
     .maybeSingle();
 
   if (intgErr) {
-    console.error('[payroll/inbound] integration lookup error', intgErr.message);
-    return NextResponse.json({ error: 'Integration lookup failed' }, { status: 500 });
+    console.error(
+      "[payroll/inbound] integration lookup error",
+      intgErr.message,
+    );
+    return NextResponse.json(
+      { error: "Integration lookup failed" },
+      { status: 500 },
+    );
   }
 
   if (!integration) {
-
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const intg = integration as IntegrationRow;
 
-  if (intg.status === 'disconnected') {
+  if (intg.status === "disconnected") {
     return NextResponse.json(
-      { error: 'This integration has been disconnected. Contact your EaziWage administrator.' },
+      {
+        error:
+          "This integration has been disconnected. Contact your EaziWage administrator.",
+      },
       { status: 403 },
     );
   }
 
-
   if (!intg.webhook_secret) {
-    return NextResponse.json({ error: 'Integration has no webhook secret configured' }, { status: 403 });
+    return NextResponse.json(
+      { error: "Integration has no webhook secret configured" },
+      { status: 403 },
+    );
   }
 
   if (!receivedSignature) {
     return NextResponse.json(
-      { error: 'Missing X-EWA-Signature header' },
+      { error: "Missing X-EWA-Signature header" },
       { status: 401 },
     );
   }
 
-  const signatureValid = verifyHmacSignature(rawBody, intg.webhook_secret, receivedSignature);
+  const signatureValid = verifyHmacSignature(
+    rawBody,
+    intg.webhook_secret,
+    receivedSignature,
+  );
   if (!signatureValid) {
-    console.warn('[payroll/inbound] HMAC verification failed for integration', intg.id);
-    return NextResponse.json({ error: 'Signature verification failed' }, { status: 401 });
+    console.warn(
+      "[payroll/inbound] HMAC verification failed for integration",
+      intg.id,
+    );
+    return NextResponse.json(
+      { error: "Signature verification failed" },
+      { status: 401 },
+    );
   }
-
 
   let payload: InboundPayload;
   try {
     payload = JSON.parse(rawBody) as InboundPayload;
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-
 
   if (!payload.month || !isValidMonth(payload.month)) {
     return NextResponse.json(
@@ -188,56 +202,117 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { month, employees: rows } = payload;
-  const employerId     = intg.employer_id;
+  const employerId = intg.employer_id;
   const employerLiveId = intg.employer_live_id;
 
-
   const { data: uploadData, error: uploadErr } = await supabase
-    .from('payroll_uploads')
+    .from("payroll_uploads")
     .upsert(
       {
-        employer_id:     employerId,
+        employer_id: employerId,
         employer_live_id: employerLiveId,
         month,
-        source:          'api_push',
-        status:          'processing',
-        total_rows:      rows.length,
-        integration_id:  intg.id,
-        uploaded_at:     new Date().toISOString(),
+        source: "api_push",
+        status: "processing",
+        ewa_reviewed_at: null,
+        total_rows: rows.length,
+        integration_id: intg.id,
+        uploaded_at: new Date().toISOString(),
       },
-      { onConflict: 'employer_id,month,source' },
+      { onConflict: "employer_id,month,source" },
     )
-    .select('id')
+    .select("id")
     .single();
 
   if (uploadErr || !uploadData) {
-    console.error('[payroll/inbound] upload upsert error', uploadErr?.message);
-    return NextResponse.json({ error: 'Failed to create upload record' }, { status: 500 });
+    console.error("[payroll/inbound] upload upsert error", uploadErr?.message);
+    return NextResponse.json(
+      { error: "Failed to create upload record" },
+      { status: 500 },
+    );
   }
 
   const uploadId = (uploadData as UploadRow).id;
 
-
   const { data: knownEmployees, error: empErr } = await supabase
-    .from('employee_onboarding')
-    .select('id, employee_code, monthly_salary, status')
-    .eq('live_employer_id', employerLiveId);
+    .from("employee_onboarding")
+    .select("id, employee_code, monthly_salary, status, user_id, currency")
+    .eq("live_employer_id", employerLiveId);
 
   if (empErr) {
-    console.error('[payroll/inbound] employee fetch error', empErr.message);
-    return NextResponse.json({ error: 'Failed to fetch employee records' }, { status: 500 });
+    console.error("[payroll/inbound] employee fetch error", empErr.message);
+    return NextResponse.json(
+      { error: "Failed to fetch employee records" },
+      { status: 500 },
+    );
   }
 
   const employeeMap = new Map<string, EmployeeOnboardingRow>(
-    (knownEmployees ?? []).map((e) => [e.employee_code ?? '', e as EmployeeOnboardingRow]),
+    (knownEmployees ?? []).map((e) => [
+      e.employee_code ?? "",
+      e as EmployeeOnboardingRow,
+    ]),
   );
+  const knownEmployeeCodeCounts = new Map<string, number>();
+  for (const employee of knownEmployees ?? []) {
+    if (employee.employee_code) {
+      knownEmployeeCodeCounts.set(
+        employee.employee_code,
+        (knownEmployeeCodeCounts.get(employee.employee_code) ?? 0) + 1,
+      );
+    }
+  }
+  const repaymentBalances = await loadEmployeeOutstandingRepayments(
+    supabase,
+    employerLiveId ?? "",
+    knownEmployees ?? [],
+  ).catch((error: unknown) => {
+    console.error("[payroll/inbound] repayment balance lookup failed:", error);
+    return null;
+  });
 
+  if (!repaymentBalances) {
+    const { error: statusError } = await supabase
+      .from("payroll_uploads")
+      .update({
+        status: "failed",
+        error_summary: [
+          {
+            row: 0,
+            field: "ewa_deduction",
+            message:
+              "Repayment balances could not be calculated; payroll rows were not processed.",
+          },
+        ],
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", uploadId);
+    if (statusError) {
+      console.error(
+        "[payroll/inbound] failed to mark upload failed:",
+        statusError.message,
+      );
+    }
+    return NextResponse.json(
+      { error: "Failed to calculate employee repayment balances" },
+      { status: 500 },
+    );
+  }
 
   const rowResults: RowResult[] = [];
   let processedCount = 0;
   let failedCount = 0;
   const errorSummary: { row: number; field: string; message: string }[] = [];
   const warningSummary: { row: number; field: string; message: string }[] = [];
+  const employeeCodeCounts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.employee_code) {
+      employeeCodeCounts.set(
+        row.employee_code,
+        (employeeCodeCounts.get(row.employee_code) ?? 0) + 1,
+      );
+    }
+  }
 
   const MAX_SALARY_MULTIPLIER = 3;
 
@@ -248,66 +323,144 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const warnings: { field: string; message: string }[] = [];
 
     if (!row.employee_code) {
-      errors.push({ field: 'employee_code', message: 'employee_code is required' });
+      errors.push({
+        field: "employee_code",
+        message: "employee_code is required",
+      });
     }
 
-    const known = row.employee_code ? employeeMap.get(row.employee_code) : undefined;
+    const known = row.employee_code
+      ? employeeMap.get(row.employee_code)
+      : undefined;
+    const duplicateEmployeeCode =
+      (employeeCodeCounts.get(row.employee_code) ?? 0) > 1;
+
+    if (duplicateEmployeeCode) {
+      errors.push({
+        field: "employee_code",
+        message: "Employee code appears more than once in this payroll file",
+      });
+    }
+    if (
+      row.employee_code &&
+      (knownEmployeeCodeCounts.get(row.employee_code) ?? 0) > 1
+    ) {
+      errors.push({
+        field: "employee_code",
+        message:
+          "Employee code is not unique in your workforce; repayment was not calculated",
+      });
+    }
 
     if (row.employee_code && !known) {
       errors.push({
-        field: 'employee_code',
+        field: "employee_code",
         message: `Employee code '${row.employee_code}' not found in your workforce`,
       });
-    } else if (known && known.status !== 'approved') {
+    } else if (known && known.status !== "approved") {
       errors.push({
-        field: 'employee_code',
+        field: "employee_code",
         message: `Employee '${row.employee_code}' is not yet KYC-approved (status: ${known.status})`,
       });
     }
 
     if (row.gross_salary === undefined || row.gross_salary === null) {
-      errors.push({ field: 'gross_salary', message: 'gross_salary is required' });
+      errors.push({
+        field: "gross_salary",
+        message: "gross_salary is required",
+      });
     } else if (row.gross_salary <= 0) {
-      errors.push({ field: 'gross_salary', message: 'gross_salary must be greater than 0' });
+      errors.push({
+        field: "gross_salary",
+        message: "gross_salary must be greater than 0",
+      });
     }
 
     const deductions = row.deductions ?? 0;
 
     if (deductions < 0) {
-      errors.push({ field: 'deductions', message: 'deductions cannot be negative' });
+      errors.push({
+        field: "deductions",
+        message: "deductions cannot be negative",
+      });
     }
 
     if (row.gross_salary > 0 && deductions > row.gross_salary) {
-      errors.push({ field: 'deductions', message: 'deductions cannot exceed gross_salary' });
+      errors.push({
+        field: "deductions",
+        message: "deductions cannot exceed gross_salary",
+      });
     }
 
     if (row.days_worked !== undefined) {
       if (row.days_worked < 1) {
-        errors.push({ field: 'days_worked', message: 'days_worked must be at least 1' });
+        errors.push({
+          field: "days_worked",
+          message: "days_worked must be at least 1",
+        });
       }
       if (row.days_worked > 31) {
-        errors.push({ field: 'days_worked', message: 'days_worked cannot exceed 31' });
+        errors.push({
+          field: "days_worked",
+          message: "days_worked cannot exceed 31",
+        });
       }
     }
 
-    if (known && row.gross_salary > (known.monthly_salary ?? 0) * MAX_SALARY_MULTIPLIER) {
+    if (
+      known &&
+      row.gross_salary > (known.monthly_salary ?? 0) * MAX_SALARY_MULTIPLIER
+    ) {
       warnings.push({
-        field: 'gross_salary',
+        field: "gross_salary",
         message: `gross_salary (${row.gross_salary}) is more than ${MAX_SALARY_MULTIPLIER}× the salary on file — please verify`,
       });
     }
 
-    if (known && row.gross_salary > 0 && row.gross_salary < (known.monthly_salary ?? 0) * 0.5) {
+    if (
+      known &&
+      row.gross_salary > 0 &&
+      row.gross_salary < (known.monthly_salary ?? 0) * 0.5
+    ) {
       warnings.push({
-        field: 'gross_salary',
-        message: 'gross_salary is less than half the expected salary — possible data entry error',
+        field: "gross_salary",
+        message:
+          "gross_salary is less than half the expected salary — possible data entry error",
       });
     }
 
-    const rowStatus: 'valid' | 'invalid' | 'warning' =
-      errors.length > 0 ? 'invalid' : warnings.length > 0 ? 'warning' : 'valid';
+    const repayment = known?.employee_code
+      ? repaymentBalances.get(known.employee_code)
+      : undefined;
+    let ewaDeduction = 0;
+    let totalDeductions = deductions;
 
-    if (rowStatus === 'invalid') {
+    if (repayment?.issues.length) {
+      warnings.push({
+        field: "ewa_deduction",
+        message: `${repayment.issues.join("; ")}. No automatic EWA deduction was calculated for this employee.`,
+      });
+    } else if (repayment && errors.length === 0) {
+      const calculation = calculatePayrollRepayment(
+        repayment.amount,
+        row.gross_salary ?? 0,
+        deductions,
+      );
+      ewaDeduction = calculation.ewaDeduction;
+      totalDeductions = calculation.totalDeductions;
+
+      if (calculation.remainingBalance > 0) {
+        warnings.push({
+          field: "ewa_deduction",
+          message: `EWA repayment was capped by available pay; ${calculation.remainingBalance} remains outstanding and carries forward until actual repayment is reconciled.`,
+        });
+      }
+    }
+
+    const rowStatus: "valid" | "invalid" | "warning" =
+      errors.length > 0 ? "invalid" : warnings.length > 0 ? "warning" : "valid";
+
+    if (rowStatus === "invalid") {
       failedCount++;
       errors.forEach((e) => errorSummary.push({ row: rowNum, ...e }));
     } else {
@@ -315,98 +468,107 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       warnings.forEach((w) => warningSummary.push({ row: rowNum, ...w }));
     }
 
-    const net = Math.max(0, (row.gross_salary ?? 0) - deductions);
+    const net = Math.max(0, (row.gross_salary ?? 0) - totalDeductions);
 
     rowResults.push({
-      upload_id:        uploadId,
-      employer_id:      employerId,
+      upload_id: uploadId,
+      employer_id: employerId,
       employer_live_id: employerLiveId,
-      employee_code:    row.employee_code ?? '',
-      employee_id:   known?.id ?? null,
-      days_worked:   row.days_worked ?? null,
-      gross_salary:  row.gross_salary ?? 0,
-      deductions,
-      net_salary:    net,
-      row_status:    rowStatus,
-      row_errors:    errors,
-      row_warnings:  warnings,
-      source_row:    rowNum,
+      employee_code: row.employee_code ?? "",
+      employee_id: known?.id ?? null,
+      days_worked: row.days_worked ?? null,
+      gross_salary: row.gross_salary ?? 0,
+      uploaded_deductions: deductions,
+      ewa_deduction: ewaDeduction,
+      deductions: totalDeductions,
+      net_salary: net,
+      row_status: rowStatus,
+      row_errors: errors,
+      row_warnings: warnings,
+      source_row: rowNum,
     });
   }
 
-
-  await supabase.from('payroll_upload_rows').delete().eq('upload_id', uploadId);
+  await supabase.from("payroll_upload_rows").delete().eq("upload_id", uploadId);
 
   if (rowResults.length > 0) {
     const { error: rowsErr } = await supabase
-      .from('payroll_upload_rows')
+      .from("payroll_upload_rows")
       .insert(rowResults);
 
     if (rowsErr) {
-      console.error('[payroll/inbound] insert rows error', rowsErr.message);
+      console.error("[payroll/inbound] insert rows error", rowsErr.message);
     }
   }
 
-
-  const validRows = rowResults.filter((r) => r.row_status !== 'invalid');
+  const validRows = rowResults.filter((r) => r.row_status !== "invalid");
   const totalGross = validRows.reduce((s, r) => s + r.gross_salary, 0);
-  const totalNet   = validRows.reduce((s, r) => s + r.net_salary, 0);
-  const totalDed   = validRows.reduce((s, r) => s + r.deductions, 0);
+  const totalNet = validRows.reduce((s, r) => s + r.net_salary, 0);
+  const totalDed = validRows.reduce((s, r) => s + r.deductions, 0);
 
-  const finalStatus: 'processed' | 'failed' | 'partial' =
-    failedCount === rows.length ? 'failed' : failedCount > 0 ? 'partial' : 'processed';
-
+  const finalStatus: "processed" | "failed" | "partial" =
+    failedCount === rows.length
+      ? "failed"
+      : failedCount > 0
+        ? "partial"
+        : "processed";
 
   await supabase
-    .from('payroll_uploads')
+    .from("payroll_uploads")
     .update({
-      status:           finalStatus,
-      processed_rows:   processedCount,
-      failed_rows:      failedCount,
-      total_gross:      totalGross,
-      total_net:        totalNet,
+      status: finalStatus,
+      processed_rows: processedCount,
+      failed_rows: failedCount,
+      total_gross: totalGross,
+      total_net: totalNet,
       total_deductions: totalDed,
-      error_summary:    errorSummary,
-      warning_summary:  warningSummary,
-      processed_at:     new Date().toISOString(),
+      error_summary: errorSummary,
+      warning_summary: warningSummary,
+      processed_at: new Date().toISOString(),
     })
-    .eq('id', uploadId);
+    .eq("id", uploadId);
 
   const durationMs = Date.now() - syncStart;
   const syncStatus: SyncStatus =
-    finalStatus === 'processed' ? 'success' : finalStatus === 'partial' ? 'partial' : 'failed';
+    finalStatus === "processed"
+      ? "success"
+      : finalStatus === "partial"
+        ? "partial"
+        : "failed";
 
   const { data: syncLogRow, error: logErr } = await supabase
-    .from('payroll_sync_logs')
+    .from("payroll_sync_logs")
     .insert({
-      integration_id:   intg.id,
-      employer_id:      employerId,
+      integration_id: intg.id,
+      employer_id: employerId,
       employer_live_id: employerLiveId,
-      triggered_by:     'webhook',
-      status:           syncStatus,
+      triggered_by: "webhook",
+      status: syncStatus,
       records_received: rows.length,
-      records_valid:    processedCount,
-      records_failed:   failedCount,
-      upload_id:        uploadId,
-      error_message:    failedCount > 0 ? `${failedCount} row(s) failed validation` : null,
-      duration_ms:      durationMs,
+      records_valid: processedCount,
+      records_failed: failedCount,
+      upload_id: uploadId,
+      error_message:
+        failedCount > 0 ? `${failedCount} row(s) failed validation` : null,
+      duration_ms: durationMs,
     })
-    .select('id')
+    .select("id")
     .single();
 
   if (logErr) {
-    console.error('[payroll/inbound] sync log insert error', logErr.message);
+    console.error("[payroll/inbound] sync log insert error", logErr.message);
   }
 
   await supabase
-    .from('payroll_integrations')
+    .from("payroll_integrations")
     .update({
-      last_sync_at:     new Date().toISOString(),
+      last_sync_at: new Date().toISOString(),
       last_sync_status: syncStatus,
-      last_error:       failedCount > 0 ? `${failedCount} row(s) failed validation` : null,
-      status:           syncStatus === 'failed' ? 'error' : 'active',
+      last_error:
+        failedCount > 0 ? `${failedCount} row(s) failed validation` : null,
+      status: syncStatus === "failed" ? "error" : "active",
     })
-    .eq('id', intg.id);
+    .eq("id", intg.id);
 
   // Propagate gross salary to employee records for valid rows — this is what
   // makes a webhook push actually "real-time": without it, the payroll data
@@ -419,32 +581,52 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // loop) never reflected them, so a row could show as "processed" in the UI
   // while its actual salary update silently failed. Collected below and
   // written back after the loop so they're visible wherever the batch result is.
-  const propagationFailures: { row: number; field: string; message: string }[] = [];
+  const propagationFailures: { row: number; field: string; message: string }[] =
+    [];
 
   for (const row of validRows) {
     if (!row.employee_code || row.gross_salary <= 0) continue;
-    const salaryPatch = { monthly_salary: row.gross_salary, updated_at: new Date().toISOString() };
+    const salaryPatch = {
+      monthly_salary: row.gross_salary,
+      updated_at: new Date().toISOString(),
+    };
 
     const [empResult, onbResult] = await Promise.all([
       supabase
-        .from('employees')
+        .from("employees")
         .update(salaryPatch)
-        .eq('employee_code', row.employee_code)
-        .eq('employer_id', employerLiveId),
+        .eq("employee_code", row.employee_code)
+        .eq("employer_id", employerLiveId),
       supabase
-        .from('employee_onboarding')
+        .from("employee_onboarding")
         .update(salaryPatch)
-        .eq('employee_code', row.employee_code)
-        .eq('employer_id', employerId),
+        .eq("employee_code", row.employee_code)
+        .eq("employer_id", employerId),
     ]);
 
     if (empResult.error) {
-      console.error('[payroll/inbound] salary update employees error', row.employee_code, empResult.error.message);
-      propagationFailures.push({ row: row.source_row, field: 'monthly_salary', message: `employees update failed: ${empResult.error.message}` });
+      console.error(
+        "[payroll/inbound] salary update employees error",
+        row.employee_code,
+        empResult.error.message,
+      );
+      propagationFailures.push({
+        row: row.source_row,
+        field: "monthly_salary",
+        message: `employees update failed: ${empResult.error.message}`,
+      });
     }
     if (onbResult.error) {
-      console.error('[payroll/inbound] salary update employee_onboarding error', row.employee_code, onbResult.error.message);
-      propagationFailures.push({ row: row.source_row, field: 'monthly_salary', message: `employee_onboarding update failed: ${onbResult.error.message}` });
+      console.error(
+        "[payroll/inbound] salary update employee_onboarding error",
+        row.employee_code,
+        onbResult.error.message,
+      );
+      propagationFailures.push({
+        row: row.source_row,
+        field: "monthly_salary",
+        message: `employee_onboarding update failed: ${onbResult.error.message}`,
+      });
     }
   }
 
@@ -452,36 +634,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const combinedWarnings = [...warningSummary, ...propagationFailures];
 
     await supabase
-      .from('payroll_uploads')
+      .from("payroll_uploads")
       .update({ warning_summary: combinedWarnings })
-      .eq('id', uploadId);
+      .eq("id", uploadId);
 
     if (syncLogRow?.id) {
       await supabase
-        .from('payroll_sync_logs')
+        .from("payroll_sync_logs")
         .update({
           error_message: `${propagationFailures.length} row(s) failed salary propagation after validation`,
-          status: 'partial',
+          status: "partial",
         })
-        .eq('id', syncLogRow.id);
+        .eq("id", syncLogRow.id);
     }
   }
 
   return NextResponse.json(
     {
-      message:          finalStatus === 'processed' ? 'Payroll data received and processed.' : `Payroll data received with ${failedCount} failed row(s).`,
-      upload_id:        uploadId,
-      status:           finalStatus,
+      message:
+        finalStatus === "processed"
+          ? "Payroll data received and processed."
+          : `Payroll data received with ${failedCount} failed row(s).`,
+      upload_id: uploadId,
+      status: finalStatus,
       month,
-      total_rows:       rows.length,
-      processed_rows:   processedCount,
-      failed_rows:      failedCount,
-      duration_ms:      durationMs,
+      total_rows: rows.length,
+      processed_rows: processedCount,
+      failed_rows: failedCount,
+      duration_ms: durationMs,
       ...(errorSummary.length > 0 && { error_summary: errorSummary }),
       ...(warningSummary.length > 0 && { warning_summary: warningSummary }),
       totals: {
-        gross:      totalGross,
-        net:        totalNet,
+        gross: totalGross,
+        net: totalNet,
         deductions: totalDed,
       },
     },

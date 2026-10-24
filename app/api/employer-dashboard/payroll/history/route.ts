@@ -1,27 +1,36 @@
-import { createRouteHandlerClient as createClient } from '@/utils/supabase/server';
-import { NextResponse } from 'next/server';
-import { dbErrorResponse } from '@/lib/api-errors';
+import { createRouteHandlerClient as createClient } from "@/utils/supabase/server";
+import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-errors";
 
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 
 export async function GET() {
   try {
     const supabase = await createClient();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { data: employer, error: employerError } = await supabase
-      .from('employers')
-      .select('id, onboarding_id')
-      .eq('user_id', user.id)
+      .from("employers")
+      .select("id, onboarding_id")
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (employerError) {
-      console.error('[payroll/history] employer lookup error', employerError.message);
-      return NextResponse.json({ error: 'Failed to resolve employer' }, { status: 500 });
+      console.error(
+        "[payroll/history] employer lookup error",
+        employerError.message,
+      );
+      return NextResponse.json(
+        { error: "Failed to resolve employer" },
+        { status: 500 },
+      );
     }
 
     if (!employer) {
@@ -29,9 +38,10 @@ export async function GET() {
     }
 
     const { data: uploads, error } = await supabase
-      .from('payroll_uploads')
-      .select(`
-        id, month, source, status,
+      .from("payroll_uploads")
+      .select(
+        `
+        id, month, source, status, ewa_reviewed_at,
         file_name, file_size_bytes,
         total_rows, processed_rows, failed_rows,
         total_gross, total_net, total_deductions,
@@ -39,21 +49,26 @@ export async function GET() {
         integration_id,
         uploaded_at, processed_at, created_at,
         employees:payroll_upload_rows (
-          employee_code, days_worked, gross_salary, deductions, net_salary,
-          row_status, row_errors, row_warnings, source_row
+          employee_code, days_worked, gross_salary, uploaded_deductions,
+          ewa_deduction, deductions, net_salary, row_status, row_errors,
+          row_warnings, source_row
         )
-      `)
-      .eq('employer_live_id', employer.id)
-      .order('month', { ascending: false })
+      `,
+      )
+      .eq("employer_live_id", employer.id)
+      .order("month", { ascending: false })
       .limit(24); // 2 years of monthly uploads
 
     if (error) {
-      console.error('[payroll/history] fetch uploads error', error.message);
-      return NextResponse.json({ error: 'Failed to fetch payroll history' }, { status: 500 });
+      console.error("[payroll/history] fetch uploads error", error.message);
+      return NextResponse.json(
+        { error: "Failed to fetch payroll history" },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json(uploads ?? []);
   } catch (err: unknown) {
-    return dbErrorResponse('employer-dashboard/payroll/history', err);
+    return dbErrorResponse("employer-dashboard/payroll/history", err);
   }
 }
